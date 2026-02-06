@@ -1,5 +1,5 @@
 
-PROMPT = """Generate a fictional scientific research paper excerpt (academic publication) in the field of artificial intelligence, consisting of 1 coherent paragraph.
+PROMPT = """Generate a fictional scientific research paper excerpt (academic publication) in the field of artificial intelligence, consisting of 3 to 4 coherent paragraphs.
 
 Write in academic style.
 
@@ -36,7 +36,7 @@ Provide the complete result in the following JSON format:
 
 IMPORTANT: Return ONLY the JSON, no additional text before or after."""
 
-PROMPT_REAL = """Based on real scientific research papers in artificial intelligence, generate a realistic research paper excerpt, consisting of 1 coherent paragraph.
+PROMPT_REAL = """Based on real scientific research papers in artificial intelligence, generate a realistic research paper excerpt, consisting of 3 to 4 coherent paragraphs.
 
 Use your knowledge of real AI papers to ensure realistic and coherent information (model architectures, parameter counts, hardware, training times, etc.).
 

@@ -3,7 +3,7 @@ import os
 import re
 import time
 from datetime import datetime
-from openai import OpenAI
+from groq import Groq
 from dotenv import load_dotenv
 
 from config import PROMPT, MODELS_GROQ, NUM_ARTICLES, OUTPUT_DIR
@@ -12,14 +12,20 @@ load_dotenv()
 
 
 def get_client():
-    return OpenAI(
-        api_key=os.getenv("GROQ_API_KEY"),
-        base_url="https://api.groq.com/openai/v1"
-    )
+    return Groq()
 
 
 def clean_json_string(content: str) -> str:
+    if not content:
+        return ""
+
     content = content.strip()
+
+    # Supprimer les balises <think>...</think> (utilisées par certains modèles)
+    content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
+    content = content.strip()
+
+    # Supprimer les blocs de code markdown
     if content.startswith("```json"):
         content = content[7:]
     if content.startswith("```"):
@@ -28,10 +34,10 @@ def clean_json_string(content: str) -> str:
         content = content[:-3]
     content = content.strip()
 
-    content = content.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
-    content = re.sub(r'\\n\s*"', '\n"', content)
-    content = re.sub(r'\\n\s*}', '\n}', content)
-    content = re.sub(r'{\s*\\n', '{\n', content)
+    # Extraire le JSON s'il est entouré de texte
+    json_match = re.search(r'\{[\s\S]*\}', content)
+    if json_match:
+        content = json_match.group()
 
     return content
 
@@ -39,14 +45,24 @@ def clean_json_string(content: str) -> str:
 def generate_article(client, model_id: str) -> dict:
     response = client.chat.completions.create(
         model=model_id,
-        max_tokens=2000,
-        messages=[{"role": "user", "content": PROMPT}]
+        messages=[{"role": "user", "content": PROMPT}],
+        temperature=0.6,
+        max_completion_tokens=4096,
+        top_p=0.95,
     )
 
-    content = response.choices[0].message.content
-    content = clean_json_string(content)
+    raw_content = response.choices[0].message.content
+    content = clean_json_string(raw_content)
 
-    return json.loads(content)
+    if not content:
+        print(f"\n[DEBUG] Réponse brute vide ou invalide: {raw_content[:500] if raw_content else 'None'}")
+        raise ValueError("Réponse vide après nettoyage")
+
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError as e:
+        print(f"\n[DEBUG] Contenu nettoyé: {content[:500]}")
+        raise e
 
 
 def main():
