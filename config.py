@@ -1,3 +1,6 @@
+with open('prompt.md', 'r') as f:
+    PROMPT_IMPROVED  = f.read()
+
 
 PROMPT = """Generate a fictional scientific research paper excerpt (academic publication) in the field of artificial intelligence, consisting of 3 to 4 coherent paragraphs.
 
@@ -84,12 +87,18 @@ MODELS_GROQ = {
     "qwen": "qwen/qwen3-32b",
 }
 
+MODELS_GEMINI = {
+    "gemini-2.5-flash": "gemini-2.5-flash",
+    "gemini-3-flash-preview": "gemini-3-flash-preview",
+}
+
 MODELS_OLLAMA = {
     "deepseek": "deepseek-r1:14b",
     "llama-local": "llama3.2",
     "qwen-local": "qwen2.5:14b",
 }
 
-NUM_ARTICLES = 10
+NUM_ARTICLES = 100
 
 OUTPUT_DIR = "output"
+OUTPUT_DIR_IMPROVED = "output_improved"
