@@ -4,6 +4,7 @@ import re
 import random
 from datetime import datetime 
 
+from config import OUTPUT_DIR_IMPROVED
 ALL_FIELDS = ["model_name", "parameter_count", "gpu_count",
              "hardware", "training_duration", "country", "year"]
 
@@ -99,3 +100,37 @@ def save_articles(articles: list, model_name:str, output_dir: str):
         json.dump(articles, f, ensure_ascii=False, indent=2)
     
     print(f"Saved {len(articles)} articles for model '{model_name}' in '{model_dir}'.")
+
+def clean_article_text(text: str) -> str:
+    text = text.replace('\n', ' ').replace("\t", ' ')
+    text = re.sub(r' {2,}', ' ', text) 
+    return text.strip()
+
+def merge_articles(output_dir: str, data_dir:str):
+    os.makedirs(output_dir, exist_ok=True)
+    all_articles = []
+
+    for model_name in os.listdir(data_dir):
+        json_path = os.path.join(data_dir, model_name, 'articles.json')
+        if os.path.exists(json_path):
+            with open(json_path, 'r', encoding='utf-8') as f:
+                articles = json.load(f)
+
+                for article in articles:
+                    article['article'] = clean_article_text(article.get('article', ''))
+                all_articles.extend(articles)
+    
+    out_path = os.path.join(output_dir, 'all_articles.json')
+    with open(out_path, 'w', encoding='utf-8') as f:
+        json.dump(all_articles, f, ensure_ascii=False, indent=2)
+
+    print(f"Merged {len(all_articles)} articles into '{out_path}'.")
+    return all_articles
+
+
+def main():
+    merge_articles('data', OUTPUT_DIR_IMPROVED)
+
+
+if __name__ == "__main__":
+    main()
