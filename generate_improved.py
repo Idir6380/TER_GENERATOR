@@ -15,6 +15,7 @@ from config import (
     MODELS_ANTHROPIC,
     MODELS_GROQ,
     MODELS_GEMINI,
+    MODELS_OLLAMA,
     NUM_ARTICLES,
     OUTPUT_DIR_IMPROVED, 
 )
@@ -22,6 +23,7 @@ from config import (
 from utils import parse_response, save_articles, build_prompt, validate_omissions
 
 load_dotenv()
+Ollama_client= OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
 
 def generate_anthropic(client, model_id: str, prompt: str) -> dict:
 
@@ -63,6 +65,20 @@ def generate_gemini(client, model_id: str, prompt: str) -> dict:
         generation_config=genai.types.GenerationConfig(temperature=0.8)
         )
     return parse_response(response.text)
+
+def generate_ollama(client, model_id: str, prompt: str) -> dict:
+    response = client.chat.completions.create(
+        model=model_id,
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0.8
+    )
+
+    return parse_response(response.choices[0].message.content)
 
 #==============================================================================
 def run_generation(provider_name, client, models, generate_fn):
@@ -114,12 +130,13 @@ def main():
     genai.configure(api_key=os.environ["GEMINI_API"])
 
     tasks = [
-        ('anthropic', Anthropic(), MODELS_ANTHROPIC, generate_anthropic),
-        ('groq', Groq(), MODELS_GROQ, generate_groq),
-        ('gemini', None, MODELS_GEMINI, generate_gemini),
+        #('anthropic', Anthropic(), MODELS_ANTHROPIC, generate_anthropic),
+        #('groq', Groq(), MODELS_GROQ, generate_groq),
+        #('gemini', None, MODELS_GEMINI, generate_gemini),
+        ('ollama', Ollama_client, MODELS_OLLAMA, generate_ollama)
     ]
 
-    with ThreadPoolExecutor(max_workers=3) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         futures = []
         for provider, client, models, fn in tasks:
             futures.append(executor.submit(run_generation, provider, client, models, fn))
@@ -133,3 +150,10 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+"""
+- Continuer a generer des articles 
+- Probleme d'evaluation (à dans un oremmier temps en cinsiderant ce que fait thibault )
+- Green algorithme 
+"""

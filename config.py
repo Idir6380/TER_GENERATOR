@@ -93,9 +93,9 @@ MODELS_GEMINI = {
 }
 
 MODELS_OLLAMA = {
-    "deepseek": "deepseek-r1:14b",
-    "llama-local": "llama3.2",
-    "qwen-local": "qwen2.5:14b",
+    "gemma3": "gemma3:4b",
+    "qwen3": "qwen3:8b",
+    "mistral": "mistral:7b"
 }
 
 NUM_ARTICLES = 100
