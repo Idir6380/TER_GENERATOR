@@ -69,12 +69,25 @@ def labeliser(list_paragraphe):
 def read_file_train(namefile):
     with open(namefile, 'r', encoding='utf-8') as fichier:
         datas = json.load(fichier)
-    return datas
+    n= len(datas)
+    n_test,n_eval= int(n*0.1),int(n*0.2)
+    datas_train,datas_eval,datas_test=[],[],[]
+    j=0
+    while j < n:
+        if len(datas_train)< n-n_eval-n_test:
+            datas_train.append(datas[j])
+            j+=1
+        if len(datas_test)< n_test:
+            datas_test.append(datas[j])
+            j+=1
+        if len(datas_eval)< n_eval:
+            datas_eval.append(datas[j])
+            j+=1
+    return datas_train,datas_eval,datas_test
 
 
-def read_all(lits_file_name):
+def read_all(datas):
     fe,la= [],[]
-    datas = read_file_train(lits_file_name)
     for article in range (len(datas)):
         text= datas[article]["article"]
         text= decomposition_en_list_mot(text)
@@ -134,9 +147,13 @@ def read_file_test(url):
 
 def create_vocab(labels):
     list_global= []
+    i= 0
+    vocab={}
     for li in labels:
-        list_global+= li
-    vocab = Counter(list_global)
+        for mot in li:
+            if mot not in vocab:
+                vocab[mot]=i
+                i+=1
     inv_vocab = {i: mot for mot, i in vocab.items()}
     return vocab,inv_vocab
 
@@ -152,11 +169,14 @@ def split_train_eval_test(feature,label):
     return fe_train,fe_eval,fe_test,la_train,la_eval,la_eval
 
 def data(file_name,tokenizer,max_len,batch_size=32):
-    features,labels= read_all(file_name)
-    vocab,inv_vocab= create_vocab(labels)
-    labels_ids = [[vocab[l] for l in sent] for sent in labels]
-    fe_train,fe_eval,fe_test,la_train,la_eval,la_test= split_train_eval_test(features,labels_ids)
-    dataloader_train= dataloader(fe_train,la_train,tokenizer,max_len,batch_size=batch_size)
-    dataloader_eval= dataloader(fe_eval,la_eval,tokenizer,max_len,batch_size=10)
+    datas_train,datas_eval,datas_test= read_file_train(file_name)
+    fe_train,la_train = read_all(datas_train)
+    fe_eval,la_eval=read_all( datas_eval)
+    fe_test,la_test= read_all(datas_test)
+    vocab,inv_vocab= create_vocab(la_train)
+    labels_ids = [[vocab[l] for l in sent] for sent in la_train]
+    labels_ids_e = [[vocab[l] for l in sent] for sent in la_eval]
+    dataloader_train= dataloader(fe_train,labels_ids,tokenizer,max_len,batch_size=batch_size)
+    dataloader_eval= dataloader(fe_eval,labels_ids_e,tokenizer,max_len,batch_size=10)
     return dataloader_train,dataloader_eval,fe_test,la_test,vocab,inv_vocab
     
