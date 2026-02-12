@@ -3,12 +3,30 @@ import os
 import re 
 import random
 from datetime import datetime 
+import google.generativeai as genai
 
 from config import OUTPUT_DIR_IMPROVED
 ALL_FIELDS = ["model_name", "parameter_count", "gpu_count",
              "hardware", "training_duration", "country", "year"]
 
 
+class GeminiKeyRotator:
+    def __init__(self):
+        self.keys = [                                                         
+              os.environ["GEMINI_API"],
+              os.environ["GEMINI_API_2"],
+              os.environ["GEMINI_API_VANESSA"],
+          ]
+        self.index = 0
+        self.configure_initial()
+
+    def configure_initial(self):
+        genai.configure(api_key=self.keys[self.index])
+    
+    def rotate(self):
+        self.index = (self.index + 1) % len(self.keys)
+        genai.configure(api_key=self.keys[self.index])
+        
 
 def sample_omissions():
     n_ommit = random.choice(

@@ -20,10 +20,15 @@ from config import (
     OUTPUT_DIR_IMPROVED, 
 )
 
-from utils import parse_response, save_articles, build_prompt, validate_omissions
-
+from utils import (
+    parse_response,
+    save_articles, 
+    build_prompt, 
+    validate_omissions,
+    GeminiKeyRotator
+)
 load_dotenv()
-Ollama_client= OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+Ollama_client= OpenAI(base_url="https://openrouter.ai/api/v1", api_key=os.environ["OPENROUTER_API_KEY"])
 
 def generate_anthropic(client, model_id: str, prompt: str) -> dict:
 
@@ -88,7 +93,7 @@ def run_generation(provider_name, client, models, generate_fn):
         articles = []
         used_models = []
 
-        MAX_RETRIES = 3
+        MAX_RETRIES = 6
 
         pbar = tqdm(range(1, NUM_ARTICLES + 1), desc=f"{provider_name}/{model_name}", unit="article")
         for i in pbar:
@@ -113,10 +118,15 @@ def run_generation(provider_name, client, models, generate_fn):
                     }
                     articles.append(article_data)
                     pbar.set_postfix(status="ok")
+                    time.sleep(2)  
                     break
 
                 except Exception as e:
+                    if hasattr(client, 'rotate') and ("429" in str(e) or "ResourceExhausted" in str(e)):
+                        client.rotate()
+
                     pbar.set_postfix(status=f"error {attempt}/{MAX_RETRIES}")
+                    time.sleep(5)
                     if attempt == MAX_RETRIES:
                         tqdm.write(f"Skipping article {i}: {e}")
 
@@ -127,16 +137,15 @@ def main():
     print("Starting improved article generation...")
     print("="*60)
 
-    genai.configure(api_key=os.environ["GEMINI_API"])
-
+    rotator = GeminiKeyRotator()
     tasks = [
         #('anthropic', Anthropic(), MODELS_ANTHROPIC, generate_anthropic),
-        #('groq', Groq(), MODELS_GROQ, generate_groq),
-        #('gemini', None, MODELS_GEMINI, generate_gemini),
-        ('ollama', Ollama_client, MODELS_OLLAMA, generate_ollama)
+        ('groq', Groq(), MODELS_GROQ, generate_groq),
+        ('gemini', rotator, MODELS_GEMINI, generate_gemini),
+        #('ollama', Ollama_client, MODELS_OLLAMA, generate_ollama)
     ]
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         futures = []
         for provider, client, models, fn in tasks:
             futures.append(executor.submit(run_generation, provider, client, models, fn))

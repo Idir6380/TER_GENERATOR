@@ -83,7 +83,7 @@ MODELS_ANTHROPIC = {
 }
 
 MODELS_GROQ = {
-    "kimi": "moonshotai/kimi-k2-instruct-0905",
+    #"kimi": "moonshotai/kimi-k2-instruct-0905",
     "qwen": "qwen/qwen3-32b",
 }
 
@@ -93,9 +93,9 @@ MODELS_GEMINI = {
 }
 
 MODELS_OLLAMA = {
-    "gemma3": "gemma3:4b",
-    "qwen3": "qwen3:8b",
-    "mistral": "mistral:7b"
+      "qwen3": "qwen/qwen3-8b:free",
+      "gemma3": "google/gemma-3-4b-it:free",
+      "mistral": "mistralai/mistral-7b-instruct:free"
 }
 
 NUM_ARTICLES = 100
