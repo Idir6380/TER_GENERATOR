@@ -1,8 +1,13 @@
 import re 
-from transformers import AutoTokenizer
 import requests
 from io import BytesIO
 from PyPDF2 import PdfReader
+from collections import Counter
+import json
+from tokenizer import *
+from torch.utils.data import Dataset, DataLoader
+from transformers import  DataCollatorForTokenClassification
+from sklearn.model_selection import train_test_split
 
 def decomposition_en_phrase(text):
     text = re.sub(r'\s*,\s*', ' , ', text)
@@ -62,18 +67,16 @@ def labeliser(list_paragraphe):
 
 
 def read_file_train(namefile):
-    text=""
-    with open(namefile, "r", encoding="utf-8") as file:
-        for line in file:
-            if line is not None :
-                text += line+" " 
-    return text
+    with open(namefile, 'r', encoding='utf-8') as fichier:
+        datas = json.load(fichier)
+    return datas
 
 
 def read_all(lits_file_name):
     fe,la= [],[]
-    for name in lits_file_name:
-        text= read_file_train(name)
+    datas = read_file_train(lits_file_name)
+    for article in range (len(datas)):
+        text= datas[article]["article"]
         text= decomposition_en_list_mot(text)
         features, labels= labeliser(text)
         fe+=features
@@ -86,7 +89,6 @@ def read_pdf_from_url(url):
                       "AppleWebKit/537.36 (KHTML, like Gecko) "
                       "Chrome/112.0.0.0 Safari/537.36"
     }
-    
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
         raise Exception(f"Erreur lors du téléchargement : {response.status_code}")
@@ -100,17 +102,8 @@ def read_pdf_from_url(url):
     return text
 
 
-def read_train_all(lits_file_name):
-    fe,la= [],[]
-    for name in lits_file_name:
-        text= read_file_train(name)
-        text= decomposition_en_list_mot(text)
-        features, labels= labeliser(text)
-        fe+=features
-        la+= labels
-    return fe,la
-
 def remove_references(text):
+    # sourcery skip: inline-immediately-returned-variable
     # Cherche le début après 'Abstract'
     abstract_keywords = ["Abstract", "ABSTRACT"]
     start_idx = 0
@@ -118,8 +111,7 @@ def remove_references(text):
         idx = text.find(kw)
         if idx != -1:
             start_idx = idx + len(kw)
-            break  # on prend le premier trouvé
-
+            break 
     # Cherche la fin avant 'References' ou 'Bibliography'
     reference_keywords = ["References", "REFERENCES", "Bibliography", "BIBLIOGRAPHY"]
     end_idx = len(text)
@@ -138,3 +130,33 @@ def read_file_test(url):
     text= decomposition_en_list_mot(text)
     fe+= text
     return fe
+
+
+def create_vocab(labels):
+    list_global= []
+    for li in labels:
+        list_global+= li
+    vocab = Counter(list_global)
+    inv_vocab = {i: mot for mot, i in vocab.items()}
+    return vocab,inv_vocab
+
+
+def dataloader(feature,labels,tokenizer,max_len,batch_size=32):
+    dataset = NERDataset(feature, labels, tokenizer, max_len=max_len)
+    data_collator = DataCollatorForTokenClassification(tokenizer)
+    return DataLoader(dataset, batch_size=batch_size, collate_fn=data_collator)   
+
+def split_train_eval_test(feature,label):
+    fe_train, fe_test, la_train, la_test = train_test_split(feature,label,test_size=0.3,random_state=42)
+    fe_eval, fe_test, la_eval, la_test = train_test_split(fe_test,la_test,test_size=0.4,random_state=42)
+    return fe_train,fe_eval,fe_test,la_train,la_eval,la_eval
+
+def data(file_name,tokenizer,max_len,batch_size=32):
+    features,labels= read_all(file_name)
+    vocab,inv_vocab= create_vocab(labels)
+    labels_ids = [[vocab[l] for l in sent] for sent in labels]
+    fe_train,fe_eval,fe_test,la_train,la_eval,la_test= split_train_eval_test(features,labels_ids)
+    dataloader_train= dataloader(fe_train,la_train,tokenizer,max_len,batch_size=batch_size)
+    dataloader_eval= dataloader(fe_eval,la_eval,tokenizer,max_len,batch_size=10)
+    return dataloader_train,dataloader_eval,fe_test,la_test,vocab,inv_vocab
+    
