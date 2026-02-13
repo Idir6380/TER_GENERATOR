@@ -118,7 +118,7 @@ def run_generation(provider_name, client, models, generate_fn):
                     }
                     articles.append(article_data)
                     pbar.set_postfix(status="ok")
-                    time.sleep(2)  
+                    time.sleep(10)  
                     break
 
                 except Exception as e:
@@ -126,7 +126,7 @@ def run_generation(provider_name, client, models, generate_fn):
                         client.rotate()
 
                     pbar.set_postfix(status=f"error {attempt}/{MAX_RETRIES}")
-                    time.sleep(5)
+                    time.sleep(60)
                     if attempt == MAX_RETRIES:
                         tqdm.write(f"Skipping article {i}: {e}")
 
@@ -140,7 +140,7 @@ def main():
     rotator = GeminiKeyRotator()
     tasks = [
         #('anthropic', Anthropic(), MODELS_ANTHROPIC, generate_anthropic),
-        ('groq', Groq(), MODELS_GROQ, generate_groq),
+        #('groq', Groq(), MODELS_GROQ, generate_groq),
         ('gemini', rotator, MODELS_GEMINI, generate_gemini),
         #('ollama', Ollama_client, MODELS_OLLAMA, generate_ollama)
     ]
