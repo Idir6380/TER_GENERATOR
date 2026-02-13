@@ -93,7 +93,7 @@ def run_generation(provider_name, client, models, generate_fn):
         articles = []
         used_models = []
 
-        MAX_RETRIES = 6
+        MAX_RETRIES = 3
 
         pbar = tqdm(range(1, NUM_ARTICLES + 1), desc=f"{provider_name}/{model_name}", unit="article")
         for i in pbar:
@@ -118,7 +118,7 @@ def run_generation(provider_name, client, models, generate_fn):
                     }
                     articles.append(article_data)
                     pbar.set_postfix(status="ok")
-                    time.sleep(10)  
+                    time.sleep(2)  
                     break
 
                 except Exception as e:
@@ -126,7 +126,7 @@ def run_generation(provider_name, client, models, generate_fn):
                         client.rotate()
 
                     pbar.set_postfix(status=f"error {attempt}/{MAX_RETRIES}")
-                    time.sleep(60)
+                    time.sleep(10)
                     if attempt == MAX_RETRIES:
                         tqdm.write(f"Skipping article {i}: {e}")
 

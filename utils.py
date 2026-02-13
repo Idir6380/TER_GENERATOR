@@ -15,7 +15,11 @@ class GeminiKeyRotator:
         self.keys = [                                                         
               os.environ["GEMINI_API"],
               os.environ["GEMINI_API_2"],
+              os.environ["GEMINI_API_3"],
+              os.environ["GEMINI_API_4"],
+              os.environ["GEMINI_API_5"],
               os.environ["GEMINI_API_VANESSA"],
+
           ]
         self.index = 0
         self.configure_initial()
@@ -148,7 +152,6 @@ def merge_articles(output_dir: str, data_dir:str):
 
 def main():
     merge_articles('data', OUTPUT_DIR_IMPROVED)
-
 
 if __name__ == "__main__":
     main()
