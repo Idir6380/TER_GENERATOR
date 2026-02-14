@@ -85,13 +85,15 @@ def read_file_train(namefile):
             j+=1
     return datas_train,datas_eval,datas_test
 
-
+def decomposition_and_labelisation(data,id):
+    text= data[id]["article"]
+    text= decomposition_en_list_mot(text)
+    features, labels= labeliser(text)
+    return features, labels
 def read_all(datas):
     fe,la= [],[]
     for article in range (len(datas)):
-        text= datas[article]["article"]
-        text= decomposition_en_list_mot(text)
-        features, labels= labeliser(text)
+        features, labels=decomposition_and_labelisation(datas,article)
         fe+=features
         la+= labels
     return fe,la

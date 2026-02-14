@@ -4,6 +4,7 @@ import json
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+from time import time
 
 model_name="distilbert-base-cased"
 file_name = '/Users/vanessaguerrier/Downloads/M2_TER/data/all_articles.json'
@@ -70,12 +71,17 @@ def plot_(epoch, loss_train,loss_eval):
 
 tokeniser = AutoTokenizer.from_pretrained(model_name)
 dataloader_train,dataloader_eval,fe_test,la_test,vocab,inv_vocab=data(file_name,tokeniser,300,batch_size=32)
-print(vocab)
+
 epoch= 10
 model= initialisation(vocab,inv_vocab,model_name)
-losses_train,losses_eval= fit(model,dataloader_train,dataloader_eval,epoch)
-plot_(epoch,losses_train,losses_eval)
+debut= time()
 
-all_model= {"model":model.state_dict(),"inv_vocab_t":inv_vocab, "vocab_t":vocab,"epoch":epoch,"model_name":model_name,"tokeniser":tokeniser } 
+losses_train,losses_eval= fit(model,dataloader_train,dataloader_eval,epoch)
+print(f"fin d'entrainement {(time()-debut)/60} minutes")
+
+
+all_model= {"model":model.state_dict(),"inv_vocab_t":inv_vocab, "vocab_t":vocab,"epoch":epoch,"model_name":model_name,"tokeniser":tokeniser,"test":{"feature":fe_test,"label":la_test} } 
 torch.save(all_model,"model.pt")
+
+plot_(epoch,losses_train,losses_eval)
 

@@ -15,8 +15,6 @@ class NERDataset(Dataset):
     def __getitem__(self, idx):
         words = self.sentences[idx]
         labels = self.labels[idx]
-        
-        # Tokenization avec split en mots
         tokenized_inputs = self.tokenizer(
             words,
             is_split_into_words=True,
