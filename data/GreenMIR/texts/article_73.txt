@@ -1,0 +1,807 @@
+MIDINET: A CONVOLUTIONAL GENERATIVE ADVERSARIAL
+NETWORK FOR SYMBOLIC-DOMAIN MUSIC GENERATION
+Li-Chia Yang, Szu-Yu Chou, Yi-Hsuan Yang
+Research Center for IT innovation, Academia Sinica, Taipei, Taiwan
+{richard40148, fearofchou, yang}@citi.sinica.edu.tw
+ABSTRACT
+Most existing neural network models for music genera-
+tion use recurrent neural networks. However, the recent
+WaveNet model proposed by DeepMind shows that convo-
+lutional neural networks (CNNs) can also generate realis-
+tic musical waveforms in the audio domain. Following this
+light, we investigate using CNNs for generating melody (a
+series of MIDI notes) one bar after another in the symbolic
+domain. In addition to the generator, we use a discrimina-
+tor to learn the distributions of melodies, making it a gen-
+erative adversarial network (GAN). Moreover, we propose
+a novel conditional mechanism to exploit available prior
+knowledge, so that the model can generate melodies either
+from scratch, by following a chord sequence, or by con-
+ditioning on the melody of previous bars (e.g. a priming
+melody), among other possibilities. The resulting model,
+named MidiNet, can be expanded to generate music with
+multiple MIDI channels (i.e. tracks). We conduct a user
+study to compare the melody of eight-bar long generated
+by MidiNet and by Google’s MelodyRNN models, each
+time using the same priming melody. Result shows that
+MidiNet performs comparably with MelodyRNN models
+in being realistic and pleasant to listen to, yet MidiNet’s
+melodies are reported to be much more interesting.
+1. INTRODUCTION
+Algorithmic composition is not a new idea. The ﬁrst com-
+putational model for algorithmic composition dates back
+to 1959 [16], according to the survey of Papadopoulos and
+Wiggins [23]. People have also used (shallow) neural net-
+works for music generation since 1989 [30]. It was, how-
+ever, only until recent years when deep neural networks
+demonstrated their ability in learning from big data col-
+lections that generating music by neural networks became
+a trending topic. Lots of deep neural network models for
+music generation have been proposed just over the past two
+years [4,7,10,15,18,19,21,22,26,28,31,33].
+The majority of existing neural network models for mu-
+sic generation use recurrent neural networks (RNNs) and
+c⃝Li-Chia Yang, Szu-Yu Chou, Yi-Hsuan Yang. Licensed
+under a Creative Commons Attribution 4.0 International License (CC
+BY 4.0).
+Attribution:
+Li-Chia Yang, Szu-Yu Chou, Yi-Hsuan
+Yang. “MidiNet: A Convolutional Generative Adversarial Network for
+Symbolic-domain Music Generation”, 18th International Society for Mu-
+sic Information Retrieval Conference, Suzhou, China, 2017.
+their variants, presumably for music generation is inher-
+ently about generating sequences [2,3,9,14]. These mod-
+els differ in the model assumptions and the way musical
+events are represented and predicted, but they all use in-
+formation from the previous events to condition the gen-
+eration of the present one. Famous examples include the
+MelodyRNN models [33] for symbolic-domain generation
+(i.e. generating MIDIs) and the SampleRNN model [19]
+for audio-domain generation (i.e. generating WAVs).
+Relatively fewer attempts have been made to use deep
+convolutional neural networks (CNNs) for music genera-
+tion. A notable exception is the WaveNet model [31] pro-
+posed recently for audio-domain generation. It generates
+one audio sample at a time, with the predictive distribution
+for each sample conditioned on previous samples through
+dilated causal convolutions [31]. WaveNet shows it possi-
+ble for CNNs to generate realistic music. This is encourag-
+ing, as CNNs are typically faster to train and more easily
+parallelizable than RNNs [32].
+Following this light, we investigate in this paper a novel
+CNN-based model for symbolic-domain generation, focus-
+ing on melody generation. 1 Instead of creating a melody
+sequence continuously, we propose to generate melodies
+one bar (measure) after another, in a successive manner.
+This allows us to employ convolutions on a 2-D matrix
+representing the presence of notes over different time steps
+in a bar. We can have such a score-like representation for
+each bar for either a real or a generated MIDI.
+Moreover, to emulate creativity [23] and encourage di-
+verse generation result, we use random noises as input to
+our generator CNN. The goal of the generator is to trans-
+form random noises into the aforementioned 2-D score-
+like representation, that “appears” to be from real MIDI.
+This transformation is achieved by a special convolution
+operator called transposed convolution [8]. Meanwhile, we
+learn a discriminator CNN that takes as input a 2-D score-
+like representation and predicts whether it is from a real or
+a generated MIDI, thereby informing the generator how to
+appear to be real. This amounts to a generative adversarial
+network (GAN) [11–13,24,27], which learns the generator
+and discriminator iteratively under the concept of minimax
+two-player game theory.
+This GAN alone does not take into account the tem-
+poral dependencies across different bars. To address this
+issue, we propose a novel conditional mechanism to use
+1 In general, a melody may be deﬁned as a succession of (monophonic)
+musical notes expressing a particular musical idea.
+324
+
+MelodyRNN
+Song from PI
+DeepBach
+C-RNN-GAN
+MidiNet
+WaveNet
+[33]
+[7]
+[15]
+[21]
+(this paper)
+[31]
+core model
+RNN
+RNN
+RNN
+RNN
+CNN
+CNN
+data type
+symbolic
+symbolic
+symbolic
+symbolic
+symbolic
+audio
+genre speciﬁcity
+—
+—
+Bach chorale
+—
+—
+—
+mandatory prior knowl-
+priming
+music scale &
+—
+—
+—
+priming
+edge
+melody
+melody proﬁle
+wave
+follow a priming melody
+√
+√
+√
+√
+follow a chord sequence
+√
+generate multi-track music
+√
+√
+√
+√
+use GAN
+√
+√
+use versatile conditions
+√
+open source code
+√
+√
+√
+Table 1. Comparison between recent neural network based music generation models
+music from the previous bars to condition the generation of
+the present bar. This is achieved by learning another CNN
+model, which we call the conditioner CNN, to incorporate
+information from previous bars to intermediate layers of
+the generator CNN. This way, our model can “look back”
+without a recurrent unit as used in RNNs. Like RNNs, our
+model can generate music of arbitrary number of bars.
+Because we use random noises as inputs to our gener-
+ator, our model can generate melodies from scratch, i.e.
+without any other prior information. However, due to the
+conditioner CNN, our model has the capacity to exploit
+whatever prior knowledge that is available and can be rep-
+resented as a matrix. For example, our model can generate
+music by following a chord progression, or by following a
+few starting notes (i.e. a priming melody). Given the same
+priming melody, our model can generate different results
+each time, again due to the random input.
+The proposed model can be extended to generate differ-
+ent types of music, by using different conditions. Based
+on an idea called feature matching [27], we propose a way
+to control the inﬂuence of such conditions on the genera-
+tion result. We can then control, for example, how much
+the current bar should sound like the previous bars. More-
+over, our CNNs can be easily extended to deal with tensors
+instead of matrices, to exploit multi-channel MIDIs and to
+generate music of multiple tracks or parts. We believe such
+a highly adaptive and generic model structure can be a use-
+ful alternative to RNN-based designs. We refer to this new
+model as the MidiNet.
+In our experiment, we conduct a user study to compare
+the melodies generated by MidiNet and MelodyRNN mod-
+els [33]. For fair comparison, we use the same priming
+melodies for them to generate melodies of eight-bar long
+(including the primers), without any other prior informa-
+tion. To demonstrate the ﬂexibility of MidiNet, we pro-
+vide the result of two additional settings: one uses addi-
+tionally chord progressions of eight-bar long to condition
+the generation, and the other uses a slightly different net-
+work architecture to generate more creative music. For re-
+producibility, the source code and pre-trained models of
+MidiNet are released online 2 .
+2 https://github.com/RichardYang40148/MidiNet
+2. RELATED WORK
+A large number of deep neural network models have been
+proposed lately for music generation. This includes mod-
+els for generating a melody sequence or audio waveforms
+by following a few priming notes [10,18,19,22,31,33], ac-
+companying a melody sequence with music of other parts
+[15], or playing a duet with human [4,26].
+Table 1 compares MidiNet with a number of major re-
+lated models. We brieﬂy describe each of them below.
+The MelodyRNN models [33] proposed by the Magenta
+Project from the Google Brain team are possibly among the
+most famous examples of symbolic-domain music gener-
+ation by neural networks. In total three RNN-based mod-
+els were proposed, including two variants that aim to learn
+longer-term structures, the lookback RNN and the atten-
+tion RNN [33]. Source code and pre-trained models for
+the three models are all publicly available. 3 As the main
+function of MelodyRNN is to generate a melody sequence
+from a priming melody, we use the MelodyRNN models as
+the baseline in our evaluation.
+Song from PI [7] is a hierarchical RNN model that uses
+a hierarchy of recurrent layers to generate not only the
+melody but also the drums and chords, leading to a multi-
+track pop song. This model nicely demonstrates the ability
+of RNNs in generating multiple sequences simultaneously.
+However, it requires prior knowledge of the musical scale
+and some proﬁles of the melody to be generated [7], which
+is not needed in many other models, including MidiNet.
+DeepBach [15], proposed by Sony CSL, is speciﬁcally
+designed for composing polyphonic four-part chorale mu-
+sic in the style of J. S. Bach. It is an RNN-based model that
+allows enforcing user-deﬁned constraints such as rhythm,
+notes, parts, chords and cadences.
+C-RNN-GAN [21] is to date the only existing model
+that uses GAN for music generation, to our best knowl-
+edge.
+It also takes random noises as input as MidiNet
+does, to generate diverse melodies. However, it lacks a
+conditional mechanism [17, 20, 25] to generate music by
+following either a priming melody or a chord sequence.
+3 https://github.com/tensorflow/magenta/tree/
+master/magenta/models/melody_rnn (accessed 2017-4-26)
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+325
+
+Figure 1. System diagram of the proposed MidiNet model for symbolic-domain music generation.
+WaveNet [10, 31] is a CNN-based model proposed by
+DeepMind for creating raw waveforms of speech and mu-
+sic. The advantage of audio-domain generation is the pos-
+sibility of creating new sounds, but we choose to focus on
+symbolic-domain generation in this paper.
+3. METHODS
+A system diagram of MidiNet is shown in Figure 1. Below,
+we present the technical details of each major component.
+3.1 Symbolic Representation for Convolution
+Our model uses a symbolic representation of music in ﬁxed
+time length, by dividing a MIDI ﬁle into bars. The note
+events of a MIDI channel can be represented by an h-
+by-w real-valued matrix X, where h denotes the number
+of MIDI notes we consider, possibly including one more
+dimension for representing silence, and w represents the
+number of time steps we use in a bar. For melody gener-
+ation, there is at most one active note per time step. We
+use a binary matrix X ∈{0, 1}h×w if we omit the velocity
+(volume) of the note events. We use multiple matrices per
+bar if we want to generate multi-track music.
+In this representation, we may not be able to easily dis-
+tinguish between a long note and two short repeating notes
+(i.e. consecutive notes with the same pitch). Future exten-
+sions can be done to emphasize the note onsets.
+3.2 Generator CNN and Discriminator CNN
+The core of MidiNet is a modiﬁed deep convolutional gen-
+erative adversarial network (DCGAN) [24], which aims at
+learning a discriminator D to distinguish between real (au-
+thentic) and generated (artiﬁcial) data, and a generator G
+that “fools” the discriminator. As typical in GANs, the in-
+put of G is a vector of random noises z ∈Rl, whereas the
+output of G is an h-by-w matrix bX = G(z) that “appears”
+to be real to D. GANs learn G and D by solving:
+min
+G max
+D
+V (D, G) = EX∼pdata(X)[log(D(X))]+
+Ez∼pz(z)[log(1 −D(G(z)))] ,
+(1)
+where X ∼pdata(X) denotes the operation of sampling
+from real data, and z ∼pz(z) the sampling from a random
+distribution. As typical in GANs, we need to train G and
+D iteratively multiple times, to gradually make a better G.
+Our discriminator is a typical CNN with a few convolu-
+tion layers, followed by fully-connected layers. These lay-
+ers are optimized with a cross-entropy loss function, such
+that the output of D is close to 1 for real data (i.e. X) and
+0 for those generated (i.e. G(z)). We use a sigmoid neuron
+at the output layer of D so its output is in [0,1].
+The goal of the generator CNN, on the other hand, is
+to make the output of D close to 1 for the generated data.
+For generation, it has to transform a vector z into a matrix
+bX. This is achieved by using a few fully connected layers
+ﬁrst, and then a few transposed convolution layers [8] that
+“upsamples” smaller vectors/matrices into larger ones.
+Owing to the nature of minimax games, the training
+of GANs is subject to issues of instability and mode col-
+lapsing [12]. Among the various possible techniques to
+improve the training of GANs [1, 5, 27], we employ the
+so-called feature matching and one-sided label smooth-
+ing [27] in our model. The idea of feature matching is
+to add additional L2 regularizers to Eq. 1, such that the
+distributions of real and generated data are enforced to be
+close. Speciﬁcally, we add the following two terms when
+we learn G:
+λ1∥E X −E G(z)∥2
+2 + λ2∥E f(X) −E f(G(z))∥2
+2 ,
+(2)
+where f denotes the ﬁrst convolution layer of the discrim-
+inator, and λ1, λ2 are parameters to be set empirically.
+3.3 Conditioner CNN
+In GAN-based image generation, people often use a vec-
+tor to encode available prior knowledge that can be used
+to condition the generation. This is achieved by reshaping
+the vector and then adding it to different layers of G and
+D, to provide additional input [20]. Assuming that the con-
+ditioning vector has length n, to add it to an intermediate
+layer of shape a-by-b we can duplicate the values ab times
+326
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+
+to get a tensor of shape a-by-b-by-n, and then concatenate
+it with the intermediate layer in the feature map axis. This
+is illustrated by the light orange blocks in Figure 1. We call
+such a conditional vector 1-D conditions.
+As the generation result of our GAN is an h-by-w ma-
+trix of notes and time steps, it is convenient if we can per-
+form conditioning directly on each entry of the matrix. For
+example, the melody of a previous bar can be represented
+as another h-by-w matrix and used to condition the genera-
+tion of the present bar. We can have multiple such matrices
+to learn from multiple previous bars. We can directly add
+such a conditional matrix to the input layer of D to inﬂu-
+ence all the subsequent layers. However, to exploit such
+2-D conditions in G, we need a mechanism to reshape the
+conditional matrix to smaller vectors of different shapes, to
+include them to different intermediate layers of G.
+We propose to achieve this by using a conditioner CNN
+that can be viewed as a reverse of the generator CNN. As
+the blue blocks in Figure 1 illustrates, the conditioner CNN
+uses a few convolution layers to process the input h-by-w
+conditional matrix. The conditioner and generator CNNs
+use exactly the same ﬁlter shapes in their convolution lay-
+ers, so that the outputs of their convolution layers have
+“compatible” shapes. In this way, we can concatenate the
+output of a convolution layer of the conditioner CNN to
+the input of a corresponding transposed convolution layer
+of the generator CNN, to inﬂuence the generation process.
+In the training stage, the conditioner and generator CNNs
+are trained simultaneously, by sharing the same gradients.
+3.4 Tunning for Creativity
+We propose two methods to control the trade-off between
+creativity and discipline of MidiNet. The ﬁrst method is to
+manipulate the effect of the conditions by using them only
+in part of the intermediate transposed convolution layers
+of G, to give G more freedom from the imposed condi-
+tions. The second method capitalizes the effect of the fea-
+ture matching technique [27]: we can increase the values
+of λ1 and λ2 to make the generated music sounds closer to
+existing music (i.e. those observed in the training set).
+4. IMPLEMENTATION
+4.1 Dataset
+As the major task considered in this paper is melody gen-
+eration, for training MidiNet we need a MIDI dataset that
+clearly speciﬁes per ﬁle which channel corresponds to the
+melody.
+To this end, we crawled a collection of 1,022
+MIDI tabs of pop music from TheoryTab, 4 which provides
+exactly two channels per tab, one for melody and the other
+for the underlying chord progression. With this dataset, we
+can implement at least two versions of MidiNets: one that
+learns from only the melody channel for fair comparison
+with MelodyRNN [33], which does not use chords, and
+the other that additionally uses chords to condition melody
+generation, to test the capacity of MidiNet.
+4 https://www.hooktheory.com/theorytab
+dimensions 1–12
+13
+major
+C, C#, D, D#, E, F, F#, G, G#, A, A#, B
+0
+minor
+A, A#, B, C, C#, D, D#, E, F, F#, G, G#
+1
+Table 2. 13-dimensional chord representation
+For simplicity, we ﬁltered out MIDI tabs that contain
+chords other than the 24 basic chord triads (12 major and
+12 minor chords). Next, we segmented the remaining tabs
+every 8 bars, and then pre-processed the melody channel
+and the chord channel separately, as described below.
+For melodies, we ﬁxed the smallest note unit to be the
+sixteenth note, making w = 16. Speciﬁcally, we prolonged
+notes which have a pause note after them. If the ﬁrst note
+of a bar is a pause, we extended the second note to have
+it played while the bar begins. There are other exceptions
+such as triplets and shorter notes (e.g. 32nd notes), but
+we chose to exclude them in this implementation. More-
+over, for simplicity, we shifted all the melodies into two oc-
+taves, from C4 to B5, and neglected the velocity of the note
+events. Although our melodies would use only 24 possible
+notes after these preprocessing steps, we considered all the
+128 MIDI notes (i.e. from C0 to G10) in our symbolic
+representation. In doing so, we can detect model collaps-
+ing [12] more easily, by checking whether the model gen-
+erates notes outside these octaves. As there are no pauses
+in our data after preprocessing, we do not need a dimension
+for silence. Therefore, h = 128.
+For chords, instead of using a 24-dimensional one-hot
+vector, we found it more efﬁcient to use a chord representa-
+tion that has only 13 dimensions— the ﬁrst 12 dimensions
+for marking the key, and the last for the chord type (i.e.
+major or minor), as illustrated in Table 4.1. We pruned the
+chords such that there is only one chord per bar.
+After these preprocessing steps, we were left with 526
+MIDI tabs (i.e. 4,208 bars). 5 For data augmentation, we
+circularly shifted the melodies and chords to any of the 12
+keys in equal temperament, leading to a ﬁnal dataset of
+50,496 bars of melody and chord pairs for training.
+4.2 Network Speciﬁcation
+Our model was implemented in TensorFlow. For the gen-
+erator, we used as input random vectors of white Gaussian
+noise of length l = 100. Each random vector go through
+two fully-connected layers, with 1024 and 512 neurons re-
+spectively, before being reshaped into a 1-by-2 matrix. We
+then used four transposed convolution layers: the ﬁrst three
+use ﬁlters of shape 1-by-2 and two strides [8], and the last
+layer uses ﬁlters of shape 128-by-1 and one stride. Accord-
+ingly, our conditioner has four convolution layers, which
+use 128-by-1 ﬁlters for the ﬁrst layer, and 1-by-2 ﬁlters for
+the other three. For creating a monophonic note sequence,
+we added a layer to the end of G to turn off per time step
+all but the note with the highest activation.
+As typical in GANs, the discriminator is likely to over-
+power the generator, leading to the so-called vanishing gra-
+5 In contrast, MelodyRNN models [33] were trained on thousands of
+MIDI ﬁles, though the exact number is not yet disclosed.
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+327
+
+dient problem [1,12]. We adopted two strategies to weaken
+the discriminator. First, in each iteration, we updated the
+generator and conditioner twice, but the discriminator only
+once. Second, we used only two convolution layers (14 ﬁl-
+ters of shape 128-by-2, two strides, and 77 ﬁlters of shape
+1-by-4, two strides) and one fully-connected layer (1,024
+neurons) for the discriminator.
+We ﬁne-tuned the other parameters of MidiNet and con-
+sidered the following three variants in our experiment.
+4.2.1 Model 1: Melody generator, no chord condition
+This variant uses the melody of the previous bar to condi-
+tion the generation of the present bar. We used this 2-D
+condition in all the four transposed convolution layers of
+G. We set the number of ﬁlters in all the four transposed
+convolution layers of G and the four convolution layers of
+the conditioner CNN to 256. The feature matching param-
+eters λ1 and λ2 are set to 0.1 and 1, respectively. We did
+not use the 2-D condition for D, requiring it to distinguish
+between real and generated melodies from the present bar.
+In the training stage, we ﬁrstly added one empty bar
+before all the MIDI tabs, and then randomly sampled two
+consecutive bars from any tab. We used the former bar as
+an instance of real data (i.e. X) and the input to D, and the
+former bar (which is a real melody or all zeros) as a 2-D
+condition and the input to the conditioner CNN Once the
+model was trained, we used G to generate melodies of 8-
+bar long in the following way: the ﬁrst bar was composed
+of a real, priming melody sampled from our dataset; the
+generation of the second bar was made by G, conditioned
+by this real melody; starting from the third bar, G had to
+use the (artiﬁcial) melody it generated previously for the
+last bar as the 2-D condition. This process repeated until
+we had all the eight bars. 6
+4.2.2 Model 2: Melody generator with chord condition,
+stable mode
+This variant additionally uses the chord channel. Because
+our MIDI tabs use one chord per bar, we used the chord
+(a 13-dimensional vector; see Table 4.1) of the present bar
+as a 1-D condition for generating the melody for the same
+bar. We can say that our model is generating a melody
+sequence that ﬁts the given chord progression.
+To highlight the chord condition, we used the 2-D
+previous-bar condition only in the last transposed convo-
+lution layer of G. In contrast, we used the 1-D chord con-
+dition in all the four transposed convolution layer of G, as
+well as the input layer for D. Moreover, we set λ1 = 0.01,
+λ2 = 0.1, and used 128 ﬁlters in the transposed convolu-
+tion layers of G and only 16 ﬁlters in the convolution layers
+of the conditioner CNN. As a result, the melody generator
+is more chord-dominant and stable, for it would mostly fol-
+low the chord progression and seldom generate notes that
+violate the constraint imposed by the chords.
+6 It is also possible to use multiple previous bars to condition our gen-
+eration, but we leave this as a future extension.
+Figure 2. Result of a user study comparing MelodyRNN
+and MidiNet models, for people (top row) with musical
+backgrounds and (bottom) without musical backgrounds.
+The middle bars indicate the mean values. Please note that
+MidiNet Model 2 takes the chord condition as additional
+information.
+4.2.3 Model 3: Melody generator with chord condition,
+creative mode
+This variant realizes a slightly more creative melody gen-
+erator by placing the 2-D condition in every transposed
+convolution layer of G. In this way, G would sometimes
+violate the constraint imposed by the chords, to somehow
+adhere to the melody of the previous bar. Such violations
+sometimes sound unpleasant, but can be sometimes cre-
+ative. Unlike the previous two variants, we need to listen
+to several melodies generated by this model to handpick
+good ones. However, we believe such a model can still be
+useful for assisting and inspiring human composers.
+5. EXPERIMENTAL RESULT
+To evaluate the aesthetic quality of the generation result,
+a user study that involves human listeners is needed. We
+conducted a study with 21 participants. Ten of them un-
+derstand basic music theory and have the experience of be-
+ing an amateur musician, so we considered them as people
+with musical backgrounds, or professionals for short.
+We compared MidiNet with three MelodyRNN mod-
+els pre-trained and released by Google Magenta: the basic
+RNN, the lookback RNN, and the attention RNN [33]. We
+randomly picked 100 priming melodies from the training
+data 7 and asked the models create melodies of eight bars
+by following these primers. We considered two variants
+of MidiNet in the user study: model 1 (Section 4.2.1) for
+fair comparison with MelodyRNN, and model 2 (Section
+4.2.2) for probing the effects of using chords. Although the
+result of model 2 was generated by additionally following
+the chords, we did not playback the chord channel in the
+user study.
+We randomly selected the generation result of three out
+of the 100 priming melodies for each participant to listen
+to, leading to three sets of music. To avoid bias, we ran-
+domly shufﬂed the generation result by the ﬁve considered
+7 Even though these priming melodies are in the training data, MidiNet
+generates melodies that are quite different from the existing ones.
+328
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+
+(a) MidiNet model 1
+(b) MidiNet model 2
+(c) MidiNet model 3
+Figure 3. Example result of the melodies (of 8 bars) generated by different implementations of MidiNet.
+models, such that in each set the ordering of the ﬁve mod-
+els is different. The participants were asked to stay in a
+quiet room separately and used a headphone for music lis-
+tening through the Internet, one set at a time. We told them
+that some of the music “might be” real, and some might
+be generated by machine, although all of them were actu-
+ally automatically generated. They were asked to rate the
+generated melodies in terms of the following three metrics:
+how pleasing, how real, and how interesting, from 1 (low)
+to 5 (high) in a ﬁve-point Likert scale.
+The result of the user study is shown in Figure 2 as vi-
+olin plots, where the following observations can be made.
+First, among the MelodyRNN models, lookback RNN and
+attention RNN consistently outperform basic RNN across
+the three metrics and two user groups (i.e. people with and
+without musical backgrounds), which is expected accord-
+ing to the report of Magenta [33]. The mean values for
+lookback RNN are around 3 (medium) for being pleasant
+and realistic, and around 2.5 for being interesting.
+Second, MidiNet model 1, which uses only the previous
+bar condition, obtains similar ratings as the MelodyRNN
+models in being pleasant and realistic. This is encouraging,
+as MelodyRNN models can virtually exploit all the previ-
+ous bars in generation. This result demonstrates the effec-
+tiveness of the proposed conditioner CNN in learning tem-
+poral information. Furthermore, we note that the melodies
+generated by MidiNet model 1 were found much more in-
+teresting than those generated by MelodyRNN. The mean
+value in being interesting is around 4 for people with musi-
+cal backgrounds, and 3.4 for people without musical back-
+grounds. The violin plot indicates that the ratings of the
+professionals are mostly larger than 3.
+Third, MidiNet model 2, which further uses chords, ob-
+tains the highest mean ratings in being pleasant and realis-
+tic for both user groups. In terms of interestingness, it also
+outperforms the three MelodyRNN models, but is inferior
+to MidiNet model 1, especially for professionals.
+According to the feedback from the professionals, a
+melody sounds artiﬁcial if it lacks variety or violates prin-
+cipals in (Western) music theory. The result of MidiNet
+model 1 can sound artiﬁcial, for it relies on only the pre-
+vious bar and hence occasionally generates “unexpected”
+notes. In contrast, the chord channel provides a musical
+context that can be effectively used by MidiNet model 2
+through the conditional mechanism. However, occasional
+violation of music theory might be a source of interesting-
+ness and thereby creativity. For example, the professionals
+reported that the melodies generated by MelodyRNN mod-
+els are sometimes too repetitive, or “safe,” making them
+artiﬁcial and less interesting. It might be possible to fur-
+ther ﬁne tune our model to reach a better balance between
+being real and being interesting, but we believe our user
+study has shown the promise of MidiNet.
+Figure 3 shows some melodies generated by differ-
+ent implementations of MidiNet, which may provide in-
+sights into MidiNet’s performance. Figure 3(a) shows that
+MidiNet model 1 can effectively exploit the previous bar
+condition—most bars start with exactly the same ﬁrst two
+notes (as the priming bar) and they use similar notes in be-
+tween. Figure 3(b) shows the result of MidiNet model 2,
+which highlights the chord condition. Figure 3(c) shows
+that MidiNet can generate more creative result by mak-
+ing the chord condition and previous bar condition equally
+strong. We can see stronger connections between adjacent
+bars from the result of this MidiNet model 3. For more
+audio examples, please go to https://soundcloud.
+com/vgtsv6jf5fwq/sets.
+6. CONCLUSION
+We have presented MidiNet, a novel CNN-GAN based
+model for MIDI generation. It has a conditional mecha-
+nism to exploit versatile prior knowledge of music. It also
+has a ﬂexible architecture and can generate different types
+of music depending on input and speciﬁcations. Our eval-
+uation shows that it can be a powerful alternative to RNNs.
+For future work, we would extend MidiNet to generate
+multi-track music, to include velocity and pauses by train-
+ing the model by using richer and larger MIDI data. We
+are also interested in using ideas of reinforcement learn-
+ing [29] to incorporate principles of music theory [18], and
+to take input from music information retrieval models such
+as genre recognition [6] and emotion recognition [34].
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+329
+
+7. REFERENCES
+[1] Martin Arjovsky, Soumith Chintala, and L´eon Bottou.
+Wasserstein GAN. arXiv preprint arXiv:1701.07875,
+2017.
+[2] Jamshed J. Bharucha and Peter M. Todd. Modeling the
+perception of tonal structure with neural nets. Com-
+puter Music Journal, 13(4):44–53.
+[3] Nicolas Boulanger-Lewandowski, Yoshua Bengio, and
+Pascal Vincent. Modeling temporal dependencies in
+high-dimensional sequences:
+Application to poly-
+phonic music generation and transcription. arXiv
+preprint arXiv:1206.6392, 2012.
+[4] Mason Bretan, Gil Weinberg, and Larry Heck. A unit
+selection methodology for music generation using deep
+neural networks. arXiv preprint arXiv:1612.03789,
+2016.
+[5] Xi Chen, Yan Duan, Rein Houthooft, John Schul-
+man, Ilya Sutskever, and Pieter Abbeel. InfoGAN:
+Interpretable representation learning by information
+maximizing generative adversarial nets. In Proc. Ad-
+vances in Neural Information Processing Systems,
+pages 2172–2180, 2016.
+[6] Keunwoo Choi, George Fazekas, Mark B. Sandler,
+and Kyunghyun Cho. Convolutional recurrent neu-
+ral networks for music classiﬁcation. arXiv preprint
+arXiv:1609.04243, 2016.
+[7] Hang Chu, Raquel Urtasun, and Sanja Fidler. Song
+from PI: A musically plausible network for pop music
+generation. arXiv preprint arXiv:1611.03477, 2016.
+[8] Vincent Dumoulin and Francesco Visin. A guide
+to convolution arithmetic for deep learning. arXiv
+preprint arXiv:1603.07285, 2016.
+[9] Douglas Eck and Juergen Schmidhuber. Finding tem-
+poral structure in music: Blues improvisation with
+LSTM recurrent networks. In Proc. IEEE Workshop
+on Neural Networks for Signal Processing, pages 747–
+756, 2002.
+[10] Jesse Engel, Cinjon Resnick, Adam Roberts, Sander
+Dieleman, Douglas Eck, Karen Simonyan, and Mo-
+hammad Norouzi. Neural audio synthesis of musi-
+cal notes with WaveNet autoencoders. arXiv preprint
+arXiv:1704.01279, 2017.
+[11] Jon Gauthier. Conditional generative adversarial nets
+for convolutional face generation. Class Project for
+Stanford CS231N: Convolutional Neural Networks for
+Visual Recognition, Winter semester, 2014:5, 2014.
+[12] Ian J. Goodfellow. NIPS 2016 tutorial: Generative ad-
+versarial networks. arXiv preprint arXiv:1701.00160,
+2017.
+[13] Ian J. Goodfellow, Jean Pouget-Abadie, Mehdi Mirza,
+Bing Xu, David Warde-Farley, Sherjil Ozair, Aaron
+Courville, and Yoshua Bengio. Generative adversarial
+nets. In Proc. Advances in Neural Information Process-
+ing Systems, pages 2672–2680, 2014.
+[14] Alex Graves. Generating sequences with recurrent neu-
+ral networks. arXiv preprint arXiv:1308.0850, 2013.
+[15] Ga¨etan Hadjeres and Franc¸ois Pachet. DeepBach: a
+steerable model for bach chorales generation. arXiv
+preprint arXiv:1612.01010, 2016.
+[16] Lejaren Hiller and Leonard M. Isaacson. Experimen-
+tal Music: Composition with an Electronic Computer.
+New York: McGraw-Hill, 1959.
+[17] Phillip Isola,
+Jun-Yan Zhu,
+Tinghui Zhou,
+and
+Alexei A Efros. Image-to-image translation with
+conditional
+adversarial
+networks.
+arXiv
+preprint
+arXiv:1611.07004, 2016.
+[18] Natasha Jaques, Shixiang Gu, Richard E. Turner,
+and Douglas Eck.
+Tuning recurrent neural net-
+works with reinforcement learning. arXiv preprint
+arXiv:1611.02796, 2016.
+[19] Soroush Mehri, Kundan Kumar, Ishaan Gulrajani,
+Rithesh Kumar, Shubham Jain, Jose Sotelo, Aaron C.
+Courville, and Yoshua Bengio. SampleRNN: An un-
+conditional end-to-end neural audio generation model.
+arXiv preprint arXiv:1612.07837, 2016.
+[20] Mehdi Mirza and Simon Osindero. Conditional gener-
+ative adversarial nets. arXiv preprint arXiv:1411.1784,
+2014.
+[21] Olof Mogren. C-RNN-GAN: Continuous recurrent
+neural networks with adversarial training.
+arXiv
+preprint arXiv:1611.09904, 2016.
+[22] Tom Le Paine, Pooya Khorrami, Shiyu Chang, Yang
+Zhang, Prajit Ramachandran, Mark A. Hasegawa-
+Johnson, and Thomas S. Huang. Fast WaveNet gen-
+eration algorithm. arXiv preprint arXiv:1611.09482,
+2016.
+[23] George Papadopoulos and Geraint Wiggins. AI meth-
+ods for algorithmic composition: A survey, a critical
+view and future prospects. In Proc. AISB Symposium
+on Musical Creativity, pages 110–117, 1999.
+[24] Alec Radford, Luke Metz, and Soumith Chintala. Un-
+supervised representation learning with deep convolu-
+tional generative adversarial networks. arXiv preprint
+arXiv:1511.06434, 2015.
+[25] Scott Reed, Zeynep Akata, Xinchen Yan, Lajanugen
+Logeswaran, Bernt Schiele, and Honglak Lee. Genera-
+tive adversarial text to image synthesis. arXiv preprint
+arXiv:1605.05396, 2016.
+330
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+
+[26] Adam Roberts, Jesse Engel, Curtis Hawthorne, Ian Si-
+mon, Elliot Waite, Sageev Oore, Natasha Jaques, Cin-
+jon Resnick, and Douglas Eck. Interactive musical im-
+provisation with Magenta. In Proc. Neural Information
+Processing Systems, 2016.
+[27] Tim Salimans, Ian J. Goodfellow, Wojciech Zaremba,
+Vicki Cheung, Alec Radford, and Xi Chen. Improved
+techniques for training GANs. In Proc. Advances in
+Neural Information Processing Systems, pages 2226–
+2234, 2016.
+[28] Zheng Sun,
+Jiaqi Liu,
+Zewang Zhang,
+Jingwen
+Chen, Zhao Huo, Ching Hua Lee, and Xiao Zhang.
+Composing music with grammar argumented neu-
+ral networks and note-level encoding. arXiv preprint
+arXiv:1611.05416, 2016.
+[29] Richard S Sutton and Andrew G Barto. Reinforcement
+learning: An introduction, volume 1. MIT press Cam-
+bridge, 1998.
+[30] Peter M. Todd. A connectionist approach to algorith-
+mic composition. Computer Music Journal, 13(4):27–
+43.
+[31] A¨aron van den Oord,
+Sander Dieleman,
+Heiga
+Zen, Karen Simonyan, Oriol Vinyals, Alex Graves,
+Nal
+Kalchbrenner,
+Andrew
+Senior,
+and
+Koray
+Kavukcuoglu. WaveNet: A generative model for raw
+audio. arXiv preprint arXiv:1609.03499, 2016.
+[32] A¨aron van den Oord, Nal Kalchbrenner, Lasse Espe-
+holt, Oriol Vinyals, Alex Graves, et al. Conditional
+image generation with pixelCNN decoders. In Proc.
+Advances in Neural Information Processing Systems,
+pages 4790–4798, 2016.
+[33] Elliot Waite,
+Douglas Eck,
+Adam Roberts,
+and
+Dan Abolaﬁa. Project Magenta:
+Generating long-
+term structure in songs and stories, 2016. https:
+//magenta.tensorflow.org/blog/2016/
+07/15/lookback-rnn-attention-rnn/.
+[34] Yi-Hsuan Yang and Homer H. Chen. Music Emotion
+Recognition. CRC Press, 2011.
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+331

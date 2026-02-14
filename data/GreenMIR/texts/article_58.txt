@@ -1,0 +1,868 @@
+LakhNES: IMPROVING MULTI-INSTRUMENTAL MUSIC GENERATION
+WITH CROSS-DOMAIN PRE-TRAINING
+Chris Donahue1
+Huanru Henry Mao2
+Yiting Ethan Li2
+Garrison W. Cottrell2
+Julian McAuley2
+1 Department of Music, UC San Diego
+2 Department of Computer Science, UC San Diego
+ABSTRACT
+We are interested in the task of generating multi-
+instrumental music scores.
+The Transformer architec-
+ture has recently shown great promise for the task of
+piano score generation—here we adapt it to the multi-
+instrumental setting.
+Transformers are complex, high-
+dimensional language models which are capable of captur-
+ing long-term structure in sequence data, but require large
+amounts of data to ﬁt. Their success on piano score genera-
+tion is partially explained by the large volumes of symbolic
+data readily available for that domain. We leverage the
+recently-introduced NES-MDB dataset of four-instrument
+scores from an early video game sound synthesis chip (the
+NES), which we ﬁnd to be well-suited to training with the
+Transformer architecture. To further improve the perfor-
+mance of our model, we propose a pre-training technique
+to leverage the information in a large collection of het-
+erogeneous music, namely the Lakh MIDI dataset. De-
+spite differences between the two corpora, we ﬁnd that this
+transfer learning procedure improves both quantitative and
+qualitative performance for our primary task.
+1. INTRODUCTION
+In this paper, we extend recent results for symbolic pi-
+ano music generation [1] to the multi-instrumental setting.
+Both piano and multi-instrumental music are polyphonic,
+where multiple notes may be sounding at any given point
+in time.
+However, the generation of multi-instrumental
+music presents an additional challenge not present in the
+piano domain: handling the intricate interdependencies
+between multiple instruments. Another obstacle for the
+multi-instrumental setting is that there is less data avail-
+able than for piano, making it more difﬁcult to train the
+types of powerful generative models used in [1].
+Until recently, music generation methods struggled to
+capture two rudimentary elements of musical form: long-
+term structure and repetition.
+Huang et al. [1] demon-
+strated that powerful neural network language models,
+c⃝Chris Donahue, Huanru Henry Mao, Yiting Ethan Li,
+Garrison W. Cottrell, Julian McAuley. Licensed under a Creative Com-
+mons Attribution 4.0 International License (CC BY 4.0). Attribution:
+Chris Donahue, Huanru Henry Mao, Yiting Ethan Li, Garrison W. Cot-
+trell, Julian McAuley. “LakhNES: Improving multi-instrumental music
+generation with cross-domain pre-training”, 20th International Society
+for Music Information Retrieval Conference, Delft, Netherlands, 2019.
+i.e., models which assign likelihoods to sequences of dis-
+crete tokens, could be used to generate classical piano mu-
+sic containing these elusive elements. In order to adapt this
+method to the multi-instrumental setting we incorporate in-
+strument speciﬁcation directly into our language-like mu-
+sic representation. However, this strategy alone may be in-
+sufﬁcient to generate high-quality multi-instrumental mu-
+sic, as the results of [1] also depend on access to large
+quantities of piano music.
+To begin to address the data availability problem, we
+focus on an unusually large dataset of multi-instrumental
+music.
+The Nintendo Entertainment System Music
+Database (NES-MDB) [2] contains 46 hours of chiptunes,
+music written for the four-instrument ensemble of the NES
+(video game system) sound chip. This dataset is appealing
+for music generation research not only for its size but also
+for its structural homogeneity—all of the music is written
+for a ﬁxed ensemble. It is, however, smaller than the 172
+hours of piano music in the MAESTRO Dataset [3] used to
+train Music Transformer.
+The largest available source of symbolic music data is
+the Lakh MIDI Dataset [4] which contains over 9000 hours
+of music. This dataset is structurally heterogeneous (differ-
+ent instruments per piece) making it challenging to model
+directly. However, intuition suggests that we might be able
+to beneﬁt from the musical knowledge ingrained in this
+dataset to improve our performance on chiptune genera-
+tion. Accordingly, we propose a procedure to heuristically
+map the arbitrary ensembles of music in Lakh MIDI into
+the four-voice ensemble of the NES. We then pre-train our
+generative model on this dataset, and ﬁne-tune it on NES-
+MDB. We ﬁnd that this strategy improves the quantitative
+performance of our generative model by 10%. Such trans-
+fer learning approaches are common practice in state-of-
+the-art natural language processing [5,6], and here we de-
+velop new methodology to employ these techniques in the
+music generation setting (as opposed to analysis [7]).
+We refer to the generative model pre-trained on Lakh
+MIDI and ﬁne-tuned on NES-MDB as LakhNES. In addi-
+tion to strong quantitative performance, we also conduct
+multiple user studies indicating that LakhNES produces
+strong qualitative results. LakhNES is capable of gener-
+ating chiptunes from scratch, continuing human-composed
+material, and producing melodic material corresponding to
+human-speciﬁed rhythms. 1
+1 Sound examples:
+https://chrisdonahue.com/LakhNES
+Code/data: https://github.com/chrisdonahue/LakhNES
+685
+
+2. RELATED WORK
+Music generation has been an active area of research for
+decades.
+Most early work involved manually encoding
+musical rules into generative systems or rearranging frag-
+ments of human-composed music; see [8] for an extensive
+overview. Recent research has favored machine learning
+systems which automatically extract patterns from corpora
+of human-composed music.
+Many early machine learning-based systems focused
+on modeling simple monophonic melodies, i.e., music
+where only one note can be sounding at any given point
+in time [9–11]. More recently, research has focused on
+polyphonic generation tasks. Here, most work represents
+polyphonic music as a piano roll—a sparse binary ma-
+trix of time and pitch—and seeks to generate sequences
+of individual piano roll timesteps [12, 13] or chunks of
+timesteps [14]. Other work favors an event-based repre-
+sentation of music, where the music is ﬂattened into a list
+of musically-salient events [1,15,16]. None of these meth-
+ods allow for the generation of multi-instrumental music.
+Other research focuses on the multi-instrumental setting
+and seeks to provide systems which can harmonize with
+human-composed material [17–20]. Unlike the system we
+develop here, these approaches all require complex infer-
+ence procedures to generate music without human input.
+Recent work [21–23] attempts multi-instrumental music
+generation from scratch, but these methods are limited to
+generating ﬁxed lengths, unlike our method which can gen-
+erate arbitrarily-long sequences. There is also music gen-
+eration research that operates on the audio domain [24,25],
+though this work is largely unrelated to symbolic domain
+methods. The work described in this paper is methodolog-
+ically similar to MuseNet [26], which was concurrent with
+our work.
+3. DATASETS AND TASK
+The NES Music Database (NES-MDB) [2] consists of ap-
+proximately 46 hours of music composed for the sound
+chip on the Nintendo Entertainment System. This dataset
+is enticing for research in multi-instrumental music gener-
+ation because (1) it is an unusually large corpus of music
+that was composed for a ﬁxed ensemble, and (2) it is avail-
+able in symbolic format.
+3.1 NES ensemble preliminaries
+The ensemble on the NES sound chip has four mono-
+phonic instrument voices: two pulse waveform generators
+(P1/P2), one triangle waveform generator (TR), and one
+noise generator (NO). 2 The ﬁrst three of these instruments
+are melodic voices: typically, TR plays the bass line and
+P1/P2 are interchangeably the melody and harmony. The
+noise instrument is used to provide percussion.
+The various instruments have a mixture of sound-
+producing capabilities. For example, the range of MIDI
+pitches which P1/P2 can generate is 33–108, while the
+2 There is an additional ﬁfth voice capable of waveform playback that
+the authors of NES-MDB excluded.
+NO_NOTEON_13, DT_732, NO_NOTEOFF, DT_2197, 
+P1_NOTEON_76, DT_2, P1_NOTEON_70, DT_1463, 
+P2_NOTEON_87, DT_1, P2_NOTEOFF, DT_148,
+…
+P1_NOTEON_61, DT_41, P2_NOTEON_85, DT_26, 
+TR_NOTEON_39, DT_2, TR_NOTEON_43, DT_23, 
+NO_NOTEON_9, DT_646, NO_NOTEON_13, DT_733
+Figure 1. A visual comparison between the piano roll rep-
+resentation of the original NES-MDB paper [2] (top) and
+the event representation of this work (bottom). In the pi-
+ano roll representation, the majority of information is the
+same across timesteps. In our event representation, each
+timestep encodes a musically-meaningful change.
+range of TR extends an octave lower (21–108). The noise
+channel can produce 16 different “types” of noise which
+correspond to different center frequencies and bandwidths.
+Each instrument also has a variety of dynamics and timbral
+attributes. It is shown in [2] that these expressive attributes
+can be estimated from the score post-hoc, and hence we
+ignore them in this study to focus on the problem of mod-
+eling composition rather than expressive performance.
+Each chiptune in NES-MDB is stored as a MIDI ﬁle,
+and the constituent MIDI events are quantized at audio rate
+(44100 ticks per second). Paired with code which synthe-
+sizes these MIDI ﬁles as NES audio, the ﬁles contain all
+of the information needed to synthesize the original 8-bit
+waveforms.
+3.2 Event-based task
+In our original work on NES-MDB [2], we operated on a
+piano roll representation of the data, i.e., the MIDI infor-
+mation decomposed into a sparse grid across time, pitch,
+and instrument (top of Figure 1). Because no tempo or
+beat information exists in the dataset, the authors chose to
+discretize the time axis at a rate of 24 timesteps per second.
+This high rate is necessary for capturing nuanced timing in-
+formation in the scores but results in much of the informa-
+tion being redundant across adjacent timesteps. This rep-
+resents a challenge as long-term dependencies are a barrier
+to success for sequence modeling with machine learning.
+To circumvent these issues, we design an event-based
+representation (bottom of Figure 1) similar to that used for
+single-instument music in [15]. Speciﬁcally, we convert
+each NES-MDB MIDI ﬁle into a time-ordered sequence of
+events, so that every entry in the sequence corresponds to
+a musically-salient occurrence.
+To handle the rhythmic information, we add time shift
+(∆T) events which represent time advancing by some dis-
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+686
+
+Event description
+Event ID(s)
+Start or end of sequence
+0
+∆T for 1–100 ticks (short)
+1–100
+∆T for 100–1000 ticks (medium)
+101–190
+∆T for > 10000 ticks (long)
+191–370
+P1 Note Off/On
+371–447
+P2 Note Off/On
+448–524
+TR Note Off/On
+525–613
+NO Note Off/On
+614–630
+Table 1. Schematic for our event-based representation of
+NES-MDB, reminiscent of the one used in Performance
+RNN [15]. The 631 events in our representation are dis-
+tributed among time-shift (∆T) events (which allow for
+nuanced timing), and note off/on events for individual in-
+struments (as in typical MIDI).
+crete number of ticks (each tick is
+1
+44100th of a second). To
+keep the number of events in our representation tractable,
+we quantize ∆T events in the real data to ﬁxed gratings.
+We embed the multi-instrumental aspect of our problem di-
+rectly into this representation by using separate note on/off
+events for each instrument. Contemporaneous events are
+always listed in the following instrument order: P1, P2,
+TR, NO. Our ﬁnal representation consists of 631 events,
+of which about half encode time-related events and half
+note-related (Table 1). Apart from minor timing quantiza-
+tion, this format is a lossless transformation of the original
+MIDI score.
+4. METHODOLOGY
+To model the event sequences outlined in the last section,
+we adopt a language modeling factorization. We factorize
+the joint probability of a musical sequence consisting of N
+events (E1, . . . , EN) into a product of conditionals:
+P(E1) · P(E2 | E1) · . . . · P(EN | E1, . . . , EN−1). (1)
+This factorization is convenient because it allows for a
+simple left-to-right algorithm for generating music: sam-
+pling from the distribution estimated by the model at each
+timestep (conditioned on previous outputs). The goal of
+our optimization procedure is to ﬁnd a model conﬁgura-
+tion which maximizes the likelihood of the real event se-
+quences. Motivated by the strong results for piano mu-
+sic generation from the recent Music Transformer [1] ap-
+proach, we also adopt a Transformer [27] architecture.
+4.1 Transformer architecture
+The Transformer [27] is an attention-based neural network
+architecture. In our context, this means that the model has a
+mechanism which explicitly biases its predictions based on
+a subset of musical events that have happened in the past.
+The model’s design gives it the ability to learn which sub-
+set of past musical events to pay attention to when predict-
+ing the current event. This mechanism may be especially
+useful for learning patterns of repetition in music across
+large gaps of time.
+The original Transformer architecture [27] was an
+encoder-decoder model designed for language translation.
+In this paper, we are only concerned with the decoder
+portion of the Transformer.
+Our work uses a recent
+extension of Transformer called Transformer-XL [28],
+which is designed speciﬁcally to handle longer sequences.
+Transformer-XL builds upon the Transformer architecture
+by augmenting it with a recurrence mechanism. The recur-
+rence mechanism enables Transformer-XL to use informa-
+tion beyond its training segment by learning how to incor-
+porate recurrent state from previous segments. In contrast,
+the original Transformer is only able to alter its predictions
+based on the current training segment, hence the available
+system memory during training is a bottleneck to its ability
+to learn long-term dependencies. In order to effectively use
+its recurrent state, Transformer-XL adopts a sophisticated
+position-aware mechanism so the model can generalize to
+different amounts of recurrent memory during generation.
+The Music Transformer [1] is a different Transformer
+variant that also attempts to tackle long-range dependen-
+cies by using a mechanism which reduces the quadratic
+memory cost of attention, enabling training on longer se-
+quences.
+Although similar in goal to Transformer-XL,
+its method is orthogonal and could, in theory, be com-
+bined with the recurrent mechanism of Transformer-XL.
+For simplicity, we focus on the Transformer-XL architec-
+ture as its recurrence mechanism alone is sufﬁcient to learn
+long-term dependencies. Additionally, code to reproduce
+the Music Transformer method is unavailable.
+4.2 Pre-training
+Transformers are extremely high-dimensional models, and
+accordingly they can learn effective strategies for ex-
+tremely large datasets [6]. One barrier to their application
+in the music domain is that most symbolic music datasets
+are either too small or too structurally heterogeneous. For
+example, the popular Bach chorales dataset [29] is struc-
+turally homogeneous (all chorales have four voices), but
+small (only 306 chorales).
+In contrast, the Lakh MIDI
+dataset [4] is enormous (175k songs) but heterogeneous
+(varying numbers of instruments per piece). The NES-
+MDB dataset we use in this work represents a middle
+ground (large and structurally-homogenous), but is still
+substantially smaller than the MAESTRO dataset [3] used
+to train Music Transformer (46 hours vs. 172 hours).
+We hypothesize that we can improve the performance of
+our model on our NES music generation task by leveraging
+the musical information in the larger Lakh MIDI dataset.
+To test this, we propose a two-step procedure. First, we
+map each structurally-heterogeneous Lakh MIDI ﬁle into
+one which can be performed by our NES ensemble. Then,
+we pre-train a Transformer on this dataset, and ﬁne-tune
+this pre-trained model on the NES-MDB dataset. Such
+transfer learning procedures are common methodology in
+other areas of machine learning [30], but remain hitherto
+unexplored in music generation research.
+One possible
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+687
+
+P1
+P2
+TR
+NO
+Figure 2. Illustration of our mapping heuristic used to
+enable transfer learning from Lakh MIDI to NES-MDB.
+We identify monophonic instruments from the arbitrary en-
+sembles in Lakh MIDI and randomly assign them to the
+ﬁxed four-instrument ensemble of NES-MDB.
+reason for the lack of investigation into this strategy is
+that mapping music from one domain to another requires
+careful consideration of musical invariants, and hence is
+less straightforward than analogous methodology for other
+tasks (e.g., language). We consider this transfer learning
+protocol to be a primary methodological contribution of
+this work.
+4.2.1 Mapping Lakh MIDI to the NES ensemble
+Here we describe our protocol for mapping Lakh MIDI
+data into a score suitable for the four monophonic instru-
+ments of the NES ensemble. For a given example from
+Lakh MIDI, we ﬁrst identify all of its monophonic melodic
+instruments (skipping the example if it has no such instru-
+ments). Then, we ﬁlter out instruments which fall outside
+of the range of MIDI notes that the NES ensemble is capa-
+ble of producing (Section 3.1). We randomly assign these
+instruments to the three melodic instruments of the NES
+(P1/P2/TR) (Figure 2). Because there are a variable num-
+ber of instruments in each Lakh MIDI example, there are
+potentially many possible assignments. Hence, we output
+multiple examples for each input Lakh MIDI example.
+In addition to this strategy for melodic instruments, we
+also design a strategy for mapping percussive instruments
+in Lakh into the percussive noise instrument of the NES
+ensemble. We ﬁrst identify percussive instruments in each
+Lakh MIDI example.
+Then, each individual percussive
+voice (e.g., snare drum, hi-hat) is randomly assigned to a
+noise “type” (1–16), emulating how the noise instrument is
+used by human composers to encode syncopated rhythms.
+From the 175k MIDI ﬁles in Lakh MIDI, our map-
+ping procedure produces 775k examples suitable for per-
+formance by the NES ensemble. It is straightforward to
+imagine similar mapping procedures for other ensembles
+(e.g., string quartet, vocal choir), and thus it is possible that
+music generation research in other domains could reuse
+this procedure to enable transfer learning.
+5. EXPERIMENTS
+We ﬁrst conduct an experiment to train Transformer-
+XL [28] on our event representation (Section 3.2) of NES-
+MDB. We train the model on excerpts from the training
+data of 512 events; each excerpt represents around 9 sec-
+onds of music on average. Because of the recurrent atten-
+tion mechanism in Transformer-XL, the model effectively
+has access to twice this length in its history.
+We use the smaller conﬁguration of Transformer-XL
+which has 12 attention layers each with 8 heads. The learn-
+ing rate 2e−4 used to train this model on text was found to
+be too high for our musical application, so we lowered it
+to 2e−5. Training was stopped when the performance of
+the model on the validation data stopped improving. We
+trained the model using four NVIDIA Titan X GPUs with
+minibatches of size 30, and it reached its early stopping
+criteria in less than a day. 3
+5.1 Data augmentation and pre-training
+To improve the performance of our model further, we em-
+ployed standard music data augmentation methods as well
+as ones which we developed speciﬁcally for the multi-
+instrumental setting:
+1. (Standard) Transpose melodic voices by a random
+number of semitones between −6 and 5 (inclusive).
+2. (Standard) Adjust the speed of the piece by a random
+percentage between ±5%.
+3. Half of the time, remove a random number of instru-
+ments from the ensemble (leaving at least one).
+4. Half of the time, shufﬂe the score-to-instrument
+alignment for the melodic instruments only (e.g., TR
+performs P2’s part).
+Finally, we experimented with pre-training our model
+on the Lakh MIDI dataset mapped to the NES ensemble
+(Section 4.2.1). To conduct this experiment, we ﬁrst split
+the Lakh data into training and validation subsets. We then
+trained the model for a week on the training set (with data
+augmentation) and monitored performance on the valida-
+tion set. Because of the extreme size of the dataset, the
+model only completed four epochs of training. Even after
+a week, the model was underﬁtting the training data (val-
+idation performance was still improving). We then ﬁne-
+tuned this pre-trained model on the NES-MDB training
+data, again performing early stopping based on the vali-
+dation performance. Both our pre-training and ﬁne-tuning
+experiments use the same hyperparameters outlined in the
+previous section.
+5.2 Baselines
+We also measure the performance of competitive base-
+lines on our event-based representation of NES-MDB. Our
+simplest baselines consist of n-gram models, i.e., statis-
+tics gathered directly from the training data of how often
+certain length-n sequences appear. Speciﬁcally, we build
+unigram (1-gram) and 5-gram models, using backoff for
+the latter to provide a likelihood for 5-grams which are
+not present in the training data. We also compare to an
+LSTM [31] recurrent neural network, which is a popular
+model for music generation. Our LSTM is conﬁgured so
+3 Full hyperparameter description and pre-trained models:
+https://github.com/chrisdonahue/LakhNES
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+688
+
+Model
+Params
+Epochs
+Test PPL
+Random
+0
+0
+631.00
+Unigram
+631
+1
+198.14
+5-gram
+9M
+1
+37.25
+LSTM [31]
+40M
+18
+14.11
++Data augmentation
+35
+12.64
+Transformer-XL [28]
+41M
+76
+3.50
++Data augmentation
+350
+2.74
++Pre-train (LakhNES)
+250
+2.46
+Table 2.
+Quantitative performance of various models
+trained on the event-based representation (631 event types)
+of NES-MDB. Params indicates the number of parameters
+of each model. Epochs is the number of data epochs the
+model observed before early stopping based on the valida-
+tion data. Test PPL represents the perplexity of the model
+on the test data, i.e., the exponentiation of its average neg-
+ative log-likelihood on the test data. A lower perplexity
+indicates that the model better ﬁts this unseen data.
+that it has approximately the same number of parameters
+as our Transformer-XL model (1 layer, 3072 units).
+6. QUANTITATIVE ANALYSIS
+We report the perplexity (PPL) of each model on the test
+set in Table 2. Perplexity is calculated by ﬁrst averaging
+the negative log-likelihood of each model across the test
+data, then exponentiating the average, i.e., e
+1
+N
+PN
+i=1 −log qi,
+where qi is the likelihood assigned by a given model to the
+i-th event. A lower perplexity on the test set indicates that
+a model is a good ﬁt for unseen data, and hence increases
+our conﬁdence in its ability to generate new music.
+We ﬁnd that Transformer-XL dramatically outperforms
+both the n-gram and LSTM baselines on the NES-MDB
+event-based task (PPL of 3.5 vs. 37.2 and 14.1 respec-
+tively). Data augmentation improves the performance of
+both the LSTM and Transformer-XL (by 10% and 22%
+respectively), and also increases the number of epochs
+before the models overﬁt.
+We observe that LakhNES
+(Transformer-XL pre-trained on Lakh MIDI and ﬁne-tuned
+on NES-MDB with augmentation), achieves 10% better
+performance than training with data augmentation alone.
+We also conduct an experiment to measure the perfor-
+mance effect of using different amounts of Lakh MIDI pre-
+training before ﬁne-tuning on NES-MDB. Speciﬁcally, we
+measure the performance on the NES-MDB ﬁne-tuning
+task after 1, 2, and 4 epochs of Lakh MIDI pre-training.
+We plot the test PPL of each model after ﬁne-tuning in Fig-
+ure 3. The results agree with our expectation that increas-
+ing the amount of pre-training improves the ﬁne-tuned
+model’s performance, though with diminishing returns.
+7. USER STUDY
+While perplexity is a useful quantitative metric for model
+comparison, it is not necessarily correlated with human
+0
+1
+2
+3
+4
+Number of Lakh pre-training epochs
+2.5
+2.6
+2.7
+NES-MDB test PPL
+2.74
+2.55
+2.47
+2.46
+Figure 3. Measuring the performance improvement when
+doubling the amount of Lakh MIDI pre-training before
+ﬁne-tuning Transformer-XL on NES-MDB. Each data-
+point represents the result of a ﬁne-tuning run starting from
+0, 1, 2, or 4 epochs of Lakh MIDI pre-training. Additional
+amounts of pre-training appear to improve performance,
+though with diminishing returns.
+judgements. Since we ultimately seek models which pro-
+duce music that is convincing to humans, we conduct two
+user studies on Amazon Mechanical Turk to compare the
+performance of various models. In both of our user studies
+we compare four models (rows 3, 5, 7, 8 from Table 2):
+(1) 5-gram model, (2) LSTM trained with data augmenta-
+tion, (3) Transformer-XL trained with data augmentation
+(TXL), and (4) Transformer-XL with data augmentation
+and Lakh MIDI pre-training (LakhNES).
+7.1 Turing test
+This study seeks to determine the ability of humans
+to distinguish between real (human-composed) and fake
+(computer-generated) chiptunes in a “Turing test” setting.
+We present human judges with pairs of examples where
+one example is real and the other fake, and ask them to
+identify the real example between the two.
+We ﬁrst amass collections of 5-second audio clips from
+all of our methods and from the real data by selecting ran-
+dom slices from the variable-length music. Then, we create
+pairs of examples where one example is real and the other
+fake (randomly chosen from our four methods).
+Given
+that Mechanical Turk studies are notoriously noisy, we also
+create control pairs where the fake data comes from a ran-
+dom model (i.e., we generate “music” by selecting events
+uniformly at random—row 1 in Table 2).
+We ask human judges to annotate 800 batches each con-
+sisting of 10 randomly-ordered pairs, where fake data in 2
+of the pairs came from the control set and fake data in 8
+of the pairs came from our four methods. For their judg-
+ments to be included in our results, workers were required
+to complete at least 3 batches and achieve 100% accuracy
+on the 6 control examples in those batches—a worker an-
+swering randomly would only be included 1.6% of the
+time. After ﬁltering, each method was evaluated around
+180 times. We report accuracy in Figure 4.
+In this setting, a lower accuracy indicates that a given
+model’s results sound more human-like, because they were
+incorrectly identiﬁed as human-composed more often. An
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+689
+
+0.5
+0.6
+0.7
+0.8
+0.9
+1.0
+Random
+5-gram
+LSTM
+TXL
+LakhNES
+Real data
+1.00
+0.91
+0.81
+0.78
+0.73
+0.50
+Turing test accuracy
+Figure 4. Human accuracy at distinguishing computer-
+generated examples from human-composed ones (error
+bars are standard error). Users were presented with pairs of
+clips (one human, one computer) and tasked with identify-
+ing which was composed by a human. Random examples
+are used as a control and we ﬁltered annotators with accu-
+racy less than 1 on those pairs. A lower accuracy is bet-
+ter as it indicates that the annotators confused a particular
+model with the real data more often.
+ideal generative model would achieve 50% accuracy (al-
+though it is possible in theory to generate music which
+sounds “more human” than human-composed music). We
+ﬁnd that LakhNES (Transformer-XL with pre-training)
+was mistakenly identiﬁed as human more often than both
+our 5-gram model (p < .0001 by t-test with normal ap-
+proximation) and our LSTM (p = .07). It also outper-
+formed Transformer-XL without pre-training, but the dif-
+ference was not statistically signiﬁcant (p = .32).
+Overall, these results suggest that there is still a sizable
+gap between human-composed and computer-generated
+chiptunes. Subjectively speaking, we feel that the melodies
+and harmonies produced by LakhNES are promisingly hu-
+man, but its inability to maintain rhythmic consistency is
+often a dead giveaway in a Turing test. We suspect that
+our model could be improved by using a beat-based event
+representation, however the current model can be boot-
+strapped with human-speciﬁed rhythmic material to man-
+ually address rhythmic consistency issues (Section 8).
+7.2 Preference test
+In addition to our Turing test,
+we also conduct a
+preference-based user study, given that human-ness is not
+necessarily a predictor of general preference. We present
+human judges with pairs of examples from two different
+methods, and ask them which of the two they “prefer”.
+Here we construct pairs of 10-second clips from two
+different (randomly-chosen) methods.
+These clips are
+twice as long as those used in Section 7.1 allowing longer-
+term structure to inﬂuence preference decisions. As in our
+Turing test, we construct randomly-ordered batches con-
+sisting of 10 pairs. In each batch, 8 of the pairs are created
+by sampling two methods without replacement from a set
+of ﬁve (four computer-generated and the real data), while
+2 pairs always compare randomly-generated clips to real
+data (control). We ask human judges to assign preference
+to these batches, ﬁltering out workers who even once in-
+dicated that they preferred random examples to real data.
+0.0
+0.2
+0.4
+0.6
+0.8
+Random
+5-gram
+LSTM
+TXL
+LakhNES
+Real data
+0.00
+0.18
+0.30
+0.55
+0.60
+0.85
+Preference ratio above other methods
+Figure 5. Proportion of comparisons where humans pre-
+ferred an example from each model over an example from
+another random model (error bars are standard error).
+Users were presented with pairs of clips from different
+methods and asked which they preferred. Pairs of random
+data and human-composed clips are used as a control and
+we ﬁltered annotators who preferred random. A higher ra-
+tio is better as it indicates that the annotators preferred re-
+sults from that method more often than another.
+After ﬁltering, each of the ﬁve methods was involved in
+around 400 comparisons in total. We report the ratio of
+“wins” for each method in Figure 5, i.e., the proportion of
+times a method was preferred over any of the other four.
+We ﬁnd that LakhNES outperforms all other generative
+methods, though is preferred signiﬁcantly less often than
+the real data. Human judges preferred chiptunes generated
+by LakhNES over the real data in 26% of comparisons (vs.
+only 10% of the time for the LSTM). We ﬁnd this to be a
+promising indicator of Transformer’s potential on this task.
+8. PAIRING LAKHNES WITH HUMANS
+In addition to generating chiptunes from scratch, LakhNES
+can be used for a number of tasks to assist human com-
+posers.
+For example, LakhNES can be “primed” on
+human-composed material and then asked to continue the
+material, providing a method for composers to quickly ex-
+pand on their ideas.
+Composers can also provide ﬁxed
+rhythmic material and use LakhNES to generate the rest
+of the score. We explore these use cases in our sound ex-
+amples: https://chrisdonahue.com/LakhNES .
+When generating all of our sound examples (besides those
+in our user study), we found that limiting the entropy of the
+model by using a sampling temperature of .95 and top-k
+sampling [32] with k = 32 improved results qualitatively.
+9. CONCLUSION
+In this paper we presented LakhNES, a method for learn-
+ing to generate multi-instrumental music. We developed
+an event-based representation suitable for this task. Train-
+ing powerful language models on this representation re-
+sults in compelling multi-instrumental music generation.
+We show that we can further improve results both quanti-
+tatively and qualitatively by pre-training on a cross-domain
+dataset. LakhNES can be used to both generate chiptunes
+from scratch and collaborate with human composers.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+690
+
+10. ACKNOWLEDGEMENTS
+Thanks to Cheng-Zhi Anna Huang, Cheng-i Wang, and
+Jennifer Hsu for helpful discussions regarding this work.
+This work was supported by UC San Diego’s Chancellors
+Research Excellence Scholarship program. GPUs used in
+this research were donated by NVIDIA.
+11. REFERENCES
+[1] Cheng-Zhi Anna Huang,
+Ashish Vaswani,
+Jakob
+Uszkoreit,
+Ian Simon,
+Curtis Hawthorne,
+Noam
+Shazeer, Andrew M. Dai, Matthew D. Hoffman, Mon-
+ica Dinculescu, and Douglas Eck. Music Transformer:
+Generating music with long-term structure. In Proc.
+ICLR, 2019.
+[2] Chris Donahue,
+Huanru Henry Mao,
+and Julian
+McAuley. The NES Music Database:
+A multi-
+instrumental dataset with expressive performance at-
+tributes. In Proc. ISMIR, 2018.
+[3] Curtis Hawthorne, Andriy Stasyuk, Adam Roberts, Ian
+Simon, Cheng-Zhi Anna Huang, Sander Dieleman,
+Erich Elsen, Jesse Engel, and Douglas Eck. Enabling
+factorized piano music modeling and generation with
+the MAESTRO dataset. In Proc. ICLR, 2019.
+[4] Colin Raffel. Learning-based methods for comparing
+sequences, with applications to audio-to-midi align-
+ment and matching. PhD thesis, Columbia University,
+2016.
+[5] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+Kristina Toutanova. BERT: Pre-training of deep bidi-
+rectional transformers for language understanding.
+arXiv:1810.04805, 2018.
+[6] Alec Radford, Jeffrey Wu, Rewon Child, David Luan,
+Dario Amodei, and Ilya Sutskever. Language models
+are unsupervised multitask learners. Technical report,
+2019.
+[7] Keunwoo Choi, György Fazekas, Mark Sandler, and
+Kyunghyun Cho. Transfer learning for music classiﬁ-
+cation and regression tasks. In Proc. ISMIR, 2017.
+[8] Gerhard
+Nierhaus.
+Algorithmic
+composition:
+paradigms of automated music generation. Springer
+Science & Business Media, 2009.
+[9] Peter M Todd. A connectionist approach to algorithmic
+composition. Computer Music Journal, 1989.
+[10] Michael C Mozer. Neural network music composition
+by prediction: Exploring the beneﬁts of psychoacous-
+tic constraints and multi-scale processing. Connection
+Science, 1994.
+[11] Douglas Eck and Jürgen Schmidhuber. Finding tempo-
+ral structure in music: Blues improvisation with LSTM
+recurrent networks. In Proc. Neural Networks for Sig-
+nal Processing, 2002.
+[12] Nicolas Boulanger-Lewandowski, Yoshua Bengio, and
+Pascal Vincent. Modeling temporal dependencies in
+high-dimensional sequences:
+Application to poly-
+phonic music generation and transcription. In Proc.
+ICML, 2012.
+[13] Daniel D Johnson. Generating polyphonic music using
+tied parallel networks. In Proc. International Confer-
+ence on Evolutionary and Biologically Inspired Music
+and Art, 2017.
+[14] Li-Chia Yang, Szu-Yu Chou, and Yi-Hsuan Yang.
+MidiNet: A convolutional generative adversarial net-
+work for symbolic-domain music generation. In Proc.
+ISMIR, 2017.
+[15] Ian Simon and Sageev Oore. Performance RNN:
+Generating music with expressive timing and dynam-
+ics.
+https://magenta.tensorflow.org/
+performance-rnn, 2017.
+[16] Huanru Henry Mao, Taylor Shin, and Garrison Cot-
+trell. DeepJ: Style-speciﬁc music generation. In Proc.
+International Conference on Semantic Computing,
+2018.
+[17] Moray Allan and Christopher Williams. Harmonis-
+ing chorales by probabilistic inference. In Proc. NIPS,
+2005.
+[18] Cheng-Zhi Anna Huang,
+Tim Cooijmans,
+Adam
+Roberts, Aaron Courville, and Douglas Eck. Counter-
+point by convolution. In Proc. ISMIR, 2017.
+[19] Gaëtan Hadjeres and François Pachet. DeepBach: A
+steerable model for Bach chorales generation. In Proc.
+ICML, 2017.
+[20] Yujia Yan, Ethan Lustig, Joseph VanderStel, and
+Zhiyao Duan. Part-invariant model for music genera-
+tion and harmonization. In Proc. ISMIR, 2018.
+[21] Hao-Wen Dong and Yi-Hsuan Yang. Convolutional
+generative adversarial networks with binary neurons
+for polyphonic music generation. In Proc. ISMIR,
+2018.
+[22] Adam Roberts, Jesse Engel, Colin Raffel, Curtis
+Hawthorne, and Douglas Eck. A hierarchical latent
+vector model for learning long-term structure in music.
+In Proc. ICML, 2018.
+[23] Hao-Wen Dong, Wen-Yi Hsiao, Li-Chia Yang, and Yi-
+Hsuan Yang. MuseGAN: Multi-track sequential gener-
+ative adversarial networks for symbolic music genera-
+tion and accompaniment. In Proc. AAAI, 2018.
+[24] Chris Donahue, Julian McAuley, and Miller Puckette.
+Adversarial audio synthesis. In Proc. ICLR, 2018.
+[25] Sander Dieleman, Aäron van den Oord, and Karen Si-
+monyan. The challenge of realistic music generation:
+modelling raw audio at scale. In Proc. NeurIPS, 2018.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+691
+
+[26] Christine McLeavy Payne. MuseNet. https://
+openai.com/blog/musenet/, 2019.
+[27] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz
+Kaiser, and Illia Polosukhin. Attention is all you need.
+In Proc. NIPS, 2017.
+[28] Zihang Dai, Zhilin Yang, Yiming Yang, William W
+Cohen, Jaime Carbonell, Quoc V Le, and Rus-
+lan
+Salakhutdinov.
+Transformer-XL:
+Attentive
+language models beyond a ﬁxed-length context.
+arXiv:1901.02860, 2019.
+[29] Hermann Hild, Johannes Feulner, and Wolfram Men-
+zel. HARMONET: A neural net for harmonizing
+chorales in the style of JS Bach. In Proc. NIPS, 1992.
+[30] Sinno Jialin Pan and Qiang Yang. A survey on trans-
+fer learning. IEEE Transactions on knowledge and data
+engineering, 2010.
+[31] Sepp Hochreiter and Jürgen Schmidhuber. Long short-
+term memory. Neural computation, 1997.
+[32] Angela Fan, Mike Lewis, and Yann Dauphin. Hierar-
+chical neural story generation. In Proc. ACL, 2018.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+692

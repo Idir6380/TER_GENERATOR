@@ -1,0 +1,831 @@
+RENDERING MUSIC PERFORMANCE WITH INTERPRETATION
+VARIATIONS USING CONDITIONAL VARIATIONAL RNN
+Akira Maezawa
+Kazuhiko Yamamoto
+Takuya Fujishima
+Yamaha Corporation
+ABSTRACT
+Capturing and generating a wide variety of musical expres-
+sion is important in music performance rendering, but cur-
+rent methods fail to model such a variation. This paper
+presents a music performance rendering method that ex-
+plicitly models the variability in interpretations for a given
+piece of music. Conditional variational recurrent neural
+network is used to jointly train, conditioned on the music
+score, an encoder from a music performance to a latent rep-
+resentation of interpretation and a decoder from the latent
+interpretation back to the music performance. Evaluation
+demonstrates the method is capable of predicting and gen-
+erating an expressive performance, and that the decoder
+learns a latent space of musical interpretation that is con-
+sistent with human perception of interpretation.
+1. INTRODUCTION
+Music performance rendering is the task of generating a
+human-like performance data from a piano music score.
+That is, for each note in a given music score, it generates
+a set of expressive performance parameters such as the on-
+set timing, the duration and the velocity. It is an important
+task in music production, allowing a composer to gener-
+ate human-like piano part of a new composition, or a mu-
+sician to listen to a convincing preview of a digital sheet
+music. It is not only important to generate a convincing
+performance, but also to allow humans to interact in the
+generation. For example, it is useful to be able to adjust
+expressive parameters, or, like how a musician might ask
+to another musician, feed a reference performance snippet,
+in expression of which the system should perform.
+Capturing and generating a wide variety of musical ex-
+pression are important in music performance rendering,
+but current methods are limited in such capabilities. For
+example, most methods permit control over concrete mu-
+sical concepts like the average tempo and the average ve-
+locity [2], but cannot manipulate abstract musical concepts
+that cannot be labeled, such as liveliness within a perfor-
+mance. It is also not possible to feed a short reference per-
+c⃝Akira Maezawa, Kazuhiko Yamamoto, Takuya Fu-
+jishima. Licensed under a Creative Commons Attribution 4.0 Interna-
+tional License (CC BY 4.0). Attribution:
+Akira Maezawa, Kazuhiko
+Yamamoto, Takuya Fujishima. “Rendering Music Performance With In-
+terpretation Variations Using Conditional Variational RNN”, 20th Inter-
+national Society for Music Information Retrieval Conference, Delft, The
+Netherlands, 2019.
+Interpretation Sequence
+Expressive performance
+Performance
+Generation
+(CVRNN Decoder)
+Interpretation Sequence
+Expressive performance
+Performance
+Analysis 
+(CVRNN Encoder)
+(3) - Training
+(2) - Analysis
+Music score
+(1) - Generation
+Figure 1. The overview of our method.
+formance snippet and ask the system to play with that par-
+ticular musical musical interpretation.
+These limitations are rooted in the attempt to directly
+map between the music score and expressive performance
+[4]. Such a model entwines musical interpretation and its
+execution, but a human performer presumably decouples
+musical intent and its execution given the score. For ex-
+ample, when playing a piece multiple times, a musician
+might play lively the ﬁrst time but calmly on the second.
+Given the intent, however, its execution is consistent based
+on musical contexts, such as whether a note is a melody or
+if a particular measure is a beginning of a new phrase. For
+example, a lively playing might be executed, almost sec-
+ond nature, as shorter chords and louder melody, or calm
+playing as softer and more broken chords.
+To address this problem, we present a music perfor-
+mance rendering method that explicitly decouples intent
+and its execution based on a music score. We achieve this
+by jointly training a performance decoder (performance
+renderer) and a performance encoder (performance ana-
+lyzer) that are conditioned on (1) a music score, and (2)
+an interpretation sequence, a latent low-dimensional se-
+quence representation that expresses the underlying musi-
+cal intent. It may be either generated automatically or ma-
+nipulated coherently. Thus, it is possible to generate differ-
+ent interpretations to a score by either modifying the inter-
+pretation sequence or encoding a performance snippet as
+an initial value for generating the interpretation sequence.
+The conceptual overview is shown in Figure 1. Our
+method, given a music score and an interpretation se-
+quence, generates an expressive performance for the given
+music (denoted (1)). Conversely, it can encode an expres-
+sive performance into the interpretation sequence (denoted
+(2)). To achieve such a capability, the encoder and the de-
+855
+
+coder are jointly trained by encoding a human performance
+and trying to recover it with the decoder (denoted by path
+(3)).
+Our contributions are as follows: (1) we propose a new
+machine learning model, CVRNN, which extends vari-
+ational recurrent neural network (VRNN [6]) to accept
+position-dependent conditional inputs; (2) we apply con-
+volutional recurrent network (CRNN) to extract features
+from the music score; (3) we apply these two models and
+present a ﬁrst deep generative model that is simultaneously
+capable of analyzing and generating an expressive music
+performance for a given music score with adjustable musi-
+cal interpretation.
+We invite the readers to check out audio demon-
+strations at https://sites.google.com/view/
+cvrnn-performance-render .
+2. RELATED WORK
+Music performance rendering is the task of generating an
+expressive performance from a music score [4]. The re-
+search focuses mostly on generating a sequence of expres-
+sive onset timings, durations and velocities for a piano
+piece. Unlike the generation of improvisation [20], perfor-
+mance rendering needs to understand the musical contexts
+of the given music score, and generate a natural perfor-
+mance constrained by the score.
+Previous studies formulate performance rendering as
+a prediction task of expressive parameters based on fea-
+tures extracted from the music score, such as melodic fea-
+tures [22], perceptual features [3], or neighboring con-
+texts [9,18]. Then, expressive performance to a new music
+score can be predicted using methods like a hidden Markov
+model [12], a decision tree [18], or a dynamic Bayesian
+network [8]. More recently, deep learning has been in-
+corporated to better extract the features or predict the per-
+formance. For example, deep neural networks have been
+shown to be effective for dynamics prediction [21], tempo
+prediction [15], and piano performance generation [11,17].
+The capability to adjust the generated performance is
+important, but current methods cannot capture the abstract
+variations in playing. For example, the tempo or dynam-
+ics [1, 7] can be adjusted, but controlling a more abstract
+musical idea remains difﬁcult. It is possible to manipulate
+the performance by mixing the parameters of performance
+renderers trained on multiple corpora [2], but it fundamen-
+tally cannot identify commonalities and differences among
+a set of corpora.
+3. METHOD
+Our method generates an expressive piano performance
+data to a given piano music score, and an interpretation se-
+quence that is either automatically generated, manually ad-
+justed, or initialized by a performance snippet. The score
+contains a sequence of notes (pitch, position and duration),
+the average tempo, the time signatures, and the key signa-
+tures. The interpretation sequence is a sequence of low-
+dimensional vectors, each element of which is associated
+with each note in the score. It is an abstract representation
+of playing style, each vector of which is called the inter-
+pretation vector. For each note, based on the interpre-
+tation vector and musical context inferred from the music
+score, our method estimates (1) the ﬁne note onset timing,
+(2) the duration, (3) the note-on velocity, and (4) the tempo
+ﬂuctuation of human performance.
+To generate the performance, we use a deep generative
+model that has been trained to generate an expressive per-
+formance data, conditioned on the music score and the in-
+terpretation sequence. To acquire a temporally coherent
+manifold over the space of interpretation vector, we pro-
+pose CVRNN, an extension of VRNN that accepts the mu-
+sic score as a conditioning input. Essentially, we jointly
+train three models: (1) a music score feature extractor that
+extracts, for each note, relevant features (music score fea-
+ture) from the music score, (2) an encoder that maps a
+human performance to an interpretation sequence, and (3)
+a decoder that maps an interpretation sequence to an ex-
+pressive performance.
+Hereon, n indicates the index of a note encountered in
+the music score, lexicographically sorted by the onset beat
+position and the pitch. xn indicates the expressive perfor-
+mance data, cn indicates the music score feature that has
+been extracted from the nth note on the score, and zn indi-
+cates the interpretation vector associated with xn.
+3.1 Representation of expressive performance
+The generated expressive performance xn comprises of the
+note velocity, the note duration, the micro-onset timing de-
+viation and the tempo.
+The note velocity is an integer between 1 and 127
+indicating the MIDI velocity value, encoded as a 128-
+dimensional one-hot vector.
+The note duration is an integer between 1 and 800, in-
+dicating the duration as 1/100ths of a beat relative to the
+current tempo (e.g. duration of “42” means 0.42 beats). It
+is encoded as an 800-dimensional one-hot vector.
+The micro-onset timing is an integer between -50 and
+49, indicating the number of 1/100ths of a beat elapsed
+after an ideal onset time. The ideal onset time is computed
+based on the generated tempo curve up to the current point
+in the score. It is represented as a 100-dimensional one-hot
+vector, ith element of which means that the onset is lagging
+by (i −50)/100 beats.
+The tempo is an integer indicating the the difference be-
+tween the current tempo and the tempo written in the mu-
+sic score, in bpm. It is represented as a 100-dimensional
+one-hot vector, ith element of which means that the out-
+put should be faster than the written tempo by i −50 bpm.
+It is computed by interpolating the music score position
+and the playback position of the performance using Gaus-
+sian regression with a squared exponential kernel with a
+FWHM of 2 beats.
+3.2 Extraction of the music score feature
+The music score contains a sequence of notes, average dy-
+namics, average tempi, meters, and key signatures. From
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+856
+
+Music score information for the nth note in the score
+Pitch
+Notated duration
+IOI from the previous note
+Phase inside the measure
+Quantized velocity in the score
+Quantized tempo in the score
+Meter (denominator / numerator)
+Key signature (no. sharps)
+One-hot representation
+Figure 2. Overview of music score feature extractor for
+extracting the music score feature.
+the music score, we extract the music score feature cn,
+which represents the nth note and its surrounding context.
+To extract the feature, we use the following information:
+the key signature as a 12 dimensional one-hot vector that
+indicates the number of accidentals; the time signature as
+a tuple of 12 dimensional one-hot vector, indicating the
+numerator and the denominator; the pitch as a 128 dimen-
+sional one-hot vector indicating the MIDI note number;
+the inter-onset interval from the previous note as a multi-
+ple of 96th note, represented as a 512 dimensional one-hot
+vector; the duration of the note as a multiple of 96th note,
+represented as a 192 dimensional one-hot vector; the writ-
+ten tempo quantized to a multiple of 30 bpm, represented
+as a 9 dimensional one-hot vector (30-300 bpm); the writ-
+ten velocity quantized to a multiple of 10, represented as
+a 12 dimensional one-hot vector; the piano-roll centered
+about the current position in the score, spanning a radius
+of 7 beats at a 32nd note resolution (224x128 dimension).
+The velocity and the tempo are quantized at a low reso-
+lution because different music notation software map the
+dynamics and tempo markings to similar velocity and bpm
+values, but the exact mapping differ.
+Based on these inputs, we extract the feature using a
+CRNN as shown in Figure 2. First, the piano-roll passes
+through a CNN. It is comprised of four layers, whose ker-
+nel sizes are all (4 × 4), and channel sizes from the lower
+to the higher layers are [20, 40, 60, 80]. Each layer is fol-
+lowed by max-pooling with a kernel size of (2 × 1), batch
+normalization and leaky ReLU nonlinearity. The output
+the CNN is concatenated with the remaining one-hot vec-
+tors mentioned above. Then, the concatenated vector is
+passed through a multi-layer perceptron (MLP) with 1024
+hidden units and leaky ReLU nonlinearity at the hidden
+layer. The MLP output passes through a tanh nonlinearity.
+Second, the output of the perceptron is embedded to 64
+dimensions using a linear layer. The embedded vector is
+then passed to a RNN consisting of 3 stacks of gated re-
+current units (GRU) [5] with 64 neurons each.
+Finally, the outputs of the MLP and the GRU stack are
+concatenated to create the music score feature cn.
+Position in the score
+Pitch
+(gru.a)
+(gru.b)
+(cnn.a)
+(cnn.b)
+Figure 3.
+Activation of the most active compo-
+nents of GRU and CNN activations (dark=negative, yel-
+low=positive).
+Figure 4. Some feature maps learned from the CNN, over-
+layed with the piano-roll (blue=negative, red=positive).
+3.2.1 Analysis of the music score feature extractor
+Here we illustrate some musically relevant concepts that
+are acquired by the music score feature extractor. We have
+trained our model using the same dataset used in Section 4,
+and extracted the music score feature from measures 5–6
+of Chopin’s Nocturne Op. 9-2 and extracted the GRU and
+the CNN activations. Some of the highest GRU and CNN
+activations are shown in Figure 3, showing, for each note,
+the value of the corresponding activation in different color,
+positioned at the beat position and the pitch written on the
+score, a la piano-roll. We can see that the GRU acquires
+concepts like the number of notes stacked below the cur-
+rent point in the score (“gru.a”) or top notes (“gru.b”). The
+CNN extracts longer contextual information such as the
+melody (“cnn.a”), and the bottom notes (“cnn.b”). Nei-
+ther the GRU nor the CNN becomes dead: the standard
+deviation of the activation of the CNN and the GRU are
+comparable (about 0.5 to 1.0), where about 90 GRU ac-
+tivations have standard deviation of above 0.1, and about
+150 for the CNN.
+To analyze how these concepts are acquired, we show
+in Figure 4 the feature maps of the ﬁnal layers of the CNN,
+overlayed to the piano-roll. The tendency of the map sug-
+gests that the CNN expresses concepts like the register
+(Fig. 4a), rising arpeggio (b), top and bottom melodic con-
+tour (c), or melodic contour (d).
+3.3 CVRNN for joint encoding and decoding of the
+interpretation sequence
+We assume that an expressive performance depends on
+both (1) the musical context, expressed through the mu-
+sic score feature, and (2) a corresponding sequence of low-
+dimensional music interpretation vectors zn, dimension of
+which is set to 5. It is necessary for zn to learn (1) a man-
+ifold that zn resides in, that explains interpretation rea-
+sonably well, and (2) a model of temporal evolution of
+zn, so that the generated performance is temporally coher-
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+857
+
+(a) Prior
+hn
+xn
+cn
+zn
+hn-1
+(c) Recurrence
+hn
+xn
+cn
+zn
+hn-1
+(b) Generation
+hn
+xn
+cn
+zn
+hn-1
+(d) Inference
+hn
+xn
+cn
+zn
+hn-1
+(e) Overall
+hn
+xn
+cn
+zn
+hn-1
+Figure 5. Dependency of the CVRNN model. Solid ar-
+rows indicate conditional dependence of the generative
+process, and dotted arrows indicate conditional depen-
+dence of the approximate posterior distribution.
+ent. We achieve (1) by decoupling the music score and the
+generative model of zn, such that zn learns a repertoire-
+independent low-dimensional representation of variability
+of playing. We achieve (2) by basing the temporal evolu-
+tion of zn on the state of a RNN hn.
+To meet these requirements, we model the generation
+process with a CVRNN. There are three key components
+in a CVRNN, as shown in the dependency diagram in Fig-
+ure 5: (1) generation of the interpretation sequence zn
+given the underlying hn (called the prior distribution),
+(2) generation of an expressive performance xn given the
+interpretation sequence zn and music score features cn
+(called the generation distribution), and (3) generation of
+the interpretation vector zn given a true human perfor-
+mance xn (called the inference distribution). Finally, the
+true or the generated expressive performance xn and the
+interpretation vector zn are used to update the underlying
+hn, used then to predict the next interpretation vector zn+1.
+3.3.1 Generation
+We assume the following generative process:
+p(x≤N, z≤N|c≤N) =
+N
+Y
+n=1
+p(xn|zn, cn)
+|
+{z
+}
+generation
+p(zn|x<n, z<n)
+|
+{z
+}
+prior
+.
+(1)
+Thus, the data is generated autoregressively by sampling
+zn from the prior, generating xn, and feeding it back to the
+prior to sample the zn+1 for the next note in the score.
+For the prior distribution, the previous RNN state hn−1
+passes through a three-layer densely-connected [10] fully-
+connected network with 250 units each with a leaky ReLU
+nonlinearity. By dense connection, we mean that the input
+to the current layer is a concatenation of the outputs of
+previous layers. It outputs the mean and log-variance of
+a Normal distribution µ(hn−1) and γ(hn−1). Then zn is
+sampled as follows:
+zn|hn−1 ∼N(µ(hn−1), exp(γ(hn−1))).
+(2)
+From the interpretation vector zn, we pass it through an-
+other feature extractor ψ(zn) to obtain a feature that de-
+scribes the current musical interpretation.
+ψ(·) has the
+same three-layer architecture as mentioned above.
+For the generation of xn, we use the sampled interpre-
+tation vector zn and the current music context cn:
+xn|zn, cn ∼g(cn, ψ(zn)),
+(3)
+Performer 3
+Performer 1
+Performer 2
+Take 1
+Take 2
+Take 3
+Take 4
+Figure 6. Visualization of the interpretation sequence, for
+different takes of three professional pianists. Horizontal
+axis indicates the music score position, vertical axis indi-
+cates the pitch, and the color indicates 3D projection of the
+temporally-smoothed interpretation vector.
+where g(c, z) indicates a Cartesian product of categorical
+distributions over the one-hot representations of the veloc-
+ity, the micro-onset timing, the duration and the tempo, pa-
+rameterized by an output of a three-layer fully-connected
+network with leaky ReLU nonlinearity for the hidden lay-
+ers and softmax for the output layer, applied separately for
+the four output variables.
+To recurrently update hn, we extract a feature vector
+from xn by passing it through a network φ(·) with a same
+architecture as ψ to obtain φ(xn). Then, the underlying
+state hn is updated as follows:
+hn+1 = f(hn, [cn, φ(xn), ψ(zn)]),
+(4)
+where f(h, x) is state update equation of a stacked GRU
+of three layers, given h as the current state variable and x
+as the input that has been embedded to 64 dimensions by a
+fully-connected layer.
+Let us elaborate on the modeling assumptions. First,
+the prior in Eq. 2 is independent of cn. This forces zn to
+express music interpretation abstractly, such that it is de-
+coupled from the musical context, which provides strong
+hints on how to execute the performance given an interpre-
+tation. Second, xn and hn depends only indirectly via the
+bottleneck zn. This is unlike the original formulation of
+VRNN where xn and hn are directly dependent. We found
+that such a bottleneck is vitally critical for learning a mean-
+ingful representation of zn; if xn depends on hn, then the
+model simply learns to generate an auto-regressive model
+of xn using ht, almost completely bypassing zn. Such an
+error mode occurs because it is much easier for a model
+to learn to simply predict the next note, instead of having
+to go through the hassle of trying to explain how it could
+have varied with a different interpretation.
+3.3.2 Inference
+In addition to the generative process, we also deﬁne an ap-
+proximate posterior distribution, or the inference distribu-
+tion, so that variational technique can be used to train the
+model [14].
+We assume the following dependency for the inference
+distribution:
+q(z≤N|x≤N) =
+N
+Y
+n=1
+q(zn|x≤n, z<n)
+|
+{z
+}
+inference
+.
+(5)
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+858
+
+Variance of interpretation sequence
+=low
+=high
+First subject group
+Transition
+Sheet music
+Figure 7. The variance of the interpretation vectors over
+different performers at each note.
+If we assume that zn is normally distributed and condition-
+ally independent of z<n and x<n given hn−1, it becomes:
+q(zn|x≤n, z<n) = q(zn|xn, hn−1)
+= N(zn|η(hn−1, φ(xn)) , exp (ν(hn−1, φ(xn)))) ,
+(6)
+where η(·) and ν(·) are the outputs of a neural network
+with the same architecture as ψ(·), that take φ(xn) and
+hn−1 as the inputs. The inference is independent of the
+music score cn, so that it learns a repertoire-agnostic
+model for inferring zn given an expressive human playing.
+3.3.3 Training
+We train the model by minimizing the KL divergence from
+the approximate posterior to the true posterior. It amounts
+to the minimizing of the following note-level loss ln(Θ)
+w.r.t. the set of model parameters Θ, accrued over every
+note in the training data:
+ln(Θ) = Ezn∼q(z|xn,hn−1) [log p(xn|zn, cn)]
++ KL(q(z|xn, hn−1)||p(z|hn−1)).
+(7)
+The expectation is computed using the reparametrization
+trick [14]. We use truncated backpropagation with trun-
+cation length of 30 notes (longer truncation length of 50
+notes yielded qualitatively similar outputs). We also aug-
+ment the data by adding zero-reverting Wiener noise to the
+tempo curve and randomly transposing each piece by -7
+to 7 semitones at every epoch. To minimize the loss, we
+use Adam [13], with gradient clipping for gradient values
+above 5.
+3.4 Analysis of the learnt manifold of the
+interpretation vector
+We brieﬂy illustrate the essences of musical expression ac-
+quired by the interpretation sequence. Figure 6 shows the
+interpretation sequence of ﬁrst 20 bars of Mozart’s K333
+piano sonata, mvt.
+1 (from the top to the introduction
+of second subject group), played by three professional pi-
+anists for multiple takes. The ﬁgure shows that the inter-
+pretation sequence tends to remain similar within each per-
+former, and different among different performers.
+We can also show where in the music score has the high-
+est variance of interpretation vector among the nine takes.
+Figure 7 shows the variance for each note, from which we
+can see that the maximum variance occurs at the structural
+boundary from the ﬁrst subject group to the transition, sup-
+porting ﬁndings that music expression varies signiﬁcantly
+at structural boundaries [19].
+4. EVALUATION
+We evaluate our method’s capability to (1) create a natural
+expressive performance given the music score, and to en-
+code an expressive performance into (2) perceptually rel-
+evant space that is (3) representative of the corresponding
+performance. For training, we used an in-house dataset
+comprising of 380 classical pieces, mostly Late romantic
+and Baroque. The piano performance comprised of 130 in-
+house performances and 250 performances obtained from
+the piano e-competition archive 1 .
+Some performances
+were different interpretations of the same piece. Further-
+more, corresponding music scores were obtained. To gen-
+erate a one-to-one mapping between the performance and
+the score, each performance was aligned to the music score
+using symbolic music alignment based on [16] with man-
+ual alignment correction. Then, the notes in the perfor-
+mance and the score were matched using maximum bipar-
+tite matching, using the pitch and the onset timing to deter-
+mine the edge weights between notes in the score and the
+performance.
+We have used 370 of 380 pieces for training. Of 370
+pieces, all but 500 notes were used for training, and re-
+maining notes for the optimization of the hyperparameters
+(validation). To test the decoder in experiment 1 and 2,
+we have sampled 10 piano music scores from the Mutopia
+project 2 , and corrected the key signature, meter and down-
+beat positions. It contained a wide variety of pieces from
+Baroque to Ragtime. To test the encoder in experiment 3,
+we have used 10 pieces of 380 pieces that were not used
+for training.
+4.1 Listening test
+We evaluated the naturalness of the generated performance
+using different methods. For each of the ten pieces, we ex-
+tracted a random 15-second segment, and generated per-
+formance using three methods: (1) method Deadpan di-
+rectly played back the SMF data of the music score data
+that has been exported from MakeMusic’s Finale Version
+25; (2) method Finale used "Human Playback" function
+of Finale to create a natural performance, serving as a re-
+producible reference music performance method; and (3)
+the proposed method. Furthermore, we extracted seven
+15-second excerpts from human playback in the training
+dataset, which serves as an oracle method. The selected
+pieces were different from the ﬁrst three methods, because
+the human playing data to the ﬁrst three were not always
+available. To make a fair comparison, we removed the sus-
+tain pedal data from the oracle, because the pedal is con-
+tained in none of the other methods.
+Next, the MIDI data were synthesized using a high-
+quality piano synthesizer and presented in a random order
+to 11 participants. The participants were asked to evaluate
+the naturalness and expressiveness, on a rating from 1 to
+5, 1 being unnatural or unexpressive, 3 being moderately
+natural or contains some expression, and 5 being the most
+1 www.piano-e-competition.com
+2 www.mutopiaproject.org
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+859
+
+Table 1. Mean opinion scores of the performances
+Deadpan
+Finale
+Proposed
+Oracle
+Naturalness
+3.02
+3.08
+3.29
+3.23
+Expressiveness
+2.75
+2.98
+3.14
+3.62
+natural or expressive. The participants were between age
+25 and late ﬁfties, working on music technology.
+The results are shown in Table 1. Kruskal-Wallis H-test
+was used for test of signiﬁcance (p < 0.01), since Shapiro
+test showed non-normality. We found that the effects were
+signiﬁcant for both expressiveness and naturalness, for all
+of the method pairs.
+This shows that the system is capable of generating a
+performance that is as natural as human playing, but the
+expression has a room for improvement. One possible rea-
+son is that the system does not make use of music score
+markings like expression and phrase markings. The audio
+on our demo webpage suggests nonetheless that the system
+learns to “improvise” a noticeable evolution of musical ex-
+pression over a timespan of multiple notes.
+4.2 Test on the perception of the interpretation vector
+Second, we analyzed the capability of the interpretation
+sequence to create a perceptually distinguishable and con-
+sistent space of musical interpretation.
+First, a pair of non-identical and non-overlapping seg-
+ments were sampled from a piece, which we call segments
+A and B.
+Second, a vector ∆was sampled from a 5-
+dimensional, zero-mean and unit-variance Normal distri-
+bution. Third, two interpretations are generated for each of
+A and B, where rendition A1 and B1 are generated with
+interpretation vector µ(hn−1) + ∆⊗exp(γ(hn−1)), and
+A2 and B2 with µ(hn−1) −∆⊗exp(γ(hn−1)). Fourth,
+A1, A2, B1 and B2 were successively presented to the par-
+ticipants, randomly presenting B2 before B1. They were
+asked to identify whether the relationship of music ex-
+pression between A1 →A2 is the same as B1 →B2 or
+B1 ←B2. The participants rated the perceived relationship
+with a conﬁdence on a two-point scale 2 (0 means cannot
+tell, 2 means strongly conﬁdent about the response). We
+repeated this experiment on 9 other pairs of segments. Af-
+ter the experiment, we changed the signs of the responses,
+such that negative conﬁdence indicates the wrong guess
+(A1 →A2 is B1 ←B2), and positive indicates the right
+guess (A1 →A2 is B1 →B2).
+The average rating was 0.34, meaning that there is an
+agreement between the change of interpretation vector and
+human perception of interpretation.
+To test the signiﬁ-
+cance, Wilcoxon signed rank test was used under the null
+hypothesis that the median rating is zero, since Shapiro
+test showed non-normality. The effect was signiﬁcant with
+p < 0.01.
+This shows that the encoder does capture a perceptually
+coherent space of music interpretation, and its modiﬁca-
+tion creates a perceptually consistent difference in the in-
+terpretation. Qualitatively, we found that by changing the
+interpretation vector, there are simultaneous and smooth
+Table 2. Pearson’s correlation coefﬁcient between the gen-
+erated performance and the true performance.
+Num. notes
+zn = 0
+zn ∼prior
+Velocity
+10
+0.61
+0.72
+40
+0.37
+0.68
+Onset
+10
+0.02
+0.07
+deviation
+40
+0.19
+0.24
+Duration
+10
+0.77
+0.77
+40
+0.82
+0.82
+BPM
+10
+0.07
+0.21
+40
+0.00
+0.14
+changes not only in the dynamics and the tempo but also
+nontrivial aspects like breaking of the chords or the articu-
+lation of the accompaniment.
+4.3 Test on the predictive capability of the encoder
+Finally we evaluated the capability to encode a given per-
+formance, by priming h and z with an encoded true hu-
+man performance, and comparing the true human and the
+generated performances. First, we primed the decoder by
+feeding to the encoder the ﬁrst 20 notes to a performance
+to infer the initial value of zn. Next, the remaining 10 or 40
+notes were decoded using two different decoders: (1) use
+zn sampled from the prior that has been primed in the ﬁrst
+step, and (2) ﬁx zn = 0. We repeated this experiment on
+100 different starting points, and evaluated the Pearson’s
+correlation coefﬁcient between the generated and human
+performance.
+Table 2 shows the correlation coefﬁcients. The result
+shows that the encoder is capable of encoding information
+pertinent to music performance. Signiﬁcant improvements
+are seen for the velocity and the tempo, showing that the
+interpretation space is captures these aspects. At the same
+time, there are still rooms for improving the prediction of
+the onset deviation and the tempo.
+This shows that we can indeed feed a reference perfor-
+mance snippet to the system, and the system would gener-
+ate a performance in style of the snippet.
+5. CONCLUSION
+We have presented music performance rendering method
+that explicitly encodes underlying sources of expression
+variations. Our method opens door to wider possibilities
+for the co-creation of music performance between a ma-
+chine and humans, by enabling an interpretable and ad-
+justable performance rendering and analysis system. We
+also believe the capability to decouple musical intent and
+its execution given the intent opens door to a new abstrac-
+tion layer for performance analysis.
+Future work includes the inference of additional outputs
+like the pedals and note-off velocity, better expressiveness
+through incorporation of music score markings, disentan-
+glement of the latent space and interfaces for interactive
+music performance rendering.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+860
+
+6. REFERENCES
+[1] Sergio Canazza, Giovanni De Poli, and Antonio Roda.
+Caro 2.0: An interactive system for expressive music
+rendering. Advances in Human-Computer Interaction,
+2015:1–13, 2015.
+[2] Carlos Cancino-Chacón and Maarten Grachten. The
+basis mixer: a computational romantic pianist. In Late-
+Breaking Demo, ISMIR, 2016.
+[3] Carlos Cancino-Chacón and Maarten Grachten. A
+computational study of the role of tonal tension in ex-
+pressive piano performance. In Proc. ICMPC, 2018.
+[4] Carlos E. Cancino-Chacón, Maarten Grachten, Werner
+Goebl, and Gerhard Widmer. Computational models of
+expressive music performance: A comprehensive and
+critical review. Frontiers in Digital Humanities, 5:25,
+2018.
+[5] Kyunghyun Cho, Bart van Merrienboer, Caglar Gul-
+cehre, Dzmitry Bahdanau, Fethi Bougares, Holger
+Schwenk, and Yoshua Bengio. Learning phrase rep-
+resentations using RNN encoder–decoder for statisti-
+cal machine translation. In Proc. EMNLP, pages 1724–
+1734, 2014.
+[6] Junyoung
+Chung,
+Kyle
+Kastner,
+Laurent
+Dinh,
+Kratarth Goel, Aaron C Courville, and Yoshua Bengio.
+A recurrent latent variable model for sequential data.
+In NIPS, pages 2980–2988, 2015.
+[7] Simon Dixon, Werner Goebl, and Gerhard Widmer.
+The "Air Worm": an interface for real-time manipula-
+tion of expressive music performance. In Proc. ICMC,
+2005.
+[8] Sebastian Flossmann, Maarten Grachten, and Gerhard
+Widmer. Expressive performance rendering: Introduc-
+ing performance context. Proc. SMC, pages 155–160,
+2009.
+[9] Anders Friberg and Erica Bisesi. Using computational
+models of music performance to model stylistic varia-
+tions. Expressiveness in music performance: Empirical
+approaches across styles and cultures, pages 240–259,
+2014.
+[10] Gao Huang, Zhuang Liu, Laurens Van Der Maaten, and
+Kilian Q Weinberger. Densely connected convolutional
+networks. In Proc. CVPR, pages 4700–4708, 2017.
+[11] Dasaem Jeong, Taegyun Kwon, Yoojin Kim, and Juhan
+Nam. Graph neural network for music score data and
+modeling expressive piano performance. In Kamalika
+Chaudhuri and Ruslan Salakhutdinov, editors, Proc.
+ICML, pages 3060–3070, 2019.
+[12] Tae Hun Kim, Satoru Fukayama, Takuya Nishimoto,
+and Shigeki Sagayama. Polyhymnia: An automatic pi-
+ano performance system with statistical modeling of
+polyphonic expression and musical symbol interpreta-
+tion. In Proc. NIME, pages 96–99, 2011.
+[13] Diederik P. Kingma and Jimmy Ba. Adam: A method
+for stochastic optimization. In Proc. ICLR, 2015.
+[14] Diederik P. Kingma and Max Welling. Auto-encoding
+variational Bayes. In Proc. ICLR, 2014.
+[15] Akira Maezawa. Deep linear autoregressive model for
+interpretable prediction of expressive tempo. In Proc.
+SMC, pages 364–371, 2019.
+[16] Akira Maezawa and Kazuhiko Yamamoto. MuEns: A
+multimodal human-machine music ensemble for live
+concert performance. In Proc. CHI, pages 4290–4301,
+2017.
+[17] Dasaem Jeong Taegyun Kwon Juhan Nam. Virtu-
+osoNet: A hierarchical attention RNN for generating
+expressive piano performance from music score. In
+Workshop on Machine Learning for Creativity and De-
+sign, NeurIPS, pages 1–6, 2018.
+[18] Kenta Okumura, Shinji Sako, and Tadashi Kitamura.
+Laminae: A stochastic modeling-based autonomous
+performance rendering system that elucidates per-
+former characteristics. In Proc. ICMC, 2014.
+[19] Caroline Palmer. Music performance. Annual review of
+psychology, 48(1):115–138, 1997.
+[20] Ian Simon and Sageev Oore. Performance RNN:
+Generating music with expressive timing and dynam-
+ics.
+https://magenta.tensorflow.org/
+performance-rnn, 2017.
+[21] Sam Van Herwaarden, Maarten Grachten, and W Bas
+De Haas. Predicting expressive dynamics in piano per-
+formances using neural networks. In Proc. ISMIR,
+pages 45–52, 2014.
+[22] Gerhard Widmer, Sebastian Flossmann, and Maarten
+Grachten. YQX plays Chopin. AI Magazine, 30(3):35,
+2009.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+861

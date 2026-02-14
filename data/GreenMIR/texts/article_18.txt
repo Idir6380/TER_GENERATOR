@@ -1,0 +1,771 @@
+GENERATING COHERENT DRUM ACCOMPANIMENT WITH FILLS
+AND IMPROVISATIONS
+Rishabh Dahale 1
+Vaibhav Talwadker1
+Preeti Rao1
+Prateek Verma 2
+1 Department of Electrical Engineering, Indian Institute of Technology Bombay, India
+2 Stanford University
+dahalerishabh1@iitb.ac.in, talwadkerv@gmail.com, prao@ee.iitb.ac.in, prateekv@stanford.edu
+ABSTRACT
+Creating a complex work of art like music necessi-
+tates profound creativity. With recent advancements in
+deep learning and powerful models such as transform-
+ers, there has been huge progress in automatic music
+generation. In an accompaniment generation context,
+creating a coherent drum pattern with apposite fills and
+improvisations at proper locations in a song is a chal-
+lenging task even for an experienced drummer. Drum
+beats tend to follow a repetitive pattern through stan-
+zas with fills/improvisation at section boundaries. In
+this work, we tackle the task of drum pattern gener-
+ation conditioned on the accompanying music played
+by four melodic instruments ± Piano, Guitar, Bass, and
+Strings. We use the transformer sequence to sequence
+model to generate a basic drum pattern conditioned
+on the melodic accompaniment to find that improvisa-
+tion is largely absent, attributed possibly to its expect-
+edly relatively low representation in the training data.
+We propose a novelty function to capture the extent of
+improvisation in a bar relative to its neighbors.
+We
+train a model to predict improvisation locations from
+the melodic accompaniment tracks. Finally, we use a
+novel BERT-inspired in-filling architecture, to learn the
+structure of both the drums and melody to in-fill ele-
+ments of improvised music.
+1. INTRODUCTION
+Songs in popular music genres like rock are typically split
+into different sections such as the verse, bridge, and cho-
+rus. While the primary task of a drummer is to play in time,
+it is also important for the drummer to be consistent with
+the song structure. Traditionally fills, or short groups of
+notes, are played as the song transitions from one section
+to another (say, verse to chorus). Thus, it can serve as an
+indicator to the audience as well as the band, of an upcom-
+ing transition in the song. The duration of fills generally
+tends to be only a few beats long, no more than the length
+© Rishabh Dahale, Vaibhav Talwadker, Preeti Rao and Pra-
+teek Verma. Licensed under a Creative Commons Attribution 4.0 Inter-
+national License (CC BY 4.0). Attribution:
+Rishabh Dahale, Vaibhav
+Talwadker, Preeti Rao and Prateek Verma, ªGenerating Coherent Drum
+Accompaniment with Fills and Improvisationsº, in Proc. of the 23rd Int.
+Society for Music Information Retrieval Conf., Bengaluru, India, 2022.
+of a bar. Even though they are rare events in a drum track,
+fills are an important part of the overall aesthetics. Beyond
+signaling transitions, drum fills can also be played in sec-
+tions where the accompanying instrumentation is sparse.
+Motivated by the above, we improve the quality of the
+generated drum tracks from seq-to-seq models by incorpo-
+rating fills/improvisations towards our overall goal of ac-
+companiment generation. This is achieved via the follow-
+ing three distinct stages:
+1. Basic Drum Pattern Generation: Using a seq-to-
+seq model to generate a drumbeat as the accompaniment
+to given melodic instrument tracks of guitar, bass, strings,
+and piano (i.e. the Melodic Accompaniment - MA).
+2. Improvisation Location Detection: Detecting ex-
+plicitly the position of improvisation from the MA using a
+self-similarity function and mini BERT model.
+3. Generating Improvised Bars: Generating the fills
+in the previously detected bars.
+Our main contributions are: (i) We show that traditional
+attention-based transformer architectures fail to capture the
+ªimprovisation" due to implicit data imbalance. (ii) We
+also show that the sampling-based approaches fail to pro-
+duce a variation of pattern at the right location. To mitigate
+this, we learn to predict where to improvise directly from
+the melody tracks using powerful self-attention-based ar-
+chitectures. (iii) We propose a novel in-filling approach,
+inspired by BERT that can look at the context of drums and
+the context of melody and use it to generate the improvised
+bars. (iv) We demonstrate an MLP-based synthesis module
+for drum improvisation generation from a latent code. For
+simplicity we have ignored the dynamic (velocities) in the
+generated drum patterns of this work.
+2. RELATED WORKS
+Since the introduction of the Transformer architecture [1],
+there has been a growing interest in this model for sequen-
+tial task modeling like in NLP and music generation. The
+architecture uses an attention mechanism to learn long-
+term patterns and can easily surpass dilated convolutional-
+based methods such as WaveNet [2]. They achieve state-
+of-the-art performance in a variety of natural language
+problems [3], music/audio understanding [4] and gener-
+ation tasks [5, 6].
+However, for generative models, the
+decoding strategy still remains an open question. Even
+though high-quality models can be obtained by the use of
+likelihood as the training objective, likelihood maximiza-
+264
+
+Figure 1. System Overview - Pipeline used for training (left half) of each individual module; combined pipeline (right half)
+for the evaluation phase.
+tion methods like beam search lead to degeneration [7].
+To solve this issue, many researchers use sampling-based
+methods like temperature sampling, top-k sampling, and
+nucleus sampling [7±9]. Despite all of the success of se-
+quential modeling recently, there still exist many issues
+that are relevant to our current work such as understand-
+ing rare words or sparsely occurring events of interest [10].
+Another major problem is the presence of biases in the gen-
+erated output, as they mimic the distribution present in the
+training datasets [11]. These issues are ubiquitous across
+datasets and modalities and are implicit in our task due to
+the low representation of improvised bars. We here show
+how these constraints and biases affect the quality of drum
+generation, and the steps we take to mitigate them.
+Conditioned drum beat generation is an important sub-
+task of music generation. Wei et al. [12] observed that the
+polyphonic melody self-similarity matrix (SSM) is struc-
+turally similar to the drum SSM. They used this to predict
+the drum SSM from the melody SSM and used this inter-
+mediate representation to generate the drumbeat. While
+they used the audio form of the melody as the input, the
+symbolic domain also offers opportunities for similar re-
+search. An example is the work of [13] using symbolic
+representation of the drum track to predict locations and
+generate improvisations for the drum track. In this work,
+we address drum generation conditioned on a melodic ac-
+companiment track, bringing considerably more complex-
+ity to the problem.
+In the symbolic domain, systems use a discretized rep-
+resentation such as MIDI tag and pianoroll representations
+that capture the essential information at the semantic level.
+Pianoroll is a score-like matrix representing a piece of
+music. Note pitch and time are represented by the ver-
+tical and horizontal axes, respectively. The velocities of
+the notes are represented by the values. The time is gen-
+erally quantized on a sub-beat level and each instrument
+track is represented by a separate pianoroll matrix. Dong
+et al. [14] used this representation along with CNN-based
+GAN model for music generation. Another popular sym-
+bolic domain representation is the MIDI tag representation
+which we refer to as the ªserialized grid representation".
+In this method, the input is represented by a sequence of
+MIDI-like tags. Huang et al. [6] used this MIDI tag rep-
+resentation with modified transformer architecture to gen-
+erate long-duration piano music.
+Several modifications
+have also been proposed to this representation. Huang et
+al. [15] proposed a revamped MIDI (REMI) which intro-
+duced DURATION, BAR and POSITION tags to improve
+the quaity of generated music. Ren et al. [16] further mod-
+ified this representation to include multi-track representa-
+tion by introducing TRACK tag and used the Transformer-
+XL model to generate multitrack songs. Nuttall et al. [17]
+modified the MIDI tags of nine percussion instruments to
+represent notes being played by a triplet of pitch, velocity,
+and start time, and used it with the Transformer-XL model
+to sequentially generate the drum pattern. Thorn et al. [18]
+demonstrated three experiments with the Transformer-XL
+model with varying input and output representation and
+control. In two of the experiments, they tried to control
+the drum machine while in the third experiment they tried
+to generate the drum pattern directly.
+While the Transformer-XL model facilitates the gen-
+eration of longer duration (musical) sequences, they still
+suffer from the same issues of biases in dealing with the
+implicit data-imbalance that exists in the training dataset
+[19,20]. As the specific focus of this work is to find ways
+to capture the rare events in the generated output, i.e., fills
+and improvisations, we consider only the necessary con-
+text for an improvised bar in the form of 11 bar segments
+of the songs.
+3. DATASET
+In this work, we use the Lakh Pianoroll Dataset (LPD-5
+cleansed) [14], derived from the Lakh Midi Dataset [21]
+which is a collection of 21,425 multitrack pianorolls files
+consisting of following tracks: Piano, Guitar, Bass, Strings
+and Percussion. All the songs in this dataset are of 4/4-time
+signature i.e., all the songs contain 4 beats in a bar and the
+dimensionality of each bar in this dataset is 128 (pitch) x
+96 (time steps) i.e. each beat is divided into 24 parts. Our
+input, which we call melodic accompaniment (MA), con-
+sists of notes played by the 4 melodic instruments and out-
+put is a percussion instrument pattern conditioned on the
+input which we call the percussion accompaniment (PA).
+Evaluation of generative music systems faces harder
+challenges than that of image generation systems [22]. We
+expect our system to replicate the rhythmic consistency
+and diversity of the dataset. Any drum beat generation
+system must have correct onset locations in a beat. If the
+onsets are not properly matched, it appears as if the drums
+are lagging/leading the melody. We show that our model is
+able learn this by capturing the onset location distribution.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+265
+
+To compare generated samples with original drums in the
+dataset, we use the following metric: Instrument Count -
+Number of distinct percussion instruments used in a bar.
+To evaluate our outputs in terms of rhythmic consistency,
+we use the following objective metric: Percussion pattern
+consistency in consecutive bars.
+4. METHOD
+The overview of the proposed system is shown in Figure 1.
+Details of each of the models are provided in subsequent
+sections.
+Our models are trained for 300 epochs with
+Adam optimization [23] starting with a learning rate of 1e-
+4 and decaying it till 1e-6. All the setup was carried out
+using the Tensorflow [24] framework. The following two
+modules are being used in all the models:
+1. Embedding Module: As the pianoroll matrices are
+highly sparse, we pass them through 2 layers with 1024
+and 128 ReLU [25] activated dense layers to capture the
+inter instrument and inter pitch dependencies. For the de-
+coder branch of Basic Drum Pattern Generation model, we
+use 128 dimensional token embedding layer.
+2. Position Encoder: We concatenate the sinusoidal posi-
+tional representations [1] with the 128 dimensional vectors
+and use a dense layer to project them back in 128 dimen-
+sion space.
+4.1 Data Processing & Representation
+To compress the input and output representation in our
+work, we perform the following preprocessing steps: (i)
+trim the track for start and end silence bars; (ii) resam-
+ple the beats to 8 parts per beat, making each bar 32
+timesteps long; (iii) keep only active MIDI pitches in all
+melodic instruments, i.e. MIDI 21 to MIDI 83 (notes A0
+to B5); (iv) combine similar instruments in the MIDI rep-
+resentation of the percussion track. For example, under
+the snare drum, MIDI 38, which corresponds to acoustic
+snare, and MIDI 40, which corresponds to electric snare,
+are clubbed together; (v) choose only 16 percussion instru-
+ments as they capture 85.3% of all the percussion instru-
+ment strokes: snare drum, open hi-hat, close hi-hat, kick
+drum, ride cymbal, crash cymbal, low-floor tom, high-floor
+tom, high tom, hi-mid tom, low tom, cowbell, pedal hi-
+hat, tambourine, cabasa, and maracas; (vi) to decrease the
+amount of training parameters, we binarize the percussion
+track for seq-2-seq models and exclude velocities; (vii)
+split the song in non-overlapping contiguous 11 bar sam-
+ples. The finer grids are superior for representing drum
+audio and fills [26]. We however opt for a quantized repre-
+sentation, capturing most of the significant musical events,
+allowing us to model longer duration dependencies by the
+compressed representation. It will be interesting to com-
+pare various representations as a future work.
+We use a modified version of pianoroll representation
+for MA representation.
+We concatenate the pianorolls
+(Figure 2a) of different instruments instead of adding them
+to different channels [14]. As our input is quantized to 8
+parts per beat, we represent each 1
+8
+th part of the beat by
+a 256-dimensional vector split amongst the 4 melodic in-
+struments. The first dimension of this 64-dimension vector
+is the silence state. This is a binary state representing if the
+instrument under consideration is silent. The rest of the 63
+dimensions contain the velocities of the MIDI notes 21-83
+being played.
+Figure 2. Data representation methods used in this work
+For the PA, we adopt a mixed representation. For our
+Basic Drum Pattern Generation model, which is a trans-
+former seq-2-seq model, we take advantage of the lan-
+guage modeling tasks and use a serialized grid representa-
+tion (Figure 2b). In this representation, only the active per-
+cussion instruments which are being played are unfolded
+into a sequence of tokens. We add a silence state token
+and shift by one token making a total of 18 tokens for the
+percussion track. For the final model, the improvisation
+generation model, we give the MA and masked basic PA
+pattern as the inputs. We use the pianoroll representation
+for the PA representation for this model (Figure 2c) as only
+a fixed number of timesteps needs to be masked in this rep-
+resentation.
+4.2 Train-Test Splits and Data Augmentation
+We split the 21,425 songs in LPD-5 into 16,832 songs for
+training and 4,593 songs for the validation set. As the num-
+ber of songs is limited, we use the validation set as the test
+set. We apply the following data augmentation strategies
+(inspired by sensor dropout methods in robotics [27]) to
+all of our models’ inputs to increase the robustness in the
+training process:
+1. Random instrument masking: We randomly mask
+one of the instruments in MA for 40% of the samples in
+every epoch. This 40% is equally split between the four
+melodic instruments. Musically this implies that one of
+the instruments has stopped playing. This encourages the
+model to consider all the instruments in the MA while
+making a prediction.
+2. Random timestep masking: We randomly mask
+20% of the timesteps in every sample. Musically this leads
+to a small disruption in the rhythm of the song which helps
+in better generalization of the model.
+For the improvised bar generation model, which takes
+in the MA and masked PA as inputs, (section 4.5), we use
+the following additional augmentation methods:
+1. Input masking: We randomly drop one of the inputs
+(MA or PA) to the model in 20% of the input samples. This
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+266
+
+ensures that the model is not dependent on only one input
+for improvisation generation.
+2. Drum noise: In the evaluation phase, the drum in-
+puts are taken from the output of the basic drum pattern
+generation model. As this process could be prone to er-
+rors, we simulate this by adding the random noise to the
+drum samples while training. The random noise can either
+add new drum strokes or remove some old strokes. Our
+analysis showed that the PA has a very low density in the
+pianoroll format (average ≈5%). Hence we perturb the
+PA density by a maximum of 1%
+4.3 Basic Drum Pattern Generation
+Figure 3. (a) Sequence to sequence model, used for basic
+drum pattern generation; (b) Improvisation Location De-
+tection Model
+We use the Transformer encoder-decoder model [1] to
+generate a basic drum pattern (Figure 3a). This is done by
+giving the MA as the input to the encoder and the shifted
+PA tokens to the decoder branch. Both the inputs are first
+passed through the embedding module followed by the po-
+sition encoder. The embedded inputs are passed through
+2 layers of encoder/decoder module with 128 dimensional
+latent space and 8 attention heads. At the output, we have
+18 neurons corresponding to the 16 drum instruments, si-
+lence token, and shift token.
+4.3.1 Sub-module Evaluation
+We evaluate the above model with the negative log-
+likelihood (NLL) values over the train and the validation
+set. As the model outputs a distribution over the 18 out-
+put tokens, there are multiple ways to decode it. We test
+the greedy method of decoding, where the token with the
+maximum probability is selected at every step and simple
+sampling method. The model is trained using categorical
+cross-entropy loss, achieved a NLL of 0.108 and 0.112 on
+the train and validation split, respectively.
+4.4 Improvisation Location Detection
+4.4.1 Novelty Function
+Figure 4. Novelty Function plot for a given drum track
+In order to extract locations in the MA that warrant a
+fill, we propose the following method:
+1. We use a 11-bar drum sample to calculate the Nov-
+elty value of center bar. The 5 bars on it’s left and right
+are the context bar. The novelty value of a bar is calculated
+as the average weighted dissimilarity over all the context
+bars. We use the following equation to calculate the dis-
+similarity between 2 bars:
+||bari −barj||1 × k
+||bari||1 + ||barj||1
+(1)
+We utilize the hanning window to represent the weighting
+parameter k.
+2. This calculation is done for all the bars across a track,
+except the first and the last 5 bars due to the lack of context
+bars. From Figure 4 it can be seen that the novelty func-
+tion peaks at the bar with a drum fill. These bars are then
+extracted using a peak picking mechanism.
+3. To generate the dataset for our task, we pick the bars
+with a local maxima as the positive samples. To filter out
+minor deviations, e.g., bar 18 in Figure 4, we put a thresh-
+old of 0.1 on the peaks height difference from its neigh-
+bours. Maximum of 10% of total bars in a song with these
+characteristics are selected as the positive samples. Same
+number of bars from the rest of the non peak regions are
+selected as negative samples.
+4.4.2 Model Architecture
+We use a 2 layer BERT [28] (Figure 3b) to detect the lo-
+cation of improvisations. The input to this model is an
+11-bar MA and the prediction is done for the middle bar.
+The MA is passed through an embedding layer followed
+by the positional encoder. The embedded inputs are then
+passed through 2 layers of transformer encoder with 64 di-
+mension latent space and 12 attention heads, followed by
+1024 neurons. These are finally passed to a 2 dimensional
+softmax activated dense layer which acts as a classification
+module. The above model is trained using Huber loss [29],
+as it is robust to outliers and less sensitive to noise.
+4.4.3 Sub-module Evaluation
+We monitored the accuracy, precision, and recall of the
+model in terms of detecting the improvised bars where the
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+267
+
+target is the original drum track. The final results can be
+found in Table 1. As the dataset is split equally between
+positive and negative samples, we have balanced precision
+and recall values.
+Precision
+Recall
+Accuracy
+F1 Score
+Train
+92.3
+92.3
+92.3
+92.3
+Val
+79.1
+79.4
+79.3
+79.2
+Table 1. Performance of the Improvisation Location De-
+tection model. All the values are in %.
+4.5 Improvisation Generation
+Figure 5. Improvised Bar Generation Model
+The final step in our system is the generation of impro-
+vised bars. To achieve this we use the architecture shown
+in Figure 5. We provide 11 bar MA and PA as the in-
+put to the model. During the training phase, the PA is
+the original percussion track, whereas, during the evalu-
+ation/generation phase, the percussion track generated by
+our first stage model (section 4.3) is used. The 6th bar in
+the percussion sample (middle bar) is the target bar and is
+masked while giving as the input.
+We generate a summary vector of both the MA and the PA
+inputs. Both are first passed through an embedding layer
+followed by a position encoder module. This is then passed
+through 2 layers of transformer encoders with 128 dimen-
+sional latent space and 8 attention heads.
+Even though
+larger/bigger models could potentially lead to better re-
+sults, we have used the resources at our disposal. We note
+that any further improved performance will only apply to
+in-fill detection and synthesis.
+We add skip connections to ease the flow of gradients
+[30]. To generate the summary vector for each input, we
+use a global averaging technique. These two vectors are
+concatenated and passed through a decoder structure which
+looks at the concatenated vector to generate the improvised
+drum bar. We test the following decoder architectures with
+our model:
+1. MLP: A 3-layer dense network with 2048-2048-512
+neurons is used. The final layer is sigmoid activated. The
+outputs are reshaped to 32 (timesteps) × 16 (percussion
+instruments) to get the improvised bar.
+2. MLP mixer: MLP mixers [31] are simple alterna-
+tives to convolution and self-attention. They are based on
+multi-layered perceptrons applied across either temporal
+dimension or feature dimension.
+3. Conv1d: A simple conv1d architecture with blocks
+of 2 layers of conv1d followed by upsampling.
+We did not opt for an auto-regressive architecture, as
+this work does not assume causality, and we incorporate
+the right context as well as melody for the fill synthesis.
+There have been other works for improvisation synthesis,
+e.g. [32], also using the left and right context, even if only
+using drums
+4.5.1 Sub-module Evaluation
+We treat the prediction of the improvised bars as a regres-
+sion problem. We similarly train it with Huber loss as it is
+less sensitive to outliers. We do not use cross-entropy loss
+for generation firstly purely as a design choice, and intu-
+itively each of the time step token in the prediction within
+a bar lack probabilistic interpretation. We monitor and re-
+port the accuracy, precision, and recall of the models. As
+the distribution of 0s and 1s is not uniform in the predicted
+sample, F1 score provides a better insight in the perfor-
+mance of the models. From Table 2 it can be seen that a
+simple 3 layered MLP decoder is able to perform better
+than the complex MLP mixer and Conv1D architecture.
+Precision
+Recall
+Accuracy
+F1 Score
+MLP
+Train
+98.8
+93.2
+86.3
+95.9
+Val
+82.9
+70.3
+79.0
+76.0
+MLP
+Mixer
+Train
+97.5
+45.0
+88.7
+61.6
+Val
+83.5
+42.1
+86.0
+56.0
+Conv1D
+Train
+55.2
+70.6
+86.2
+61.7
+Val
+53.1
+70.3
+86.1
+60.5
+Table 2. Results for various decoders used in the Impro-
+vised Bar Generation model (all the values are in %)
+5. EVALUATION
+To evaluate the quality of the generated PA pattern of the
+proposed system, we conduct both objective and subjec-
+tive tests 1 with: O: Original MIDI drum patterns from the
+dataset; P1: The basic drum pattern generated by our Ba-
+sic Drum Pattern Generation model (section 4.3); P2: The
+final drum pattern with fills and improvisations generated
+by the complete system.
+We screen the generated samples to eliminate those with
+more than 4 silent bars and those where the variation of bar
+density is high as measured by the standard deviation of the
+bar density. After applying the mentioned filtering to 8192
+P1 drum samples generated by simple sampling method,
+we are left with 3762 samples for further evaluation.
+1 Note:Additional objective evaluation methods are reported in the
+supplementary document https://bit.ly/2022ismirsupp
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+268
+
+Figure 6. (a) Distribution of onset position in a bar (b)
+Distribution of Percussion Pattern Consistency
+A basic requirement that any drum pattern generation
+system must fulfill is the rhythmic positioning of onsets.
+Generally, in a bar of rock music, the first beat (downbeat)
+and the third beat have similar instrumentation, featuring a
+hi-hat and kick drum onset. Beats 2 and 4, commonly re-
+ferred to as the backbeat, include a hi-hat and snare drum
+onset. While the quarter notes are accented across the bar,
+8th notes are accented within the beat interval. Figure 6a
+shows the onset distribution present in the bar of both O
+and P1 samples. We can observe that most of the drum pat-
+terns are 8th note patterns and we find a larger proportion
+of onsets at the accented locations within a beat interval.
+This is particularly intriguing because the model is given
+no explicit downbeat or subdivision information yet is still
+able to emphasis the subdivisions required for an 8th note
+pattern.
+We also do a one-to-one comparison of the P1 outputs
+against their target drum pattern to understand how closely
+the patterns match with the original drum sample based on
+the following metric:
+Instrument Count (IC) is defined as the total number of
+distinct instruments used in a bar.
+To see whether our
+model is able to replicate the behavior of multi-instrument
+dependency, we calculate the deviation of IC in the gen-
+erated sample with reference to the original target drum
+track for the same MA. We observe that in 75.8% of the
+drum bars, we are able to replicate the IC, while in 99.3%
+of the bars our model was off by at most 1 instrument.
+Another important aspect that needs to be considered
+while generating drum patterns is to have a rhythmic (pat-
+tern) consistency across bars. We evaluate this aspects of
+the generated drum pattern using the following metric:
+Pattern Consistency: For consecutive bar pair, we cal-
+culate the distance between the drum patterns using (1)
+keeping k = 1. The distribution of the bar distances is
+shown in Figure 6b. We can see that the generated drum
+bars are more or less similar to each other with some mi-
+nor deviations due to the sampling decoding method. The
+overlapping area of the two distributions is 80.4%.
+Next, on the improvised O and P2 bars, we used the
+following evaluation methods to see how well our models
+captured the fills/improvisations:
+Onset Position: Figure 7a shows the distribution of onset
+location of percussion instruments across the improvised
+bars. We observe a slightly higher proportion of 16th note
+patterns in the improvised O bars as compared to onset dis-
+Figure 7. Improvised bars: Distribution of (a) onset loca-
+tion (b) change in instrument count (w.r.t. previous bar)
+tribution across the non-improvised bars seen in Figure 6a.
+We can see that P2 system is largely able to capture this
+behavior as well.
+Instrument Count (IC) Change:
+Generally during a
+fill/improvisation, some additional instrument are being in-
+troduced. IC change is measures as the change in IC of im-
+provised bar compared to its previous bar. Figure 7b shows
+the distribution of IC change. The overlapping area of the
+two distributions is 87.9%, This shows that our model was
+able to capture the general trend of IC change.
+Additionally, to evaluate the perceptual quality of the
+generated outputs, we present the generated samples to
+trained musicians. We created 3 pairs i.e. O & P1; P1 &
+P2; O & P2 for each MA-PA track and presented them to
+two guitarists and a multi-instrumentalist with experience
+ranging from 5 to 10 years. They were asked to provide
+detailed comments on the drum pattern in terms of timing,
+appropriateness of fills and coherence of the PA with MA.
+A common comment from the musicians was regarding the
+monotonicity in P1 track. As a result when the O & P1 pair
+was presented, majority of the times O was preferred, but
+when P1 & P2 were presented, musicians were found to
+appreciate the fills as it provided a lively feel to the PA.
+6. CONCLUSION AND FUTURE WORK
+We have successfully shown a method to produce coherent
+drums accompaniment with improvised bars by condition-
+ing on a given melodic accompaniment. A novel BERT
+inspired infilling architecture is proposed, along with self-
+supervised improvisation locator. By learning, where and
+how to improvise, our evaluations indicate improved gen-
+eration quality. Thus with a two step approach, we mit-
+igate the biases intrinsic with data-imbalance, and short-
+comings that exists with current machine learning archi-
+tectures. The system can further be improved by learn-
+ing optimal sampling techniques, which still remains an
+open problem. As a future work, we could improve the
+detection performance by employing larger and deeper ar-
+chitectures. This work highlights a serious drawback of
+traditional language-based generators, which have shown
+promise in a lot of different fields, yet they fail to capture
+subtle musical signals, where they are often sparsely oc-
+curring in otherwise repetitive and common patterns.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+269
+
+7. REFERENCES
+[1] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit,
+L. Jones, A. N. Gomez, è. Kaiser, and I. Polosukhin,
+ªAttention is all you need,º Advances in neural infor-
+mation processing systems, vol. 30, 2017.
+[2] P. Verma and C. Chafe, ªA generative model for raw
+audio using transformer architectures,º arXiv preprint
+arXiv:2106.16036, 2021.
+[3] T. Brown, B. Mann, N. Ryder, M. Subbiah, J. D. Ka-
+plan, P. Dhariwal, A. Neelakantan, P. Shyam, G. Sas-
+try, A. Askell et al., ªLanguage models are few-shot
+learners,º Advances in neural information processing
+systems, vol. 33, pp. 1877±1901, 2020.
+[4] P.
+Verma
+and
+J.
+Berger,
+ªAudio
+transformers:
+Transformer architectures for large scale audio un-
+derstanding.
+adieu
+convolutions,º
+arXiv
+preprint
+arXiv:2105.00335, 2021.
+[5] P. Dhariwal, H. Jun, C. Payne, J. W. Kim, A. Radford,
+and I. Sutskever, ªJukebox: A generative model for
+music,º arXiv preprint arXiv:2005.00341, 2020.
+[6] C.-Z. A. Huang, A. Vaswani, J. Uszkoreit, N. Shazeer,
+I. Simon, C. Hawthorne, A. M. Dai, M. D. Hoff-
+man, M. Dinculescu, and D. Eck, ªMusic transformer,º
+arXiv preprint arXiv:1809.04281, 2018.
+[7] A. Holtzman, J. Buys, L. Du, M. Forbes, and Y. Choi,
+ªThe curious case of neural text degeneration,º arXiv
+preprint arXiv:1904.09751, 2019.
+[8] J. Ficler and Y. Goldberg, ªControlling linguistic style
+aspects in neural language generation,º arXiv preprint
+arXiv:1707.02633, 2017.
+[9] A.
+Fan,
+M.
+Lewis,
+and
+Y.
+Dauphin,
+ªHier-
+archical neural story generation,º
+arXiv preprint
+arXiv:1805.04833, 2018.
+[10] T. Schick and H. Schütze, ªRare words: A major prob-
+lem for contextualized embeddings and how to fix it by
+attentive mimicking,º in Proceedings of the AAAI Con-
+ference on Artificial Intelligence, vol. 34, no. 05, 2020,
+pp. 8766±8774.
+[11] E. Sheng, K.-W. Chang, P. Natarajan, and N. Peng,
+ªThe woman worked as a babysitter: On biases in lan-
+guage generation,º arXiv preprint arXiv:1909.01326,
+2019.
+[12] I.-C. Wei, C.-W. Wu, and L. Su, ªGenerating struc-
+tured drum pattern using variational autoencoder and
+self-similarity matrix.º in ISMIR, 2019, pp. 847±854.
+[13] F. Tamagnan and Y.-H. Yang, ªDrum fills detection and
+generation,º in International Symposium on Computer
+Music Multidisciplinary Research.
+Springer, 2019,
+pp. 91±99.
+[14] H.-W. Dong, W.-Y. Hsiao, L.-C. Yang, and Y.-H. Yang,
+ªMusegan: Multi-track sequential generative adversar-
+ial networks for symbolic music generation and accom-
+paniment,º in Proceedings of the AAAI Conference on
+Artificial Intelligence, vol. 32, no. 1, 2018.
+[15] Y.-S. Huang and Y.-H. Yang, ªPop music transformer:
+Beat-based modeling and generation of expressive pop
+piano compositions,º in Proceedings of the 28th ACM
+International Conference on Multimedia, 2020, pp.
+1180±1188.
+[16] Y. Ren, J. He, X. Tan, T. Qin, Z. Zhao, and T.-Y. Liu,
+ªPopmag: Pop music accompaniment generation,º in
+Proceedings of the 28th ACM International Conference
+on Multimedia, 2020, pp. 1198±1206.
+[17] T. Nuttall, B. Haki, and S. Jorda, ªTransformer neural
+networks for automated rhythm generation,º 2021.
+[18] O. Thörn, ªAi drummer-using learning to enhancearti
+cial drummer creativity,º 2020.
+[19] A. Caliskan, J. J. Bryson, and A. Narayanan, ªSeman-
+tics derived automatically from language corpora con-
+tain human-like biases,º Science, vol. 356, no. 6334,
+pp. 183±186, 2017.
+[20] P.-S. Huang, H. Zhang, R. Jiang, R. Stanforth, J. Welbl,
+J. Rae, V. Maini, D. Yogatama, and P. Kohli, ªReducing
+sentiment bias in language models via counterfactual
+evaluation,º arXiv preprint arXiv:1911.03064, 2019.
+[21] C. Raffel, Learning-based methods for comparing se-
+quences, with applications to audio-to-midi alignment
+and matching.
+Columbia University, 2016.
+[22] J.-P. Briot, G. Hadjeres, and F.-D. Pachet, ªDeep learn-
+ing techniques for music generation±a survey,º arXiv
+preprint arXiv:1709.01620, 2017.
+[23] D. P. Kingma and J. Ba, ªAdam: A method for stochas-
+tic optimization,º arXiv preprint arXiv:1412.6980,
+2014.
+[24] M. Abadi, P. Barham, J. Chen, Z. Chen, A. Davis,
+J. Dean, M. Devin, S. Ghemawat, G. Irving, M. Isard
+et al., ªTensorflow: A system for large-scale machine
+learning,º in 12th {USENIX} symposium on operat-
+ing systems design and implementation ({OSDI} 16),
+2016, pp. 265±283.
+[25] A. F. Agarap, ªDeep learning using rectified linear
+units (relu),º arXiv preprint arXiv:1803.08375, 2018.
+[26] J. Gillick, J. Yang, C.-E. Cella, and D. Bamman,
+ªDrumroll please: Modeling multi-scale rhythmic ges-
+tures with flexible grids,º Transactions of the Interna-
+tional Society for Music Information Retrieval, vol. 4,
+no. 1, 2021.
+[27] G.-H. Liu, A. Siravuru, S. Prabhakar, M. Veloso, and
+G. Kantor, ªMulti-modal deep reinforcement learning
+with a novel sensor-based dropout.º
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+270
+
+[28] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova,
+ªBert:
+Pre-training of deep bidirectional trans-
+formers for language understanding,º arXiv preprint
+arXiv:1810.04805, 2018.
+[29] P. J. Huber, ªRobust estimation of a location parame-
+ter,º in Breakthroughs in statistics.
+Springer, 1992,
+pp. 492±518.
+[30] L. Pepino, P. Riera, and L. Ferrer, ªEmotion recog-
+nition from speech using wav2vec 2.0 embeddings,º
+arXiv preprint arXiv:2104.03502, 2021.
+[31] I. O. Tolstikhin, N. Houlsby, A. Kolesnikov, L. Beyer,
+X. Zhai, T. Unterthiner, J. Yung, A. Steiner, D. Key-
+sers, J. Uszkoreit et al., ªMlp-mixer: An all-mlp ar-
+chitecture for vision,º Advances in Neural Information
+Processing Systems, vol. 34, 2021.
+[32] J. Gillick, A. Roberts, J. Engel, D. Eck, and D. Bam-
+man, ªLearning to groove with inverse sequence trans-
+formations,º in International Conference on Machine
+Learning.
+PMLR, 2019, pp. 2269±2279.
+[33] L.-C. Yang and A. Lerch, ªOn the evaluation of gener-
+ative models in music,º Neural Computing and Appli-
+cations, vol. 32, no. 9, pp. 4773±4784, 2020.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+271

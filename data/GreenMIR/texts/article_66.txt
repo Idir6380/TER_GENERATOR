@@ -1,0 +1,962 @@
+INTERACTIVE ARRANGEMENT OF CHORDS AND MELODIES
+BASED ON A TREE-STRUCTURED GENERATIVE MODEL
+Hiroaki Tsushima
+Eita Nakamura
+Katsutoshi Itoyama
+Kazuyoshi Yoshii
+Graduate School of Informatics, Kyoto University, Japan
+{tsushima, enakamura}@sap.ist.i.kyoto-u.ac.jp, {itoyama, yoshii}@kuis.kyoto-u.ac.jp
+ABSTRACT
+We describe an interactive music composition system that
+assists a user in reﬁning chords and melodies by gener-
+ating chords for melodies (harmonization) and vice versa
+(melodization). Since these two tasks have been dealt with
+independently, it is difﬁcult to jointly estimate chords and
+melodies that are optimal in both tasks. Another problem
+is developing an interactive GUI that enables a user to par-
+tially update chords and melodies by considering the la-
+tent tree structure of music. To solve these problems, we
+propose a hierarchical generative model consisting of (1) a
+probabilistic context-free grammar (PCFG) for chord sym-
+bols, (2) a metrical Markov model for chord boundaries,
+(3) a Markov model for melody pitches, and (4) a metri-
+cal Markov model for melody onsets. The harmonic func-
+tions (syntactic roles) and repetitive structure of chords are
+learned by the PCFG. Any variables speciﬁed by a user can
+be optimized or sampled in a principled manner according
+to a uniﬁed posterior distribution. For improved melodiza-
+tion, a long short-term memory (LSTM) network can also
+be used. The subjective experimental result showed the ef-
+fectiveness of the proposed system.
+1. INTRODUCTION
+Music composition is a highly intelligent task that has been
+considered to be done only by musically trained people.
+To help musically untrained people create their own musi-
+cal pieces, automatic music composition has actively been
+studied (e.g., [4, 8, 19, 31]). While conventional studies
+have aimed at full automation of music composition, in
+the process of music composition, melodies (sequences of
+musical notes) and chord sequences are partially and incre-
+mentally reﬁned by trial and error until the resulting musi-
+cal piece has musically appropriate structure. Our aim is to
+develop an interactive arrangement system that can assist
+unskillful people to take such a process for reﬂecting their
+preference in creating melodies and chord sequences.
+It is non-trivial to reﬂect user’s preference to a musical
+piece in a consistent and uniﬁed framework of statistical
+c⃝Hiroaki Tsushima, Katsutoshi Itoyama, Eita Nakamura,
+Kazuyoshi Yoshii. Licensed under a Creative Commons Attribution 4.0
+International License (CC BY 4.0). Attribution:
+Hiroaki Tsushima,
+Katsutoshi Itoyama, Eita Nakamura, Kazuyoshi Yoshii. “An Interactive
+System for Generating Chords and Melodies Based on a Tree-Structured
+Model”, 19th International Society for Music Information Retrieval Con-
+ference, Paris, France, 2018.
+Figure 1: Our interactive music arrangement system based
+on a tree-structured generative model.
+modeling. This problem is hard to solve especially when a
+black-box method (e.g., neural end-to-end learning) is used
+for music generation. To incrementally reﬁne a musical
+piece, one may iteratively use a harmonization method for
+generating a chord sequence from a melody [4,19, 24, 28]
+and a melodization method for generating a melody from a
+chord sequence [3,7,8,15,22,30,31]. This approach, how-
+ever, cannot enable a user to partially and incrementally re-
+ﬁne melodies and chords in consideration of the optimality
+of the whole musical piece because each task has a unique
+evaluation criterion.
+Since music is typically well-characterized by chords
+and melodies, it is important to be aware of complicated
+structures within and between chords and melodies. when
+composing a musical piece. To generate a musically ap-
+propriate sequence of chords, the harmonic functions of
+chords, which typically consist of three categories, i.e.,
+tonic (T), dominant (D), and subdominant (SD), should
+be considered because such functions represent syntactic
+roles in the same way as parts of speech in written texts. In
+addition, a sequence of harmonic functions of chords has a
+tree structure [21, 26]. For example, a chord sequence (C,
+Dm, G, Am, C, F, G, C) can be interpreted as (((T, SD),
+(D, T)), ((T, SD), (D, T))), where subtrees such as (T, SD),
+(D, T), and ((T, SD), (D, T)) appear repeatedly in a hierar-
+chical manner. Therefore, it is desirable to consider such
+the hierarchical tree structure of chord sequences when we
+computationally help people to create a new music.
+In this paper we propose an interactive music arrange-
+ment system that enables musically untrained users to cre-
+ate a melody and a chord sequence (Fig. 1). To partially
+and incrementally reﬁne the piece, users can choose sev-
+eral types of operations that are often exploited by mu-
+sically trained people. Speciﬁcally, the entire chord se-
+145
+
+quence and the corresponding tree structure can be reﬁned
+jointly for a melody; the onset time of a speciﬁed chord can
+be reﬁned; two adjacent chords forming a subtree can be
+merged into a single chord or a chord can be split into two
+chords; and melody notes in the region of a speciﬁed chord
+can be reﬁned. All a user needs to do is to specify where
+to update the piece and it is not necessary to manually edit
+individual musical elements.
+To optimize a chord sequence and a melody in a uniﬁed
+criterion, we propose a tree-structured hierarchical gen-
+erative model that consists of (i) a probabilistic context-
+free grammar (PCFG) generating chord symbols [28], (ii) a
+metrical Markov model generating chord rhythms, and (iii)
+a Markov model generating melody pitches conditionally
+on the chord sequence, and (iv) a metrical Markov model
+generating melody rhythms (Fig. 2). The rule probabili-
+ties of the PCFG are learned from chord sequences, with
+the expectation that the syntactic roles of chords are cap-
+tured by the non-terminal symbols [29]. The other mod-
+els are also learned from chord and/or note sequences. To
+improve the melodization process, a long short-term mem-
+ory (LSTM) network can be used instead of the Markov
+models (iii) and (iv) for capturing the long-term character-
+istic of a melody. Using the generative model trained in
+advance, we can estimate any “missing” variables, i.e., an
+unpleasant part of chords or musical notes speciﬁed by the
+user, in a statistical manner.
+The major contribution of this study is the realization of
+a directability-aware music composition/arrangement sys-
+tem based on a uniﬁed probabilistic model. This system
+provides a user with an easy-to-use GUI that shows other
+possibilities for an unpleasant part of the piece and all op-
+erations on the GUI are implemented as posterior inference
+based on the probabilistic model. Our contribution lies in
+the marriage of AI and human creativity.
+2. RELATED WORK
+This section reviews related studies on automatic harmo-
+nization and melodization.
+2.1 Automatic Harmonization
+Many studies have been conducted for automatic harmo-
+nization for given melodies. Some studies aim to gener-
+ate a sequence of chord symbols (as in this paper), and
+others aim to generate several (typically four) voices of
+musical notes. In the former type of research, Chuan and
+Chew [4] proposed a method consisting of three processes:
+selecting musical notes that might form chords from given
+melodies with a support vector machine (SVM), construct-
+ing triad chords from the selected notes, and generating
+chord progressions by using a rule-base method. Simon
+et al. [24] proposed a commercial system MySong based
+on hidden Markov models (HMMs) with Markovian chord
+transitions. Raczy´nski et al. [20] proposed similar Markov
+models in which chords are conditioned by melodies and
+time-varying keys. Tsushima et al. [28] proposed a har-
+monization method that considers the hierarchical repeti-
+tive structure of sequences of chord symbols obtained by
+
+"N
+'
+(
+$
+"N
+$
+'
+(
+1SPCBCJMJTUJDDPOUFYUGSFF
+HSBNNBS	1$'(
+GPSDIPSETZNCPMT
+.FUSJDBM.BSLPWNPEFM
+GPSDIPSEPOTFUT
+.BSLPWNPEFM
+GPSNFMPEZQJUDIFT
+
+44
+.FUSJDBM.BSLPWNPEFM
+GPSNFMPEZPOTFUT
+
+
+Figure 2: A tree-structured hierarchical generative model
+for chord symbols and melodies.
+PCFGs and pitch transitions conditioned by chord symbols
+with Markov models. De Prisco et al. [19] proposed a har-
+monization method for only a base line of the input with
+a distinctive network that models the dependencies among
+bass notes, the previous chord, and the current chord.
+In the latter type of research, Ebcio˘glu [6] proposed
+a rule-based method for generating four-part chorales in
+Bach’s style. Several methods of using variants of genetic
+algorithms (GAs) based on music theories have also been
+proposed [17, 18, 27]. Allan and Williams [2] proposed
+an HMM-based method that represents chords as hidden
+states and musical notes as observed outputs. A hidden
+semi-Markov model (HSMM) [11] has been used for ex-
+plicitly representing the durations of chords. Paiement et
+al. [16] proposed a hierarchical tree-structured model that
+describes chord movements from the viewpoint of hierar-
+chical time scales by dividing the notations of chords. To
+generate highly convicting four-part chorales, a deep re-
+current neural network has also been used for capturing the
+long-term characteristic of a melody and a harmony [12].
+2.2 Automatic Melodization
+There have been many studies on automatic melodization
+[3,8,15,22,30,31]. Fukayama et al. [8] developed a system
+named Orpheus that generates a melody for a given lyric
+in a way that the prosody of the lyric matches the dynam-
+ics of the melody. Roig et al. [22] proposed a method of
+generating a monophonic melody by using a probabilistic
+model of rhythm patterns and pitch contours.
+Recent studies have applied deep learning techniques.
+In Magenta project [30], for example, recurrent neural net-
+works (RNNs) are used for learning long-term dependency
+of music. Yang et al. [31] proposed a novel method for
+generating diverse monophonic melodies by combining a
+generative adversarial network (GAN) with a convolutional
+neural network (CNN). To generate diverse melodies, Mo-
+gren [15] proposed adversarial training of an RNN that
+works on continuous sequential data. The method based
+on a restricted Boltzmann machine (RBM) conditioned on
+RNNs that models temporal dependency has been proposed
+to generate polyphonic music [3]. In addition, Eck et al. [7]
+have proposed an LSTM-based method for generating both
+melodies and chords by capturing the characteristic of note-
+by-note transitions and the mutual dependency between
+musical notes and chord symbols.
+146
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+
+3. USER INTERFACE
+The proposed system, which is implemented as a web ser-
+vice based on HTML5, enables a user to incrementally re-
+ﬁne a chord sequence and a melody on a GUI (Fig. 1). To
+use a system, a user is asked to upload a melody of eight
+bars. The system then estimates a chord sequence that har-
+monizes with the melody. The chord onsets are located at
+the bar lines. Supported arrangement operations are:
+• Updating the chord symbols: The chord symbols
+and the latent tree structure behind the chord sym-
+bols are jointly optimized for the current melody.
+• Updating a chord onset: One of the chord onsets
+(boundaries) speciﬁed by a user is optimized.
+• Splitting a chord: One of the chords speciﬁed by a
+user is split into two adjacent chords.
+• Merging chords: Two adjacent chords that form a
+subtree are merged into a single chord.
+• Updating the melody: Melody notes in the region
+of a chord speciﬁed by a user are updated while keep-
+ing consistency with neighboring measures.
+4. PROBABILISTIC MODELING
+This section explains a uniﬁed probabilistic model that rep-
+resents the hierarchical generative process of a chord se-
+quence and a melody. The proposed model consists of four
+sub-models, which are trained independently.
+4.1 Mathematical Notation
+We assume that chord and melody onsets are on the 16th-
+note-level grid. Let L be the number of measures of a mu-
+sical piece (L = 8 in this paper) and T = 16L be the
+total number of time units. A sequence of chord symbols
+and that of chord onsets are denoted by z = {zn}N
+n=1
+and ϕ = {ϕn}N
+n=1, respectively, where N is the number
+of chords and ϕn takes an integer in [0, T). Similarly, a
+sequence of melody pitches and that of melody onsets in
+the region of chord zn is denoted by pn = {pn,i}In
+i=1 and
+ψn = {ψn,i}In
+i=1, respectively, where In is the number of
+musical notes in that time span, pn,i is a MIDI note num-
+ber from 32 to 93, and ψn,i takes an integer in [ϕn, ϕn+1).
+The whole melody is denoted by p = {pn}N
+n=1 and ψ =
+{ψn}N
+n=1, where I = ∑N
+n=1 In is the number of melody
+notes.
+Let t be a latent tree that derives z according to a PCFG
+and tm:n be an inside part (subtree) of t that derives zm:n.
+Thus t = t1:N. We often use tm:n to indicate the root node
+of the subtree for simplicity. Let t¬m:n be an outside part
+of t that derives z1:m−1, tm:n, and zn+1:N.
+4.2 Model Formulation
+We formulate a uniﬁed probabilistic model that represents
+the generative process of a latent tree t, chord symbols z,
+chord onsets ϕ, melody pitches p, and melody onsets ψ.
+4.2.1 Probabilistic Context-Free Grammar for t and z
+A derivation tree t and chord symbols z are generated in
+this order according to a PCFG G = (V, Σ, R, S), deﬁned
+!""
+!""
+!""
+!""
+!""
+!""
+!""
+!""
+GVMMZDPOOFDUFE
+MBZFS
+GVMMZDPOOFDUFE
+-45.MBZFS
+!""
+!""
+!""
+!""
+!""
+!"#$
+!"#%
+!"
+!"#%
+!"
+!"&%
+'"#$
+'"#%
+'"
+Figure 3: Conﬁguration of the LSTM network
+by a set of non-terminal symbols V that are expected to
+represent the hierarchical structure and syntactic roles of
+chords, a set of terminal symbols (chord symbols) Σ, a
+set of rule probabilities R, and a start symbol S (a non-
+terminal symbol located on the root of a syntax tree). There
+are three types of rule probabilities. θA→BC is the prob-
+ability that a non-terminal symbol A ∈V branches to
+non-terminal symbols B ∈V and C ∈V . ηA→α is the
+probability that A ∈V emits terminal symbol α ∈Σ. A
+non-terminal symbol A ∈V emits a terminal symbol with
+a probability of 0 < λA < 1 and otherwise it branches.
+These probabilities are normalized as follows:
+∑
+B,C∈V
+θA→BC = 1,
+∑
+α∈Σ
+ηA→α = 1.
+(1)
+We let θA = {θA→BC}B,C∈V and ηA = {ηA→α}α∈Σ.
+4.2.2 Metrical Markov Models for ϕ and ψ
+The metrical Markov model for chord onsets ϕ on the reg-
+ular 16th-note-level grid is deﬁned by
+p(ϕn|ϕn−1) = πϕn−1mod16,ϕn−ϕn−1,
+(2)
+where πa,b indicates the probability that a chord starting at
+the a-th position in a measure (0 ≤a < 16) continues for
+the duration of b time units (0 < b ≤T).
+A similar model for melody onsets ψ is deﬁned by
+p(ψn,1|ψn−1,In−1) = ρψn−1,In−1mod16,ψn,1−ψn−1,In−1,
+p(ψn,i|ψn,i−1) = ρψn,i−1mod16,ψn,i−ψn,i−1 (1 < i),
+(3)
+where ρa,b indicates the probability that a musical note
+starts at the a-th position in a measure (0 ≤a < 16) and
+continues for the duration of b time units (0 < b ≤T).
+4.2.3 Markov Model for p Conditioned on z
+The Markov model for melody pitches p conditioned by a
+chord sequence given by z is deﬁned by
+p(pn,1|pn−1,In−1, zn) = τ zn
+pn−1,In−1,pn,1,
+(4)
+p(pn,i|pn,i−1, zn) = τ zn
+pn,i−1,pn,i (2 ≤i ≤In),
+(5)
+where τ c
+a,b is the transition probability from pitch a to pitch
+b under chord symbol c.
+4.2.4 Bayesian Integration of Four Sub-models
+Letting Ω= {t, z, ϕ, p, ψ} be a set of the external random
+variables and Θ = {θ, η, λ, π, ρ, τ} be a set of the model
+parameters, the uniﬁed model is given by
+p(Ω, Θ) = p(t, z|θ, η, λ)p(ϕ|π)p(ψ|τ)p(p|z)p(Θ), (6)
+where p(Θ) = p(θ)p(η)p(λ)p(π)p(ρ)p(τ) is a prior dis-
+tribution over Θ. To make Bayesian inference tractable,
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+147
+
+we use conjugate Dirichlet and beta priors as follows:
+θA ∼Dir(ξA), ηA ∼Dir(ζA), λA ∼Beta(ιA),
+(7)
+πa ∼Dir(βa), ρa ∼Dir(γa), τ c
+a ∼Dir(δc
+a),
+(8)
+where ξA, ζA, ιA, βa, γa, and δc
+a are hyperparameters.
+4.2.5 LSTM Network for x Conditioned on c
+In melody arrangement, we can also use an LSTM model
+that can learn complicated long-term dynamics of melodies.
+Let x = {xt}T
+t=1 be another representation of the entire
+melody, where xt takes a MIDI note number at the t-th
+position (0 ≤t < T) if the note onset is at that position
+and otherwise takes 0. Let c = {ct}T
+t=1 be another rep-
+resentation of the entire chord sequence given by z and
+ϕ, where ct indicates a chord symbol at the t-th position.
+Given a sequence of musical notes x1:t = {xi}t
+i=1 and
+that of chord symbols c1:t = {ci}t
+i=1, the LSTM model
+determines the probability of the next musical note given
+by p(xt+1|x1:t, c1:t) (Fig. 3).
+4.3 Model Training
+Our goal is to obtain the maximum a posteriori (MAP) es-
+timates of the model parameters Θ = {θ, η, λ, π, ρ, τ}.
+To estimate the parameters θ, η, and λ of the PCFG from
+a chord sequence z (multiple sequences are used in prac-
+tice) in an unsupervised manner, we use an inside-ﬁltering-
+outside-sampling algorithm [13,28] for generating samples
+from the true posterior distribution p(θ, η, λ, t|z). More
+speciﬁcally, the latent tree t and the parameters θ, η, and λ
+are alternately sampled from the conditional posterior dis-
+tributions p(t|θ, η, λ, z) and p(θ, η, λ|t, z), respectively.
+The parameters π, τ and ρ of the Markov models are
+learned independently. Given a sequence of chord onsets ϕ
+and a sequence of melody onsets ψ, the posterior distribu-
+tion of π and that of ρ can be calculated, respectively, be-
+cause of the conjugacy between the Dirichlet and categor-
+ical distributions. Similarly, given a sequence of melody
+pitches p associated with a chord sequence speciﬁed by z
+and ϕ, the posterior distribution of τ can be calculated.
+The LSTM network is also trained from the same data.
+5. CHORD AND MELODY ARRANGEMENT
+This section explains how to leverage the uniﬁed model de-
+scribed in Section 4 for implementing the ﬁve operations
+described in Section 3. Let Ω= {t, z, ϕ, p, ψ} be a set
+of random variables. To estimate a “missing” part χ ⊂Ω,
+we take a principled statistical approach based on the con-
+ditional posterior distribution p(χ|Ω¬χ, Θ), where A¬B
+indicates a subset of A obtained by removing the elements
+of B from A. Note that full automatic music composition
+can be achieved by sampling Ωfrom p(Ω|Θ).
+5.1 Updating the Chord Symbols
+When the melody pitches p are ﬁxed, the chord symbols z
+and the latent tree t can be optimized by maximizing the
+conditional posterior distribution p(t, z|p, Θ). Since both
+t and z are latent variables in this operation, we extend the
+Viterbi algorithm to infer t and z from p. First, the inside
+!"#"
+!"$
+%"$
+%"&
+'"
+'"()
+4QMJUBDIPSE
+!"#"
+%"
+'"
+'"()
+!"#"()
+!"#"
+!
+%"
+%"()
+*+,#*+,
+'"
+'"()'"(-
+.FSHFDIPSET
+%
+'"
+'"(-
+!"&
+!"#"()
+'
+Figure 4: Split and merge operations.
+probabilities are recursively calculated from the layer of
+terminal symbols z to the start symbol S according to
+pA
+n,n = λA max
+z∈Σ ηA→z p(pn|z),
+(9)
+pA
+n,n+k = (1 −λA) max
+B,C∈V
+1≤l≤k
+θA→BCpB
+n,n+l−1pC
+n+l,n+k, (10)
+where p(pn|zn) is the probability that a pitch subsequence
+pn is generated conditionally on chord zn:
+p(pn|zn) =
+In
+∏
+i=1
+p(pn,i|pn,i−1, zn),
+(11)
+where pn,0 = pn−1,In−1. The most likely t and z are ob-
+tained by recursively back-tracking the most likely paths
+from the start symbol S.
+5.2 Updating a Chord Onset
+When the melody pitches p and the melody onsets ψ are
+given and the chord symbols z are ﬁxed, a chord onset ϕn
+can be optimized by maximizing the conditional posterior
+distribution given by
+p(ϕn|z, ϕ¬n, p, ψ, Θ)
+∝p(pn−1|zn−1)p(pn|zn)p(ϕn|ϕn−1)p(ϕn+1|ϕn), (12)
+where ϕn is restricted such that ψn−1,1 ≤ϕ ≤ψn,In.
+5.3 Splitting a Chord and Merging Chords
+The chord symbols z and the chord onsets ϕ can be locally
+reﬁned by splitting a chord into adjacent chords or merging
+adjacent chords into another chord (Fig. 4). A subtree of t
+is updated accordingly. The split operation can be applied
+to any chord zn while the merge operation is restricted to
+adjacent chords zn:n+1 forming a subtree tn:n+1.
+A chord zn associated with a non-terminal symbol tn:n
+is split at a 16th-note-level position ϕ into two new chords
+zL
+n and zR
+n associated with two new symbols tL
+n and tR
+n
+by maximizing the conditional posterior distribution given
+by p(tL
+n, tR
+n , zL
+n, zR
+n , ϕ|t¬n:n, z¬n, ϕ, p, ψ, Θ). This oper-
+ation makes a new subtree that has tn:n as its root node,
+derives tL
+n and tR
+n , and generates zL
+n and zR
+n . To do this, we
+use the extended Viterbi algorithm for estimating the most
+likely subtree from pn. First, the inside probabilities are
+recursively calculated from the layer of terminal symbols
+zL
+n and zR
+n to the root node tn:n according to
+αA
+ϕ = λA max
+z∈Σ ηA→z p(pL
+n|z, ϕ),
+(13)
+βA
+ϕ = λA max
+z∈Σ ηA→z p(pR
+n |z, ϕ),
+(14)
+ptn:n
+ϕ
+= max
+B,C∈V θtn:n→BCαB
+ϕ βC
+ϕ p(ϕ|ϕn)p(ϕn+1|ϕ), (15)
+148
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+
+where pL
+n and pR
+n are the subsequences of pitches obtained
+by splitting pn with a boundary ϕ. The most likely zL
+n, zR
+n ,
+tL
+n, tR
+n , and ϕ are obtained by recursively back-tracking the
+most likely paths from tn:n.
+Two adjacent chords zn and zn+1 associated with non-
+terminal symbols tn:n and tn+1:n+1 are merged into a sin-
+gle chord z associated with a non-terminal symbol tn:n+1
+by maximizing the conditional posterior distribution given
+by p(z|t¬n:n+1, z¬n:n+1, ϕ¬n+1, p, ψ, Θ). The most likely
+z is obtained as follows:
+z = arg max
+z′∈Σ
+ηtn:n+1→z′ p(pn|z′)p(pn+1|z′).
+(16)
+5.4 Updating the Melody
+When a chord symbol zn, the last pitch pn−1,In−1 in the re-
+gion of the previous chord zn−1, and the ﬁrst pitch pn+1,1
+in the region of the next chord zn+1 are given, a sequence
+of musical notes in the region of zn (between ϕn and ϕn+1)
+is obtained by maximizing the conditional posterior dis-
+tribution p(pn|zn, pn−1,In−1, pn+1,1, Θ). To do this, we
+propose an efﬁcient algorithm based on dynamic program-
+ming. Let αyt,dt be the marginal likelihood that a note at
+the pitch yt is located on the score time t and the duration
+of the previous note is dt on a chord zn:
+αyt,dt = p(yt, dt|zn)
+(17)
+This probability can be calculated recursively in the score
+time t ∈{ϕn, ..., ϕn+1, ψn+1,1}.
+αyt,dt = ρt−dt,t
+∑
+yt−dt, dt−dt
+αyt−dt,dt−dtτ zn
+yt−dt,yt
+In each score time t, dt can take values in {1, ..., t, t −
+ψn−1,In−1}. By using this probability, we can recursively
+sample pn from the beat score time ψn+1,1 to ψn−1,In−1.
+Another improved way of partially updating the melody
+is to use the LSTM model. Suppose that we aim to update
+xi:j in the whole melody x. Given a chord sequence c
+and melody segments x1:i−1 and xj+1:T , the missing part
+xi:j can be sampled from the conditional posterior distribu-
+tion p(xi:j|c, x1:i−1, xj+1:T ) ∝p(x|c). First, the pitches
+x1:i−1 and chords c1:i−1 are fed to the network to update
+the hidden states. The missing part xi:j is then sampled
+sequentially according to the probability p(xt+1|x1:t, c1:t)
+learned by the LSTM. This enables us to evaluate p(x|c).
+Among a sufﬁcient number of generated samples of x1:i−1,
+a sample with the highest p(x|c) is selected.
+6. EVALUATION
+This section reports objective and subjective evaluations on
+the user interface and the music arrangement method.
+6.1 Experimental Conditions
+To train the PCFG, we used 705 chord sequences of mu-
+sical sections (e.g., verse, bridge, and chorus) from 468
+pieces of popular music included in the SALAMI dataset
+[25]. Only chord sequences with a length between 8 and
+32 measures were chosen. The vocabulary of chord sym-
+bols was limited to the combinations of the 12 root notes
+{C, C#, ..., B} and the 2 chord types {major, minor}. The
+number of kinds of non-terminal symbols of the PCFG was
+set to 12. The values of the hyperparameter ιA were all set
+to 1.0 and those of the other parameters were all set to 0.1.
+To train the three Markov models, we used 9902 pairs of
+melodies and the corresponding chord sequences from 194
+pieces of popular music included in Rock Corpus [5]. To
+train the LSTM, we used 9265 melodies associated with
+chord sequences from pieces of popular music included in
+Rock Corpus and Nottingham Database [1]. Note that all
+of the data used in our experiments were transposed to the
+C major or C minor key. The number of the hidden units
+was 50 and the softmax-cross-entropy was used as a loss
+function. The parameters of the LSTM were optimized by
+using Adam [14]. The number of samples generated by the
+LSTM (described in Section 5.4) was 50.
+6.2 Objective Evaluation of Melody Arrangement
+We evaluated the function of updating a melody in terms
+of the note density of the generated musical notes via 10-
+fold cross validation on the Rock Corpus and Nottingham
+Database. For the region of each chord zn, a sequence of
+melody pn is arranged by using the two methods based on
+the Markov model and the LSTM described in Section 5.4.
+We measured the mean squared error (MSE) between the
+note density per measure of the generated musical notes
+and the mean value of the density of other regions given
+by
+MSE=
+1
+N−1
+N−1
+∑
+n=1
+{
+16I∗
+n
+ϕn+1−ϕn
+−
+∑
+m̸=n 16Im
+∑
+m̸=n (ϕm+1−ϕm)
+}2
+,
+where I∗
+n and In were the number of generated musical
+notes and that of the original musical notes, respectively.
+The average MSE was calculated over all melodies. The
+average MSE obtained by the LSTM model was 5.52 while
+that obtained by the Markov model was 6.42. This indi-
+cates that the LSTM-based method is a little more effec-
+tive for updating a partial melody in consideration of the
+note density of the whole melody because it can capture
+the long-term dependency.
+6.3 Subjective Evaluation of the Proposed System
+We conducted the subjective evaluation of the system1 in
+terms of usability and effectiveness in interactive chord and
+melody arrangement. Five melodies of 8 measures were
+extracted from the RWC music database [9,10]. We asked
+11 subjects to test our system.
+Four subjects who had
+the experience of playing musical instruments for more
+than ﬁve years were regarded as people with musical back-
+grounds. Each subject was asked to interactively make a
+musical piece by using each of the ﬁve melodies as an ini-
+tial seed and then grade the system on a 5-point Likert scale
+(from “strongly agree (1)” to “strongly disagree (5)”) in
+terms of the following 15 criteria:
+• The chord sequences obtained were suitable for the
+melodies (I).
+• The chord sequences obtained by the split or merge
+operation were musically natural (II, III).
+1 The
+interface
+used
+in
+this
+experiment
+is
+available
+online:
+http://sap.ist.i.kyoto-u.ac.jp/members/tsushima/ismir2018/
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+149
+
+
+
+
+
+
+
+
+
+
+
+)PXOBUVSBM
+)PXJOUFSFTUJOH
+)PXVTFGVM
+*
+**
+***
+*7
+7
+7*
+7**
+7***
+*9
+9
+9*
+9** 9*** 9*7 97
+
+
+
+
+
+
+
+
+
+
+Figure 5: Results for people with musical backgrounds
+(top) and those for people without musical backgrounds
+(bottom). The middle bars indicate the mean value.
+• The melodies obtained were suitable for the chord se-
+quences (IV).
+• The melodies obtained were musically natural (V).
+• The musical pieces obtained by updating chord sym-
+bols, splitting a chord, merging chords, or updating a
+melody were interesting (VI, VII, VIII, IX).
+• The function of updating chord symbols, splitting a
+chord, merging chords, or updating a melody was use-
+ful (X, XI, XII, XIII, XIV).
+• The user interface has the capability of helping users
+make musical pieces (XV).
+We also asked the subjects to tell us how each of them felt
+about the system.
+The results of this user study is shown in Fig 5. In terms
+of the naturalness and the interestingness, the two opera-
+tions, updating chord symbols and updating melodies, ob-
+tained the slightly high mean ratings of 3.67 in criterion (I),
+3.69 in criterion (IV), and 3.51 in criterion (VI). As seen in
+the score for the criterion (V), the subjects with musical
+backgrounds, compared with the others, tended to feel that
+the updated melodies were less musically natural.As seen
+in the score for the criterion (IX), the subjects with musical
+backgrounds tended to feel that the updated melodies were
+more interesting. In terms of the usefulness of each oper-
+ation, each operation obtained the reasonably high mean
+ratings (from 3.27 to 3.91).
+We obtained the following opinions on the usability of
+our system:
+• It was interesting that even a user without any expe-
+riences in music composition can edit a musical piece
+by iterating several operations.
+• An operation that updates one chord symbol is neces-
+sary for more freely editing a chord sequence.
+We also obtained the following opinions on the problems
+of some operations:
+• The chord sequences obtained were almost always ap-
+propriate for all samples of melodies but the system
+tended to generate only basic chords (e.g., C major).
+• The updated melodies were often unnatural when an
+original melody has some repeated sections.
+The reason for the former problem may be that the chord
+symbols are updating by using the Viterbi algorithm. The
+reason for the latter problem is probably that the LSTM
+cannot capture the global repetitive structure of a melody.
+$
+$
+%N
+#
+$
+"N
+%N
+6QEBUFNFMPEZ
+4QMJU$IPSE
+6QEBUFNFMPEZ
+#
+$
+$
+%N
+#
+$
+"N
+%N
+#
+$
+$
+%N
+#
+$
+"N
+%N
+#
+'
+.FSHF$IPSET
+$
+$
+%N
+#
+$
+"N
+#
+'
+Figure 6: Example operation for interactive generation of
+chord sequences and melodies.
+6.4 Example of Chord and Melody Arrangement
+Fig. 6 shows how the proposed method generates chord se-
+quences and melodies. The score (melodies and chords) at
+the top shows an initial state in which the chord symbols
+were optimized for the melody in the input ﬁle (the chord
+onsets were located at the bar lines). The second score
+shows the state in which the two regions of the melody un-
+der the 3rd and 6th chords were updated in order. The third
+chord sequence shows the state in which the 4th chord, B♭
+major, was split into F major and B♭major. The fourth
+chord sequence shows the state in which the 7th chord, A
+minor, and the 8th chord, D minor, were merged into A
+minor. This indicates that the proposed method can suc-
+cessfully help a user partially update a melody while keep-
+ing the consistency of the whole melody and that it can
+generate a chord sequence by considering the latent tree
+structure behind the chord sequence.
+7. CONCLUSION
+This paper presented an interactive music arrangement sys-
+tem that enables a user to incrementally reﬁne a chord se-
+quence and a melody. The experimental results showed
+that the proposed system has a great potential to help a
+user create his or her original musical pieces.
+There would be much room for improving our method.
+To improve the diversity of generated chord symbols, the
+use of some sampling or beam-search method would be ef-
+fective. To improve the naturalness of generated melodies,
+the use of a bidirectional LSTM [23] would be effective for
+considering the repetitive structures of melodies.
+For more speciﬁc studies on the effectiveness of our sys-
+tem, we plan to measure how well test users can incremen-
+tally reﬁne a musical piece compared with the conventional
+methods, by counting the number of necessary operations
+to make musical pieces meet their satisfaction. We also
+plan to conduct large-scale user studies of the system on
+the Web. Collecting time-series data of users’ operations
+and created pieces, it would be possible to infer their mu-
+sical preference and improve the model by reinforcement
+learning. Using the same data, it would be possible to re-
+veal the process of music creation by humans in terms of
+edit operations and optimization strategies.
+Acknowledgements: This study was partially supported by JST ACCEL
+No. JPMJAC1602, JSPS KAKENHI No. 26700020 and No. 16H01744,
+and Grant-in-Aid for JSPS Research Fellow No. 16J05486.
+150
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+
+8. REFERENCES
+[1] ABC version of the Nottingham music database.
+http://abc.sourceforge.net/NMD/.
+[2] M. Allan and C. Williams. Harmonising chorales by
+probabilistic inference. In NIPS, pages 25–32, 2005.
+[3] N. Boulanger-Lewandowski, Y. Bengio, and P. Vin-
+cent.
+Modeling
+temporal
+dependencies
+in
+high-
+dimensional sequences:
+Application to polyphonic
+music generation and transcription. In ICML, 2012.
+[4] C. H. Chuan and E. Chew. A hybrid system for auto-
+matic generation of style-speciﬁc accompaniment. In
+IJWCC, pages 57–64, 2007.
+[5] T. D. Clercq and D. Temperley. A corpus analysis of
+rock harmony. Popular Music, 30(01):47–70, 2011.
+[6] K. Ebcio˘glu. An expert system for harmonizing four-
+part chorales. Computer Music Journal, 12(3):43–51,
+1988.
+[7] D. Eck and J. Schmidhuber. A ﬁrst look at music com-
+position using LSTM recurrent neural networks. ID-
+SIA, 103(07-02), 2002.
+[8] S. Fukayama et al. Orpheus:
+Automatic composi-
+tion system considering prosody of Japanese lyrics. In
+ICMC, pages 309–310. Springer, 2009.
+[9] M. Goto. AIST annotation for the RWC music
+database. In ISMIR, pages 359–360, 2006.
+[10] M. Goto, H. Hashiguchi, T. Nishimura, and R. Oka.
+RWC music database: Popular, classical and jazz mu-
+sic databases. In ISMIR, pages 287–288, 2002.
+[11] R. Groves. Automatic harmonization using a hidden
+semi-Markov model. In AIIDE, pages 48–54, 2013.
+[12] G. Hadjeres and F. Pachet. DeepBach: A steerable
+model for Bach chorales generation. In ICML, pages
+1362–1371, 2017.
+[13] M. Johnson, T. L. Grifﬁths, and S. Goldwater. Bayesian
+inference for PCFGs via Markov chain Monte Carlo. In
+NAACL-HLT, pages 139–146, 2007.
+[14] D. P. Kingma and J. Ba. Adam: A method for stochas-
+tic optimization. In ICMR, pages 1–15, 2014.
+[15] O. Mogren. C-RNN-GAN: Continuous recurrent neu-
+ral networks with adversarial training. In Constructive
+Machine Learning Workshop (NIPS 2016), 2016.
+[16] J. F. Paiement, D. Eck, and S. Bengio. Probabilis-
+tic melodic harmonization. In CSCSI, pages 218–229,
+2006.
+[17] G. Papadopoulos and G. Wiggins. AI methods for al-
+gorithmic composition: A survey, a critical view and
+future prospects. In AISB Symposium on Musical Cre-
+ativity, pages 110–117, 1999.
+[18] R. D. Prisco and R. Zaccagnino. An evolutionary mu-
+sic composer algorithm for bass harmonization. In Ap-
+plications of Evolutionary Computing, pages 567–572.
+Springer, 2009.
+[19] R. De Prisco, A. Eletto, A. Torre, and R. Zaccagnino.
+A neural network for bass functional harmonization.
+In European Conference on the Applications of Evolu-
+tionary Computation, pages 351–360. Springer, 2010.
+[20] S. A. Raczy´nski, S. Fukayama, and E. Vincent. Melody
+harmonization with interpolated probabilistic models.
+Journal of New Music Research, 42(3):223–235, 2013.
+[21] M. Rohrmeier. Mathematical and computational ap-
+proaches to music theory, analysis, composition and
+performance. Journal of Mathematics and Music,
+5(1):35–53, 2011.
+[22] C. Roig, L. J. Tard´on, T. Barbancho, and A. M. Bar-
+bancho. Automatic melody composition based on a
+probabilistic model of music style and harmonic rules.
+Knowledge-Based Systems, 71:419–434, 2014.
+[23] M. Schuster and K. K. Paliwal. Bidirectional recurrent
+neural networks. IEEE Transactions on Signal Pro-
+cessing, 45(11):2673–2681, 1997.
+[24] I. Simon, D. Morris, and S. Basu. Mysong: auto-
+matic accompaniment generation for vocal melodies.
+In SIGCHI Conference on Human Factors in Comput-
+ing Systems, pages 725–734. ACM, 2008.
+[25] J. B. L. Smith, J. A. Burgoyne, I. Fujinaga, D. D.
+Roure, and J. S. Downie. Design and creation of a
+large-scale database of structural annotations. In IS-
+MIR, pages 555–560, 2011.
+[26] M. J. Steedman. A generative grammar for jazz chord
+sequence. Music Perception, 2(1):52–77, 1984.
+[27] M. Towsey, A. Brown, S. Wright, and J. Diederich. To-
+wards melodic extension using genetic algorithms. Ed-
+ucational Technology & Society, 4(2):54–65, 2001.
+[28] H. Tsushima, E. Nakamura, K. Itoyama, and K. Yoshii.
+Function- and rhythm-aware melody harmonization
+based on tree-structured parsing and split-merge sam-
+pling of chord sequences. In ISMIR, pages 502–508,
+2017.
+[29] H. Tsushima, E. Nakamura, K. Itoyama, and K. Yoshii.
+Generative statistical models with self-emergent gram-
+mar of chord sequences. Journal of New Music Re-
+search, 2018. To appear.
+[30] E. Waite. Generating long-term structure in songs
+and stories.
+https://magenta.tensorﬂow.org/2016/07/
+15/lookback-rnn-attention-rnn.
+[31] L. C. Yang, S. Y. Chou, and Y. H. Yang. MidiNet:
+A convolutional generative adversarial network for
+symbolic-domain music generation. In ISMIR, pages
+324–331, 2017.
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+151

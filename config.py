@@ -102,3 +102,8 @@ NUM_ARTICLES = 100
 
 OUTPUT_DIR = "output"
 OUTPUT_DIR_IMPROVED = "output_improved"
+
+CORPUS1_PATH = "data/GreenMIR/corpus1.xlsx"
+CORPUS2_PATH = "data/GreenMIR/corpus2.xlsx"
+PDF_DIR = "data/GreenMIR/pdfs"
+TEXT_DIR = "data/GreenMIR/texts"

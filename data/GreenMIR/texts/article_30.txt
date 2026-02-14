@@ -1,0 +1,802 @@
+A CONTEXTUAL LATENT SPACE MODEL:
+SUBSEQUENCE MODULATION IN MELODIC SEQUENCE
+Taketo Akama
+Sony Computer Science Laboratories, Tokyo, Japan
+taketo.akama@sony.com
+ABSTRACT
+Some generative models for sequences such as music and
+text allow us to edit only subsequences, given surround-
+ing context sequences, which plays an important part in
+steering generation interactively. However, editing sub-
+sequences mainly involves randomly resampling subse-
+quences from a possible generation space. We propose a
+contextual latent space model (CLSM) in order for users
+to be able to explore subsequence generation with a sense
+of direction in the generation space, e.g., interpolation, as
+well as exploring variations—semantically similar possi-
+ble subsequences. A context-informed prior and decoder
+constitute the generative model of CLSM, and a context
+position-informed encoder is the inference model. In ex-
+periments, we use a monophonic symbolic music dataset,
+demonstrating that our contextual latent space is smoother
+in interpolation than baselines, and the quality of generated
+samples is superior to baseline models. The generation ex-
+amples are available online. 1
+1. INTRODUCTION
+Deep generative models permit sequences of decent qual-
+ity to be generated such as music, lyrics, or text, where
+standard models generate sequences by sampling from left
+to right.
+However, to make creative works in human-
+machine collaborative settings, controllability—such as
+modifying unsatisfactory portions with speciﬁed inten-
+tions—should be improved.
+Two major model classes of controllability are (i) latent
+space models [1–6] and (ii) positional constraint models
+[7–11]. Latent space models enable us to obtain variations
+or morphing/interpolations between generated sequences.
+Positional constraint models, on the other hand, allow us
+to resample a subsequence without changing the rest of the
+sequence (context sequences), despite the fact that subse-
+quences are sampled randomly and cannot be controlled
+with morphing/interpolation or variations. Each class of
+1 https://contextual-latent-space-model.github.
+io/demo/
+c⃝T. Akama. Licensed under a Creative Commons Attribu-
+tion 4.0 International License (CC BY 4.0). Attribution: T. Akama, “A
+Contextual Latent Space Model:
+Subsequence Modulation in Melodic
+Sequence”, in Proc. of the 22nd Int. Society for Music Information Re-
+trieval Conf., Online, 2021.
+Figure 1: Contextual Interpolation Examples. Shaded
+regions are contexts. For both left and right ﬁgures, our
+CLSM ﬁrst generates top and bottom melodies under con-
+straints of contexts, and then it generates middle four in-
+terpolated points in way that is consistent with contexts.
+CLSM with β = 0.012 is used.
+models has its own beneﬁts for making generation systems
+ﬂexible.
+Can we build a hybrid model that enjoys the best of
+both worlds as a step towards multifaceted controllability?
+We propose a contextual latent space model (CLSM) that
+allows for positional constraints while at the same time
+enables latent space exploration such as interpolation or
+variation. An example usage of CLSM’s interpolation is
+narrowing down the candidates of generated subsequences
+given context sequences. CLSM variation can be used for
+obtaining minor modiﬁcations of subsequences selected
+among generated ones, given context sequences.
+Our approach is based on the framework of variational
+inference, where our CLSM is composed of prior and de-
+coder models for the generative model and an encoder
+model for the inference model. The prior model of CLSM
+outputs a latent distribution given context sequences. We
+refer to the support of the distribution as the contextual
+latent space. The decoder model of CLSM generates sub-
+sequences that ﬁt in with the context, given corresponding
+points in the contextual latent space. Finally the encoder
+model infers the latent space distribution given the entire
+sequence.
+We show the effectiveness of our approach using mono-
+phonic sequences in the Lakh MIDI dataset, a large sym-
+bolic music dataset [12].
+Compared with the baseline
+methods, our CLSM achieves better performance in terms
+of the smoothness of the latent space and negative log-
+27
+
+(a) Model Overview
+(b) Self-Attention Masks for Decoder Model
+Figure 2: Schematic Diagram of Contextual Latent Space Model (CLSM). (a) Linear or MLP layers are omitted for
+brevity. (b) Masks indicate whether position u attends to position v.
+likelihood of the generated samples. In a listening test,
+participants favored the generated samples of our CLSM
+more than those of the baselines.
+Our contributions are (I) proposing a problem setting
+for learning a contextual latent space and providing its so-
+lution, (II) proposing novel architectures for the model,
+e.g., a masking strategy for the decoder and combinations
+of a transformer and LSTM for the encoder and prior, (III)
+proposing normalizing ﬂows [13] for conditional priors in
+order to learn complex conditional priors, (IV) proposing
+an interpolation edit distance ratio to quantitatively assess
+the smoothness of latent space, and (V) demonstrating rea-
+sonable performance with our CLSM in an application for
+symbolic music generation.
+2. METHODOLOGY
+2.1 Problem Scenario
+Let us consider an i.i.d dataset D
+=
+{x(i)
+=
+(x(i)
+1 , ..., x(i)
+K ) ∈AK}N
+i=1 of a sequence of symbols xk ∈
+A of length K, where A is the alphabet set of symbols. We
+partition each sequence x into three subsequences xCL,
+xT, and xCR, such that x = xCL ⊕xT ⊕xCR, where ⊕
+denotes the concatenation of sequences. We refer to sub-
+sequences xCL and xCR as context sequences and subse-
+quence xT as the target sequence. Let τ denote a variable
+representing a set of indexes of the target sequence such
+that τ = {|xCL| + 1, |xCL| + 2, ..., |xCL| + |xT|} ∈T ,
+where T is a set of all sets of indexes we would like to
+model with. For notational simplicity, we introduce the
+shorthand xC = {xCL, xCR}.
+Our goal is to train a generative model with its gen-
+erative process being (1) ˜z ∼p(z|xC, τ) and (2) ˜xT ∼
+p(xT|˜z, xC, τ), where z ∈Z ⊂Rdz captures the vari-
+ability of xT given xC and τ. We would also like some
+distance in the latent space of the prior model to represent
+the similarity of xT so that the model can be used for e.g.,
+morphing/interpolation or variation generation.
+2.2 Model
+Fig. 2 is a schematic illustration of our model. Our pro-
+posed approach is training a generative model by max-
+imizing the marginal log-likelihood log pθ(xT|xC, τ) =
+log
+R
+pθD(xT|z, xC, τ)pθP(z|xC, τ)dz. Since its compu-
+tation is intractable in the general case, we introduce the
+approximate posterior qφ(z|x, τ) to derive the evidence
+lower bound (ELBO) [14]. Formally,
+log pθ(xT|xC, τ)
+= log
+Z
+pθD(xT|z, xC, τ)pθP(z|xC, τ)dz
+= log
+Z
+qφ(z|x, τ)pθD(xT|z, xC, τ)pθP(z|xC, τ)
+qφ(z|x, τ)
+dz
+≥
+Z
+qφ(z|x, τ) log pθD(xT|z, xC, τ)pθP(z|xC, τ)
+qφ(z|x, τ)
+dz
+= Lrec −Lkl,
+(1)
+where
+Lrec = Eqφ(z|x,τ) [log pθD(xT|z, xC, τ)] ,
+(2)
+Lkl = KL (qφ(z|x, τ)||pθP(z|xC, τ)) .
+(3)
+In practice, we introduce weighting factors in ELBO [15].
+Then, our optimization problem is:
+max
+θ,φ Ex∈DEτ∈T
+ 1
+|xT|Lrec −βLkl
+
+,
+(4)
+where
+1
+|xT| is a normalizing factor, and β is a balancing
+factor of the two terms. The speciﬁc choices of β are ex-
+plained in Sec. 3.4.
+Since the conditional prior is generally multimodal and
+complex, we propose modeling the conditional prior using
+normalizing ﬂows [13]:
+pθP(z|xC, τ) = pξ(w|xC, τ)
+det
+∂w
+∂z
+ ,
+(5)
+w = fλ(z) ∈W ⊂Rdz,
+(6)
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+28
+
+where fλ : Z
+→
+W is an invertible function, and
+pξ(·|xC, τ) is a Gaussian distribution. We choose to use
+afﬁne-coupling layers for fλ, which was proposed for real-
+valued non-volume preserving (realNVP) [16].
+The Gaussian distribution and the categorical distribu-
+tion are used for the encoder model qφ(z|x, τ) and the de-
+coder model pθD(xT|z, xC, τ), respectively.
+The network architectures for parametrizing each distri-
+bution are explained in Sec. 2.4.
+2.3 Applications
+2.3.1 Contextual Interpolation
+Given ˜z(1), ˜z(2) ∼pθP(z|xC, τ), we provide a proce-
+dure for generating contextual interpolations between ˜x(1)
+and ˜x(2), where ˜x(i) = xCL ⊕˜x(i)
+T ⊕xCR with ˜x(i)
+T
+∼
+pθD(xT|˜z(i), xC, τ) for i = 1, 2.
+First, the interpolated latent vector ˜z(α) with a blending
+ratio of α ∈[0, 1] is given by
+˜z(α) = f −1
+λ
+
+(1 −α)fλ(˜z(1)) + αfλ(˜z(2))
+
+,
+(7)
+which means that linear interpolation is performed in the
+W space, but not in the Z space, achieving non-linear in-
+terpolation in the Z space. Then, ˜z(α) is decoded and
+concatenated with the context sequence, yielding ˜x(α) =
+xCL ⊕˜xT(α) ⊕xCR with
+˜xT(α) ∼pθD(xT|˜z(α), xC, τ).
+(8)
+2.3.2 Contextual Variation
+Given ˜z ∼pθP(z|xC, τ), we provide a procedure for gen-
+erating contextual variations of ˜x, where ˜x = xCL ⊕˜xT ⊕
+xCR with ˜xT ∼pθD(xT|˜z, xC, τ).
+Letting δ ∈R≥0
+and ϵ ∈Rdz be a scaling factor of the variation amount
+and sampled noise from a normal distribution N(0, Σ)
+with Σ denoting the covariance matrix of pξ(w|xC, τ),
+a variation of the latent vector ˜z is given by ˜z(δ) =
+f −1
+λ
+(fλ(˜z) + δϵ). Then, ˜z(δ) is decoded and concate-
+nated in the same manner as Sec. 2.3.1.
+2.4 Network Architecture
+2.4.1 Encoder Model
+As main architectures, we employ a two-layer “trans-
+former encoder” with relative attention [17, 18], fol-
+lowed by a two-layer bidirectional LSTM network
+(Bi-LSTM) [19, 20]. x is ﬁrst embedded and added by a
+positional embedding before being inputted to the trans-
+former. The transformer uses no masks and a sequence
+of vectors E = (e1, ..., eK) is outputted. Let ET be a
+subsequence of E, consisting of E’s elements, whose
+indexes are in τ, i.e., ET = (e|xCL|+1, ..., e|xCL|+|xT|).
+Only the subsequence ET is fed to the Bi-LSTM. Let
+hl and hr denote the last outputs of the Bi-LSTM. They
+are concatenated to be fed to two multi layer perceptrons
+(MLPs; each for the mean and covariance of the normal
+distribution), yielding the encoder model qφ(z|x, τ) =
+N
+ z|MLP(hl ⊕hr), diag( 1
+2 exp(MLP(hl ⊕hr)))
+
+.
+The MLPs consist of two layers with a SELU activation in
+between [21].
+Concerning the hyper-parameters for the “transformer
+encoder,” the token embedding size, the hidden size, the
+number of heads, and the dropout rate are set to 128, 256,
+8, and 0.1, respectively. The hidden size and the dropout
+rate for the Bi-LSTM are set to 256 and 0.1, respectively.
+The hidden size of the MLP and the number of dimensions
+of z are set to 512 and 128, respectively.
+2.4.2 Prior Model
+As can be seen in Eq. 5 and Eq. 6, pξ(w|xC, τ) and fλ(z)
+need to be deﬁned for the prior model.
+For pξ(w|xC, τ), as with the encoder model, a two-
+layer “transformer encoder” is followed by a Bi-LSTM.
+Unlike the encoder model, we replace each of the elements
+in the target sequence xT with a positional constraint sym-
+bol p. In other words, xCL ⊕p ⊕xCR is fed to the “trans-
+former encoder”, where p = (p, p, ..., p) is a sequence of
+positional constraint symbols and |p| = |xT|. The hyper-
+parameters for the “transformer encoder,” the Bi-LSTM,
+and the number of dimensions of z are set to the same val-
+ues as in Sec. 2.4.1.
+To parameterize fλ(z), four-layer afﬁne-coupling lay-
+ers are employed. Each of the scale and bias networks of
+the afﬁne-coupling layers consists of a three-layer MLP,
+where each hidden size is 256, and the activations are leaky
+ReLUs with a negative slope of 0.01. For each of the scale
+networks, a tanh activation is used after the last linear
+layer.
+2.4.3 Decoder Model
+As a main architecture, we employ a two-layer “trans-
+former decoder” with relative attention. Let s be a sym-
+bol representing the start of a sequence. The concatenation
+s ⊕x is embedded and added by positional embeddings
+before being inputted to the transformer.
+We propose using an effective encoder-decoder atten-
+tion mechanism for the latent space. Each latent vector
+˜z sampled from the encoder model is ﬁrst fed to a linear
+layer to map ˜z ∈Rdz to ˜z′ ∈Rdzlz, which is reshaped
+to form ˜Z ∈Rdz×lz, a sequence of lz vectors, where the
+dimensionality of each vector is dz. The sequence ˜Z is
+then attended to by the transformer by means of encoder-
+decoder attention. We set lz = 4 in experiments.
+We propose a masking strategy for modeling the de-
+coder, as illustrated in the bottom of Fig. 2b. The positions
+whose inputs are s, xCL, and xCR are allowed to attend to
+positions except those of xT. On the other hand, positions
+whose inputs are xT are allowed to attend to positions ex-
+cept the future positions of xT.
+Let the output of the transformer denote D
+=
+(d1, ..., dK). Let DT be a subsequence of D, consist-
+ing of D’s elements whose indexes are in τ, i.e., DT =
+(d|xCL|+1, ..., d|xCL|+|xT|). Let xT[i] and DT[i] denote
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+29
+
+the ith elements of xT and DT, respectively. Then the de-
+coder model is deﬁned as follows: pθD(xT|z, xC, τ) =
+Q|xT|
+i=1 Cat(xT[i]|Softmax(Linear(DT[i]))), where Cat
+and Linear denote a categorical distribution and a linear
+layer respectively.
+The hyper-parameters of the “trans-
+former decoder” are set to be equal to those of the “trans-
+former encoder” in Sec. 2.4.1.
+3. EXPERIMENTAL SETUP
+3.1 Dataset
+We created datasets from LMD-matched of the Lakh MIDI
+dataset [12], comprising 45,129 ﬁles matched to the song
+identity entries in the Million Song Dataset [22]. Each
+song has one or several different versions of MIDI ﬁles.
+We ﬁrst extracted ﬁles with a 4/4 time signature, used
+the accompanying tempo information to determine beat
+locations, and quantized each beat into 4.
+We then
+split the song identities into a proportion of 11:1:6:1:1
+to create train-1, validation-1, train-2, validation-2, and
+test datasets, respectively.
+The train-1 and validation-1
+datasets were for training the proposed and baseline mod-
+els, whereas the train-2 and validation-2 datasets were for
+training evaluation models. The test dataset was for in-
+put sequences when evaluating models. We ﬁltered out
+non-monophonic tracks, bass or drum tracks, and tracks
+outside the pitch range of [55, 84]. We conducted data
+augmentation by transposing tracks to all possible keys if
+the transposed tracks stayed within the pitch range of [55,
+84]. We retrieved 8-bar sliding windows (with a stride of 1
+bar) from each track followed by ﬁltering out windows that
+had more than one bar of consecutive rests. For encoding
+musical sequences, we adopted the melodico-rhythmic en-
+coding proposed in [9], where we used the pitch of musical
+notes as symbols “55”,...,“84” and used “R” to represent a
+rest symbol. We added an extra symbol, “__” representing
+that a note is held and not replayed.
+3.2 Baseline Methods
+3.2.1 VAE
+We trained a VAE [14], in which a two-layered Bi-LSTM
+and LSTM were used for the encoder and decoder, respec-
+tively. The decoder, encoder, and prior models used the
+categorical, normal, and standard normal distribution, re-
+spectively. The optimization problem is
+max
+ψ,ω Ex∈D
+ 1
+|x|
+ LVAE
+rec
+−γLVAE
+kl
+
+,
+(9)
+where LVAE
+rec
+=
+Eqω(z|x) [log pψ(x|z)],
+LVAE
+kl
+=
+KL (qω(z|x)||p(z)), and
+1
+|x| is a normalizing factor.
+Given xC, τ, and ˜z(1), ˜z(2) ∼p(z), interpolation is
+conducted as follows. First, interpolated latent vector ˜z(α)
+is given by
+˜z(α) = (1 −α)˜z(1) + α˜z(2).
+(10)
+Then, ˜z(α) is decoded and concatenated with the context
+sequence: ˜x(α) = xCL ⊕˜xT(α) ⊕xCR with
+˜xT(α) ∼pψ(xT|˜z(α), xCL),
+(11)
+where pψ(xT|z, xCL) can be immediately obtained from
+the autoregressive decoder model of VAE. Note that the
+proposed CLSM has advantages over VAE in terms of
+probabilistic dependencies (i) the decoder model of VAE
+does not have dependencies on the right context xCR, and
+(ii) the prior model of VAE does not have dependencies on
+either the left context xCL or the right context xCR. The
+property of (i) motivates us to separately quantify the per-
+formance of models in two cases: (1) the case where only
+the left context exists, and (2) otherwise. In Sec. 4.1, Sec.
+4.2, and Fig. 3b, we report the performance of these two
+cases separately.
+Random generation was conducted as follows. First,
+a latent vector was sampled from the prior distribution.
+Then, ˜z was decoded and concatenated with context se-
+quences in the same manner as the interpolation.
+The hyper-parameters of the LSTMs in VAE were set to
+be equal to those of the LSTMs in CLSM.
+3.2.2 ARNN
+Anticipation RNN (ARNN) [9] is a sequence generation
+model with positional constraints. Two-layered LSTMs
+were used for both Token-RNN and Constraint-RNN. The
+hyper-parameters of the LSTMs were set to be equal to
+those of the LSTMs in CLSM.
+3.3 2D Plane for Comparing CLSM and VAE
+The balancing factors β and γ of CLSM and VAE consist
+in adjusting the trade-off between the reconstruction ac-
+curacy and other model performances. Which balancing
+factors of CLSM correspond to which ones of VAE? It is
+natural to compare models of similar reconstruction accu-
+racies or compare models of similar performances (except
+reconstruction accuracies). Therefore, in Sec. 4.1, Sec.
+4.2, and Fig. 3b, we plot reconstruction accuracies versus
+other performance metrics in 2D planes, where the more
+the plotted point is in the upper left corner, the better it is.
+As discussed in Sec. 3.2.1, CLSM and VAE have depen-
+dencies at least on the left context. To make the recon-
+struction accuracies of the CLSM and VAE mean basically
+identical, we used the left-contextual reconstruction accu-
+racy, which is the average of the reconstruction accuracies
+of sequences where target sequences end with index |x|,
+i.e., there is no right context and only the left context ex-
+ists.
+3.4 Training Settings
+For all models, teacher forcing was used, the batch size
+was set to 64, and training was conducted for 2 epochs,
+when the losses converged. The Adam optimizer [23] was
+used for all models, with the parameters (α, β1, β2) =
+(0.0005, 0.9, 0.999). For CLSM or VAE, we conducted
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+30
+
+(a) Generation Comparison
+(b) Objective Evaluation
+(c) Human Evaluation
+Figure 3: Generation Comparison and Experimental Results. (a) Shaded regions are contexts. For CLSM and VAE,
+β = 0.012 and γ = 0.4 are used. (b) For evaluating smoothness (to left), small, medium, and large marker are plots for
+number of divisions in interpolation J = 8, 4, 2, respectively. See Sec. 4.1 and 4.2. (c) See Sec. 4.3.
+KL-annealing linearly from β = 0 or γ = 0 for 2 epochs
+[1].
+3.4.1 CLSM (Ours)
+At every iteration of the training, indexes of the target se-
+quence τ = {|xCL| + 1, |xCL| + 2, ..., |xCL| + |xT|} ∈T
+should be sampled. In the experiments, we chose to use ei-
+ther 1, 2, 3, or 4 bars as the target sequence length and
+used a stride of 1 bar for the starting index of the tar-
+get sequence. Precisely, we sampled (i) |xT| uniformly
+from {16, 32, 48, 64} and then (ii) sampled |xCL| uni-
+formly from {0, 16, 32, ..., 128−|xT|}. Note that 128 cor-
+responds to 8 bars (the sequence length) and that 16 cor-
+responds to 1 bar. The balancing factor β in Eq. 4 is set
+to {0.004, 0.006, ..., 0.016} in Secs. 4.1, 4.2 and 0.012 in
+Sec. 4.3. The expectations of the two terms in Eq. 4 were
+approximated with one sample from the encoder model.
+3.4.2 VAE (Baselines)
+The
+balancing
+factor
+γ
+in
+Eq.
+9
+is
+set
+to
+{0.1, 0.2, ..., 1.0, 2.0} in Secs.
+4.1, 4.2 and 0.4 in
+Sec. 4.3. The expectations of the reconstruction loss were
+approximated with one sample from the encoder model.
+The KL loss term was computed analytically.
+3.4.3 ARNN (Baseline)
+The vanilla ARNN is capable of imposing constraints of
+any positions. Since it would be possible that restricting
+constraints to those of our T would be advantageous when
+evaluated over T , we also trained and evaluated this model,
+which we refer to as ARNNT .
+3.5 Generation Settings
+For CLSM and VAE, each element of sequences was sam-
+pled by applying the argmax operation to the categori-
+cal distributions of the decoders. For ARNN, multinomial
+sampling with a temperature of 1.0 was used.
+4. EXPERIMENTS AND RESULTS
+4.1 Smoothness Analysis in Latent Space
+To assess the smoothness of our latent space, we propose
+the interpolation edit distance ratio R(J), which is the
+ratio of the distance between adjacent interpolated points
+(sequences) to the distance of interpolation end points (se-
+quences). Formally, R(J) is the normalized average edit
+distance dedit(·, ·) of adjacent points in J-divided interpo-
+lated points:
+R(J) = E
+"PJ−1
+j=0 dedit
+ ˜xT
+  j
+J
+
+, ˜xT
+  j+1
+J
+
+D(J −n)
+#
+,
+(12)
+where ˜xT(·) is deﬁned by Eqs. 7, 8 for CLSM and Eqs.
+10, 11 for VAE, while D is the edit distance between
+end points deﬁned by D = dedit (˜xT(0), ˜xT(J)). Here,
+the expectation is approximated by sampling ˜z(1), ˜z(2) ∼
+pθP(z|xC, τ) for CLSM and ˜z(1), ˜z(2) ∼p(z) for VAE,
+where 1K samples of x are uniformly sampled from the
+test dataset, and, for each x, τ is uniformly sampled
+from T . Since the edit distance dedit
+ ˜xT
+  j
+J
+
+, ˜xT
+  j+1
+J
+
+sometimes becomes zero, we excluded cases through divi-
+sion by J−n instead of J as in Eq. 12, where n is the num-
+ber of edit distances that are zero among j = 0, 1, ..., J−1.
+We also excluded cases where D(J−n) = 0. The left scat-
+ter plot of Fig. 3b shows a comparison of CLSM and VAE.
+The small, medium, and large markers are plots for the
+number of divisions in interpolation J = 8, 4, 2, respec-
+tively. For each J, CLSM performed better than VAE. The
+plots of VAE J = 8 overlap with those of CLSM J = 4,
+indicating that even 4-divided interpolation of CLSM was
+as smooth as 8-divided interpolation of VAE. The results
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+31
+
+are similar in the two cases of “left context only” and “oth-
+erwise.”
+4.2 NLL Evaluation of Generated Samples
+To evaluate the quality of generated samples, we computed
+the negative log-likelihood (NLL) of the generated sam-
+ples. NLL was computed by using a separately trained
+vanilla transformer language model (LM) that had two lay-
+ers and was autoregressive. The LM was trained by us-
+ing the train-2 and validation-2 datasets deﬁned in Sec.
+3.1. The samples to be evaluated were the same as the
+8-divided interpolated points in Sec. 4.1. Since ARNN
+is not capable of interpolation, only a random sampling
+of two points was performed per each context for ARNN.
+The right scatter plot of Fig. 3b shows a comparison of the
+CLSM, VAE, ARNNs, and the test dataset (Data). CLSM
+outperformed VAE by a large margin when we compared
+models that were close in terms of reconstruction accuracy
+or NLL—a reasonable strategy of comparison as we dis-
+cuss in Sec. 3.3. Compared with the ARNNs, the perfor-
+mance of CLSM was superior in all settings. The results of
+VAE were better in the case of “left context only” than in
+the case of “otherwise.” In contrast, for the CLSM and
+ARNNs, there were only slight differences between the
+two cases. This empirically demonstrates that the decoder
+model of VAE has dependencies only on the left context
+but not on the right context, as we discuss in Sec. 3.2.1.
+4.3 Human Evaluation
+To further assess the quality of sequences generated by
+each model, we conducted listening tests using Amazon
+Mechanical Turk. We sampled 32 sequences from the test
+dataset, for which context positions were randomly sam-
+pled, and the target sequence lengths were sampled from
+1-4 bars. We conducted a pair-wise comparison of the gen-
+eration results of each model using the same context se-
+quences. We considered all possible combinations, yield-
+ing 320 pair-wise comparisons. The order within each pair
+was randomized. We chose to use β = 0.012 for CLSM,
+since the performance trade-offs are well balanced accord-
+ing to the results in Sec. 4.1 and Sec. 4.2. As discussed
+in Sec. 3.3 since it is reasonable to choose a VAE model
+with a similar reconstruction accuracy to that of CLSM,
+we chose γ = 0.4 for VAE. Participants with different lev-
+els of musical expertise were asked to rate “which music
+is better in terms of musicality, naturalness, and creativ-
+ity” on a Likert scale. Fig. 3c shows a comparison of the
+CLSM, VAE, ARNNs, and the test dataset (Data). CLSM
+and Data performed the best in terms of the percentage
+of wins (Fig. 3c, top) as well as the percentage of wins
+and draws (Fig. 3c, bottom). Interestingly, the ARNNs
+tended to outperform VAE when the number of draws was
+included, whereas VAE tended to outperform the ARNNs
+when only the number of wins was considered. This might
+indicate that the performance of VAE tends to be extreme.
+5. RELATED WORK
+T-CVAE is a transformer-based conditional VAE model for
+story completion [24]. VAEAC [25] is a CNN- or MLP-
+based VAE that enables us to impose any positional con-
+straints. Although their probabilistic frameworks are simi-
+lar to ours, the models and architectures are quite different.
+Unlike their models, CLSM is demonstrated to perform in-
+terpolation in the latent space. Moreover, the data domain
+of T-CVAE is story text, and the domains of VAEAC are
+image and feature classiﬁcation/regression datasets, while
+ours is for sequence datasets and experimented on music.
+Although contexts are not considered for latent vari-
+ables, there are several works that use transformers for
+learning a global latent variable for sequences using AE
+or VAE. For text-style transfer, a “transformer encoder”
+outputs are all fed to GRU to yield a latent vector, which
+is attended to by a decoder [26]. To learn the styles of
+piano performances, a “transformer encoder” outputs are
+summed to be attended to by a decoder [27]. In OPTIMUS
+for sentence modulation [28] and INSET [29] for sentence
+inﬁlling, a CLS token is additionally fed to a “transformer
+encoder,” and the output at the position of the CLS yields
+a latent vector, which is fed to a decoder either by self-
+attention and/or by being added to word embeddings of the
+decoder (OPTIMUS) or by being inputted as the ﬁrst token
+(INSET).
+For language processing, the authors of UniLM propose
+seq-to-seq LM, where they divide a whole sequence into
+ﬁrst and second segments [30]. The self-attention masks
+are bidirectional and unidirectional for the ﬁrst and second
+segments, respectively. Our decoder mask is different in
+that it divides a sequence into three segments, where the
+length of the ﬁrst and third segments can be zero during the
+training or inference phase. Also, the training procedure of
+them is BERT-like, which is different from ours [31].
+RealNVP has been used for the prior in VAE in order to
+improve the performance of VAE [32,33]. However, these
+works are not only in the domain of images but also use
+non-conditional priors, which differs from ours.
+6. CONCLUSION
+We proposed a contextual latent space model (CLSM),
+in which the left and/or right contexts of sequences can
+be constrained to generate interpolations or variations. A
+context-informed prior and decoder constitute the genera-
+tive model of CLSM and a context position-informed en-
+coder is the inference model.
+The latent space of CLSM was quantitatively shown to
+be smoother than baselines. Furthermore, the generation
+ﬁdelity was demonstrated to be superior to the baseline
+methods. It would be useful to apply our approach to other
+data domains such as polyphonic music, lyrics, or text. The
+beneﬁts of the latent space model are not only enabling in-
+terpolations and variations but also enabling transforma-
+tions of attributes or style transfer. It would be desirable to
+extend our approach to these kinds of applications.
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+32
+
+7. REFERENCES
+[1] S. R. Bowman, L. Vilnis, O. Vinyals, A. Dai, R. Joze-
+fowicz, and S. Bengio, “Generating sentences from
+a continuous space,” in Proceedings of The 20th
+SIGNLL Conference on Computational Natural Lan-
+guage Learning, 2016.
+[2] A. Roberts, J. Engel, C. Raffel, C. Hawthorne, and
+D. Eck, “A hierarchical latent vector model for learn-
+ing long-term structure in music,” in Proc. of the 35th
+International Conference on Machine Learning, 2018.
+[3] T. Akama, “Controlling symbolic music generation
+based on concept learning from domain knowledge,” in
+Proceedings of the 20th International Society for Mu-
+sic Information Retrieval Conference, ISMIR, 2019.
+[4] A. Pati and A. Lerch, “Attribute-based Regularization
+of Latent Spaces for Variational Auto-Encoders,” Neu-
+ral Computing and Applications, 2020.
+[5] H. Tan and D. Herremans, “Music fadernets: Control-
+lable music generation based on high-level features via
+low-level feature modelling,” in ISMIR, 2020.
+[6] T. Akama, “Connective fusion: Learning transforma-
+tional joining of sequences with application to melody
+creation,” in Proceedings of the 21st International So-
+ciety for Music Information Retrieval Conference. IS-
+MIR, 2020.
+[7] B. Uria, I. Murray, and H. Larochelle, “A deep and
+tractable density estimator,” in Proceedings of the 31st
+International Conference on Machine Learning, 2014.
+[8] A. Wang and K. Cho, “BERT has a mouth, and it
+must speak: BERT as a markov random ﬁeld language
+model,” CoRR, vol. abs/1902.04094, 2019.
+[9] G. Hadjeres and F. Nielsen, “Anticipation-rnn: enforc-
+ing unary constraints in sequence generation, with ap-
+plication to interactive music generation,” Neural Com-
+puting and Applications, vol. 32, no. 4, pp. 995–1005,
+2020.
+[10] C. A. Huang, T. Cooijmans, A. Roberts, A. C.
+Courville, and D. Eck, “Counterpoint by convolution,”
+in Proceedings of the 18th International Society for
+Music Information Retrieval Conference, ISMIR, 2017.
+[11] A. Pati, A. Lerch, and G. Hadjeres, “Learning to tra-
+verse latent spaces for musical score inpainting,” IS-
+MIR, 2019.
+[12] C. Raffel, “Learning-based methods for comparing se-
+quences, with applications to audio-to-midi alignment
+and matching,” Ph.D. dissertation, 2016.
+[13] D. Rezende and S. Mohamed, “Variational inference
+with normalizing ﬂows,” in Proceedings of the 32nd
+International Conference on Machine Learning, 2015.
+[14] D. P. Kingma and M. Welling, “Auto-encoding varia-
+tional bayes,” CoRR, vol. abs/1312.6114, 2013.
+[15] I. Higgins, L. Matthey, A. Pal, C. Burgess, X. Glorot,
+M. Botvinick, S. Mohamed, and A. Lerchner, “beta-
+vae: Learning basic visual concepts with a constrained
+variational framework,” in 5th International Confer-
+ence on Learning Representations, ICLR, 2017.
+[16] L. Dinh, J. Sohl-Dickstein, and S. Bengio, “Density
+estimation using real NVP,” in 5th International Con-
+ference on Learning Representations, ICLR 2017.
+[17] P. Shaw, J. Uszkoreit, and A. Vaswani, “Self-attention
+with relative position representations,” in Proceedings
+of the 2018 Conference of the North American Chapter
+of the Association for Computational Linguistics: Hu-
+man Language Technologies, Volume 2 (Short Papers).
+[18] C.-Z. A. Huang, A. Vaswani, J. Uszkoreit, I. Simon,
+C. Hawthorne, N. Shazeer, A. M. Dai, M. D. Hoffman,
+M. Dinculescu, and D. Eck, “Music transformer,” in In-
+ternational Conference on Learning Representations,
+2019.
+[19] S. Hochreiter and J. Schmidhuber, “Long short-term
+memory,” Neural computation, vol. 9, pp. 1735–80, 12
+1997.
+[20] M. Schuster and K. Paliwal, “Bidirectional recurrent
+neural networks,” IEEE Transactions on Signal Pro-
+cessing, vol. 45, no. 11, pp. 2673–2681, 1997.
+[21] G. Klambauer, T. Unterthiner, A. Mayr, and S. Hochre-
+iter, “Self-normalizing neural networks,” in Advances
+in Neural Information Processing Systems, I. Guyon,
+U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus,
+S. Vishwanathan, and R. Garnett, Eds.
+Curran As-
+sociates, Inc., 2017.
+[22] T. Bertin-Mahieux, D. P. Ellis, B. Whitman, and
+P. Lamere, “The million song dataset,” in Proceedings
+of the 12th International Conference on Music Infor-
+mation Retrieval (ISMIR 2011), 2011.
+[23] D. P. Kingma and J. Ba, “Adam: A method for stochas-
+tic optimization,” in 3rd International Conference on
+Learning Representations, ICLR, 2015.
+[24] T. Wang and X. Wan, “T-cvae: Transformer-based
+conditioned variational autoencoder for story com-
+pletion,” in Proceedings of the Twenty-Eighth Inter-
+national Joint Conference on Artiﬁcial Intelligence,
+IJCAI-19, 2019.
+[25] O. Ivanov, M. Figurnov, and D. Vetrov, “Variational
+autoencoder with arbitrary conditioning,” in Interna-
+tional Conference on Learning Representations, 2019.
+[26] K. Wang, H. Hua, and X. Wan, “Controllable unsu-
+pervised text attribute transfer via editing entangled la-
+tent representation,” in Advances in Neural Informa-
+tion Processing Systems.
+Curran Associates, Inc.,
+2019.
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+33
+
+[27] K. Choi, C. Hawthorne, I. Simon, M. Dinculescu, and
+J. Engel, “Encoding musical style with transformer au-
+toencoders,” in Proceedings of the 37th International
+Conference on Machine Learning, 2020.
+[28] C. Li, X. Gao, Y. Li, X. Li, B. Peng, Y. Zhang,
+and J. Gao, “Optimus: Organizing sentences via pre-
+trained modeling of a latent space,” in EMNLP, 2020.
+[29] Y. Huang, Y. Zhang, O. Elachqar, and Y. Cheng,
+“INSET: sentence inﬁlling with inter-sentential trans-
+former,” in Proceedings of the 58th Annual Meeting
+of the Association for Computational Linguistics, ACL
+2020, D. Jurafsky, J. Chai, N. Schluter, and J. R.
+Tetreault, Eds., 2020.
+[30] L. Dong, N. Yang, W. Wang, F. Wei, X. Liu, Y. Wang,
+J. Gao, M. Zhou, and H.-W. Hon, “Uniﬁed language
+model pre-training for natural language understanding
+and generation,” in Advances in Neural Information
+Processing Systems, vol. 32.
+Curran Associates, Inc.,
+2019.
+[31] J. Devlin, M. Chang, K. Lee, and K. Toutanova,
+“BERT: pre-training of deep bidirectional transform-
+ers for language understanding,” in Proceedings of the
+2019 Conference of the North American Chapter of
+the Association for Computational Linguistics: Human
+Language Technologies, NAACL-HLT 2019.
+[32] C.-W. Huang, A. Touati, L. Dinh, M. Drozdzal,
+M. Havaei, L. Charlin, and A. Courville, “Learnable
+explicit density for continuous latent space and varia-
+tional inference,” 2017.
+[33] H. Xu, W. Chen, J. Lai, Z. Li, Y. Zhao, and D. Pei, “On
+the necessity and effectiveness of learning the prior of
+variational auto-encoder,” 2019.
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+34

@@ -1,0 +1,835 @@
+CHORD JAZZIFICATION:
+LEARNING JAZZ INTERPRETATIONS OF CHORD SYMBOLS
+Tsung-Ping Chen1
+Satoru Fukayama2
+Masataka Goto2
+Li Su1
+1 Institute of Information Science, Academia Sinica, Taiwan
+2 National Institute of Advanced Industrial Science and Technology (AIST), Japan
+{tearfulcanon, lisu}@iis.sinica.edu.tw
+{s.fukayama, m.goto}@aist.go.jp
+ABSTRACT
+Chord symbols, typically notating the root note and the
+chord quality, are extensively used yet oversimpliﬁed rep-
+resentation of tonal harmony and chord progressions in
+popular music. In spite of its convenience, the chord sym-
+bol notation only provides basic information about the
+chordal conﬁguration, and leaves much room for inter-
+pretation. With such limitations, an algorithm generating
+merely chord symbols is usually insufﬁcient for a wide
+range of music genres such as jazz. To solve this problem,
+we propose chord jazziﬁcation, a process to generate real-
+istic chord conﬁgurations in jazz style. With deep learning
+approaches, we decompose chord jazziﬁcation into color-
+ing and voicing. Coloring concerns the choice of color
+tones, while voicing concerns the conﬁgurations of chords.
+We also create a new dataset featuring interpretations of
+chord symbols in pop-jazz compositions. By conducting
+experiments on the new dataset, we show that 1) the two-
+stage process outperforms an end-to-end generation ap-
+proach in modeling chord conﬁgurations, and 2) attention-
+based models are better at capturing the structure of chord
+sequences in comparison with recurrent neural networks.
+1. INTRODUCTION
+Harmony and chords are the central topic in the study of
+tonal music. To facilitate the study, researchers in the ﬁelds
+of music information retrieval (MIR) and computational
+musicology have developed various techniques, such as au-
+tomatic chord recognition [1–5], chord similarity and tonal
+distance [6–9], harmonic analysis [10–13], and chord gen-
+eration [14–16].
+Most of these aforementioned techniques process the
+chord data using chord symbol representation, i.e., a sym-
+bolic notation system indicating the root note, quality, and
+other additional information of the chord. For example,
+the chord symbol C:7 stands for the C dominant seventh
+chord in root position, whose theoretical conﬁguration is
+c⃝Tsung-Ping Chen, Satoru Fukayama, Masataka Goto, Li
+Su. Licensed under a Creative Commons Attribution 4.0 International Li-
+cense (CC BY 4.0). Attribution: Tsung-Ping Chen, Satoru Fukayama,
+Masataka Goto, Li Su, “Chord Jazziﬁcation:
+Learning Jazz Interpre-
+tations of Chord Symbols”, in Proc. of the 21st Int. Society for Music
+Information Retrieval Conf., Montréal, Canada, 2020.
+Figure 1: Three conﬁgurations of the C dominant seventh
+chord. In music theory, the C dominant seventh chord in
+root position is conﬁgured as (a). (b) and (c) are two alter-
+ations of the chord.
+depicted in Figure 1a. This symbol, however, does not ex-
+plicitly point out the actual conﬁguration, e.g., every spe-
+ciﬁc note performed by a musician. Hence, the notation
+system is limited in describing the nuances in real-world
+performance. Learning to interpret the chord symbols is
+challenging in two aspects. First, expert musicians often
+color a chord by adding notes to, or omitting notes from
+the chord according to the musical context, although the
+chord symbol itself does not specify such alterations. Sec-
+ond, chords composed of the same set of pitch classes can
+be voiced differently by spacing and doubling the chord
+tones. Take the comping technique in jazz music as an
+instance. 1
+Instead of sticking to the typical conﬁgura-
+tion of a chord, a jazz pianist may play the C dominant
+seventh chord with the conﬁguration shown in Figure 1b,
+in which the 5th of the root, G4, is omitted, and the 9th
+of the root, D5, is added; while another jazz pianist may
+arrange these notes in a totally different way as demon-
+strated in Figure 1c, where Bb is doubled and D is spaced
+a register lower. In fact, the way how musicians interpret
+chord symbols in a given context involves not only their
+thorough understanding of various musical styles, but also
+their personal tastes. Therefore, to generate the realization
+of chord symbols through MIR approaches is a challeng-
+ing yet valuable task, despite this topic is rarely discussed
+possibly because of the lack of data.
+In this paper, we propose chord jazziﬁcation, a process
+to realize chord symbols with jazz harmony through deep
+learning approaches. Based on the two aforementioned as-
+pects of interpreting the chord symbols, the chord jazz-
+1 Comping means accompanying or complementing a soloist by play-
+ing the chords to ﬁll the harmonic and rhythmical vacancies in the music.
+
+Figure 2: Annotations of the proposed dataset. Chord Symbol speciﬁes the root and the quality of each chord (a bass note
+is explicitly notated with a slash when it is not the root note), e.g., Db:M/F stands for a Db major triad with the bass note
+F. Time indicates the onset and the duration (measured in beats) of each chord. Voicing represents the conﬁguration of each
+chord with a set of scientiﬁc pitch notations. Coloring indicates the chord degrees which appear in the voicing but are not
+speciﬁed by the chord symbol, and vice versa, e.g., (o1,9) indicates that the root is omitted and the 9th is added. Note
+that 7 is explicitly qualiﬁed by {M, m, d} (major, minor, diminished) to disambiguate its interval. Roman Numeral Analysis
+denotes the scale degree on which a chord is built, as well as the quality and the inversion information, e.g., V7 stands for
+a dominant seventh chord in root position. Structure includes the annotations of phrase, measure and metrical position. To
+specify the phrase a chord belongs to, each chord is labeled with a letter plus a number in a way similar to musical form
+analysis. Metrical position shows the position of a chord with respect to the metric grid (starting with 0).
+iﬁcation task is formulated as two subtasks, namely the
+chord coloring and the chord voicing. The chord coloring
+task decides which pitch classes are to be played for elab-
+orating a chord symbol, while the chord voicing task deals
+with the spacing and the doubling of the pitch classes to be
+played. Although the jazziﬁcation of chord progressions is
+not limited to coloring and voicing, we focus on the two
+aspects for the primary study. To facilitate the research on
+chord jazziﬁcation, we also compile a new dataset consist-
+ing of chord symbols and corresponding chord conﬁgura-
+tions in pop-jazz compositions. In comparison with other
+jazz-related datasets, such as the Charlie Parker’s Omni-
+book data [17], the Jazz Audio-Aligned Harmony (JAAH)
+dataset [18], the JazzCorpus [19], and the Weimar Jazz
+Database [20], our dataset includes more detailed informa-
+tion of chords, especially the chordal conﬁguration. With
+the newly compiled dataset, we conduct several experi-
+ments to verify the two-stage framework for chord jazzi-
+ﬁcation. Experiment results indicate that it is effective to
+decompose chord jazziﬁcation into coloring and voicing,
+rather than to adopt an end-to-end approach.
+The current work is different from the accompaniment
+or harmonization tasks [21,22], in terms of that such works
+require melodies as prior knowledge and regard chords as
+appendages to melodies. Besides, our work concerns both
+the voicings of a chord sequence and the interpretation of
+each single chord, thus is distinct from the voice leading
+generation task [23, 24]. The jazziﬁcation of a chord pro-
+gression is part of the music composition process to expand
+a tonal structure, i.e., the prolongation described in Hein-
+rich Schenker’s music theory [25]. Chord jazziﬁcation can
+advance other MIR-related tasks such as style analysis and
+chord generation [26–29]. We hope that our work can draw
+more attention to the musical knowledge regarding the im-
+plicit relations between the notated chord symbols and the
+actual harmony being performed.
+In summary, our contribution is threefold.
+First, we
+address the issue of interpreting chord symbols by chord
+jazziﬁcation. Second, we compile a new dataset for the
+generation of jazzy harmony and for the study of chord
+embellishments. Finally, a deep learning framework is pro-
+posed to generate jazz-style chord progressions. In the fol-
+lowing, we will ﬁrst present the new dataset (Section 2),
+and then formulate the framework of chord jazziﬁcation
+(Section 3); based on the framework, several experiments
+are introduced thereon (Section 4).
+2. THE CHORD JAZZIFICATION DATASET
+The corpus is composed of 50 musical pieces selected from
+published Japanese pop-jazz piano solos, in which chord
+symbols are explicitly speciﬁed. 2
+To obtain the corre-
+sponding voicing of each chord symbol, we manually per-
+form harmonic reduction for each piece. Concretely, notes
+within the region of a chord symbol are selected to build
+the conﬁguration of the chord symbol.
+With the chord
+2 The
+dataset
+is
+available
+at
+https://github.com/
+Tsung-Ping/Chord-Jazzification.
+
+Figure 3: Chord qualities and chord colorings in the pro-
+posed dataset (the long tail of the coloring distribution is
+left out). Chord degrees of compound intervals are merged
+with simple ones in the coloring ﬁgure for simplicity.
+symbols and the transcribed voicings, coloring and har-
+monic information are annotated. Speciﬁcally, there are six
+types of annotations in the dataset: Chord Symbol, Time,
+Voicing, Coloring, Roman Numeral Analysis [10, 30], and
+Structure. Figure 2 gives an example.
+A brief introduction of the chord qualities and colorings
+used in the corpus is illustrated in Figure 3. Not surpris-
+ingly, the three seventh chords, major seventh (M7), minor
+seventh (m7), and dominant seventh (7), account for more
+than half of the chords, as jazz harmony is notable for the
+use of seventh chords. On the other hand, characteristic
+colorings of pop-jazz music can also be found in many
+chords, such as adding a major second or a compound ma-
+jor second (2) and omitting the perfect ﬁfth (o5).
+In summary, 796 musical phrases amounting to 6700
+chord labels are included in the dataset. These annota-
+tions provide information concerning the relationship be-
+tween the symbolic notation and the actual conﬁguration
+of chords in human compositions. It therefore has the po-
+tential to be applied to many MIR-related research top-
+ics, such as corpus-based study of tonal harmony in mu-
+sic practice, generation of colorful chord progressions, and
+computer-aided composition, to name but a few. It has to
+be acknowledged that the dataset has some limitations in
+describing an actual interpretation of chord symbols, in the
+sense that the transcription of chords eliminates the har-
+monic and rhythmical variances within the region of each
+chord symbol. Nevertheless, the dataset can be a starting
+point for performers and composers to learn to elaborate
+and develop a tonal structure through the chord jazziﬁca-
+tion process, which is relatively easier compared to learn-
+ing the elaboration directly from a complete musical piece.
+3. CHORD JAZZIFICATION
+The goal of chord jazziﬁcation is to endow plain chords
+(e.g., a sequence of triads) with jazz harmony. We tackle
+the chord jazziﬁcation task through two successive steps,
+that is, coloring and voicing. The coloring part functions
+as an intermediate state which speciﬁes chords in terms of
+pitch classes, and the voicing part assigns pitch heights to
+the speciﬁed pitch classes.
+3.1 Coloring
+In this paper, 48 triads in root position ({major, minor, aug-
+mented, diminished} by 12 semitones) are considered for
+coloring. We deﬁne the chord coloring task as predicting
+the bass note and the pitch classes to render each triad in a
+given sequence.
+Formally, the input of the coloring task is a triad se-
+quence {xi}T
+i=1 and a duration sequence {di}T
+i=1, where
+i denotes time steps, T is the length of the sequence,
+xi ∈R12 is a chroma representation of the ith triad,
+and di is the duration of xi.
+The coloring task pre-
+dicts the bass sequence {bc
+i}T
+i=1 and the pitch class se-
+quence {pc
+i}T
+i=1 for the input sequence, where c stands for
+coloring, bc
+i ∈R12 is a softmax-activated chroma vec-
+tor indicating the 12 pitch classes’ probabilities to be the
+bass of colored xi, and pc
+i ∈R12 is a sigmoid-activated
+chroma vector indicating the 12 pitch classes’ probabilities
+to be the constituent notes (except the bass) of colored xi.
+For example, bc
+i = [0.8, 0, 0, 0, 0.2, 0, 0, 0, 0, 0, 0, 0] indi-
+cates the pitch classes C and E respectively have a prob-
+ability of 80% and 20% to be the bass note, and pc
+i =
+[0, 0.9, 0, 0, 0.9, 0, 0, 0, 0, 0, 0.9, 0] suggests that there is a
+90% chance that Db , E, and Bb are activated to render xi.
+We employ a basic sequential learning architecture for
+the coloring task. As shown in Figure 4a, the architecture
+is composed of three layers: 1) an input embedding layer,
+2) a sequential modeling layer, and 3) an output layer.
+Speciﬁcally, the three layers are formulated as follows:
+ec
+i = Wec(dixi), (Input Embedding)
+hc
+i = f c(ec
+i | ec
+1:T ), (Sequential Modeling)
+pc
+i = sigmoid(Wpchc
+i), (Output)
+bc
+i = softmax(Wbchc
+i),
+(1)
+where Wec ∈Rd×12, Wpc ∈R12×d, and Wbc ∈R12×d
+are learnable parameters, f c : Rd →Rd denotes a train-
+able neural network, and d is a hyperparameter indicating
+the dimensions of the embedding space. Two candidate
+networks are employed for the sequential modeling layer:
+• Bi-directional Recurrent Neural Network with Long
+Short-Term Memory (BLSTM):
+hc
+i = −→
+h c
+i ⊕←−
+h c
+i,
+−→
+h c
+i = LSTM(ec
+i | ec
+1:i−1),
+←−
+h c
+i = LSTM(ec
+i | ec
+i+1:T ),
+(2)
+where ⊕denotes vector concatenation.
+
+(a)
+(b)
+(c)
+Figure 4: (a) The coloring model. (b) The voicing model. (c) The two-stage chord jazziﬁcation model.
+• Multihead Self-attention Network (MHSA):
+hc(l)
+i
+= Wouterσ(Winnerui + b1) + b2,
+ui = Wu(u′
+i1 ⊕· · · ⊕u′
+iJ) + hc(l−1)
+i
+,
+u′
+ij = Vj softmax
+ 
+K⊤
+j qij
+√
+d
+!
+,
+qij = WQ
+j hc(l−1)
+i
+,
+Kj = WK
+j [hc(l−1)
+1
+, · · · , hc(l−1)
+T
+],
+Vj = WV
+j [hc(l−1)
+1
+, · · · , hc(l−1)
+T
+],
+(3)
+where l denotes the iteration step, and the initial
+value hc(0)
+i
+= ec
+i; σ represents the ReLU activa-
+tion function; J is the number of heads; Wouter
+j
+∈
+Rd×4d, Winner
+j
+∈
+R4d×d, Wu
+∈
+Rd×d, and
+WQ
+j , WK
+j , WV
+j ∈R
+d
+J ×d are learnable parameters.
+This network is equivalent to the encoder of the
+Transformer [31], while we leave out layer normal-
+ization and position encoding terms for simplicity.
+In this paper, we set d = 512, l = 2, and J = 8.
+The binary cross entropy (BCE) and the categorical
+cross entropy (CCE) are used to calculate the losses. Let
+pc∗
+i
+and bc∗
+i
+denote the ground truths of pc
+i and bc
+i; the
+total loss of the coloring model Lc is deﬁned as:
+Lc =
+T
+X
+i=1
+[BCE(pc∗
+i , pc
+i) + CCE(bc∗
+i , bc
+i)] .
+(4)
+3.2 Voicing
+We deﬁne chord voicing as a task which predicts the voic-
+ings of a chord sequence.
+Formally, given a chord se-
+quence of T time steps in terms of their basses {bv
+i }T
+i=1,
+constituent pitch classes {pv
+i }T
+i=1, and durations {di}T
+i=1,
+the task predicts the voicings {vi}T
+i=1 for the chord se-
+quence, where v stands for voicing, bv
+i ∈R12 is a one-
+hot chroma vector indicating the bass of the ith chord,
+pv
+i ∈R12 is a multi-hot chroma vector representing the
+pitch classes of the ith chord except the bass note, and
+vi ∈R88 is a voicing vector indicating the 88 tones’ prob-
+abilities to be played on the piano.
+Similar to the coloring task, we employ a 3-layer archi-
+tecture for the voicing task, as shown in Figure 4b. The
+three layers are formulated as follows:
+ev
+i = Wev(di(pv
+i ⊕bv
+i )), (Input Embedding)
+hv
+i = f v(ev
+i | ev
+1:T ), (Sequential Modeling)
+vi = sigmoid(Wvhv
+i ), (Output)
+(5)
+where Wev ∈Rd×24 and Wv ∈R88×d are learnable pa-
+rameters, and f v : Rd →Rd is a neural network. Like-
+wise, the BLSTM and the MHSA networks are two options
+for the sequential modeling layer.
+Let v∗
+i ∈R88 denote the target voicing of the ith chord;
+we deﬁne the loss as:
+Lv =
+T
+X
+i=1
+BCE(v∗
+i , vi).
+(6)
+As the voicing task is to arrange the constituent notes of
+chords on an 88-key piano based on the given basses and
+the sets of pitch classes, the outcome of v∗
+i can be known
+to a certain degree. More precisely, a note in v∗
+i can be
+activated only if its pitch class is activated in bv
+i or pv
+i .
+With this consideration, we design corresponding masks
+to modify the loss computation. Let bv′
+i ∈R88 and pv′
+i ∈
+R88 be the extensions of bv
+i and pv
+i to all octaves of the
+piano. Then, the loss constrained by the masks becomes:
+Lv′ =
+T
+X
+i=1
+BCE(v∗
+i , mi ⊙vi),
+mi = bv′
+i ∨pv′
+i , (Mask)
+(7)
+where ⊙stands for the Hadamard product, and ∨denotes
+the logical OR operator.
+
+3.3 Two-stage Chord Jazziﬁcation
+We stack the chord voicing model on the top of the chord
+coloring model by setting bi = bv
+i = onehot(arg max bc
+i)
+and pi = pv
+i = round(pc
+i), as illustrated in Figure 4c. In
+other words, the outputs of the coloring model are ﬁrst con-
+verted into binary vectors, and then taken as inputs by the
+voicing model. Such an integrated model jazziﬁes chord
+progressions in two stages: ﬁrst, for a given sequence of
+triads {xi}T
+i=1 and the corresponding durations {di}T
+i=1,
+the coloring model generates a colored sequence repre-
+sented by {bi}T
+i=1 and {pi}T
+i=1; based on the colored se-
+quence, the voicing model subsequently generates a voiced
+chord progression {v}T
+i=1 .
+4. EXPERIMENTS
+4.1 Chord Jazziﬁcation with Supervised Learning
+With the formulations of chord jazziﬁcation as multi-class
+classiﬁcation (for bc
+i) and multi-label classiﬁcation (for pc
+i
+and vi) problems, we train the coloring and voicing mod-
+els using the new dataset, and perform 4-fold cross valida-
+tion. For the coloring task, the input triad sequences and
+the input duration sequences are respectively derived from
+the Chord Symbol and the Time annotations of the dataset,
+while the ground truths of the bass sequences and the pitch
+class sequences are obtained from the Voicing labels. As
+for the voicing task, the duration sequences and the ground
+truth labels of the coloring task are taken as the inputs,
+while the Voicing labels are used as the ground truths of
+the output sequences. We augment the training set through
+transposing the data from 4 semitones down to 5 semitones
+up (within the valid range of the piano), leading to 10 times
+the training data. As a result, there are 5970 and 199 se-
+quences for training and testing respectively.
+Evaluation results are shown in Table 1. For both the
+coloring and voicing tasks, the employment of either the
+BLSTM or the MHSA as the sequential modeling lay-
+ers yields comparable performance to the other, while the
+MHSA appears to surpass the BLSTM in cases of multi-
+label classiﬁcation, i.e., the predictions of pitch classes and
+voicing. When the input embedding layers in the two sub-
+tasks are removed, all the performances decrease by from
+3.19% to 4.69%. This indicates that the transformation to
+dense vectors beneﬁts the learning process when the input
+data is sparsely represented. Moreover, the introduction of
+the input-related masks to the loss calculation in Eqn (7)
+also improves the modeling of voicing; precisely, the F1
+score increases 2.66% if the masks are utilized. It is worth
+noting that the amount of training data is quite limited, and
+therefore the performance seems to be satisfactory in the
+current experimental setting.
+4.2 End-to-end Chord Jazziﬁcation
+To motivate the decomposition of chord jazziﬁcation into
+2 stages, we train a chord jazziﬁcation model in an end-to-
+end manner for comparison. Technically, we replace the
+output module of the coloring model with that of the voic-
+ing model; and we employ a 2-layer BLSTM, rather than
+Model
+Coloring
+Voicing
+Bass
+Pitch Classes
+BLSTM
+81.87
+76.52
+63.64
+MHSA
+80.78
+77.02
+64.86
+BLSTM w/o E
+77.18
+73.33
+60.12
+BLSTM w/o M
+-
+-
+60.98
+End-to-End
+-
+-
+37.87
+Table 1: Results of the coloring and the voicing tasks. The
+lower part shows the ablation tests without the embedding
+layer (w/o E) and without masks (w/o M), as well as the
+result using end-to-end training. All the values indicate
+the average F1 scores (%) over 4 validations.
+a 1-layer BLSTM as deﬁned in Eqn (2), for the sequential
+modeling layer in order to make the number of parame-
+ters comparable to the two-stage chord jazziﬁcation model.
+The evaluation result is shown in Table 1.
+In this end-to-end architecture, the performance drops
+substantially to nearly half of the value. This result con-
+versely validates the two-stage approach. Given the fact
+that the prediction of polyphony is often challenging, it
+turns out to be beneﬁcial to generate an intermediate stage,
+that is, the chroma representations with respect to coloring,
+before the overall jazziﬁcation of chords.
+4.3 Consistency of Chord Jazziﬁcation
+Chord progressions often have a repetitive structure, there-
+fore it is important for a model to preserve this property
+and generate chord sequences of self-consistency. To mea-
+sure the consistency of a model’s generations, we com-
+pute the self-similarity matrices (SSMs) of each generated
+voicing sequence and corresponding label sequence, and
+then calculate the difference between each generation-label
+SSM pair.
+Let V = [v1, · · · , vT ] denote the normal-
+ized voicing sequence generated by a model, and V
+∗=
+[v∗
+1, · · · , v∗
+T ] denote the normalized label sequence, where
+vi =
+round(vi)
+∥round(vi)∥is a binarized and normalized voicing, and
+v∗
+i =
+v∗
+i
+∥v∗
+i ∥is a normalized target voicing; we deﬁne the
+consistency score (CS) of a generated sequence as follows:
+CS = 1 −reduce_mean(∆SSM),
+∆SSM = |SSMpred −SSMlabel|,
+SSMpred = V
+⊤V,
+SSMlabel = V
+∗⊤V
+∗.
+(8)
+The more similar the structures of the two sequences are,
+the higher the CS score is.
+Table 2 shows the average consistency score over 4
+cross-validation folds.
+To provide a benchmark for the
+consistency measure, we also show the CS score computed
+from label sequences and randomly-generated sequences
+(denoted as RANDOM). Both the two models get higher
+scores than the random condition, indicating that they learn
+some structural information.
+Besides, the MHSA out-
+performs the BLSTM due to an essential difference be-
+tween them: the BLSTM processes each time step of a
+
+Model
+BLSTM
+MHSA
+RANDOM
+CS Score (%)
+86.91
+87.68
+72.80
+Table 2: Consistency measure of chord jazziﬁcation.
+Figure 5: The difference of self-similarity matrices. Left:
+∆SSM of the BLSTM. Right: ∆SSM of the MHSA. The
+origin of the matrices is at the lower left corner.
+sequence recurrently, while the MHSA accesses the entire
+sequence simultaneously. As a result, the MHSA can cap-
+ture more structural features than the BLSTM does, lead-
+ing to more consistent generations. Two examples of the
+∆SSM are demonstrated in Figure 5. Evidently, there are
+fewer bright regions in the ∆SSM of the MHSA, indicat-
+ing that the generation by the MHSA is structurally closer
+to the ground truth than that by the BLSTM.
+4.4 Generating Jazz Harmony
+We train the two-stage chord jazziﬁcation model using the
+proposed dataset, and generate jazziﬁed chord progres-
+sions with input triad sequences derived from the JAAH
+dataset. 3 In total, 2210 sequences with 23199 chords were
+generated. To examine the effect of jazziﬁcation, we quan-
+titatively analyze the difference between each input triad
+and its jazziﬁed counterpart. Particularly, we are interested
+in changes with respect to chord coloring: 1) what notes
+are added to or omitted from a triad? 2) Is a note other
+than the root being chosen as the bass note?
+The result is represented in Figure 6. Around 40% of
+the input triads are embellished with a minor seventh (m7).
+And the addition of a major seventh (M7) also accounts
+for around 3.6%, ranked in the top fourth. These frequent
+colorings with a major or minor seventh reﬂect the charac-
+teristics of jazz music in which most triads that appear in
+lead sheets or fake books can have sevenths added to them.
+Moreover, extended chords and inverted chords can also
+be found. For instance, the coloring (b2,m7) for a major
+triad will lead to a dominant seventh ﬂat ninth chord; and
+the coloring None/3 indicates the ﬁrst inversion of triads.
+It is worth mentioning that some generated slash chords are
+not inverted chords. An example is shown in the bottom
+of Figure 6. With the coloring (2,M7)/2, the last triad
+Db:M becomes Db:M7/Eb, which can be interpreted as
+an Eb dominant thirteenth chord—the dominant chord of
+the relative major mode (assuming F is the tonic). In other
+words, this coloring not only breaks the repetitive structure
+3 https://github.com/MTG/JAAH
+Figure 6: Top: the coloring distribution of the generated
+chords (part of the distribution is omitted). Bottom: a gen-
+erated example. A number after the slash symbol indicates
+the degree of the bass note relative to the root note.
+of the input triad sequence, but also implies a new tonality.
+In addition to coloring, it can be observed that the linear
+progressions of voices are quite smooth, showing that the
+model also learns the knowledge of voice leading.
+5. CONCLUSION
+To learn the interpretation of chord symbols from musical
+data, we proposed chord jazziﬁcation, a process of generat-
+ing realistic jazz-style chord progressions through two mu-
+sical techniques: chord coloring and chord voicing. Chord
+coloring decides a bass and a set of pitch classes for elab-
+orating a triad, while chord voicing arranges the bass and
+the set of pitch classes on the piano. We correspondingly
+built a dataset which includes coloring and voicing anno-
+tations, and hence can be used as the training data of the
+chord jazziﬁcation task. By formulating the chord color-
+ing and chord voicing tasks as classiﬁcation problems, we
+experimentally showed that the two-stage framework is ca-
+pable of generating plausible chord conﬁgurations from a
+sequence of chord symbols.
+Chord jazziﬁcation has the potential to be applied to
+two different yet related practices in music: performing
+and composing. For music performing, it is practical and
+desirable to interpret the chord symbols on lead sheets
+through jazziﬁcation. For music composing, the generated
+sequence by the chord jazziﬁcation model can be regarded
+as an intermediate product with which a musician can fur-
+ther create a human-machine collaborative musical work.
+In future research, we are planning to include more rhyth-
+mical and structural information, such as metrical position,
+to better represent the harmonic features, and apply more
+advanced deep learning techniques to improve the chord
+jazziﬁcation task.
+
+6. ACKNOWLEDGMENTS
+This work was supported in part by JST ACCEL Grant
+Number JPMJAC1602.
+7. REFERENCES
+[1] F. Korzeniowski and G. Widmer, “Improved chord
+recognition by combining duration and harmonic lan-
+guage models,” in Proceedings of the 19th Interna-
+tional Society for Music Information Retrieval Confer-
+ence (ISMIR), 2018, pp. 10–17.
+[2] F. Korzeniowski, D. R. W. Sears, and G. Widmer,
+“A large-scale study of language models for chord
+prediction,” in International Conference on Acoustics,
+Speech and Signal Processing (ICASSP), 2018, pp. 91–
+95.
+[3] J. Deng and Y. Kwok, “Large vocabulary auto-
+matic chord estimation with an even chance training
+scheme,” in Proceedings of the 18th International So-
+ciety for Music Information Retrieval Conference (IS-
+MIR), 2017, pp. 531–536.
+[4] B. McFee and J. P. Bello, “Structured training for large-
+vocabulary chord recognition,” in Proceedings of the
+18th International Society for Music Information Re-
+trieval Conference (ISMIR), 2017, pp. 188–194.
+[5] F. Korzeniowski and G. Widmer, “A fully convolu-
+tional deep auditory model for musical chord recog-
+nition,” in Proceedings of the IEEE International
+Workshop on Machine Learning for Signal Processing
+(MLSP), 2016, pp. 1–6.
+[6] W. B. de Haas, M. Robine, P. Hanna, R. C. Veltkamp,
+and F. Wiering, “Comparing approaches to the simi-
+larity of musical chord sequences,” in Exploring Mu-
+sic Contents - 7th International Symposium (CMMR),
+2010, pp. 242–258.
+[7] W. B. de Haas, R. C. Veltkamp, and F. Wiering, “Tonal
+pitch step distance: a similarity measure for chord
+progressions,” in Proceedings of the 9th International
+Conference on Music Information Retrieval (ISMIR),
+2008, pp. 51–56.
+[8] C. Harte, M. Sandler, and M. Gasser, “Detecting har-
+monic change in musical audio,” in Proceedings of
+the 1st ACM workshop on Audio and music computing
+multimedia, 2006, pp. 21–26.
+[9] J. Paiement, D. Eck, and S. Bengio, “A probabilis-
+tic model for chord progressions,” in Proceedings of
+the 6th International Conference on Music Information
+Retrieval (ISMIR), 2005, pp. 312–319.
+[10] T. Chen and L. Su, “Functional harmony recognition
+of symbolic music data with multi-task recurrent neural
+networks,” in Proceedings of the 19th International So-
+ciety for Music Information Retrieval Conference (IS-
+MIR), 2018, pp. 90–97.
+[11] N. Condit-Schultz, Y. Ju, and I. Fujinaga, “A ﬂexible
+approach to automated harmonic analysis: multiple an-
+notations of chorales by Bach and Prætorius,” in Pro-
+ceedings of the 19th International Society for Music
+Information Retrieval Conference (ISMIR), 2018, pp.
+66–73.
+[12] P. B. Kirlin and P. E. Utgoff, “A framework for auto-
+mated Schenkerian analysis,” in Proceedings of the 9th
+International Conference on Music Information Re-
+trieval (ISMIR), 2008, pp. 363–368.
+[13] T. Chen and L. Su, “Harmony Transformer: Incor-
+porating chord segmentation into harmony recogni-
+tion,” in Proceedings of the 20th International Society
+for Music Information Retrieval Conference (ISMIR),
+2019, pp. 259–267.
+[14] H. Lim, S. Rhyu, and K. Lee, “Chord generation from
+symbolic melody using BLSTM networks,” in Pro-
+ceedings of the 18th International Society for Music
+Information Retrieval Conference (ISMIR), 2017, pp.
+621–627.
+[15] K. Choi, G. Fazekas, and M. Sandler, “Text-based
+LSTM networks for automatic music composition,” in
+the 1st Conference on Computer Simulation of Musical
+Creativity, 2016.
+[16] K. Kosta, M. Marchini, and H. Purwins, “Unsupervised
+chord-sequence generation from an audio example,” in
+Proceedings of the 13th International Society for Mu-
+sic Information Retrieval Conference (ISMIR), 2012,
+pp. 481–486.
+[17] K. Déguernel, E. Vincent, and G. Assayag, “Using
+multidimensional sequences for improvisation in the
+OMax paradigm,” in Proceedings of the 13th Sound
+and Music Computing Conference (SMC), 2016, pp.
+481–486.
+[18] V. Eremenko, E. Demirel, B. Bozkurt, and X. Serra,
+“Audio-aligned jazz harmony dataset for automatic
+chord transcription and corpus-based research,” in Pro-
+ceedings of the 19th International Society for Music
+Information Retrieval Conference (ISMIR), 2018, pp.
+483–490.
+[19] M. Granroth-Wilding, “Harmonic analysis of music us-
+ing combinatory categorial grammar,” Ph.D. disserta-
+tion, University of Edinburgh, 2013.
+[20] M. Pﬂeiderer, K. Frieler, J. Abeßer, W.-G. Zaddach,
+and B. Burkhart, Eds., Inside the Jazzomat - New Per-
+spectives for Jazz Research.
+Schott Campus, 2017.
+[21] G. Hadjeres, F. Pachet, and F. Nielsen, “DeepBach: a
+steerable model for Bach chorales generation,” in Pro-
+ceedings of the 34th International Conference on Ma-
+chine Learning (ICML), 2017, pp. 1362–1371.
+
+[22] T. Kitahara, M. Katsura, H. Katayose, and N. Na-
+gata, “Computational model for automatic chord voic-
+ing based on Bayesian network,” in Proceedings of
+the 10th International Conference on Music Perception
+and Cognition (ICMPC), 2008, pp. 395–398.
+[23] D. Hörnel, “ChordNet: Learning and producing voice
+leading with neural networks and dynamic program-
+ming,” Journal of New Music Research, vol. 33, no. 4,
+pp. 387–397, 2004.
+[24] P. M. C. Harrison and M. T. Pearce, “A computa-
+tional cognitive model for the analysis and generation
+of voice leadings,” Music Perception: An Interdisci-
+plinary Journal, vol. 37, pp. 208–224, 2020.
+[25] O. Jonas, Introduction to the Theory of Heinrich
+Schenker, 2nd ed.
+Musicalia Press, 2005.
+[26] D. Conklin, M. Gasser, and S. Oertl, “Creative chord
+sequence generation for electronic dance music,” Jour-
+nal of Applied Sciences, vol. 8, no. 9, p. 1704, 2018.
+[27] D. Scanteianu, E. Jackson, and R. M. Keller, “A ﬂuid
+chord voicing generator,” in Proceedings of the Inter-
+national Computer Music Conference (ICMC), 2016,
+pp. 171–175.
+[28] R. Dias, C. Guedes, and T. Marques, “A computer-
+mediated interface for jazz piano comping,” in Music
+Technology meets Philosophy - From Digital Echos to
+Virtual Ethos: Joint Proceedings of the 40th Interna-
+tional Computer Music Conference (ICMC), and the
+11th Sound and Music Computing Conference (SMC),
+2014, pp. 558–564.
+[29] I. Simon, D. Morris, and S. Basu, “MySong: automatic
+accompaniment generation for vocal melodies,” in Pro-
+ceedings of the 2008 Conference on Human Factors in
+Computing Systems (CHI), 2008, pp. 725–734.
+[30] S. Kostka, D. Payne, and B. Almen, Tonal Harmony,
+3rd ed.
+McGraw-Hill, 1995.
+[31] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit,
+L. Jones, A. N. Gomez, Łukasz Kaiser, and I. Polo-
+sukhin, “Attention is all you need,” in Neural Informa-
+tion Processing Systems (NIPS), 2017, pp. 5998–6008.

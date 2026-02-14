@@ -1,0 +1,668 @@
+HIERARCHICAL TIMBRE-PAINTING AND ARTICULATION
+GENERATION
+Michael Michelashvili
+Tel Aviv University
+mosheman5@gmail.com
+Lior Wolf
+Tel Aviv University
+wolf@cs.tau.ac.il
+ABSTRACT
+We present a fast and high-ﬁdelity method for music gen-
+eration, based on speciﬁed f0 and loudness, such that
+the synthesized audio mimics the timbre and articula-
+tion of a target instrument. The generation process con-
+sists of learned source-ﬁltering networks, which recon-
+struct the signal at increasing resolutions. The model op-
+timizes a multi-resolution spectral loss as the reconstruc-
+tion loss, an adversarial loss to make the audio sound
+more realistic, and a perceptual f0 loss to align the out-
+put to the desired input pitch contour. The proposed ar-
+chitecture enables high-quality ﬁtting of an instrument,
+given a sample that can be as short as a few minutes,
+and the method demonstrates state-of-the-art timbre trans-
+fer capabilities.
+Code and audio samples are shared at
+https://github.com/mosheman5/timbre_painting.
+1. INTRODUCTION
+The melody, as depicted by a sequence of notes, or alterna-
+tively by a sequence of frequencies, is one generic aspect
+of the musical experience. The dynamic loudness signal
+is another prominent aspect that is also almost instrument-
+invariant. Due to the invariance property of these two as-
+pects, it is natural to employ them as speciﬁcations to the
+instrument-independent essence of a musical piece.
+A prominent aspect that does depend on the instrument
+is the timbre. The music-AI task of timbre-transfer consid-
+ers methods that receive, as input, an audio segment and a
+target instrument, and output the analog (melody preserv-
+ing) audio in the target domain, by replacing the timbre of
+the original audio clip with that of the speciﬁed instrument.
+Another aspect that deﬁnes a musical instrument is ar-
+ticulation, or the joining-up of notes.
+Timbre transfer
+methods address this implicitly with varying degrees of
+success. The physical properties of the instrument lead to
+constraints and subsequently different characteristic ways
+to move from one note to the next in a smooth manner.
+This aspect, therefore, varies considerably, e.g., between
+violin, guitar, and trumpet.
+While this interpolation process is second nature for
+trained musicians, it can be sophisticated and involves the
+c⃝Michael Michelashvili, Lior Wolf.
+Licensed under a
+Creative Commons Attribution 4.0 International License (CC BY 4.0).
+Attribution:
+Michael Michelashvili, Lior Wolf, “Hierarchical Timbre-
+painting and Articulation Generation”, in Proc. of the 21st Int. Society
+for Music Information Retrieval Conf., Montréal, Canada, 2020.
+introduction of new frequencies that are not part of the
+original notes. See Fig. 1.
+In this work, we build a hierarchical music generator
+network. Given a fundamental frequency (f0) and loud-
+ness inputs, the network generates audio in four different
+scales. While the different scales share the same architec-
+ture, they have different roles. The ﬁrst (lower) scale intro-
+duce the articulation, while the top scales introduce much
+of the timbre and the ﬁnal audio-spectrum quality, which
+we call timbre-painting. See Fig. 2.
+The model is trained on a relatively short sample from
+the target instrument, typically consisting of few minutes.
+The network is trained to minimize multiple losses: an ad-
+versarial loss encourages the output to be indistinguishable
+from audio in the output domain, multi-scale reconstruc-
+tion losses in the frequency domain are used to ensure that
+the network can recreate the training sample, and the f0 of
+the output is compared to the speciﬁcations.
+One possible application of the network is for the task of
+music domain transfer, similar to the application of other
+timbre-transfer methods.
+In this case, the f0 and loud-
+ness inputs are extracted from an existing audio clip and
+the network generates the analog music in the target do-
+main. Our experiments show that our method generates
+audio that sounds more realistic and is perceived to be of
+a better ﬁt to the original melody than the recent state-of-
+the-art method DDSP [1].
+2. RELATED WORK
+The task of timbre-transfer was tackled by [2]. An image-
+to-image pipeline that uses cycle consistency losses [3] is
+applied to the audio domain by representing audio signals
+as 2D images with the Constant-Q-Transform (CQT). To
+move back from the CQT representation, a WaveNet [4]
+synthesizer that is conditioned on CQT representation was
+used.
+Another prominent work [5] suggested to learn
+the audio melody by using a WaveNet Autoencoder ar-
+chitecture [6]. One “universal” encoder is used to repre-
+sent melody from raw data, and multiple domain-speciﬁc
+decoders are used for audio generation.
+By presenting
+domain-adversarial loss on the encoding, this method rep-
+resents only the domain-invariant data needed for genera-
+tion, which is predominantly the melody. Even though this
+method presents impressive results on timbre transfer and
+audio translation, it has few major disadvantages: the re-
+liance on large amounts of data, and the heavy computation
+resources required (tens of GPUs).
+
+(a)
+(b)
+(c)
+Figure 1. An illustration of our method’s articulation capabilities. (a) The spectrogram of a violin audio. (b) The extracted
+fundamental frequency (f0) of the violin. (c) The results of our method. Both the timbre and the articulations were
+manipulated. See arrows for a few speciﬁc locations where the violin’s articulation is demonstrated.
+The differentiable digital signal processing (DDSP)
+method [1], which was proposed recently, is much more ef-
+ﬁcient with regards to both data and computational needs.
+The method presents a DSP hybrid model in which a syn-
+thesizer with learned parameters is used. Like our method,
+DDSP conditions the signal generation on f0 and the loud-
+ness signal. Therefore, it can apply timbre-transfer to any
+audio for which a pitch tracker, e.g., CREPE [7], can suc-
+cessfully extract the f0 signal.
+DDSP and other methods [8] follow the high ﬁdelity
+speech synthesizer of [9] in employing convolutional neu-
+ral networks as shape-shifting ﬁlters to a sine-wave input.
+While many speech generation techniques condition the
+network on the f0 signal, this line of methods employ the
+corresponding sine-wave.
+Hierarchical generation was shown to be effective for
+image generation tasks. The progressive GAN method [10]
+breaks down the generation scheme into cascading gener-
+ators and discriminators, improving the image generation
+quality and stabilizing the training process. The SinGAN
+method [11] performs convincing image-retargeting and
+image generation, using multi-scales learning from a sin-
+gle input image.
+3. METHOD
+Our method is hierarchical and consists of generators in
+four different scales. All generators have the same archi-
+tecture of a non-autoregressive WaveNet applied on (scale-
+dependent) input and conditioned on extracted audio fea-
+tures on each scale. The learning process is optimized to:
+(i) decrease the distance between the spectral representa-
+tions of the generated and the target audio, (ii) minimize
+pitch perceptual loss in order to improve pitch coherence,
+and (iii) create realistically sounding examples by the us-
+age of an adversarial loss.
+3.1 Input Features
+An audio sample is denoted by xn = (xn
+1, . . . , xn
+T ), where
+T is the length of the signal and n is the ﬁnest scale we
+consider. The scaled version of it are denoted by xn−1,
+xn−2, up to x0, which is the coarsest scale. The scaling is
+carried out by down-sampling,
+xn−1[t] =
+K−1
+X
+k=0
+xn[tM −k]h[k]
+(1)
+Where M is the reduction factor, h a FIR anti-aliasing ﬁlter
+and K the length of the ﬁlter.
+In our experiments, we use four scales j = 0..3. The
+ﬁnest generates audio in 16 kHz, while the coarsest gener-
+ates audio in 2 kHz. We chose the coarsest scale to be as
+small as possible on the articulation generation phase, yet
+to include the f0 signal of our target instruments (max of
+1kHz as given by Nyquist rule)
+In our method, audio is generated based on the speci-
+ﬁcations of the loudness of the output audio and its pitch.
+The other characteristics (timbre, articulation, and spectral
+quality) are being added by the model, based on the train-
+ing sample. The loudness is given, following [12], by the
+A-Weighting scheme, which is a weighted sum of the log
+of the power spectrum. We denote the loudness extraction
+computation by loud(xj), which is a 1D signal of a length
+that is 32 times shorter than the length of the input xj,
+j = 0..3, due to the power spectrum extraction.
+The fundamental frequency f0, which is also a 1D
+signal, is extracted using the CREPE pitch tracking net-
+work [7], as is done in [1,13]. We denote the extracted sig-
+nal by f0(xn) and compute it only at the ﬁnest-resolution
+scale. The CREPE network has a resolution of 250Hz,
+which differs from the sampling rate of our network. How-
+ever, this conditioning is provided as a sine-wave at the
+resolution of the coarsest layer (2kHz).
+Speciﬁcally, following previous work in speech [9] and
+music synthesis [1,8], we apply what is known as “neural
+source-ﬁltering”. In this technique, instead of conditioning
+the generated sample directly on the extracted f0 signal, the
+generator is conditioned on a raw waveform that is synthe-
+sized via a single sinusoid sine-excitation, calculated from
+upsampled f0(xn). The f0 is downsampled by 32 from
+the input signal xn and the coarsest scales j = 0, which
+is generated ﬁrst, has a frequency that is one eighth of the
+
+(a)
+(b)
+(c)
+(d)
+(e)
+(f)
+Figure 2. An illustration of the hierarchical generation process. (a) A spectrogram depicting the original melody as sang
+by a male singer. (b) The extracted fundamental frequency (f0) of the melody. (c-f) The generated audio for a saxophone
+from the coarsest scale x0 to the ﬁnest x3, respectively. While articulation-based manipulations are already seen in x0, the
+full effect of the timbre and spectral-quality is only observed at the ﬁnal output x3.
+original audio. Scaling is, therefore, by a factor of 4. We
+denote the generated waveform by η(f0(xn)).
+η(f0(xn)) = sin(
+T
+X
+k=0
+2π↑f0(xn)k/fs),
+(2)
+where fs is the sample rate of the audio and ↑denotes an
+upsampling operator.
+3.2 Hierarchical Generation
+The generated waveform η(f0(xn)) serves as the input to
+the lowest scale generator in the hierarchy, which is de-
+noted by G0. Similarly to our other generators and unlike
+conventional GAN generators, the generator does not re-
+ceive random noise as input.
+In our method, we propose a conceptual relaxation to
+the audio generation task, and divide the generation into
+two distinct phases: timbre painting and articulation on
+the lowest scale, followed by upsampling networks which
+learn to generate higher resolution audio based on the pre-
+vious scale. By doing so, we separate what we consider the
+most difﬁcult part in the generation, namely converting a
+sine wave into well-articulated music, from the aspects of
+timbre painting and spectral quality adjustment. Therefore,
+fewer errors are introduced during the generation process
+and the method produces more coherent audio samples.
+Denote by zj = loud(xj). A set of input encoding
+networks Ej transforms the raw input signal zj into a se-
+quence of vectors, which G is conditioned upon.
+The lowest scale generator operates as follows:
+ˆ
+x0 = G0(η(f0(xn)), E0(z0)) ,
+(3)
+where the second input is the conditioning signal.
+The following generation steps receive as input the out-
+put of the previous scale generator:
+ˆxj = Gn(↑(ˆxj−1), zj),
+(4)
+where ↑(ˆxn−1) is an upsampled signal that matches the
+next scale.
+An illustration of the generation process is
+given in Fig. 3.
+3.2.1 Architecture
+The architecture of the generators and discriminators is
+similar to that of [14]. Each generator is composed of 30
+layers stacked into three stacks. The kernel size is 3, using
+64 residual channels and 64 skip channels. The dilation is
+exponentially growing in each stack, providing a receptive
+ﬁeld of 3072 samples, which translates to a window size of
+1.5sec on the lowest scale and 192ms on the ﬁnest.
+The input encoder Ej is composed of instance normal-
+ization, followed by 1D-convolution with kernel size of 1
+that is applied on the condition input z. The number of
+output channels is 80. The output of Ej is provided after
+upsampling via convolutional layers and nearest neighbor
+interpolation to the temporal dimension of the input signal.
+
+Figure 3. An illustration of the generation process. The generator of the coarsest scale receives as input a sine-wave that
+is based on the fundamental frequency of the input sample. All generators are conditioned on the loudness signal of the
+appropriate scale. The output of the ﬁrst generator G0 serves as the input for the subsequent generator G1 and so on.
+Training involves a set of discriminators Dj, one per
+scale. Each discriminator is composed of 10 layers of 1D-
+convolution, followed by leakyReLU with negative slope
+of 0.2. The kernel size is 3, and 64 channels are used per
+layer. The dilation is growing linearly. Weight normaliza-
+tion is applied both on the generator and the discriminator.
+3.3 Training
+The learning setup and objective functions are the same for
+all the scales, with respect to the target audio signal. Con-
+veniently, each generator Gj is trained separately, after the
+previous generator Gj−1 is completely trained. We found
+that using the weights of the previous scale generator Gj−1
+to initialize the weights of Gj leads to faster convergence
+than random initialization on every scale. Similarly, the
+discriminator Dj that provides the adversarial training sig-
+nal to the generator Gj is initialized based on Dj−1.
+At each scale j, we obtain a training set Sj by dividing
+the training sample, after it has been downsampled to scale
+j to audio clips xj of length 2sec.
+3.3.1 Objective function
+A time-frequency reconstruction loss is used to align to the
+generated audio sample with the target audio. Speciﬁcally,
+the spectral amplitude distance loss [15, 16], in multiple
+FFT resolutions [1,9,14] is used. For a given FFT size m,
+the spectral amplitude distance loss is deﬁned as follows:
+L(m,j)
+recon =
+X
+xj∈Sj
+ 
+∥|STFT(xj)| −|STFT(ˆxj)|∥F
+∥STFT(xj)∥F
++ ∥log |STFT(xj)| −log |STFT(ˆxj)|∥1
+N
+!
+(5)
+where ˆxj is given by Eq. 3 and Eq 4, ∥·∥F and ∥·∥1 denotes
+the Frobenius and the L1 norms, respectively. The ﬁrst ele-
+ment in the sum penalizes dominant bins in the magnitude
+while the second penalizes the silent parts. STFT denotes
+the magnitude of a Short-time Fourier transform with N
+elements in the spectrogram.
+The multi-resolution loss is deﬁned as the mean of the
+above loss for multiple scales:
+Lj
+recon =
+1
+NM
+X
+m∈M
+L(m,j)
+recon
+(6)
+where M = [2048, 1024, 512, 256, 128, 64] and NM = 6
+is the number of FFT scales. Using the multi-resolution
+loss, we implicitly constrain the phase of the output signal
+to be correct and prevent artifact noises.
+To make the generated quality of the audio signals
+sound realistic, we introduce an adversarial loss. On each
+scale, we apply a different discriminator Dj to account for
+different statistics between scales. We follow the least-
+squares GAN [17], where the discriminator minimizes the
+loss
+Lj
+D =
+X
+x∈Sj
+[||1 −Dj(xj)||2
+2 + ||Dj(ˆxj)||2
+2]
+(7)
+Each trained generator Gj minimizes the adversarial
+loss (recall that ˆxj is computed with Gj):
+Lj
+adv =
+X
+xj∈Sj
+||1 −Dj(ˆxj)||2
+2
+(8)
+To further improve the generation quality, we add a per-
+ceptual loss [18] on the generator output, using the CREPE
+network [7]. Denoting the mapping between the input sig-
+nal x and the intermediate activations the CREPE network
+as h(↑x), which requires an upsampling to 16kHz, this loss
+takes the form:
+Lj
+percep =
+X
+xj∈Sj
+∥h(↑xj) −h(↑ˆxj)∥1 .
+(9)
+The optimization with this loss requires the upsampling
+operator to be differentiable.
+In order to support a more direct comparison of the
+methods, following DDSP [1], the ﬁfth max-pool layer of
+the small CREPE model is employed.
+Overall, the optimization loss for a generator Gj, is de-
+ﬁned as:
+Lj
+G = Lj
+recon + αLj
+adv + βLj
+percep
+(10)
+where α, β are weight factors that balance the contribution
+of each loss term.
+4. EXPERIMENTS
+We conduct timbre-transfer experiments for multiple in-
+struments, and compare the results to the state-of-the-art
+timbre transfer method DDSP [1].
+
+Target Similarity
+Melody Similarity
+Instrument/Method
+DDSP
+Our
+DDSP
+Our
+Cello
+4.11 ± 0.16
+4.24 ± 0.16
+4.00 ± 0.32
+4.01 ± 0.49
+Saxophone
+3.09 ± 0.53
+3.47 ± 0.54
+3.87 ± 0.41
+3.91 ± 0.53
+Trumpet
+3.29 ± 0.45
+4.01 ± 0.33
+3.99 ± 0.29
+4.11 ± 0.51
+Violin
+4.02 ± 0.35
+4.13 ± 0.27
+4.13 ± 0.39
+4.22 ± 0.39
+All samples
+3.63 ± 0.60
+3.96 ± 0.46
+4.00 ± 0.36
+4.06 ± 0.50
+Table 1. MOS evaluation for the timbre transfer task for multiple target instruments.
+4.1 Datasets
+We used the University of Rochester Music Performance
+(URMP) dataset [19], a multi-modal audio-visual dataset
+containing classical music pieces. The music is assembled
+from separately recorded audio stems of various mono-
+phonic instruments. For our experiments, we used only the
+separated audio stems for each instrument. f0 extraction
+was carried out by CREPE [7], although the URMP dataset
+provides ground truth melody signals, since we wanted to
+apply similar methods during train and test.
+We trained both the baseline DDSP [1] method and our
+model on generating four different instruments from the
+URMP dataset: cello, saxophone, trumpet and violin. As a
+prerocessing step the audio ﬁles were resampled to 16kHz.
+To improve the ability of learning meaningful f0 represen-
+tation we removed in each dataset samples which achieved
+less than 0.85 mean conﬁdence on CREPE extractor. Each
+dataset was separated into a training and evaluation set by
+0.85/0.15 split. After the preprocessing, we ended up with
+small dataset sizes: 6.5 minutes of cello, 6 minutes of sax-
+ophone, 17 minutes of trumpet and 39 minutes of violin.
+4.2 Experiment Setup
+Our models were trained with α=1 and β=1. We used the
+Adam optimizer [20] with a learning rate of 0.0005 for the
+generators and 0.0001 for the discriminators. Each scale
+was trained for 120K iterations, with batch sizes of 32, 16,
+8 and 4, from coarsest to ﬁnest. The learning rates were
+halved after 60K iterations. The discriminators were intro-
+duced to the training process on iteration 30K. To improve
+the robustness of our method we added a random Gaussian
+noise with a standard deviation of 0.003 to the η(f0(xn))
+signal, inspired by [9].
+For the baseline evaluation of the DDSP method, the
+open source GitHub implementation 1 provided by the au-
+thors of [1] was used. The experiments were carried out
+for 100K iterations with a batch size of 16. The hyper-
+parameters used are the ones provided by the recipe avail-
+able in that repository.
+4.3 User Study
+To inspect the results of the timbre transfer experiments we
+carried out a mean opinion scores (MOS) evaluation. We
+sampled six audio clips varying from 5-10s, long enough
+1 https://github.com/magenta/ddsp
+for good evaluation. The origin instruments are: clarinet,
+saxophone, female singer, male singer, trumpet and vio-
+lin. For each audio sample, we conducted timbre transfer
+using the four models of the target instruments, resulting
+in a matrix of 24 inspection ﬁles for our method and 24
+for the baseline. The timbre-transfer was done by extract-
+ing the loudness and pitch features from the source audio,
+aligning pitch key to the target (if needed) and generation
+procedure. The evaluations samples are available in the
+supplementary material. Twenty raters were asked to rate
+the generated outputs by two criteria: (i) target similarity
+to the transferred instrument, and (ii) the melody similarity
+to the original tune. Scores vary on a scale of one to ﬁve.
+4.4 Results
+As can be seen in Tab. 1, our method outperforms DDSP
+both by the melody similarity and target similarity. While
+the baseline method gets a relatively close score on melody
+similarity, it is inferior in sound quality and its ability to
+mimic the target instrument. For example, in some cases
+DDSP fails to imitate the target domain timbre, and pro-
+duces a sine-sounding signal in the correct pitch. An ex-
+ample of a challenging conversion is depicted in Fig. 4.
+The high melody preserving results of both methods re-
+ﬂect the fact that both utilize a meaningful f0 sine-wave
+signal, which aligns the output melody well with the in-
+put melody. However, the target similarity results can be
+explained through the crux of the DDSP mechanism: the
+learnable function on this network optimizes control pa-
+rameters of a deterministic noise-additive synthesizer, thus
+it is upper bounded by the quality of the best-setup syn-
+thesizer. Our method, on the other hand, enjoys the ex-
+pressiveness of a fully capable neural generator, thus can
+deviate considerably from the source, if needed, in order to
+generate realistic sounds.
+4.5 Data efﬁciency
+Another advantage of our method is the need for a min-
+imal amount of training data to generate high quality sam-
+ples. Successful timbre-transfer results are produced from
+datasets of few minutes long. For comparison we have
+trained a state-of-the-art WaveNet based model for music
+translation [5] on two different datasets: URMP, as pre-
+sented above, and a 30min subset of MusicNet [21], as
+discussed in Sec. 5. In both cases, the music translation
+method [5] failed due to the limited amount of data.
+
+(a)
+(b)
+Figure 4. A challenging conversion from a female voice
+to a cello. (a) The results of DDSP. (b) Our results. While
+DDSP introduces synthetic noise in order to bridge the dif-
+ferent characteristics of the two domains, our method suc-
+cessfully manages to overcome and adapt the input signal
+to cello’s articulation and timbre .
+5. DISCUSSION
+Recent music AI models vary in the number of parameters
+and in the required size of the training data. The very re-
+cently introduced jukebox model [22] was trained on over
+a million songs using hundreds of GPUs, and include 7
+billions parameters. The autoencoder-based music-domain
+translator [5] was trained on hours of audio, using tens of
+GPUs and includes 42M parameters. In comparison, mod-
+els such as ours are trained on a single GPU, require min-
+utes of audio, and have orders of magnitude less param-
+eters, 1.4M on each scale in our case. The total number
+of parameters is even smaller than the lean DDSP model,
+which is of 6M parameters. Taking into account the fact
+that each scale is trained separately, our model is much
+more accessible to universities and other small-scale re-
+search labs than the other models in the literature.
+The method generates sound by shape-shifting a sine-
+wave, which serves as the skeleton of the rich-timbre
+painted output. Using scales reﬂects the inherent struc-
+ture of the musical audio signal, which is composed of
+harmonies on different pitch resolutions. The utilization
+of this strong prior allows us to achieve state-of-the-art re-
+sults much more efﬁciently.
+The hierarchical structure, which is natural for music
+generation, also exists in other methods, but in a different
+way. In the jukebox model, the hierarchy is used sepa-
+rately in the encoders and in the decoders, i.e., all encoder
+scales are applied, followed by the decoder scales. In our
+model, there is an interleaving structure in which genera-
+tion is completed at the lowest scale (including both input
+encoding and the WaveNet decoder), moving to the pro-
+cesses of the next scale and so on.
+Limitations
+The economic nature of the model is not
+without limitations. Unlike the jukebox model, our model
+does not produce a discrete encoding that can be used (to-
+gether with an sizable transformer model) for composing
+new music. In order to add a similar capability, we would
+need to quantize the input encoding modules (Ej) using
+techniques such as VQ-VAE [23] and to train an auto-
+regressive model for each level of the hierarchy. Alter-
+natively, any composition method can be used to generate
+the bare-bones input signal of the network, which would
+then add the articulation and the timbre to create a richer
+musical experience.
+In the current form, unlike both jukebox and the autoen-
+coder music translator, our model does not share informa-
+tion between different domains, and needs to be retrained
+on each domain. It is not difﬁcult, however, to modify it to
+be conditioned on multiple target domains, a path that has
+been followed many times in the past for other WaveNet-
+based generators.
+The current method relies on the f0 signal as extracted
+by a pretrained network that has been trained on mono-
+phonic instruments.
+Since the pitch tracker we employ
+was trained on monophonic instruments [7], the results on
+polyphonic instrument are mostly reasonable but not al-
+ways. When successful, our method is successful in trans-
+forming the melody to the learned monophonic target do-
+mains. However, training polyphonic target instruments
+remains a challenge since it relies on such a success across
+the training samples. In the supplementary we present re-
+sults obtained for polyphonic instruments (keyboard and
+piano samples from MusicNet), for both our method and
+DDSP. Both methods succeed to some degree with our
+method presenting what we consider to be a slight advan-
+tage (see supplementary samples).
+As future work, we
+note that our method can be readily extended to employ
+encoders, such as the ones of [5, 22], which were trained
+on large collections of polyphonic music.
+6. CONCLUSIONS
+We present a novel method of music generation which re-
+lies on neural source ﬁltering and hierarchical generation.
+The method achieves high quality audio generation despite
+training on small training datasets. The generated input
+is conditioned on loudness and pitch signals, which are
+almost source-agnostic, and the characteristic articulation
+and timbre of the target instrument are introduced through
+a series of generators.
+
+7. ACKNOWLEDGMENTS
+We thank Guy Harries and Adam Polyak for helpful dis-
+cussions. This project has received funding from the Euro-
+pean Research Council (ERC) under the European Unions
+Horizon 2020 research and innovation programme (grant
+ERC CoG 725974).
+8. REFERENCES
+[1] J. Engel, L. Hantrakul, C. Gu, and A. Roberts, “DDSP:
+Differentiable digital signal processing,” in ICLR,
+2020.
+[2] S. Huang, Q. Li, C. Anil, X. Bao, S. Oore, and R. B.
+Grosse, “Timbretron: A wavenet (cyclegan (cqt (au-
+dio))) pipeline for musical timbre transfer,” in ICLR,
+2019.
+[3] J.-Y. Zhu, T. Park, P. Isola, and A. A. Efros, “Unpaired
+image-to-image translation using cycle-consistent ad-
+versarial networks,” in ICCV, 2017.
+[4] A. v. d. Oord, S. Dieleman et al., “WaveNet: A gener-
+ative model for raw audio,” arXiv:1609.03499, 2016.
+[5] N. Mor, L. Wolf, A. Polyak, and Y. Taigman, “A uni-
+versal music translation network,” in ICLR, 2019.
+[6] J. Engel, C. Resnick, A. Roberts, S. Dieleman,
+M. Norouzi, D. Eck, and K. Simonyan, “Neural au-
+dio synthesis of musical notes with WaveNet autoen-
+coders,” in ICML, 2017.
+[7] J. W. Kim, J. Salamon, P. Li, and J. P. Bello, “CREPE:
+A convolutional representation for pitch estimation,” in
+ICASSP, 2018.
+[8] Y. Zhao, X. Wang, L. Juvela, and J. Yamagishi, “Trans-
+ferring neural speech waveform synthesizers to musi-
+cal instrument sounds generation,” in ICASSP, 2020.
+[9] X. Wang, S. Takaki, and J. Yamagishi, “Neural source-
+ﬁlter-based waveform model for statistical parametric
+speech synthesis,” in ICASSP, 2019.
+[10] T. Karras, T. Aila, S. Laine, and J. Lehtinen, “Progres-
+sive growing of gans for improved quality, stability,
+and variation,” in ICLR, 2018.
+[11] T. R. Shaham, T. Dekel, and T. Michaeli, “Singan:
+Learning a generative model from a single natural im-
+age,” in ICCV, 2019.
+[12] B. C. Moore, B. R. Glasberg, and T. Baer, “A model
+for the prediction of thresholds, loudness, and partial
+loudness,” Journal of the Audio Engineering Society,
+vol. 45, no. 4, pp. 224–240, 1997.
+[13] L. Hantrakul, J. Engel, A. Roberts, and C. Gu, “Fast
+and ﬂexible neural audio synthesis,” in ISMIR, 2019.
+[14] R. Yamamoto, E. Song, and J.-M. Kim, “Parallel wave-
+gan:
+A fast waveform generation model based on
+generative adversarial networks with multi-resolution
+spectrogram,” in ICASSP, 2020.
+[15] A. v. d. Oord et al., “Parallel wavenet: Fast high-
+ﬁdelity speech synthesis,” ICML, 2018.
+[16] S. Ö. Arık, H. Jun, and G. Diamos, “Fast spectrogram
+inversion using multi-head convolutional neural net-
+works,” in IEEE Signal Processing Letters, 2018.
+[17] X. Mao, Q. Li, H. Xie, R. Y. Lau, Z. Wang, and
+S. Paul Smolley, “Least squares generative adversarial
+networks,” in ICCV, 2017.
+[18] J. Johnson, A. Alahi, and L. Fei-Fei, “Perceptual losses
+for real-time style transfer and super-resolution,” in
+ECCV, 2016.
+[19] B. Li, L. Xinzhao, D. Karthik, D. Zhiyao, and S. Gau-
+rav, “Creating a multitrack classical music perfor-
+mance dataset for multimodal music analysis: Chal-
+lenges, insights, and applications,” IEEE Transactions
+on Multimedia 21.2 (2018), pp. 522–535, 2018.
+[20] D. Kingma and J. Ba, “Adam: A method for stochastic
+optimization,” in ICLR, 2016.
+[21] J. Thickstun, Z. Harchaoui, and S. Kakade, “Learning
+Features of Music From Scratch,” in ICLR, 2017.
+[22] P. Dhariwal, H. Jun, C. Payne, J. Kim, A. Radford, and
+I. Sutskever, “Jukebox: A generative model for music,”
+arXiv:2005.00341, 2020.
+[23] A. van den Oord, O. Vinyals, and K. Kavukcuoglu,
+“Neural Discrete Representation Learning,” in NIPS,
+2017.

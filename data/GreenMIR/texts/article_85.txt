@@ -1,0 +1,1249 @@
+AUTOMATIC PIANO TRANSCRIPTION WITH HIERARCHICAL
+FREQUENCY-TIME TRANSFORMER
+Keisuke Toyama1
+Taketo Akama2
+Yukara Ikemiya1
+Yuhta Takida1
+Wei-Hsiang Liao1
+Yuki Mitsufuji1
+1 Sony Group Corporation, Japan
+2 Sony Computer Science Laboratories, Japan
+keisuke.toyama@sony.com
+ABSTRACT
+Taking long-term spectral and temporal dependencies into
+account is essential for automatic piano transcription. This
+is especially helpful when determining the precise onset
+and offset for each note in the polyphonic piano content.
+In this case, we may rely on the capability of self-attention
+mechanism in Transformers to capture these long-term de-
+pendencies in the frequency and time axes. In this work,
+we propose hFT-Transformer, which is an automatic mu-
+sic transcription method that uses a two-level hierarchical
+frequency-time Transformer architecture. The ﬁrst hier-
+archy includes a convolutional block in the time axis, a
+Transformer encoder in the frequency axis, and a Trans-
+former decoder that converts the dimension in the fre-
+quency axis. The output is then fed into the second hi-
+erarchy which consists of another Transformer encoder in
+the time axis. We evaluated our method with the widely
+used MAPS and MAESTRO v3.0.0 datasets, and it demon-
+strated state-of-the-art performance on all the F1-scores of
+the metrics among Frame, Note, Note with Offset, and Note
+with Offset and Velocity estimations.
+1. INTRODUCTION
+Automatic music transcription (AMT) is to convert music
+signals into symbolic representations such as piano rolls,
+Musical Instrument Digital Interface (MIDI), and musical
+scores [1]. AMT is important for music information re-
+trieval (MIR), its result is useful for symbolic music com-
+position, chord progression recognition, score alignment,
+etc. Following the conventional methods [1–15], we esti-
+mate the frame-level metric and note-level metrics as fol-
+lows: (1) Frame: the activation of quantized pitches in
+each time-processing frame, (2) Note: the onset time of
+each note, (3) Note with Offset: the onset and offset time
+of each note, and (4) Note with Offset and Velocity: the
+onset, offset time, and the loudness of each note.
+© K. Toyama, T. Akama, Y. Ikemiya, Y. Takida, W. H. Liao,
+and Y. Mitsufuji. Licensed under a Creative Commons Attribution 4.0
+International License (CC BY 4.0). Attribution: K. Toyama, T. Akama,
+Y. Ikemiya, Y. Takida, W. H. Liao, and Y. Mitsufuji, “Automatic Piano
+Transcription with Hierarchical Frequency-Time Transformer”, in Proc.
+of the 24th Int. Society for Music Information Retrieval Conf., Milan,
+Italy, 2023.
+For automatic piano transcription, it is important to an-
+alyze several harmonic structures that spread in a wide
+range of frequencies, since piano excerpts are usually poly-
+phonic. Convolutional neural network (CNN)-based meth-
+ods have been used to aggregate harmonic structures as
+acoustic features. Most conventional methods apply multi-
+layer convolutional blocks to extend the receptive ﬁeld in
+the frequency axis.
+However, the blocks often include
+pooling or striding to downsample the features in the fre-
+quency axis. Such a downsampling process may reduce
+the frequency resolution [6]. It is worth mentioning, many
+of these methods use 2-D convolutions, which means the
+convolution is simultaneously applied in the frequency and
+time axes. The convolution in the time axis works as a pre-
+emphasis ﬁlter to model the temporal changes of the input
+signals.
+Up to now, recurrent neural networks (RNNs), such as
+gated recurrent unit (GRU) [16] and long short-term mem-
+ory (LSTM) [17], are popular for analyzing the temporal
+sequences of acoustic features. However, recently some of
+the works start to use Transformer [18], which is a pow-
+erful tool for analyzing sequences, in AMT tasks.
+Ou
+et al. [2] applied a Transformer encoder along the time
+axis and suggested that using Transformer improves ve-
+locity estimation. Hawthorne et al. [3] used a Transformer
+encoder-decoder as a sequence-to-sequence model for es-
+timating a sequence of note events from another sequence
+of input audio spectrograms. Their method outperformed
+other methods using GRUs or LSTMs. Lu et al. [19] pro-
+posed a method called SpecTNT to apply Transformer en-
+coders in both frequency and time axes and reached state-
+of-the-art performance for various MIR tasks such as mu-
+sic tagging, vocal melody extraction, and chord recogni-
+tion. This suggests that such a combination of encoders
+helps in characterizing the broad-scale dependency in the
+frequency and time axes. However, SpecTNT aggregates
+spectral features into one token, and the process in its
+temporal Transformer encoder is not independent in the
+frequency axis.
+This inspires us to incorporate Trans-
+former encoders in the frequency and time axes and make
+the spectral information available for the temporal Trans-
+former encoder.
+In addition, we usually divide the input signal into
+chunks since the entire sequence is often too long to be
+215
+
+2nd Hierarchy
+1st Hierarchy
+Input
+2nd Transformer encoder
+(Time axis)
+1st Transformer encoder
+(Frequency axis)
+Output
+M+1+M
+P
+N
+N
+M
+frame
+offset
+onset
+velocity
+spectrogram
+M
+F
+N
+F
+M+1+M
+P
+N
+P
+N
+P
+N
+N
+P
+Convolutional block
+(1-D CNN (time axis))
+Converter
+F P
+(Transformer
+decoder)
+Transformer
+encoder
+F
+Transformer
+encoder
+Transformer
+encoder
+Transformer
+encoder
+Transformer
+encoder
+Transformer
+encoder
+N
+Figure 1. hFT-Transformer (N: number of frames in each processing chunk, M: length of margin, F: number of frequency
+bins, P: number of pitches)
+dealt at once. However, this raises a problem that the es-
+timated onset and offset accuracy ﬂuctuates depending on
+the relative position in the processing chunk. In our obser-
+vation, the accuracy tends to be worse at both ends of the
+processing chunk. This motivates us to incorporate extra
+techniques during the inference time to boost the perfor-
+mance.
+In summary, we propose hFT-Transformer, an auto-
+matic piano transcription method that uses a two-level hi-
+erarchical frequency-time Transformer architecture.
+Its
+workﬂow is shown in Figure 1. The ﬁrst hierarchy con-
+sists of a one-dimensional (1-D) convolutional block in the
+time axis, a Transformer encoder in the frequency axis, and
+a Transformer decoder in the frequency axis. The second
+hierarchy consists of another Transformer encoder in the
+time axis. In particular, the Transformer decoder at the
+end of the ﬁrst hierarchy converts the dimension in the
+frequency axis from the number of frequency bins to the
+number of pitches (88 for piano). Regarding the issue of
+the location dependent accuracy ﬂuctuation in the process-
+ing chunks, we propose a technique which halves the stride
+length at inference time. It uses only the result of the cen-
+tral part of processing chunks, which will improve overall
+accuracy. Finally, in Section 4, we show that our method
+outperforms other piano transcription methods in terms of
+F1 scores for all the four metrics.
+A PyTorch implementation of our method is available
+here 1 .
+2. RELATED WORK
+Neural networks, such as CNNs, RNNs, generative adver-
+sarial networks (GANs) [20], and Transformers have been
+dominant for AMT. Since Sigtia et al. [4] proposed the
+ﬁrst method to use a CNN to tackle AMT, CNNs have
+been widely used for the methods of analyzing the spec-
+tral dependency of the input spectrogram [2,6–10,12–15].
+However, it is difﬁcult for CNNs to directly capture the
+harmonic structure of the input sound in a wide range of
+frequencies, as convolutions are used to capture features
+in a local area. Wei et al. [5] proposed a method of us-
+ing harmonic constant-Q transform (CQT) for capturing
+the harmonic structure of piano sounds.
+They ﬁrst ap-
+plied a 3-Dimensional CQT, then applied multiple dilated
+convolutions with different dilation rates to the output of
+1 https://github.com/sony/hFT-Transformer
+CQT. Because the dilation rates are designed to capture
+the harmonics, the performance of Frame and Note accu-
+racy reached state-of-the-art. However, the dilation rates
+are designed speciﬁcally for piano. Thus, the method is
+not easy to adapt to other instruments.
+For analysis of time dependency, Kong et al. [6] pro-
+posed a method that uses GRUs. Howthorner et al. [7],
+Kwon et al. [8], Cheuk et al. [9], and Wei et al. [5] pro-
+posed methods that use bi-directional LSTMs for analysis.
+Ou et al. [2] used a Transformer encoder to replace the
+GRUs in Kong et al.’s method [6], and showed the effec-
+tiveness of the Transformer. Usually, the note onset and
+offset are estimated in each frequency and time-processing
+frame grid, then paired as a note for note-level transcrip-
+tion by post-processing algorithms such as [6].
+How-
+ever, compared to heuristically designed algorithms, end-
+to-end data-driven methods are often preferred. For exam-
+ple, Keltz et al. [10] applied a seven-state hidden Markov
+model (HMM) for the sequence of attack, decay, sustain,
+and release to achieve note-level transcription. Kwon et
+al. [8] proposed a method of characterizing the output of
+LSTM as a ﬁve-state statement (onset, offset, re-onset, ac-
+tivate, and inactivate). Hawthorne et al. [3] proposed a
+method of estimating a sequence of note events, such as
+note pitch, velocity, and time, from another sequence of
+input audio spectrograms using a Transformer encoder-
+decoder. This method performs well in multiple instru-
+ments with the same model [11]. Yan et al. [12] proposed
+a note-wise transcription method for estimating the interval
+between onset and offset. This method shows state-of-the-
+art performance in estimating Note with Offset and Note
+with Offset and Velocity. However, the performance in es-
+timating Frame and Note is worse than that of Wei et al.’s
+method [5].
+3. METHOD
+3.1 Conﬁguration
+Our proposed method aims to transcribe N frames of the
+input spectrogram into N frames of the output piano rolls
+(frame, onset, offset, and velocity) as shown in Figure
+1, where N is the number of frames in each processing
+chunk. Each input frame is composed of a log-mel spec-
+trogram having size (F, M + 1 + M), where F is the
+number of frequency bins, and M is the size of the for-
+ward margin and that of the backward margin. To obtain
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+216
+
+2nd Hierarchy
+1st Hierarchy
+position
+embedding
+1st Transformer encoder
+2nd Transformer encoder
+log mel
+spectrogram
+conv block
+position
+embedding
+{0,1,…,F-1}
+linear
+{0,1,…,N-1}
+(B, N, F, M+1+M)
+(B*N, F, C*((M+1+M)-(K-1)))
+(B*N, F)
+(B*N, F, Z)
+(B*N, F, Z)
+(B*N, P, Z)
+(B*P, N, Z)
+(B*P, N)
+(B*P, N, Z)
+(B*P, N, Z)
+frame
+sigmoid
+linear
+onset
+sigmoid
+linear
+offset
+sigmoid
+linear
+velocity
+linear
+output_2nd
+(B, N, P, 128)
+(B, N, P)
+position
+embedding
+multi-head
+attention
+add & norm
+feed forward
+add & norm
+add & norm
+multi-head
+attention
+x 3layer
+Transformer decoder
+{0,1,…,P-1}
+transpose
+(B*N, P)
+(B*N, P, Z)
+multi-head
+attention
+add & norm
+feed forward
+add & norm
+x 3layer
+frame
+sigmoid
+linear
+onset
+sigmoid
+linear
+offset
+sigmoid
+linear
+velocity
+linear
+output_1st
+(B, N, P, 128)
+(B, N, P)
+multi-head
+attention
+add & norm
+feed forward
+add & norm
+x 3layer
+(B*N, F, Z)
+Figure 2. Model architecture of hFT-Transformer
+the log-mel spectrogram, we ﬁrst downmix the input wave-
+form into one channel and resample them to 16 kHz. Then,
+the resampled waveform is transformed into a mel spectro-
+gram with transforms.MelSpectrogram class in
+the Torchaudio library [21]. For the transformation, we
+use hann window, setting the window size as 2048, fast-
+Fourier-transform size as 2048, F as 256, padding mode
+as constant, and hop-size as 16 ms. The magnitude of the
+mel spectrogram is then compressed with a log function.
+3.2 Model Architecture and Loss Functions
+The model architecture of our proposed method is shown
+in Figure 2. We ﬁrst apply a convolutional block to the
+input log-mel spectrogram, the size of which is (B, N, F,
+M +1+M) where B is the batch size. In the convolutional
+block, we apply a 1-D convolution in the M + 1 + M
+dimension. After this process, the data are embedded with
+a linear module.
+The embedded vector is then processed with the ﬁrst
+Transformer encoder in the frequency axis.
+The self-
+attention is processed to analyze the dependency between
+spectral features. The positional information is designated
+as [0, 1, ..., F −1]. These positional values are then em-
+bedded with a trainable embedding. These are processed
+in the frequency axis only, thus completely independent to
+the time axis (N dimension).
+Next, we convert the frequency dimension from F to
+the number of pitches (P). A Transformer decoder with
+cross-attention is used as the converter. The Transformer
+decoder calculates the cross-attention between the output
+vectors of the ﬁrst Transformer encoder and another train-
+able positional embedding made from [0, 1, ..., P −1]. The
+decoded vectors are then converted to the outputs of the
+ﬁrst hierarchy with a linear module and a sigmoid function
+(hereafter, we call these outputs output_1st).
+Regarding the loss calculation for the outputs, frame,
+onset, and offset are calculated with binary cross-entropy,
+and velocity is calculated with 128-category cross-entropy.
+The losses can be summarized as the following equations:
+L<m>
+bce
+=
+N−1
+X
+n=0
+P −1
+X
+p=0
+lbce(y<m>
+n,p
+, ˆy<m>
+n,p
+),
+(1)
+Lvelocity
+cce
+=
+N−1
+X
+n=0
+P −1
+X
+p=0
+lcce(yvelocity
+n,p
+, ˆyvelocity
+n,p
+),
+(2)
+L = Lframe
+bce
++ Lonset
+bce
++ Loﬀset
+bce
++ Lvelocity
+cce
+,
+(3)
+where < m > is the placeholder for each output (frame,
+onset, and offset), lbce and lcce denote the loss function for
+binary cross-entropy and categorical cross-entropy, respec-
+tively, and y and ˆy denote the ground truth and predicted
+values of each output (frame, onset, offset, and velocity),
+respectively. Although it is intuitive to apply the mean
+squared error (MSE) for velocity, we found that using the
+categorical cross-entropy yields much better performance
+than the MSE from a preliminary experiment.
+Finally, the output of the converter is processed with
+another Transformer encoder in the time axis. The self-
+attention is used to analyze the temporal dependency of
+features in each time-processing frame. A third positional
+embedding made from [0, 1, ..., N −1] is used here. Then,
+similar to the ﬁrst hierarchy, the outputs of the second hier-
+archy are obtained through a linear module and a sigmoid
+function. We call these outputs of the second hierarchy as
+output_2nd hereafter. The losses for the output_2nd are
+evaluated in the same way as those for output_1st. These
+losses are summed with the coefﬁcients α1st and α2nd as
+follows:
+Lall = α1stL1st + α2ndL2nd.
+(4)
+Although both outputs are used for computing losses dur-
+ing training, only output_2nd is used in inference. As Chen
+et al. [22] suggested that the performance of their method
+of calculating multiple losses outperformed the method
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+217
+
+0
+20
+40
+60
+80
+100
+120
+n
+6
+7
+8
+error_n
+×10
+3
+frame
+0
+20
+40
+60
+80
+100
+120
+n
+3.0
+3.2
+3.4
+error_n
+×10
+4
+onset
+0
+20
+40
+60
+80
+100
+120
+n
+7.5
+8.0
+8.5
+error_n
+×10
+4
+offset
+0
+20
+40
+60
+80
+100
+120
+n
+4.0
+4.1
+4.2
+4.3
+error_n
+×10
+4
+velocity
+Figure 3. Estimation error (Eqn (5)) on location in each
+time-processing frame
+that uses single loss only, it hints us that utilizing both
+output_1st and output_2nd in training has the potential to
+achieve better performance.
+3.3 Inference Stride
+As mentioned in Section 1, chunk-based processing is re-
+quired because the input length is limited due to system
+limitations, such as memory size and acceptable process-
+ing delay. We found that the estimation error tends to in-
+crease at certain part within each processing chunk. This
+can be demonstrated by evaluating the error for each in-
+stance of time n within the chunks:
+error <m>
+n
+= 1
+IP
+I−1
+X
+i=0
+P −1
+X
+p=0
+(y<m>
+i,n,p −ˆy<m>
+i,n,p )2,
+(5)
+where < m > is the placeholder for each output (frame,
+onset, offset, and velocity), and I is the number of pro-
+cessing chunks over the test set. The result using our pro-
+posed model trained using the MAESTRO training set (de-
+scribed in Section 4) is shown in Figure 3. Here, the error
+error <m>
+n
+is calculated using the MAESTRO test set. In
+the ﬁgure, we observe a monotonic decrease for frame and
+a similar but much weaker trend for onset and offset. How-
+ever, for velocity, no such trend can be observed. This hints
+us to use only the middle portion of a processing chunk as
+the output to reduce the error rate. We call this as the half-
+stride strategy, since a 50% overlap is required for process-
+ing chunks, as shown in Figure 4 (B).
+4. EXPERIMENTS
+4.1 Datasets
+We use two well-known piano datasets for the evaluation.
+The MAPS dataset [23] consists of CD-quality recordings
+and corresponding annotations of isolated notes, chords,
+and complete piano pieces.
+We use the full musical
+pieces and the train/validation/test split as stated in [4, 7].
+The number of recordings and the total duration in hours
+in each split are 139/71/60 and 8.3/4.4/5.5, respectively.
+The MAESTRO v3.0.0 dataset [13] includes about 200
+hours of paired audio and MIDI recordings from ten years
+of the International Piano-e-Competition.
+We used the
+(A) Full stride
+(B) Half stride
+N
+N
+N
+N
+N
+N
+N
+N
+N/4
+N/4
+N/2
+N/4
+N/2
+N/4
+N/4
+N/4
+N/2
+N/4
+N/4
+N/2
+Figure 4. Inference stride: (A) full stride, (B) half stride
+train/validation/test split conﬁguration as provided.
+In
+each split, the number of recordings and total duration in
+hours are 962/137/177 and 159.2/19.4/20.0, respectively.
+For both datasets, the MIDI data have been collected by
+Yamaha Disklaviers concert-quality acoustic grand pianos
+integrated with a high-precision MIDI capture and play-
+back system.
+4.2 Model Conﬁguration
+Regarding our model architecture depicted in Figure 2, we
+set N as 128, M as 32, F as 256, P as 88, the CNN chan-
+nels (C) as 4, size of the CNN kernel (K) as 5, and embed-
+ding vector size (Z) as 256. For the Transformers, we set
+the feed-forward network vector size as 512, the number
+of heads as 4, and the number of layers as 3. For training,
+we used the following settings: a batch size of 8, learn-
+ing rate of 0.0001 with Adam optimizer [24], dropout rate
+of 0.1, and clip norm of 1.0. ReduceLROnPlateu in
+PyTorch is used for learning rate scheduling with default
+parameters. We set α1st and α2nd as 1.0, which were de-
+rived from a preliminary experiment (see Section 4.6).
+We trained our models for 50 epochs on MAPS dataset
+and 20 epochs for MAESTRO dataset using one NVIDIA
+A100 GPU. It took roughly 140 minutes and 43.5 hours to
+train one epoch with our model for MAPS and MAESTRO,
+respectively. The best model is determined by choosing the
+one with the highest F1 score in the validation stage.
+In order to obtain high-resolution ground truth for onset
+and offset, we followed the method in Kong et al. [6]. We
+set J, the hyper-parameter to control the sharpness of the
+targets, to 3. Also, the label of velocity is set only when an
+onset is present. We set the threshold as 0.5, which means
+if the onset is smaller than 0.5, the velocity is set as 0.
+4.3 Inference
+At inference time, we use output_2nd as the ﬁnal output.
+We set the threshold for frame as 0.5. For note-wise events
+(onset, offset, and velocity), the outputs in each pitch-frame
+grid are converted to a set containing note-wise onset, off-
+set, and velocity following Kong et al.’s Algorithm 1 [6] in
+ﬁve steps shown below:
+Step 1. onset detection: ﬁnd a local maximum in onset
+with a value at least 0.5. Then calculate the precise onset
+time using the values of the adjacent three frames [6].
+Step 2. velocity: If an onset is detected in Step 1, extract
+the velocity value at the frame. If the value is zero, then
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+218
+
+Method
+half
+Params
+Frame
+Note
+Note w/ Offset
+Note w/ Offset&Velocity
+stride
+P(%)
+R(%) F1(%) P(%)
+R(%) F1(%) P(%)
+R(%) F1(%) P(%)
+R(%)
+F1(%)
+Onsets&Frames [7]
+26M
+88.53 70.89
+78.30
+84.24 80.67
+82.29
+51.32 49.31
+50.22
+35.52 30.80
+35.59
+ADSR [10]
+0.3M
+90.73 67.85
+77.16
+90.15 74.78
+81.38
+61.93 51.66
+56.08
+-
+-
+-
+hFT-Transformer
+5.5M
+83.36 82.00
+82.67
+86.63 83.75
+85.07
+67.18 65.06
+66.03
+48.75 47.21
+47.92
+hFT-Transformer
+✓
+5.5M
+83.68 82.11
+82.89
+86.72 83.81
+85.14
+67.51 65.36
+66.34
+49.05 47.48
+48.20
+Table 1. Evaluation results on MAPS test dataset (P: precision, R: recall, bold: best score, underline: second best score)
+Method
+half
+Params
+Frame
+Note
+Note w/ Offset
+Note w/ Offset&Velocity
+stride
+P(%)
+R(%) F1(%) P(%)
+R(%) F1(%) P(%)
+R(%) F1(%) P(%)
+R(%)
+F1(%)
+Seq2Seq [3]
+54M
+-
+-
+-
+-
+-
+96.01
+-
+-
+83.94
+-
+-
+82.75
+HPT-T [2]
+-
+-
+-
+90.09
+97.88 96.72
+96.77
+84.13 82.31
+83.20
+82.85 81.07
+81.90
+Semi-CRFs [12]
+9M
+93.79 88.36
+90.75
+98.69 93.96
+96.11
+90.79 86.46
+88.42
+89.78 85.51
+87.44
+HPPNet-sp [5]
+1.2M
+92.79 93.59
+93.15
+98.45 95.95
+97.18
+84.88 82.76
+83.80
+83.29 81.24
+82.24
+hFT-Transformer
+5.5M
+92.62 93.43
+93.02
+99.62 95.41
+97.43
+92.32 88.48
+90.32
+91.21 87.44
+89.25
+hFT-Transformer
+✓
+5.5M
+92.82 93.66
+93.24
+99.64 95.44
+97.44
+92.52 88.69
+90.53
+91.43 87.67
+89.48
+Table 2. Evaluation results on MAESTRO v3.0.0 test dataset
+②61
+③4.043
+④4.064
+①4.003
+0
+0
+61
+61
+61
+0
+0
+0
+0
+0
+velocity
+0.00
+0.29
+0.65
+0.93
+0.75
+0.40
+0.05
+0.00
+0.00
+0.00
+onset
+0.00
+0.00
+0.01
+0.11
+0.51
+0.80
+0.86
+0.70
+0.31
+0.25
+offset
+0.00
+0.00
+0.01
+0.97
+1.00
+1.00
+0.75
+0.20
+0.01
+0.00
+frame
+3.952
+3.968
+3.984
+4.000
+4.016
+4.032
+4.048
+4.064
+4.080
+4.096
+time [sec]
+{onset: 4.003, offset: 4.043, velocity: 61}
+Figure 5. Example of conversion from grid-wise values to
+note-wise values
+discard both onset and velocity at this frame.
+Step 3. offset detection with offset: ﬁnd a local maxi-
+mum in offset with a value at least 0.5. Then calculate the
+precise offset time using the values of the adjacent three
+frames [6].
+Step 4. offset detection with frame: choose the frame
+that is nearest to the detected onset which has a frame value
+below 0.5.
+Step 5. offset decision: choose the smaller value between
+the results of Step 3 and 4.
+An example is shown in Figure 5. The onset is 4.003,
+and the velocity is 61. For offset, the direct estimation from
+offset is 4.043, and that estimated via frame is 4.064. Thus,
+we choose 4.043 as offset. Finally, we obtain a note with
+{onset: 4.003, offset: 4.043, velocity: 61} in the output.
+4.4 Metrics
+We evaluate the performance of our proposed method with
+frame-level metrics (Frame) and note-level metrics (Note,
+Note with Offset, and Note with Offset & Velocity) with the
+standard precision, recall, and F1 scores. We calculated
+these scores using mir_eval library [25] with its default
+settings. The scores were calculated per recording, and the
+mean of these per-recording scores was presented as the
+ﬁnal metric for a given collection of pieces, as explained
+in Hawthorne et al. [7].
+4.5 Results
+Tables 1 and 2 show the scores on the test sets of
+MAPS and MAESTRO datasets.
+The numbers of pa-
+rameters in these Tables are referred from [5, 10].
+For
+the MAPS dataset, our proposed method outperformed
+the other methods in F1 score for all metrics.
+For the
+MAESTRO dataset, our proposed method outperformed
+the other methods in F1 score for Note, Note with Off-
+set, and Note with Offset & Velocity. Furthermore, our
+method with the half-stride strategy which is mentioned in
+3.3 outperformed other methods in all metrics. In contrast,
+the two state-of-the-art methods for MAESTRO, which are
+Semi-CRFs [12] and HPPNet-sp [5], performed well only
+on a subset of the metrics.
+The results suggest that the proposed two-level hierar-
+chical frequency-time Transformer structure is promising
+for AMT.
+4.6 Ablation Study
+To investigate the effectiveness of each module in our pro-
+posed method, we trained various combinations of those
+modules using the MAPS training set and evaluated them
+using the MAPS validation set. The variations are shown
+in Table 3. In this study, we call our proposed method
+1-F-D-T, which means it consists of the 1-D convolution
+block, the ﬁrst Transformer encoder in the Frequency axis,
+the Transformer Decoder, and the second Transformer en-
+coder in the Time axis. Table 4 shows evaluation results
+for each variation.
+Second Transformer encoder in time axis. To verify
+the effectiveness of the second Transformer encoder, we
+compared the 1-F-D-T and the model without the second
+Transformer encoder (1-F-D-N). For the 1-F-D-N model,
+we use output_1st in both training and inference stages as
+the ﬁnal output. The result indicates that the second Trans-
+former encoder improved Note with Offset performance, in
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+219
+
+Model
+1st-Hierarchy
+2nd-Hierarchy
+Output
+Convolutional block 1st Transformer encoder
+Converter
+2nd Transformer encoder
+1-F-D-T†
+1-D (time axis)
+Frequency axis
+Transformer Decoder
+Time axis
+output_2nd
+1-F-D-N
+1-D (time axis)
+Frequency axis
+Transformer Decoder
+n/a
+output_1st
+2-F-D-T
+2-D
+Frequency axis
+Transformer Decoder
+Time axis
+output_2nd
+1-F-L-T
+1-D (time axis)
+Frequency axis
+Linear
+Time axis
+output_2nd
+Table 3. Model variations for ablation study (†: the proposed method, hFT-Transformer)
+Model
+Params
+Frame
+Note
+Note w/ Offset
+Note w/ Offset&Velocity
+P(%)
+R(%) F1(%) P(%)
+R(%) F1(%) P(%)
+R(%) F1(%) P(%)
+R(%)
+F1(%)
+1-F-D-T†
+5.5M
+93.61 88.71
+91.09
+98.81 94.81
+96.72
+86.18 82.81
+84.42
+77.47 74.55
+75.95
+1-F-D-N
+3.9M
+92.85 87.49
+90.09
+99.01 93.24
+95.95
+82.67 78.06
+80.23
+73.89 69.90
+71.78
+2-F-D-T
+6.1M
+75.49 61.08
+67.52
+97.03 19.68
+31.10
+64.07 13.28
+20.88
+42.11
+8.57
+13.50
+1-F-L-T
+3.4M
+93.71 88.42
+90.99
+99.11 92.90
+95.79
+85.77 80.56
+82.98
+71.66 67.32
+69.34
+Table 4. Evaluation results of ablation study on MAPS validation dataset
+which the F1 score is 84.42 for 1-F-D-T and 80.23 for 1-
+F-D-N. This shows the effectiveness of the second Trans-
+former encoder as it provides an extra pass to model the
+temporal dependency of acoustic features, which is pre-
+sumably helpful in offset estimation.
+Compelxity of convolutional block.
+To investigate
+how the complexity of the convolutional block affects the
+AMT performance, we compared the 1-F-D-T model and
+the model that replaces the 1-D convolutional block with
+a 2-D convolutional block (2-F-D-T). Surprisingly, the re-
+sult shows that the performance of the 2-F-D-T model is
+signiﬁcantly worse than that of the 1-F-D-T model. This is
+probably because the two modules working on the spectral
+dependency do not cohere with each other. The 2-D convo-
+lutional block may over aggregate the spectral information
+thus resulting into an effectively lower frequency resolu-
+tion. Then, the Transformer encoder can only evaluate the
+spectral dependency over an over-simpliﬁed feature space,
+causing the performance degradation.
+Converter. We used a Transformer decoder to convert
+the dimension in the frequency axis from F to P. In con-
+trast, almost all of the existing methods used a linear mod-
+ule to achieve this. We compared the performance of the
+1-F-D-T model to a model with the Transfomer decoder
+replaced with a linear converter (1-F-L-T). The result in-
+dicates that the 1-F-D-T model outperformed the 1-F-L-T
+model in F1 score for all four metrics. Especially, the dif-
+ference in Note with Offset and Velocity is large (75.95 for
+the 1-F-D-T model and 69.34 for the 1-F-L-T model in
+F1 score). This suggests that using a Transformer decoder
+as converter is an effective way of improving the perfor-
+mance, although the side effect is the increase of model
+size.
+We also investigated how the coefﬁcients for the loss
+functions, α1st and α2nd in Eqn (4), affect the perfor-
+mance. We investigated six pairs of coefﬁcients of loss
+functions (α1st, α2nd) in Eqn (4), i.e., (1.8, 0.2), (1.4, 0.6),
+(1.0, 1.0), (0.6, 1.4), (0.2, 1.8), and (0.0, 2.0), for the 1-F-
+D-T model. Figure 6 shows the F1 scores of frame, onset,
+offset, and velocity evaluated on the MAPS validation set
+in each epoch. These results indicate that the (1.0, 1.0) pair
+10
+20
+30
+40
+50
+epoch
+0.85
+0.90
+F1
+Frame
+(1.8,0.2)
+(1.4,0.6)
+(1.0,1.0)
+(0.6,1.4)
+(0.2,1.8)
+(0.0,2.0)
+10
+20
+30
+40
+50
+epoch
+0.85
+0.90
+0.95
+F1
+Note
+(1.8,0.2)
+(1.4,0.6)
+(1.0,1.0)
+(0.6,1.4)
+(0.2,1.8)
+(0.0,2.0)
+10
+20
+30
+40
+50
+epoch
+0.75
+0.80
+0.85
+F1
+Note w/ Offset
+(1.8,0.2)
+(1.4,0.6)
+(1.0,1.0)
+(0.6,1.4)
+(0.2,1.8)
+(0.0,2.0)
+10
+20
+30
+40
+50
+epoch
+0.60
+0.65
+0.70
+0.75
+F1
+Note w/ Offset&Velocity
+(1.8,0.2)
+(1.4,0.6)
+(1.0,1.0)
+(0.6,1.4)
+(0.2,1.8)
+(0.0,2.0)
+Figure 6. Performance of 1-F-D-T model trained with six-
+pairs of coefﬁcients of loss functions
+yields the best score. It also shows that the training con-
+verges faster when α1st is larger than α2nd. Importantly,
+if we omit the output_1st, which is the case when training
+with the pair (0.0, 2.0), the training loss did not decrease
+much. Therefore, the F1 score stays around 0% and thus
+cannot be seen in Figure 6. This suggests that it is cru-
+cial to use both losses, output_1st and output_2nd in our
+proposed method.
+5. CONCLUSION
+In this work, we proposed hFT-Transformer, an automatic
+piano transcription method that uses a two-level hierarchi-
+cal frequency-time Transformer architecture. The ﬁrst hi-
+erarchy consists of a 1-D convolutional block in the time
+axis, a Transformer encoder and a Transformer decoder in
+the frequency axis, and the second hierarchy consists of a
+Transformer encoder in the time axis. The experiment re-
+sult based on two well-known piano datasets, MAPS and
+MAESTRO, revealed that our two-level hierarchical archi-
+tecture works effectively and outperformed other state-of-
+the-art methods in F1 score for frame-level and note-level
+transcription metrics. For future work, we would like to ex-
+tend our method to other instruments and multi-instrument
+settings.
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+220
+
+6. ACKNOWLEDGMENTS
+We would like to thank Giorgio Fabbro and Stefan Uh-
+lich for their valuable comments while preparing this
+manuscript. We are grateful to Kin Wai Cheuk for his ded-
+icated support in preparing our github repository.
+7. REFERENCES
+[1] E. Benetos, S. Dixon, Z. Duan, and S. Ewert, “Auto-
+matic music transcription: An overview,” IEEE Signal
+Processing Magazine, vol. 36, no. 1, pp. 20–30, 2019.
+[2] L. Ou, Z. Guo, E. Benetos, J. Han, and Y. Hang,
+“Exploring transformer’s potential on automatic piano
+transcription,” in Proc. of the 47th Int. Conference on
+Acoustics, Speech and Signal Processing (ICASSP),
+2022, pp. 776–780.
+[3] C. Hawthorne, I. Simon, R. Swavely, E. Manilow, and
+J. Engel, “Sequence-to-sequence piano transcription
+with transformers,” in Proc. of the 22th Int. Society for
+Music Information Retrieval Conf., 2021, pp. 246–253.
+[4] S. Sigtia, E. Benetos, and S. Dixon, “An end-to-end
+neural network for polyphonic piano music transcrip-
+tion,” IEEE/ACM Transactions on Audio, Speech and
+Language Processing (TASLP), vol. 24, no. 5, pp. 927–
+939, 2016.
+[5] W. Wei, P. Li, Y. Yu, and W. Li, “Hppnet: Modeling the
+harmonic structure and pitch invariance in piano tran-
+scription,” in Proc. of the 23rd Int. Society for Music
+Information Retrieval Conf., 2022, pp. 709–716.
+[6] Q. Kong, B. Li, X. Song, Y. Wan, and Y. Wang, “High-
+resolution piano transcription with pedals by regress-
+ing onsets and offsets times,” IEEE/ACM Transactions
+on Audio Speech and Language Processing, vol. 29,
+pp. 3707–3717, 2021.
+[7] C. Hawthorne, E. Elsen, J. Song, A. Roberts, I. Simon,
+C. Raffel, J. Engel, S. Oore, and D. Eck, “Onsets and
+frames: Dual-objective piano transcription,” in Proc.
+of the 19th Int. Society for Music Information Retrieval
+Conf., 2018, pp. 50–57.
+[8] T. Kwon, D. Jeong, and J. Nam, “Polyphonic pi-
+ano transcription using autoregressive multi-state note
+model,” in Proc. of the 21st Int. Society for Music In-
+formation Retrieval Conf., 2020, pp. 454–460.
+[9] K. W. Cheuk, Y.-J. Luo, E. Benetos, and D. Herre-
+mans, “The effect of spectrogram reconstruction on au-
+tomatic music transcription: An alternative approach
+to improve transcription accuracy,” in Proc. of the
+25th International Conference on Pattern Recognition
+(ICPR), 2020, pp. 9091–9098.
+[10] R. Kelz, S. Böck, and G. Widmer, “Deep polyphonic
+adsr piano note transcription,” in Proc. of the 44th Int.
+Conference on Acoustics, Speech and Signal Process-
+ing (ICASSP), 2019, pp. 246–250.
+[11] J. Gardner, I. Simon, E. Manilow, and C. H. J. Engel,
+“Mt3: Multi-task multitrack music transcription,” in
+Proc. of the Int. Conference on Learning Representa-
+tions (ICLR), 2022.
+[12] Y. Yan, F. Cwitkowitz, and Z. Duan, “Skipping the
+frame-level: Event-based piano transcription with neu-
+ral semi-crfs,” in Proc. of the 36th Int. Conference
+on Neural Information Processing Systems (NeurIPS),
+2021.
+[13] C. Hawthorne, A. Stasyuk, A. Roberts, I. Simon, C.-
+Z. A. Huang, S. Dieleman, E. Elsen, J. Engel, and
+D. Eck, “Enabling factorized piano music modeling
+and generation with the maestro dataset,” in Proc. of
+the 7th International Conference on Learning Repre-
+sentations (ICLR), 2019.
+[14] R. Kelz, M. Dorfer, F. Korzeniowski, S. Böck, A. Arzt,
+and G. Widmer, “On the potential of simple frame-
+wise approaches to piano transcription,” in Proc. of the
+17th Int. Society for Music Information Retrieval Conf.,
+2016, pp. 475–481.
+[15] J. W. Kim and J. P. Bello, “Adversarial learning for im-
+proved onsets and frames music transcription,” in Proc.
+of the 20th Int. Society for Music Information Retrieval
+Conf., 2019, pp. 670–677.
+[16] C. Kyunghyun, van Merrienboer Bart, G. Caglar,
+B. Dzmitry, B. Fethi, S. Holger, and B. Yoshua,
+“Learning phrase representations using rnn encoder-
+decoder for statistical machine translation,” in Pro-
+ceedings of the 2014 Conference on Empirical Meth-
+ods in Natural Language Processing (EMNLP), 2014,
+pp. 1724–1734.
+[17] S. Hochreiter and J. Schmidhuber, “Long short-term
+memory,” Neural Computation, vol. 9, pp. 1735–1780,
+1997.
+[18] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit,
+L. Jones, A. N. Gomez, L. Kaiser, and I. olosukhin,
+“Attention is all you need,” in Proc. of the 31st Con-
+ference on Neural Information Processing Systems
+(NeurIPS), 2017, pp. 6000–6010.
+[19] W.-T. Lu, J.-C. Wang, M. Won, K. Choi, and X. Song,
+“Spectnt: A time-frequency transformer for music au-
+dio,” in Proc. of the 22nd Int. Society for Music Infor-
+mation Retrieval Conf., 2021, pp. 396–403.
+[20] I. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu,
+D. Warde-Farley, S. Ozair, A. Courville, and Y. Ben-
+gio, “Generative adversarial nets,” in Advances in Neu-
+ral Information Processing Systems, vol. 27, 2014.
+[21] Y.-Y. Yang, M. Hira, Z. Ni, A. Chourdia, A. Asta-
+furov, C. Chen, C.-F. Yeh, C. Puhrsch, D. Pol-
+lack, D. Genzel, D. Greenberg, E. Z. Yang, J. Lian,
+J. Mahadeokar, J. Hwang, J. Chen, P. Goldsborough,
+P. Roy, S. Narenthiran, S. Watanabe, S. Chintala,
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+221
+
+V. Quenneville-Bélair, and Y. Shi, “Torchaudio: Build-
+ing blocks for audio and speech processing,” arXiv
+preprint arXiv:2110.15018, 2021.
+[22] Y.-H. Chen, W.-Y. Hsiao, T.-K. Hsieh, J.-S. R. Jang,
+and Y.-H. Yang, “Towards automatic transcription of
+polyphonic electric guitar music: A new dataset and a
+multi-loss transformer model,” in Proc. of the 47th Int.
+Conference on Acoustics, Speech and Signal Process-
+ing (ICASSP), 2022, pp. 786–790.
+[23] V. Emiya, R. Badeau, and B. David, “Multipitch esti-
+mation of piano sounds using a new probabilistic spec-
+tral smoothness principle,” IEEE ACM Transactions on
+Audio Speech and Language Processing, vol. 18, no. 6,
+pp. 1643–1654, 2009.
+[24] D. P. Kingm and J. L. Ba, “Adam: A method for
+stochastic optimization,” in Proceedings of the 3rd In-
+ternational Conference on Learning Representations
+(ICLR), 2015.
+[25] C. Raffel, B. McFee, E. J. Humphrey, J. Salamon,
+O. Nietro, D. Liang, and D. Ellis, “mir_eval: A trans-
+parent implementation of common mir metrics,” in
+Proc. of the 15th Int. Society for Music Information Re-
+trieval Conf., 2014, pp. 367–372.
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+222

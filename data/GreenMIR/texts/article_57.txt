@@ -1,0 +1,940 @@
+BANDNET: A NEURAL NETWORK-BASED, MULTI-INSTRUMENT
+BEATLES-STYLE MIDI MUSIC COMPOSITION MACHINE
+Yichao Zhou1,2,∗
+Wei Chu1
+Sam Young 1,3
+Xin Chen1
+1 Snap Inc. 63 Market St, Venice, CA 90291,
+2 Department of EECS, University of California, Berkeley,
+3 Herb Alpert School of Music, University of California, Los Angeles,
+zyc@berkeley.edu, wei.chu@liulishuo.com, samyoungmusic@gmail.com, xin.chen@snap.com
+ABSTRACT
+In this paper, we propose a recurrent neural network
+(RNN)-based MIDI music composition machine that is
+able to learn musical knowledge from existing Beatles’
+music and generate full songs in the style of the Beat-
+les with little human intervention. In the learning stage,
+a sequence of stylistically uniform, multiple-channel mu-
+sic samples was modeled by an RNN. In the composition
+stage, a short clip of randomly-generated music was used
+as a seed for the RNN to start music score prediction. To
+form structured music, segments of generated music from
+different seeds were concatenated together. To improve the
+quality and structure of the generated music, we integrated
+music theory knowledge into the model, such as control-
+ling the spacing of gaps in the vocal melody, normalizing
+the timing of chord changes, and requiring notes to be re-
+lated to the song’s key (C major, for example). This in-
+tegration improved the quality of the generated music as
+veriﬁed by a professional composer. We also conducted
+a subjective listening test that showed our generated mu-
+sic was close to original music by the Beatles in terms
+of style similarity, professional quality, and interesting-
+ness. The generated music samples can be downloaded
+at https://goo.gl/uaLXoB.
+1. INTRODUCTION
+Automatic music composition has been an active research
+area for the last several decades, and researchers have pro-
+posed various methods to model many different kinds of
+music. [7,8,12,23,26] used rules and criteria developed by
+professional musicians to generate songs. These methods
+usually relied heavily on the input of music experts, hand-
+crafted rules, consistent intervention during the process of
+composition, and ﬁne-tuning the generated music in the
+∗This work was done when Yichao Zhou was an intern at Snap Inc.
+c⃝Yichao Zhou, Wei Chu, Sam Young, Xin Chen.
+Li-
+censed under a Creative Commons Attribution 4.0 International License
+(CC BY 4.0). Attribution:
+Yichao Zhou, Wei Chu, Sam Young, Xin
+Chen. “BandNet: A Neural Network-based, Multi-Instrument Beatles-
+Style MIDI Music Composition Machine”, 20th International Society for
+Music Information Retrieval Conference, Delft, The Netherlands, 2019.
+post-processing stage. Although the quality of the com-
+posed music may be quite satisfactory, the composition
+process can be time-consuming and the composed music
+can be biased toward a particular style. Recently, agnostic
+approaches that do not depend on expert knowledge have
+been emerging [9]. Instead of relying on music experts,
+these methods employ a data-driven approach to learn gen-
+eralizable theory and patterns from existing pieces of mu-
+sic, and this approach has proven to be effective. For exam-
+ple, [2,15] trained a hidden Markov model from music cor-
+pora and [10] modeled polyphonic music from the perspec-
+tive of the graphic model. With the recent progress made in
+deep learning, there have been many research efforts that
+have tried to compose music using neural networks: [27]
+used a deep convolutional network to generate a melody
+conditioned on 24 basic chord triads found in each mea-
+sure; [19] generated the drum pattern for songs using an
+RNN [13]; [9, 14, 17, 18] described RNN approaches to
+modeling and harmonizing Bach-style polyphonic music;
+and [5] proposed a multi-layer RNN to model pop music
+by encoding drum and chord patterns as one-hot vectors.
+While most of the aforementioned machine-learning
+methods were able to generate music in some categories
+such as Bach chorale and folk music, we found that it is
+challenging to use their methods to model songs by the
+Beatles. Formed in 1960, The Beatles are arguably one of
+the most inﬂuential bands of all time. Their primary song-
+writers, John Lennon and Paul McCartney, were consid-
+ered masters and many of their songs are still well known
+today. The Beatles music drew on elements of 50s rock and
+roll, and their musical style can be characterized by catchy
+vocal melodies, unique chord progressions, and an upbeat,
+energetic sound. The standard instrumentation of the Bea-
+tles contains vocals, two electric guitars, bass, drums, and
+occasional piano.
+One difﬁculty of replicating the Beatles’ music is that
+all the component parts depend on each other but have dif-
+ferent characteristics. For example, the bass line is often
+monophonic while the guitar chords are polyphonic, and
+the guitar chords are likely to contain certain notes found
+in the bass part. The model needs to be able to gener-
+ate different instrumental parts within a uniform musical
+structure. In addition, the style of the musical features of-
+655
+
+ten changes between songs. For example, many Beatles’
+songs use monophonic vocal melodies while others use
+polyphonic, two-part vocal melodies. The chords in the
+Beatles’ music often contain a lot of non-standard combi-
+nations of notes that are different from the common chord
+triads, with the added complexity that certain chords may
+be incomplete and missing one or more of their component
+parts. They can be played by either a piano or a guitar,
+each of which uses different chord spacing. All of these
+variations are challenging to model for a machine learn-
+ing algorithm. Moreover, the Beatles are known for using
+complex harmonies that can be difﬁcult to classify, with the
+added complication that certain chords may be incomplete
+or missing one or more of their component parts. Thus it
+may not be appropriate to encode the chord progression as-
+pect of the music as one-hot vectors [27], as they treat two
+similar harmonies differently.
+To overcome these difﬁculties, we introduce BandNet,
+an RNN-based, Beatles-style multi-instrument music com-
+position machine. We exploit the song structures that can
+be commonly found in pop music to generate complete
+songs without relying too much on labeled data. Our sys-
+tem requires little expert knowledge to use and it can be
+successfully trained on a relatively small corpus. We ex-
+plain the proposed approach in Section 2 and evaluate the
+performance of our algorithm in Section 3.
+2. METHODS
+2.1 Data Representation
+Our BandNet uses MIDI ﬁles as input and output and uti-
+lizes the same data processing pipeline from Magenta [4].
+For each Beatles’ song, we consider the three most impor-
+tant channels: the vocal melody, guitar chords, and bass
+part. All the channels are allowed to be polyphonic, to
+maximize the ﬂexibility of the model.
+In our dataset, we include all the songs that use a 4/4
+time signature, which means that a quarter note is felt as
+the beat, and each measure (a.k.a one bar, a short segment
+of music whose boundaries are shown by vertical bar lines
+in the score) has four beats. It is reasonable to discretize
+note lengths into sixteenth notes. We call the duration of
+a sixteenth note a step. Therefore, each measure is dis-
+cretized into 16 steps and each beat is discretized into 4
+steps.
+Because a song may be played by different instruments
+with different pitch ranges, we ﬁrst transpose the pitch by
+octave so that the average pitch of each channel in each
+song is as close as possible to the global pitch average of
+that channel. Next, we transpose each song by -5 to 6 semi-
+tones to augment the training data 11 times so that it is able
+to generate music in all possible keys. Other approaches,
+such as transposing each song to the same key, C major for
+example, do not work well for the Beatles’ music because
+we have yet to ﬁnd a reliable way to detect the key of each
+song.
+
+
+
+	
+
+
+
+
+
+
+
+
+   
+
+
+
+
+01. NXT_CHNL
+16. NEW_NOTE(F5)
+02. NEW_NOTE(C5)
+17. NXT_CHNL
+03. NEW_NOTE(G4)
+18. NEW_NOTE(C5)
+04. NEW_NOTE(E4)
+19. NEW_NOTE(G4)
+05. NXT_CHNL
+20. NEW_NOTE(E4)
+06. NEW_NOTE(C3)
+21. NXT_CHNL
+07. NXT_STEP
+22. CNT_NOTE(C3)
+08. NEW_NOTE(G5)
+23. NXT_STEP
+09. NXT_CHNL
+24. NEW_NOTE(E5)
+10. CNT_NOTE(C5)
+25. NXT_CHNL
+11. CNT_NOTE(G4)
+26. CNT_NOTE(C5)
+12. CNT_NOTE(E4)
+27. CNT_NOTE(G4)
+13. NXT_CHNL
+28. CNT_NOTE(E4)
+14. CNT_NOTE(C3)
+29. NXT_CHNL
+15. NXT_STEP
+30. NEW_NOTE(C3)
+Figure 1: An example showing how we encode an excerpt
+from I Want to Hold Your Hand (1964). Notes are quan-
+tized to eighth notes rather than sixteenth notes for demon-
+stration purposes. The sheet music example is shown at the
+top where the scan lines are marked in blue. The encoded
+sequence of the sheet music is shown at the bottom.
+2.2 Score Encoding
+BachBot [17] and Magenta [4] convert polyphonic MIDI
+music into a sequence of symbols so that RNN can be used
+to model the probabilistic distribution of such a sequence.
+We expand their schemes to music with multiple channels.
+Figure 1 gives an example showing how we encode the
+music score. We create a new type of symbol NXT CHNL,
+along with the three existing categories:
+NEW NOTE,
+CNT NOTE, and NXT STEP. The strategy is to scan the
+score in a left to right (time dimension), top to bottom
+(channel dimension), zig-zag fashion. Each time we meet
+a note during the scan, we will ﬁrst check whether it is
+a new note or a continuation of a previous note (e.g., the
+second sixteenth interval of an eighth note). We will then
+either emit a NEW NOTE or a CNT NOTE symbol depend-
+ing on the case, followed by the pitch of that note. When
+a channel is polyphonic, the note with higher pitch will al-
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+656
+
+ways be in front of the notes with lower pitch according to
+this strategy. When the scan line comes across the bound-
+ary of a channel, we will emit a NXT CHNL symbol, and
+when the scan line comes across a time step, we will emit
+a NXT STEP. Unlike other common methods where each
+symbol will represent all the notes inside a time step, we
+decompose them into multiple symbols and the advance-
+ment of the time step is explicitly expressed using the sym-
+bol NXT STEP.
+2.2.1 Note Features
+With the previous encoding mechanism, we can encode
+any of the Beatles’ songs into a sequence S = {Si}N
+i=0.
+Here Si ∈S in which S is the set of all the possible sym-
+bols. We have |S| = |T| ∗2 + 2, where T is the set of
+possible pitches.
+Because the training data is limited, it is helpful to in-
+corporate additional features for each symbol to help the
+neural network learn the theory and patterns of the mu-
+sic. We pair each symbol Si with its feature Fi when we
+feed the encoded sequence into the RNN. We designed two
+features for BandNet, i.e., Fi = (Bi, Gi). The feature
+Bi ∈{0, 1}5 contains the beat information. Bi = 1 if and
+only if the global time step of ith symbol is a multiple of 2i.
+We ﬁnd that this feature is helpful for the RNN to keep the
+style of the chord channel consistent inside a measure. The
+second feature Gi ∈{0, 1} represents whether the melody
+will be generated at the current time step. Without this fea-
+ture, we ﬁnd that sometimes BandNet will not generate a
+vocal melody due to silences in the melody channel of the
+training data (usually because of an instrumental or guitar
+solo section). By setting this variable to one or zero, we
+can easily control whether we want to generate the vocal
+part in a given section of music.
+2.3 Network Structure
+Figure 2 shows how a classical multi-layer LSTM-RNN
+[13] models the probabilistic distribution of the symbol se-
+quence. At the bottom layer, each LSTM cell takes the
+symbol Si in its one-hot vector form together with the cor-
+responding binary feature vector Fi as its input Ii. These
+LSTM cells are chained so that they will apply nonlinear
+transformations to the previous cell state C1
+i−1 and input
+Ii and produce the current hidden state h1
+i and cell state
+C1
+i , respectively. In order to increase the nonlinearity of
+the model, we make the network deep by stacking multi-
+ple layers of LSTM cells. Starting from the second layer,
+each cell will take the hidden state from the previous layer
+as input. Finally, we apply a linear transformation to the
+hidden states in the last layer with softmax to compute the
+conditional probability PΘ(Si+1 | I{1···i}), where Θ con-
+tains the parameters of the network. We use BPTT [20] to
+ﬁnd the parameters that locally maximizes the likelihood
+of the training data.
+2.4 Keeping Notes in the Key
+By using the LSTM-RNN and the encoding schemes from
+previous sections, our generative model is able to compose
+multi-instrument music. During the test, we ﬁnd that the
+melody channel generated by the LSTM occasionally con-
+tained some unexpected notes.
+We found that many of
+these notes are dissonant because they are not in the key
+of the music. We speculate that this is because the Beatles
+often used notes in their music that deviated from conven-
+tional practices of other popular music. These notes may
+work well under some conditions, but the amount of data
+does not allow our neural network to learn how to use these
+notes in the right context. Therefore, in order to improve
+the quality of our music, it is reasonable to ﬁlter them out in
+BandNet, i.e., restricting the notes that are not in the song’s
+key during the generating stage. This can be achieved by
+applying a mask to the probability distributions returned by
+the neural network and re-normalizing them so that they all
+sum to unity.
+2.5 Generating a Complete Song
+Most of the Beatles’ music has a repetitive and sectional
+song structure. Figure 3 shows an example of the structure
+in the song Yesterday (1965). This song uses an AABABA
+structure, where the A section is called the verse and the B
+section is called the chorus. The verse section is repeated
+four times, with each repetition being exactly the same or
+having only minor differences. It is hard for the RNN to
+learn this phenomenon because the distance between two
+sections is as long as eight measures, i.e., 128 time steps.
+RNN normally cannot carry hundreds of symbols in its
+memory across a span of that long. Folk-RNN [25] used
+a data format called ABC notation that has an annotation
+for repeating sections so that they do not need to deal with
+this problem. We do not have such ﬁne-level annotation
+in our dataset. Instead, we use a template-based method
+to generate structured music. Users of BandNet will ﬁrst
+select a predeﬁned song structure template, e.g., AABA
+or ABABCBB, and then BandNet can generate a clip for
+each section whose length can vary from 4 to 16 measures.
+After that, we assemble the generated clips to form a com-
+plete song. Because we do not model the drum pattern in
+this work, we assign a precomposed drum pattern for each
+section of music, which is beneﬁcial as we can select dif-
+ferent styles of drum patterns for different sections of the
+song.
+The well-known DeepBach [9] and BachBot [17] can
+generate a new harmony or re-harmonize an existing
+melody from a single instrument, i.e. piano. BandNet can
+generate a song with multiple instruments, e.g. guitar, key-
+board, bass, and drum. Because we do not have a melody
+to condition on, BandNet needs a short sequence of notes,
+also known as a seed, to begin a section. Although in the-
+ory it is possible not to condition on any seeds, we found
+that the resulting music was often unsatisfactory. In order
+to avoid depending on a professional musician to compose
+note sequences as seeds, we adopt the following strategy:
+First, we let BandNet generate long sequences of music
+without conditioning on any seeds. Second, we can listen
+to these randomly generated segments and mark the clips
+that sound most compelling to us. Third, we use these clips
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+657
+
+(S1, F1)
+LSTM 1
+LSTM 2
+LSTM 3
+FC
+p(S2|I1..1)
+(S2, F2)
+LSTM 1
+LSTM 2
+LSTM 3
+FC
+p(S3|I1..2)
+(S3, F3)
+LSTM 1
+LSTM 2
+LSTM 3
+FC
+p(S4|I1..3)
+(S4, F4)
+LSTM 1
+LSTM 2
+LSTM 3
+FC
+p(S5|I1..4)
+(S···, F···)
+· · ·
+· · ·
+· · ·
+FC
+p(Si+1|I1..i)
+(Sn, Fn)
+LSTM 1
+LSTM 2
+LSTM 3
+FC
+p(Sn+1|I1..n)
+I1
+h1
+1
+h2
+1
+h3
+1
+O1
+I2
+h1
+2
+h2
+2
+h3
+2
+O2
+I3
+h1
+3
+h2
+3
+h3
+3
+O3
+I4
+h1
+4
+h2
+4
+h3
+4
+O4
+Ii
+h1
+i
+h2
+i
+h3
+i
+Oi
+In
+h1
+n
+h2
+n
+h3
+n
+On
+C1
+1
+h1
+1
+C2
+1
+h2
+1
+C3
+1
+h3
+1
+C1
+2
+h1
+2
+C2
+2
+h2
+2
+C3
+2
+h3
+2
+C1
+3
+h1
+3
+C2
+3
+h2
+3
+C3
+3
+h3
+3
+C1
+4
+h1
+4
+C2
+4
+h2
+4
+C3
+4
+h3
+4
+C1
+n−1
+h1
+n−1
+C2
+n−1
+h2
+n−1
+C3
+n−1
+h3
+n−1
+Figure 2: A diagram showing how an unrolled 3-layer LSTM-RNN works for music composition. Here, symbol Si and
+feature Fi are encoded to the vector Ii. LSTM j represents an LSTM cell in the jth layer. Cells in the same layer share the
+same parameter. Cj
+i and hj
+i are the cell state and hidden state of the ith cell in the jth layer. FC represents a fully-connected
+layer and its output Oi is fed into a softmax function to produce a distribution over all the possible symbols.
+Figure 3: The piano roll of the song Yesterday (1965). It has a song structure AABABA, whose sections are labeled in
+green in the Figure. The channels from top to bottom are melody, chords, and bass line.
+Melody
+Chords
+Bass
+Overall
+CQ
+SQ
+CQ
+SQ
+CQ
+SQ
+ACSQ
+GSQ
+MGT-M
+2.60 ± 1.14
+2.70 ± 0.84
+-
+-
+-
+-
+-
+2.65 ± 0.65
+MGT-P
+-
+-
+3.20 ± 0.57
+2.50 ± 0.35
+-
+-
+-
+2.85 ± 0.22
+BN
+2.90 ± 0.55
+1.50 ± 0.50
+2.70 ± 0.76
+2.40 ± 0.82
+3.30 ± 0.67
+2.40 ± 0.82
+2.53 ± 0.25
+2.60 ± 0.65
+BN-S
+2.90 ± 0.42
+2.50 ± 0.87
+3.05 ± 0.76
+2.90 ± 0.65
+3.20 ± 0.76
+3.20 ± 0.45
+2.96 ± 0.26
+2.95 ± 0.62
+BN-SB
+2.90 ± 0.52
+3.40 ± 0.22
+2.85 ± 0.42
+3.25 ± 0.40
+3.30 ± 0.27
+3.25 ± 0.40
+3.16 ± 0.30
+3.10 ± 0.42
+BN-SBK
+3.85 ± 0.49
+3.75 ± 0.25
+3.45 ± 0.51
+3.45 ± 0.57
+3.75 ± 0.25
+3.65 ± 0.22
+3.65 ± 0.13
+3.90 ± 0.38
+BEATLES 4.45 ± 0.37 4.80 ± 0.11 4.20 ± 0.27 4.75 ± 0.43 4.40 ± 0.22 4.95 ± 0.11 4.59 ± 0.13 4.65 ± 0.22
+Table 1: Results of a professional composer evaluating the quality of music generated by different models. MGT-M:
+Magenta’s MelodyRNN, MGT-P: Magenta’s PolyphonyRNN, BN: BandNet without note features, BN-S: BN with silence
+features, BN-SB: BN-S with beat features, BN-SBK: BN-SB while keeping notes in the key, BEATLES: original Beatles’
+songs. The deﬁnitions of CQ, SQ, ACSQ, and GCQ can be found in Section 3.2.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+658
+
+as seeds for BandNet to generate all the sections of the
+song.
+3. EXPERIMENTS
+3.1 Settings and Datasets
+We collected 183 Beatles MIDI songs from the Internet as
+our training dataset. We removed 60 songs from the dataset
+because they were either divergent in musical style when
+compared with other Beatles’ songs, or were missing im-
+portant components such as a clear vocal melody or bass
+line. We found that MIDI ﬁles in the wild can be messy.
+For example, the chords may be divided across three chan-
+nels in some MIDI ﬁles, while there can be up to eight
+channels used for instrumental decoration in others, which
+is not necessary for our purposes. We cleaned this dataset
+by deleting the unnecessary channels and merging the frag-
+mented channels.
+Due to the number of songs that the Beatles composed,
+the size of our dataset is smaller compared to those used
+in the literature [5,17,27], but we found that it is sufﬁcient
+to train a reasonably good model. Aside from its inﬂuence
+in popular music history, there are two reasons why we
+choose to use the Beatles’ catalog as our training dataset:
+First, the style of the Beatles’ music is relatively consis-
+tent when compared to other categories of pop music, and
+therefore it is easier for the RNN to learn its underlying
+structures. Second, most of the Beatles’ music contains the
+elements required by our music generation pipeline, such
+as distinct melody, chord, and bass parts, as well as repeat-
+ing song structures, which can be missing in genres such
+as classical and folk music.
+The two most important parameters of the recurrent
+neural network were the dimension of LSTM cells and the
+number of layers. We found that a 3-layer RNN in which
+each LSTM cell had 256 hidden units worked well in prac-
+tice.
+Our implementation was based on Magenta [4] and Ten-
+sorﬂow [1] for processing the MIDI ﬁles and training the
+RNN. Because the number of parameters in our network
+was large, we applied dropout [24] to alleviate overﬁt-
+ting. We trained our model using the Adam optimizer [16],
+which is a variant of stochastic gradient descent that is not
+sensitive to the global learning rate. We used 10% songs in
+our dataset for cross validation and we stopped the training
+process when the error on the validation dataset no longer
+decreased. During the training, we clipped the gradients
+so that their L2-norms were less than or equal to 1. This
+technique was proposed in [24] to alleviate the gradient ex-
+plosion problem.
+3.2 Quality Scoring by a Professional Composer
+In this section, a professional music composer evaluated
+the music generated by each subsequent version of Band-
+Net. The composer gave two scores for each individual
+channel (melody, chords, and bass) based on their musi-
+cal content and structure. The Content Quality (CQ) was
+deﬁned as how well the notes and rhythms in the gener-
+ated music function according to music theory principles
+consistent with the music of the Beatles, and the Struc-
+ture Quality (SQ) was deﬁned as to what extent the mu-
+sic sample exhibits an organizational structure. All scores
+were given on a scale of 1 to 5. In addition, we designed
+two overall scores to evaluate the overall quality of each
+multiple-channel song. The Averaged Content and Struc-
+ture Quality (ACSQ) were calculated through averaging
+the CQs and SQs of all the channels, and the Group Syn-
+ergy Quality (GSQ) score evaluated how well the individ-
+ual channels work together to make a uniﬁed whole.
+The results are shown in Table 1. The score was an
+average across ﬁve songs under each setting. We found
+that model BN was on par with Magenta’s melody and
+polyphony generators [4] in terms of content and structure
+scores, which is reasonable because models from Magenta
+were designed to model melody and chords (as in poly-
+phonic music) separately, and modeling them jointly in the
+case of BandNet would not improve the score of each in-
+dividual channel. After introducing the silence feature, the
+GSQ of BandNet increased from 2.6 to 2.95 because we
+were able to exclude unusual silences in the melody. By
+adding the beat feature, BandNet continued to receive re-
+wards in SQs for the melody and chord channels; a pos-
+sible explanation for this is that the beat feature gave the
+RNN measure and section information, which helped it
+learn the structure of the music more efﬁciently. Both of
+these features also improved GSQs, as the normalization
+of each individual channel also improved the alignment
+between individual parts. Finally, the greatest improve-
+ment in both metrics was from the key restriction feature.
+This signiﬁcantly improved the CQs of individual channels
+by removing “wrong” notes, and also improved SQs and
+GSQs by reducing the amount of notes that were dissonant
+with one another across individual channels.
+3.3 Subjective Listening
+We also conducted a subjective listening experiment to
+evaluate the quality of our generated songs from the per-
+spective of amateurs. We received 17 responses in this
+user study: 16 said that they had never received formal
+musical training.
+In this test, we asked users to listen
+to 15 songs. All of the songs were in AABA structure
+and each section had a length of 8 measures. The ﬁrst 5
+songs, labeled as group A, were composed by BandNet us-
+ing randomly generated seeds; the next 5 songs, labeled
+as group B, were composed by BandNet using profession-
+ally composed seeds. Each seed was 2 measures in length,
+with BandNet generating the remaining 6-measure clip for
+each section.
+Songs in group A and B were generated
+randomly without human selection. The last 5 songs, la-
+beled as group C (the control group), included relatively
+unknown Beatles’ songs, with the intention that listeners
+had likely never heard them before. We shufﬂed the or-
+der of the songs so that listeners could not guess whether a
+song was composed by BandNet prior to listening. We also
+modiﬁed the drum patterns for the group C Beatles’ songs,
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+659
+
+Style Similarity
+Professional Sounding
+Interestingness
+2
+3
+4
+Score (higher is better)
+Group A: BandNet, Generated Seeds
+Group B: BandNet, Professional Seeds
+Group C: The Beatles’ Music
+Figure 4: Result of a user study that evaluates the performance of different ways to generate music. The x-axis represents
+the sources of the music and the y-axis represents the score. The box plot shows the distribution of the average score of
+each song rated by the listener. From bottom to top, the horizontal lines of each box show the minimum, the ﬁrst quartile,
+the median, the third quartile, and the maximum of the average score, respectively.
+so that listeners could not distinguish them from BandNet-
+composed songs based on differences in the drum pattern.
+At the beginning, we asked subjects to listen to 5 well-
+known songs by the Beatles, such as I Want to Hold Your
+Hand (1964), in order to familiarize them with the Beatles
+musical style. Next, we asked them to listen to the 15 songs
+mentioned above and to answer the following 4 questions
+for each song:
+Q1: Have you heard this song before?
+Q2: Does it sound similar to the music of the Beatles?
+Q3: How likely is it that this music was professionally
+composed?
+Q4: How interesting is this music?
+We asked listeners to only choose between “Yes, deﬁ-
+nitely!” and “No/Not sure” in Q1; if they answered “Yes”,
+we removed their scoring of that song from our results.
+This is because a subject may be biased to give a song a
+higher score if he had heard it song before. For Q2, Q3,
+and Q4, we let users grade each song using a scale from
+1 to 5 with an increment of 0.5. Figure 4 shows the dis-
+tribution of those scores from 17 responses. The labels in
+the horizontal axis, Style Similarity, Professional Sound-
+ing, and Interestingness correspond to Q2, Q3, and Q4,
+respectively. Each sample in the box plot represents the
+average score over 17 responses to a question for a partic-
+ular song.
+For Q1, about 13.3% of responses indicated that they
+had heard those little-known Beatles’ songs, while the per-
+centages were only 0% and 1.3% for BandNet-generated
+songs using automatically-generated seeds and profes-
+sional seeds, respectively. This could be an indicator show-
+ing that we did not overﬁt the training data and just repli-
+cated some clips from the original Beatles’ music. For
+the rest of the questions, we found that the authentic Beat-
+les’ songs constantly outperformed the BandNet-generated
+songs, but only by a small margin. In particular, the aver-
+age Style Similarity scores for songs in group A, B, and C
+are 3.08, 3.02, and 3.22, respectively. The score difference
+of Q2 between the authentic and generated songs was less
+than 0.202, which showed that BandNet was able to imi-
+tate the style of the Beatles relatively well. The average
+Professional Sounding scores were 3.29, 3.16, and 3.68,
+and the average Interestingness scores were 3.19, 3.13, and
+3.68 for songs in group A, B, and C, respectively. The
+score gaps of Q3 and Q4 between authentic and generated
+songs were approximately 0.5. The musical knowledge
+that BandNet learned came primarily from The Beatles,
+and in theory may be difﬁcult for an RNN-based machine
+learning algorithm to generate more professional and in-
+teresting music than The Beatles. Concerning the seeds
+used in generation, our experiments have shown that using
+professionally-composed seeds did not have a signiﬁcant
+advantage over selecting from randomly-generated seeds
+in terms of subjective listening evaluation. This means that
+we may no longer need a composer in the loop for gen-
+erating a complete song and an amateur would be able to
+“compose” a Beatles-style song without the guide of a pro-
+fessional by using BandNet.
+4. CONCLUSIONS AND FUTURE WORKS
+In this paper, we propose an RNN-based, multi-instrument
+MIDI music composition machine, which learns musical
+knowledge from existing Beatles’ music and automatically
+generates music in the style of the Beatles with little hu-
+man intervention. We also integrate expert knowledge into
+the data-driven based learning process. We prove that our
+method is effective in both professional evaluation and
+subjective listening tests. Our future work includes explic-
+itly modeling the drum parts, designing a better neural net-
+work structure, employing Gibbs sampling, improving the
+evaluation metrics, and testing BandNet for other genres of
+music on a larger dataset.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+660
+
+5. REFERENCES
+[1] Mart´ın Abadi, Ashish Agarwal, Paul Barham, Eugene
+Brevdo, Zhifeng Chen, Craig Citro, Greg S. Corrado,
+Andy Davis, Jeffrey Dean, Matthieu Devin, Sanjay
+Ghemawat, Ian Goodfellow, Andrew Harp, Geoffrey
+Irving, Michael Isard, Yangqing Jia, Rafal Jozefow-
+icz, Lukasz Kaiser, Manjunath Kudlur, Josh Leven-
+berg, Dan Man´e, Rajat Monga, Sherry Moore, Derek
+Murray, Chris Olah, Mike Schuster, Jonathon Shlens,
+Benoit Steiner, Ilya Sutskever, Kunal Talwar, Paul
+Tucker, Vincent Vanhoucke, Vijay Vasudevan, Fer-
+nanda Vi´egas, Oriol Vinyals, Pete Warden, Martin
+Wattenberg, Martin Wicke, Yuan Yu, and Xiaoqiang
+Zheng. TensorFlow: Large-scale machine learning on
+heterogeneous systems, 2015. Software available from
+tensorﬂow.org.
+[2] Moray Allan and Christopher Williams. Harmonising
+chorales by probabilistic inference. In Advances in
+neural information processing systems, pages 25–32,
+2005.
+[3] Nicolas Boulanger-Lewandowski, Yoshua Bengio, and
+Pascal Vincent. Modeling temporal dependencies in
+high-dimensional sequences:
+Application to poly-
+phonic music generation and transcription. In Proceed-
+ings of the 29th International Conference on Machine
+Learning, ICML 2012, Edinburgh, Scotland, UK, June
+26 - July 1, 2012, 2012.
+[4] Google
+Brain.
+Magenta.
+https://magenta.
+tensorflow.org/, 2000–2004.
+[5] Hang Chu, Raquel Urtasun, and Sanja Fidler. Song
+from PI: A musically plausible network for pop music
+generation. arXiv preprint arXiv:1611.03477, 2016.
+[6] Michael Scott Cuthbert and Christopher Ariza. mu-
+sic21: A toolkit for computer-aided musicology and
+symbolic music data. 2010.
+[7] Kemal Ebcio˘glu. An expert system for harmonizing
+four-part chorales. Computer Music Journal, 12(3):43–
+51, 1988.
+[8] Manfred Eppe, Roberto Confalonieri, Ewen Maclean,
+Maximos
+Kaliakatsos,
+Emilios
+Cambouropou-
+los,
+Marco
+Schorlemmer,
+Mihai
+Codescu,
+and
+K K¨uhnberger. Computational invention of cadences
+and chord progressions by conceptual chord-blending.
+IJCAI’15
+Proceedings
+of
+the
+24th
+International
+Conference on Artiﬁcial Intelligence, 2015.
+[9] Ga¨etan Hadjeres and Franc¸ois Pachet. DeepBach: a
+steerable model for Bach chorales generation. In Pro-
+ceedings of the 34th International Conference on Ma-
+chine Learning, 2017.
+[10] Ga¨etan Hadjeres, Jason Sakellariou, and Franc¸ois Pa-
+chet. Style imitation and chord invention in poly-
+phonic music with exponential families. arXiv preprint
+arXiv:1609.05152, 2016.
+[11] Hermann Hild, Johannes Feulner, and Wolfram Men-
+zel. Harmonet: A neural net for harmonizing chorales
+in the style of js bach. In Advances in neural informa-
+tion processing systems, pages 267–274, 1992.
+[12] Lejaren Arthur Hiller and Leonard M Isaacson. Exper-
+imental Music; Composition with an electronic com-
+puter. Greenwood Publishing Group Inc., 1979.
+[13] Sepp Hochreiter and J¨urgen Schmidhuber. Long short-
+term memory. Neural computation, 9(8):1735–1780,
+1997.
+[14] Cheng-Zhi Anna Huang,
+Tim Cooijmans,
+Adam
+Roberts,
+Aaron
+Courville,
+and
+Douglas
+Eck.
+Counterpoint
+by
+convolution.
+arXiv
+preprint
+arXiv:1903.07227, 2019.
+[15] Maximos Kaliakatsos-Papakostas and Emilios Cam-
+bouropoulos. Probabilistic harmonization with ﬁxed
+intermediate chord constraints. In ICMC, 2014.
+[16] Diederik
+Kingma
+and
+Jimmy
+Ba.
+Adam:
+A
+method for stochastic optimization. arXiv preprint
+arXiv:1412.6980, 2014.
+[17] Feynman Liang, Mark Gotham, Matthew Johnson, and
+Jamie Shotton. BachBot: Automatic composition in
+the style of bach chorales. In Proceedings of the 18th
+International Society for Music Information Retrieval
+Conference (ISMIR 2017), 2017.
+[18] Feynman T Liang, Mark Gotham, Matthew Johnson,
+and Jamie Shotton. Automatic stylistic composition of
+bach chorales with deep lstm. In ISMIR, pages 449–
+456, 2017.
+[19] Dimos
+Makris,
+Maximos
+Kaliakatsos-Papakostas,
+Ioannis Karydis, and Katia Lida Kermanidis. Combin-
+ing LSTM and feed forward neural networks for con-
+ditional rhythm composition. In International Confer-
+ence on Engineering Applications of Neural Networks,
+pages 570–582. Springer, 2017.
+[20] Michael C Mozer. A focused back-propagation algo-
+rithm for temporal pattern recognition. Complex sys-
+tems, 3(4):349–381, 1989.
+[21] Alexandre Papadopoulos, Pierre Roy, and Franc¸ois Pa-
+chet. Assisted lead sheet composition using FlowCom-
+poser. In International Conference on Principles and
+Practice of Constraint Programming, pages 769–785.
+Springer, 2016.
+[22] Razvan Pascanu, Tomas Mikolov, and Yoshua Ben-
+gio. On the difﬁculty of training recurrent neural net-
+works. In International Conference on Machine Learn-
+ing, pages 1310–1318, 2013.
+[23] Donya Quick. Kulitta: A framework for automated mu-
+sic composition. Yale University, 2014.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+661
+
+[24] Nitish Srivastava, Geoffrey E Hinton, Alex Krizhevsky,
+Ilya Sutskever, and Ruslan Salakhutdinov. Dropout:
+a simple way to prevent neural networks from
+overﬁtting. Journal of machine learning research,
+15(1):1929–1958, 2014.
+[25] Bob Sturm, Joao Felipe Santos, and Iryna Korshunova.
+Folk music style modelling by recurrent neural net-
+works with long short term memory units. In 16th
+International Society for Music Information Retrieval
+Conference, 2015.
+[26] Raymond P Whorley, Geraint A Wiggins, Christophe
+Rhodes, and Marcus T Pearce. Multiple viewpoint sys-
+tems: Time complexity and the construction of do-
+mains for complex musical viewpoints in the harmo-
+nization problem. Journal of New Music Research,
+42(3):237–266, 2013.
+[27] Li-Chia Yang, Szu-Yu Chou, and Yi-Hsuan Yang.
+MidiNet: A convolutional generative adversarial net-
+work for symbolic-domain music generation. In Pro-
+ceedings of the 18th International Society for Music
+Information Retrieval Conference (ISMIR 2017), 2017.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+662

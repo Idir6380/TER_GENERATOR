@@ -1,0 +1,865 @@
+MUSIC FADERNETS: CONTROLLABLE MUSIC GENERATION BASED
+ON HIGH-LEVEL FEATURES VIA LOW-LEVEL FEATURE MODELLING
+Hao Hao Tan1
+Dorien Herremans1
+1 Singapore University of Technology and Design
+{haohao_tan, dorien_herremans}@sutd.edu.sg
+ABSTRACT
+High-level musical qualities (such as emotion) are often
+abstract, subjective, and hard to quantify. Given these dif-
+ﬁculties, it is not easy to learn good feature representa-
+tions with supervised learning techniques, either because
+of the insufﬁciency of labels, or the subjectiveness (and
+hence large variance) in human-annotated labels. In this
+paper, we present a framework that can learn high-level
+feature representations with a limited amount of data, by
+ﬁrst modelling their corresponding quantiﬁable low-level
+attributes. We refer to our proposed framework as Music
+FaderNets, which is inspired by the fact that low-level at-
+tributes can be continuously manipulated by separate “slid-
+ing faders” through feature disentanglement and latent reg-
+ularization techniques.
+High-level features are then in-
+ferred from the low-level representations through semi-
+supervised clustering using Gaussian Mixture Variational
+Autoencoders (GM-VAEs). Using arousal as an example
+of a high-level feature, we show that the “faders” of our
+model are disentangled and change linearly w.r.t. the mod-
+elled low-level attributes of the generated output music.
+Furthermore, we demonstrate that the model successfully
+learns the intrinsic relationship between arousal and its cor-
+responding low-level attributes (rhythm and note density),
+with only 1% of the training set being labelled. Finally,
+using the learnt high-level feature representations, we ex-
+plore the application of our framework in style transfer
+tasks across different arousal states. The effectiveness of
+this approach is veriﬁed through a subjective listening test.
+1. INTRODUCTION
+We consider low-level musical attributes as attributes that
+are relatively straightforward to quantify, extract and cal-
+culate from music, such as rhythm, pitch, harmony, etc.
+On the other hand, high-level musical attributes refer to se-
+mantic descriptors or qualities of music that are relatively
+abstract, such as emotion, style, genre, etc. Due to the na-
+ture of abstractness and subjectivity in these high-level mu-
+sical qualities, obtaining labels for these qualities typically
+c⃝Hao Hao Tan, Dorien Herremans. Licensed under a Cre-
+ative Commons Attribution 4.0 International License (CC BY 4.0). At-
+tribution:
+Hao Hao Tan, Dorien Herremans, “Music FaderNets: Con-
+trollable Music Generation Based On High-Level Features via Low-Level
+Feature Modelling”, in Proc. of the 21st Int. Society for Music Informa-
+tion Retrieval Conf., Montréal, Canada, 2020.
+requires human annotation. However, training conditional
+models on top of these human-annotated labels using su-
+pervised learning might result in sub-par performance be-
+cause ﬁrstly, obtaining such labels can be costly, hence the
+amount of labels collected might be insufﬁcient to train a
+model that can generalize well [1]; Secondly, the anno-
+tated labels could have high variance among raters due to
+the subjectivity of these musical qualities [2,3].
+Instead of inferring high-level features directly from the
+music sample, we propose to use low-level features as a
+“bridge” between the music and the high level features.
+This is because the relationship between the sample and
+its low-level features can be learnt relatively easier, as the
+labels are easier to obtain. In addition, we learn the rela-
+tionship between the low-level features and the high-level
+features in a data-driven manner. In this paper, we show
+that the latter works well even with a limited amount of
+labelled data. Our work relies heavily on the concept that
+each high-level feature is intrinsically related to a set of
+low-level attributes. By tweaking the levels of each low-
+level attribute in a constrained manner, we can achieve a
+desired change on the high-level feature. This idea is heav-
+ily exploited in rule-based systems [4–6], however rule-
+based systems are often not robust enough as their capa-
+bilities are constrained by the ﬁxed set of predeﬁned rules
+handcrafted by the authors. Hence, we propose an alterna-
+tive path which is to learn these implicit relationships with
+semi-supervised learning techniques.
+To achieve the goals stated above, we intend to build a
+framework which can fulﬁll these two objectives:
+• Firstly, the model should be able to control multiple
+low-level attributes of the music sample in a contin-
+uous manner, as if it is controlled by sliding knobs
+on a console (or also known as faders). Each knob
+should be independent from the others, and only
+controls one single feature that it is assigned to.
+• Secondly, the model should be able to learn the rela-
+tionship between the levels of the sliding knobs con-
+trolling the low-level features, and the selected high-
+level feature. This is analogous to learning a preset
+of the sliding knobs on a console.
+We named our model “Music FaderNets”, with refer-
+ence to musical “faders” and “presets” as described above.
+Achieving the ﬁrst objective requires representation learn-
+ing and feature disentanglement techniques. This moti-
+vates us to use latent variable models [7] as we can learn
+
+separate latent spaces for each low-level feature to obtain
+disentangled controllability. Achieving the second objec-
+tive requires the latent space to have a hierarchical struc-
+ture, such that high-level information can be inferred from
+low-level representations. This is achieved by incorporat-
+ing Gaussian Mixture VAEs [8] in our model.
+2. RELATED WORK
+2.1 Controllable Music Generation
+The application of deep learning techniques for music gen-
+eration has been rapidly advancing [9–13], however, em-
+bedding control and interactivity in these systems still re-
+mains a critical challenge [10].
+Variants of conditional
+generative models (such as CGAN [14] and CVAE [15])
+are used to allow control during generation, which have at-
+tained much success mainly in the image domain. Fader
+Networks [16] is one of the main inspirations of this work
+(hence the name Music FaderNets), in which users can
+modify different visual features of an image using “slid-
+ing faders”.
+However, their approach is built upon a
+CVAE with an additional adversarial component, which
+is very different from our approach.
+Recently, control-
+lable music generation has gained much research interest,
+both on modelling low-level [17–20] and high-level fea-
+tures [21, 22]. Speciﬁcally, [18] and [19] each proposed
+a novel latent regularization method to encode attributes
+along speciﬁc latent dimensions, which inspired the "slid-
+ing knob" application in this work.
+2.2 Disentangled Representation Learning for Music
+Disentangled representation learning has been widely used
+across both the visual [23–26] and speech domain [1, 27,
+28] to learn disjoint subsets of attributes. Such techniques
+have also been applied to music in several recent works,
+both in the audio [29–31] and symbolic domain [32–34].
+The discriminator component in our model draws inspira-
+tion from both the explicit conditioning component in the
+EC2-VAE model [33], and the extraction component in the
+Ext-Res model [34]. We ﬁnd that most of the work on
+disentanglement in symbolic music focuses on low-level
+features, and is done on monophonic music.
+This research distinguishes itself from other related
+work through the following novel contributions:
+• We combine latent regularization techniques with
+disentangled representation learning to build a
+framework that can control various continuous low-
+level musical attribute values using “faders”, and ap-
+ply the framework on polyphonic music modelling.
+• We show that it is possible to infer high-level fea-
+tures from low-level latent feature representations,
+even under weakly supervised scenario. This opens
+up possibilities to learn good representations for ab-
+stract, high-level musical qualities even under data
+scarcity conditions. We further demonstrate that the
+learnt representations can be used for controllable
+generation based on high-level features.
+3. PROPOSED FRAMEWORK
+3.1 Gaussian Mixture Variational Autoencoders
+VAEs [35] combine the power of both latent variable mod-
+els and deep generative models, hence they provide both
+representation learning and generation capabilities. Given
+observations X and latent variables z, the VAE learns a
+graphical model z →X by maximizing the evidence lower
+bound (ELBO) of the marginal likelihood p(X) as below:
+L(p, q; X) = Eq(z|X)[log p(X|z)] −DKL(q(z|X)||p(z))
+where q(z|X) and p(z) represent the learnt posterior and
+prior distribution respectively.
+In vanilla VAEs, p(z) is
+an isotropic, unimodal Gaussian. Gaussian Mixture VAEs
+(GM-VAE) [8] extend the prior to a mixture of K Gaussian
+components, which corresponds to learning a graphical
+model with an extra hierarchy of dependency c →z →X.
+The newly introduced categorical variable c ∈C, whereby
+|C| = K, is a discrete representation of the observations.
+Hence, a new distribution q(c|X) is introduced to infer the
+class of each observation, which enables semi-supervised
+and unsupervised clustering applications.
+Following [8], the ELBO of a GM-VAE is derived as:
+L(p, q; X) = Eq(z|X)[log p(X|z)]
+−
+K
+X
+k=1
+q(ck|X)DKL(q(z|X)||p(z|ck))
+−DKL(q(c|X)||p(c))
+The original KL loss term from the vanilla VAE is mod-
+iﬁed into two new terms: (i) the KL divergence between
+the approximate posterior q(z|X) and the conditional prior
+p(z|ck), marginalized over all Gaussian components; (ii)
+the KL divergence between the cluster inferring distribu-
+tion q(c|X), and the categorical prior p(c).
+3.2 Model Formulation
+Figure 1 shows the model formulation of our proposed
+Music FaderNets. Input X is a sequence of performance
+tokens converted from MIDI following [12, 13]. Assume
+that we want to model a high-level feature with K discrete
+states, which is related to a set of N low-level features. We
+denote the latent variables learnt for each low-level feature
+as z1...N; the labels for each low-level feature as y1...N;
+and the class inferred from each latent variable as c1...N.
+The joint probability of X, z1...N, c1...N is written as:
+p(X, z1...N, c1...N) = p(X|z1...N)
+N
+Y
+i=1
+p(zi|ci)
+N
+Y
+i=1
+p(ci)
+We assume that each categorical prior p(ci), i ∈[1, N]
+is uniformly distributed, and the conditional distributions
+p(zi|ci)
+=
+N(µci, diag(σci)) are diagonal-covariance
+Gaussians with learnable means and constant variances.
+For each low-level attribute, we learn an approximate pos-
+terior q(zi|X), parameterized by an encoder neural net-
+work, that samples latent code zi which represents the i-th
+low-level feature.
+
+Figure 1. Music FaderNets model architecture.
+The latent codes z1...N are then passed through the re-
+maining three components: (1) Discriminator: To ensure
+that zi incorporates information of the assigned low-level
+feature, it is passed through a discriminator represented
+by a function d(zi) to reconstruct the low-level feature la-
+bel yi; (2) Reconstruction: All latent codes are fed into
+a global decoder network which parameterizes the condi-
+tional probability p(X|z1...n) to reconstruct the input X;
+(3) Cluster Inference: This component parameterizes the
+cluster inference probability q(c|X), with c representing
+the selected high-level feature. It can be approximated by
+q(c|X) ≈Eq(z|X)p(c|z) [36], where the cluster state is pre-
+dicted from each latent code zi instead of X.
+To incorporate the “sliding knob” concept, we need to
+map the change of value of an arbitrary dimension on zi
+(denoted as zd
+i , shown on Figure 1 as the darkened dimen-
+sion) linearly to the change of value of the low-level feature
+label yi. After comparing across previous methods on con-
+ditioning and regularization [15, 16, 18, 19], we choose to
+adopt [19] which applies a latent regularization loss term
+written as Lreg(zd
+i , yi)
+=
+MSE(tanh(Dzd
+i ), sign(Dyi)),
+where Dzd
+i and Dyi denotes the distance matrix of values
+zd
+i and yi within a training batch respectively. We provide
+a detailed comparison study across each proposed method
+in Section 4.2. Hence, if we deﬁne:
+Li
+φ(p, q; X) =
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+K
+X
+k=1
+q(ci,k|X)DKL(q(zi|X)||p(zi|ci,k))
++ DKL(q(ci|X)||p(ci)), if unsupervised
+DKL(q(zi|X)||p(zi|ci)), if supervised
+(1)
+then the entire training objective can be derived as:
+L(p, q; X) = Eq(z1|X)...q(zN|X)[log p(X|z1, z2, ..., zN)]
+−β ·
+N
+X
+i=1
+Li
+φ(p, q; X) +
+N
+X
+i=1
+Lreg(zd
+i , yi)
++ Eq(z1|X)...q(zn|X)[log p(y1|z1)...p(yN|zN)]
+(2)
+where β is the KL weight hyperparameter [24]. The ﬁrst
+term in Eq. 2 represents the reconstruction loss. The sec-
+ond KL loss term (derived from the ELBO function of
+GM-VAE) correspond to the cluster inference component,
+which allows both supervised and unsupervised training
+setting, depending on the availability of label c.
+If we
+omit the cluster inference component, it could conform to
+a vanilla VAE by replacing this term with the KL loss term
+of VAE. The third term is the latent regularization loss ap-
+plied during the encoding process. The last term is the
+reconstruction loss of the low-level feature labels, which
+corresponds to the discriminator component. All encoders
+and decoders are implemented with gated recurrent units
+(GRUs), and teacher-forcing is used to train all decoders.
+4. EXPERIMENTAL SETUP
+In this work, we chose arousal (which refers to the energy
+level conveyed by the song [37]) as the high-level feature to
+be modelled. In order to select relevant low-level features,
+we refer to musicology papers such as [6, 38, 39], which
+suggest that arousal is related to features including rhythm
+density, note density, key, dynamic, tempo, etc. Among
+these low-level features, we focus on modelling the score-
+level features in this work (i.e. rhythm, note and key).
+4.1 Data Representation and Hyperparameters
+We use two polyphonic piano music datasets for training:
+the Yamaha Piano-e-Competition dataset [12], and the
+VGMIDI dataset [3], which contains piano arrangements
+of 95 video game soundtracks in MIDI, annotated with va-
+lence and arousal values in the range of -1 to 1. The arousal
+labels are used to guide the cluster inference component in
+our GM-VAE model using semi-supervised learning. We
+extract every 4-beat segment from each music sample, with
+a beat resolution of 4 (quarter-note granularity). Each seg-
+ment is encoded into event-based tokens following [12]
+with a maximum sequence length of 100. This results in
+a total of 103,934 and 1,013 sequences from the Piano e-
+Competition and VGMIDI dataset respectively, which are
+split into train/validation/test sets with a ratio of 80/10/10.
+
+Inspired by [33], we represent each rhythm label,
+yrhythm, as a sequence of 16 one-hot vectors with 3 dimen-
+sions, denoting an onset for any pitch, a holding state, or
+a rest. The rhythm density value is calculated as the num-
+ber of onsets in the sequence divided by the total sequence
+length. Each note label, ynote, is represented by a sequence
+of 16 one-hot vectors with 16 dimensions, each dimension
+denoting the number of notes being played or held at that
+time step (we assume a minimum polyphony of 0 and a
+maximum of 15). The note density value is the average
+number of notes being played or held for per time step.
+For key, we use the key analysis tool from music21 [40]
+to extract the estimated global key of each 4-beat segment.
+The key is represented using a 24-dimension one-hot vec-
+tor, accounting for major and minor modes. In this work,
+we directly concatenate the key vector as a conditioning
+signal with zrhythm and znote as an input to the global de-
+coder for reconstruction. For representing arousal, we split
+the arousal ratings into two clusters (K = 2): high arousal
+cluster for positive labels, and low arousal cluster for neg-
+ative labels. We remove labels annotated within the range
+[-0.1, 0.1] so as to reduce ambiguity in the annotations.
+The hyperparameters are tuned according to the results
+on the validation set using grid search. The mean vectors
+of p(c|z) are all randomly initialized with Xavier initial-
+ization, whereas the variance vectors are kept ﬁxed with
+value e−2. We observe that the following annealing strat-
+egy for β leads to the best balance between reconstruction
+and controllability: β is set to 0 in the ﬁrst 1,000 training
+steps, and is slowly annealed up to 0.2 in the next 10,000
+training steps. We set the batch size to 128, all hidden sizes
+to 512, and the encoded z dimensions to 128. The Adam
+optimizer is used with a learning rate of 10−3.
+4.2 Measuring the Controllability of Latent Features
+The proposed Music FaderNets model should meet two re-
+quirements: (i) Each “fader” independently controls one
+low-level musical feature without affecting other features
+(disentanglement), and (ii) the “faders” should change lin-
+early with the controlled attribute of the generated output
+(linearity). For disentanglement, we follow the deﬁnition
+proposed in [41] which decomposes the concept of disen-
+tanglement into generator consistency and generator re-
+strictiveness. Using rhythm density as an example:
+• Consistency on rhythm density means that for the
+same value of zd
+rhythm, the value of the output’s
+rhythm density should be consistent.
+• Restrictiveness on rhythm density means that chang-
+ing the value of zd
+rhythm does not affect the attributes
+other than rhythm density (in our case, note density).
+• Linearity on rhythm density means that the value of
+rhythm density is directly proportional to the value
+of zd
+rhythm, which is analogous to a sliding fader.
+We will be evaluating all three of these points in our ex-
+periment. For evaluating linearity, [19] proposed a slightly
+modiﬁed version of the interpretability metric by [42],
+Figure 2. Workﬂow of obtaining evaluation metrics for
+“faders” controlling rhythm density.
+which includes the following steps: (1) encode each sam-
+ple in the test set, obtain the rhythm latent code and the
+dimension zd which has the maximum mutual information
+with regards to the attribute; (2) learn a linear regressor
+to predict the input attribute values based on zd. The lin-
+earity score is hence the coefﬁcient of determination (R2)
+score of the linear regressor. However, this method eval-
+uates only the encoder and not the decoder. As we want
+the sliding knobs to directly impact the output, we argue
+that the relationship between zd and the output attributes
+should be more important. Hence, we propose to “slide”
+the values of the regularized dimension zd within a given
+range and decode them into reconstructed outputs. Then,
+instead of predicting the input attributes given the encoded
+zd, the linear regressor learns to predict the corresponding
+output attributes given the “slid” values of zd.
+We demonstrate a single workﬂow to calculate the con-
+sistency, restrictiveness and linearity scores of a given
+model based on the low-level features (we use rhythm den-
+sity as an example low-level feature for the discussion be-
+low), as depicted in Figure 2. After obtaining the rhythm
+density latent code for all samples in the training set and
+ﬁnding the minimum and maximum value of zd
+rhythm, we
+“slide” for T = 8 steps by calculating min(zd
+rhythm) +
+t
+T (max(zd
+rhythm) −min(zd
+rhythm)), with t ∈[1, T]. This re-
+sults in a list of values denoted as [zd
+rhythm]1...T . Then, we
+conduct the following steps:
+1. Randomly select M = 100 samples from the test
+set, and encode each sample into zrhythm and znote;
+2. Alter the d-th element in zrhythm using the values in
+the range [zd
+rhythm]1...T , to obtain [ˆzrhythm]m,1...T for
+each sample m;
+3. Decode each new rhythm density latent code to-
+gether with the unchanged note density latent code
+znote to get ˆXm,1...T ;
+4. Calculate rhythm density rm,1...T and note density
+nm,1...T for each reconstructed output;
+5. Pair up the new rhythm density latent code with the
+resulting rhythm density of the output as T training
+data points pm = {([zd
+rhythm]t, rm,t) | t ∈[1, T]} for
+a linear regressor.
+The ﬁnal evaluation scores are then calculated as follows:
+Consistency score = 1 −1
+T
+T
+X
+t=1
+σ
+t (r1...M,t)
+(3)
+
+Consistency
+Restrictiveness
+Linearity
+Rhythm Density
+Note Density
+Rhythm Density
+Note Density
+Rhythm Density
+Note Density
+Proposed (Vanilla VAE)
+0.4367 ± 0.0258
+0.3490 ± 0.0360
+0.6645 ± 0.0169
+0.6481 ± 0.0154
+0.7805 ± 0.0142
+0.8255 ± 0.0107
+Proposed (GM-VAE)
+0.5096 ± 0.0248
+0.4207 ± 0.0309
+0.6603 ± 0.0164
+0.6457 ± 0.0132
+0.7580 ± 0.0124
+0.7792 ± 0.0177
+Pati et al. [19]
+0.4625 ± 0.0264
+0.5100 ± 0.0150
+0.6417 ± 0.0171
+0.5497 ± 0.0206
+0.7613 ± 0.0171
+0.8220 ± 0.0143
+CVAE [15]
+0.2613 ± 0.0376
+0.4997 ± 0.0355
+0.6863 ± 0.0221
+0.7140 ± 0.0130
+0.4969 ± 0.0166
+0.3997 ± 0.0411
+Fader Networks [16]
+0.2730 ± 0.0366
+0.4983 ± 0.0425
+0.6861 ± 0.0163
+0.7379 ± 0.0149
+0.5482 ± 0.0283
+0.4647 ± 0.0292
+GLSR [18]
+0.1891 ± 0.0346
+0.1969 ± 0.0831
+0.6365 ± 0.0276
+0.7136 ± 0.0185
+0.2465 ± 0.0197
+0.1799 ± 0.0209
+Table 1. Experimental results (conducted on the Yamaha dataset test split) on the controllability of low-level features
+(rhythm density and note density) using disentangled latent variables. Bold marks the best performing model.
+Restrictiveness score = 1 −1
+M
+M
+X
+m=1
+σ
+m(nm,1..T )
+(4)
+Linearity score = R2(M(p1...M))
+(5)
+where σ(·) denotes the standard deviation, and M denotes
+the linear regressor model. In other words, consistency
+calculates the average standard deviation across all out-
+put rhythm density values given the same zd
+rhythm, whereas
+restrictiveness calculates the average standard deviation
+across all output note density values given the changing
+zd
+rhythm. In a perfectly disentangled and linear model, the
+consistency, restrictiveness and linearity scores should be
+equal to 1, and higher scores indicate better performance.
+5. EXPERIMENTS AND RESULTS
+We compare the evaluation scores of our proposed model,
+using both a vanilla VAE (omitting the cluster inference
+component) and GM-VAE, with several models proposed
+in related work on controllable synthesis: CVAE [15],
+Fader Networks [16], GLSR [18] and Pati et al. [19]. We
+repeat the above steps for 10 runs for each model and re-
+port the mean and standard deviation of each score. Table 1
+shows the evaluation results. Overall, our proposed models
+achieve a good all-rounded performance on every metric as
+compared to other models, especially in terms of linearity,
+models that use [19]’s regularization method largely out-
+perform other models. Our model shares similar results
+with [19], however as compared to their work, we encode
+a multi-dimensional, regularized latent space instead of a
+single dimension value for each low-level feature, thus al-
+lowing more ﬂexibility. Our model can also be used for
+“generation via analogy” as mentioned in EC2-VAE [33],
+by mix-matching zrhythm from one sample with znote from
+another. Moreover, the feature latent vectors can be used to
+infer interpretable and semantically meaningful clusters.
+5.1 Inferring High-Level Features from Latent
+Low-Level Representations
+Figure 3 visualizes the rhythm and note density latent
+space learnt by GM-VAE using t-SNE dimensionality re-
+duction. We observe that both spaces successfully learn a
+Gaussian-mixture space with two well-separated compo-
+nents, which correspond to high and low arousal clusters,
+even though it was trained with only around 1% of labelled
+data. We also ﬁnd that the regularized zd values capture
+Figure 3. Visualization of rhythm (top) and note (bottom)
+density latent space in the GM-VAE. Each column is col-
+ored in terms of: (left) original density values, (middle)
+regularized zd values, (right) arousal cluster labels (0 refers
+to low arousal and 1 refers to high arousal).
+the overall trend of the actual rhythm and note density val-
+ues. Interestingly, the model learns the implicit relation-
+ship between high/low arousal and the corresponding lev-
+els of rhythm/note density. From Figure 3, we observe that
+the high arousal cluster corresponds to higher rhythm den-
+sity and lower note density, whereas the low arousal clus-
+ter corresponds to lower rhythm density and higher note
+density. This is reasonable as music segments with high
+arousal often consist of fast running notes and arpeggios,
+being played one note at a time, whereas music segments
+with low arousal often exhibit a chordal texture with more
+sustaining notes and relatively less melodic activity.
+To further inspect the importance of using low-level
+features, we train a separate GM-VAE model with only
+one encoder (without discriminator component), which en-
+codes only a single latent vector for each segment. The
+model is trained to infer the arousal label with the single
+latent vector similarly in a semi-supervised manner, and
+the hyperparameters are kept the same. From Figure 4,
+we can observe that the latent space learnt without using
+low-level features is not well-segregated into two separate
+components, suggesting that the right choice of low-level
+features helps the learning of a more discriminative and
+disentangled feature latent space.
+The major advantage demonstrated from the results
+above is that by carefully choosing low-level features sup-
+ported by domain knowledge, semi-supervised (or weakly
+supervised) training can be leveraged to learn interpretable
+representations that can capture implicit relationships be-
+tween high-level and low-level features, overcoming the
+
+Figure 4. Arousal cluster visualization of GM-VAE with
+(left), and without (right) using low-level features.
+Figure 5. Examples of arousal transfer on music samples.
+difﬁculties mentioned in the introduction section. This is
+an important insight for learning representations of abstract
+musical qualities under label scarcity conditions in future.
+5.2 Style Transfer on High Level Features
+Utilizing the learnt high-level feature representations en-
+ables the application of feature style transfer.
+Follow-
+ing [29], given the means of each Gaussian component,
+µarousal=0 and µarousal=1, the “shifting vector” from high
+arousal to low arousal is slow_shift = µarousal=0 −µarousal=1,
+and vice versa. To shift a music segment from high to
+low arousal, we modify the latent codes by z′
+rhythm =
+zrhythm + slow_shift, z′
+note = znote + slow_shift. Both new latent
+codes z′
+rhythm and z′
+note are fed into the global decoder for
+reconstruction. For cases where crhythm ̸= cnote, we choose
+to perform shifting only on the latent codes which are not
+lying within the target arousal cluster. Figure 5 shows sev-
+eral examples of arousal shift performed on given music
+segments. We can observe that the shift is clearly accom-
+panied with the desired changes in rhythm density and
+note density, as mentioned in Section 5.1. More exam-
+ples are available online. 1 We also conducted a subjective
+listening test to evaluate the quality of arousal shift per-
+formed by Music FaderNets. We randomly chose 20 music
+segments from our dataset, and performed a low-to-high
+arousal shift on 10 segments and a high-to-low arousal
+shift on the other 10. Each subject listened to the original
+sample and then the transformed sample, and was asked
+whether (1) the arousal level changes after the transforma-
+tion, and; (2) how well the transformed sample sounds in
+terms of rhythm, melody, harmony and naturalness, on a
+1 https://music-fadernets.github.io/
+Figure 6. Subjective listening test results. Left: Heat map
+of annotated arousal level change against actual arousal
+level change. Right: Bar plot of opinion scores for each
+musical quality, with 95% conﬁdence interval.
+Likert scale of 1 to 5 each.
+A total of 48 subjects participated in the survey. We
+found that 81.45% of the responses agreed with the ac-
+tual direction of level change in arousal, shifted by the
+model. This showed that our model is capable of shifting
+the arousal level of a piece to a desired state. From the heat
+map shown in Figure 6, we observe that shifting from high
+to low arousal has a higher rate of agreement (92.5%) than
+shifting from low to high arousal (70.41%). Meanwhile,
+the mean opinion score of rhythm, melody, harmony and
+naturalness were reported at 3.53, 3.39, 3.41 and 3.33 re-
+spectively, showing that the quality of the generated sam-
+ples are generally above moderate level.
+6. CONCLUSION AND FUTURE WORK
+We propose a novel framework called Music FaderNets 2 ,
+which can generate new variations of music samples by
+controlling levels (“sliding knobs”) of low-level attributes,
+trained with latent regularization and feature disentangle-
+ment techniques. We also show that the framework is ca-
+pable of inferring high-level feature representations (“pre-
+sets”, e.g. arousal) on top of latent low-level representa-
+tions by utilizing the GM-VAE framework. Finally, we
+demonstrate the application of using learnt high-level fea-
+ture representations to perform arousal transfer, which was
+conﬁrmed in a user experiment. The key advantage of this
+framework is that it can learn interpretable mixture com-
+ponents that reveal the intrinsic relationship between low-
+level and high-level features using semi-supervised learn-
+ing, so that abstract musical qualities can be quantiﬁed in
+a more concrete manner with limited amount of labels.
+While the strength of arousal transfer is gradually in-
+creased, we ﬁnd that the identity of the original piece is
+also gradually shifted. A recent work on text generation
+using VAEs [43] observed this similar trait and attributed
+its cause to the “latent vacancy" problem by topological
+analysis. A possible solution is to adopt the Constrained-
+Posterior VAE [43], in which we aim to explore in future
+work. Future work will also focus on applying the frame-
+work on other sets of abstract musical qualities (such as
+valence [37], tension [44], etc.), and extending the frame-
+work to model multi-track music with longer duration to
+produce more complete music.
+2 Source code available at: https://github.com/gudgud96/
+music-fader-nets
+
+7. ACKNOWLEDGEMENTS
+We would like to thank the anonymous reviewers for their
+constructive reviews. We also thank Yin-Jyun Luo for the
+insightful discussions on GM-VAEs. This work is sup-
+ported by MOE Tier 2 grant no. MOE2018-T2-2-161 and
+SRG ISTD 2017 129. The subjective listening test is ap-
+proved by the Institutional Review Board under SUTD-
+IRB 20-315. We would also like to thank the volunteers
+for taking the subjective listening test.
+8. REFERENCES
+[1] R. Habib, S. Mariooryad, M. Shannon, E. Battenberg,
+R. Skerry-Ryan, D. Stanton, D. Kao, and T. Bagby,
+“Semi-supervised generative modeling for control-
+lable speech synthesis,” in International Conference of
+Learning Representations, 2020.
+[2] A. Aljanaki, Y.-H. Yang, and M. Soleymani, “Emotion
+in music task at mediaeval 2015.” in MediaEval, 2015.
+[3] L. N. Ferreira and J. Whitehead, “Learning to gener-
+ate music with sentiment,” in Proc. of the International
+Society for Music Information Retrieval Conference,
+2019.
+[4] R. Bresin and A. Friberg, “Emotional coloring of
+computer-controlled music performances,” Computer
+Music Journal, vol. 24, no. 4, pp. 44–63, 2000.
+[5] S. R. Livingstone, R. Muhlberger, A. R. Brown, and
+W. F. Thompson, “Changing musical emotion: A com-
+putational rule system for modifying score and perfor-
+mance,” Computer Music Journal, vol. 34, no. 1, pp.
+41–64, 2010.
+[6] S. K. Ehrlich, K. R. Agres, C. Guan, and G. Cheng, “A
+closed-loop, music-based brain-computer interface for
+emotion mediation,” PloS one, vol. 14, no. 3, 2019.
+[7] Y. Kim, S. Wiseman, and A. M. Rush, “A tutorial on
+deep latent variable models of natural language,” arXiv
+preprint arXiv:1812.06834, 2018.
+[8] Z. Jiang, Y. Zheng, H. Tan, B. Tang, and H. Zhou,
+“Variational deep embedding: An unsupervised and
+generative approach to clustering,” arXiv preprint
+arXiv:1611.05148, 2016.
+[9] D. Herremans and C.-H. Chuan, “The emergence of
+deep learning: new opportunities for music and audio
+technologies,” Neural Computing and Applications,
+vol. 32], p. 913–914, 2020.
+[10] J.-P. Briot, G. Hadjeres, and F. Pachet, Deep learn-
+ing techniques for music generation.
+Springer, 2019,
+vol. 10.
+[11] D. Herremans, C.-H. Chuan, and E. Chew, “A func-
+tional taxonomy of music generation systems,” ACM
+Computing Surveys (CSUR), vol. 50, no. 5, pp. 1–30,
+2017.
+[12] S. Oore, I. Simon, S. Dieleman, D. Eck, and K. Si-
+monyan, “This time with feeling: Learning expressive
+musical performance,” Neural Computing and Appli-
+cations, pp. 1–13, 2018.
+[13] C.-Z. A. Huang, A. Vaswani, J. Uszkoreit, N. Shazeer,
+I. Simon, C. Hawthorne, A. M. Dai, M. D. Hoffman,
+M. Dinculescu, and D. Eck, “Music transformer: Gen-
+erating music with long term structure,” in Interna-
+tional Conference of Learning Representations, 2019.
+[14] M. Mirza and S. Osindero, “Conditional generative ad-
+versarial nets,” arXiv preprint arXiv:1411.1784, 2014.
+[15] K. Sohn, H. Lee, and X. Yan, “Learning structured out-
+put representation using deep conditional generative
+models,” in Advances in Neural Information Process-
+ing Systems, 2015, pp. 3483–3491.
+[16] G. Lample, N. Zeghidour, N. Usunier, A. Bordes,
+L. Denoyer, and M. Ranzato, “Fader networks: Ma-
+nipulating images by sliding attributes,” in Advances
+in Neural Information Processing Systems, 2017, pp.
+5967–5976.
+[17] A. Roberts, J. Engel, C. Raffel, C. Hawthorne, and
+D. Eck, “A hierarchical latent vector model for learning
+long-term structure in music,” in International Confer-
+ence of Machine Learning, 2018.
+[18] G. Hadjeres, F. Nielsen, and F. Pachet, “Glsr-vae:
+Geodesic latent space regularization for variational au-
+toencoder architectures,” in IEEE Symposium Series on
+Computational Intelligence (SSCI).
+IEEE, 2017, pp.
+1–7.
+[19] A. Pati and A. Lerch, “Latent space regularization
+for explicit control of musical attributes,” in ICML
+Machine Learning for Music Discovery Workshop
+(ML4MD), Extended Abstract, Long Beach, CA, USA,
+2019.
+[20] J. Engel, M. Hoffman, and A. Roberts, “Latent con-
+straints: Learning to generate conditionally from un-
+conditional generative models,” in International Con-
+ference of Learning Representations, 2017.
+[21] S. Dai, Z. Zhang, and G. G. Xia, “Music style transfer:
+A position paper,” in Proc. of International Workshop
+on Musical Metacreation, 2018.
+[22] K. Choi, C. Hawthorne, I. Simon, M. Dinculescu, and
+J. Engel, “Encoding musical style with transformer au-
+toencoders,” in International Conference of Machine
+Learning, 2020.
+[23] X. Chen, Y. Duan, R. Houthooft, J. Schulman,
+I. Sutskever, and P. Abbeel, “Infogan: Interpretable
+representation learning by information maximizing
+generative adversarial nets,” in Advances in Neural In-
+formation Processing Systems, 2016, pp. 2172–2180.
+
+[24] I. Higgins, L. Matthey, A. Pal, C. Burgess, X. Glorot,
+M. Botvinick, S. Mohamed, and A. Lerchner, “beta-
+vae: Learning basic visual concepts with a constrained
+variational framework.” in International Conference of
+Learning Representations, 2017.
+[25] H. Kim and A. Mnih, “Disentangling by factoris-
+ing,” in International Conference of Machine Learn-
+ing, 2018.
+[26] L. Yingzhen and S. Mandt, “Disentangled sequential
+autoencoder,” in International Conference on Machine
+Learning, 2018, pp. 5670–5679.
+[27] W.-N. Hsu, Y. Zhang, and J. Glass, “Unsupervised
+learning of disentangled and interpretable representa-
+tions from sequential data,” in Advances in neural in-
+formation processing systems, 2017, pp. 1878–1889.
+[28] Y. Wang, D. Stanton, Y. Zhang, R. Skerry-Ryan,
+E. Battenberg, J. Shor, Y. Xiao, F. Ren, Y. Jia, and R. A.
+Saurous, “Style tokens: Unsupervised style modeling,
+control and transfer in end-to-end speech synthesis,” in
+International Conference of Machine Learning, 2018.
+[29] Y.-J. Luo, K. Agres, and D. Herremans, “Learning dis-
+entangled representations of timbre and pitch for mu-
+sical instrument sounds using gaussian mixture varia-
+tional autoencoders,” in Proc. of the International Soci-
+ety for Music Information Retrieval Conference, 2019.
+[30] Y.-N. Hung, Y.-A. Chen, and Y.-H. Yang, “Learning
+disentangled representations for timber and pitch in
+music audio,” arXiv preprint arXiv:1811.03271, 2018.
+[31] Y.-N. Hung, I. Chiang, Y.-A. Chen, Y.-H. Yang et al.,
+“Musical composition style transfer via disentangled
+timbre representations,” in International Joint Confer-
+ence of Artiﬁcial Intelligence, 2019.
+[32] G. Brunner, A. Konrad, Y. Wang, and R. Wattenhofer,
+“Midi-vae: Modeling dynamics and instrumentation
+of music with applications to style transfer,” in Proc.
+of the International Society for Music Information Re-
+trieval Conference, 2018.
+[33] R. Yang, D. Wang, Z. Wang, T. Chen, J. Jiang, and
+G. Xia, “Deep music analogy via latent representation
+disentanglement,” in Proc. of the International Society
+for Music Information Retrieval Conference, 2019.
+[34] T. Akama, “Controlling symbolic music generation
+based on concept learning from domain knowledge,”
+in Proc. of the International Society for Music Infor-
+mation Retrieval Conference, 2019.
+[35] D. P. Kingma and M. Welling, “Auto-encoding varia-
+tional bayes,” in International Conference of Learning
+Representations, ICLR, 2014.
+[36] W.-N. Hsu, Y. Zhang, R. J. Weiss, H. Zen, Y. Wu,
+Y. Wang, Y. Cao, Y. Jia, Z. Chen, J. Shen et al., “Hierar-
+chical generative modeling for controllable speech syn-
+thesis,” in International Conference of Learning Rep-
+resentations, 2019.
+[37] J. A. Russell, “A circumplex model of affect.” Journal
+of personality and social psychology, vol. 39, no. 6, p.
+1161, 1980.
+[38] A. Gabrielsson and E. Lindström, “The inﬂuence of
+musical structure on emotional expression.” 2001.
+[39] P. Gomez and B. Danuser, “Relationships between mu-
+sical structure and psychophysiological measures of
+emotion.” Emotion, vol. 7, no. 2, p. 377, 2007.
+[40] M. S. Cuthbert and C. Ariza, “music21: A toolkit for
+computer-aided musicology and symbolic music data,”
+in Proc. of the International Society for Music Infor-
+mation Retrieval Conference, 2010.
+[41] R. Shu, Y. Chen, A. Kumar, S. Ermon, and B. Poole,
+“Weakly supervised disentanglement with guarantees,”
+in International Conference of Learning Representa-
+tions, 2020.
+[42] T. Adel, Z. Ghahramani, and A. Weller, “Discovering
+interpretable representations for both deep generative
+and discriminative models,” in International Confer-
+ence on Machine Learning, 2018, pp. 50–59.
+[43] P. Xu, J. C. K. Cheung, and Y. Cao, “On variational
+learning of controllable representations for text without
+supervision,” in International Conference on Machine
+Learning, 2020.
+[44] D. Herremans and E. Chew, “Morpheus:
+generat-
+ing structured music with constrained patterns and
+tension,” IEEE Transactions on Affective Computing,
+2017.

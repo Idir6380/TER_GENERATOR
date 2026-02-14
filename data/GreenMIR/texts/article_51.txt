@@ -1,0 +1,911 @@
+CONLON: A PSEUDO-SONG GENERATOR BASED ON A NEW
+PIANOROLL, WASSERSTEIN AUTOENCODERS, AND OPTIMAL
+INTERPOLATIONS
+Luca Angioloni1
+Tijn Borghuis2,3
+Lorenzo Brusci3
+Paolo Frasconi1
+1 DINFO, Università di Firenze, Italy
+2 Eindhoven University of Technology, The Netherlands
+3 Musi-co, Eindhoven, The Netherlands
+first.last@unifi.it, first.last@musi-co.com
+ABSTRACT
+We introduce CONLON, a pattern-based MIDI generation
+method that employs a new lossless pianoroll-like data de-
+scription in which velocities and durations are stored in
+separate channels.
+CONLON uses Wasserstein autoen-
+coders as the underlying generative model. Its generation
+strategy is similar to interpolation, where MIDI pseudo-
+songs are obtained by concatenating patterns decoded from
+smooth trajectories in the embedding space, but aims to
+produce a smooth result in the pattern space by comput-
+ing optimal trajectories as the solution of a widest-path
+problem. A set of surveys enrolling 69 professional mu-
+sicians shows that our system, when trained on datasets
+of carefully selected and coherent patterns, is able to pro-
+duce pseudo-songs that are musically consistent and po-
+tentially useful for professional musicians. Additional ma-
+terials can be found at https://paolo-f.github.
+io/CONLON/.
+1. INTRODUCTION
+Algorithmic music generation has attracted the interest of
+musicians and practictioners for long time, starting from
+early works by Guttman, Hiller and Isaacson [1] and Xe-
+nakis [2] in the 1950’s. Signiﬁcant progress has recently
+resulted from the widespread application of new and pow-
+erful methods based on deep generative models, letting this
+class of data-driven approaches gradually take over more
+traditional rule-based or probabilistic techniques [3, 4].
+This thriving line of research spans several dimensions of
+the generation process, including different types of data:
+audio signal [5, 6] vs. symbolic MIDI data; musical tex-
+tures: monophonic [7] vs.
+polyphonic [8, 9]; ensem-
+bles: single-instrument [9] vs. multi-instrument [7]; goals:
+e.g., continuation [10], accompaniment [11], style trans-
+fer [12–14], or interpolation [7,14].
+c⃝Luca Angioloni, Tijn Borghuis, Lorenzo Brusci, Paolo
+Frasconi.
+Licensed under a Creative Commons Attribution 4.0 Inter-
+national License (CC BY 4.0).
+Attribution:
+Luca Angioloni, Tijn
+Borghuis, Lorenzo Brusci, Paolo Frasconi, “CONLON: A Pseudo-Song
+Generator Based on a New Pianoroll, Wasserstein Autoencoders, and Op-
+timal Interpolations”, in Proc. of the 21st Int. Society for Music Informa-
+tion Retrieval Conf., Montréal, Canada, 2020.
+We are particularly interested in developing a tool for
+a context where the automatic generation and prolifera-
+tion of new music material (not necessarily ﬁnished pieces)
+is useful to assist musicians in music and media produc-
+tion. Usefulness in this context may have different facets:
+supporting and accelerating personal explorations of un-
+known or semi-known music areas, collecting intra-genre
+or cross-genre ideas of various complexity and abstraction,
+augmenting the composer’s ability to explore the combina-
+torial space of rhythmic, melodic, and harmonic variations.
+In other words, what Boden calls “exploring conceptual
+spaces” [15]. In spite of the impressive amount of recent
+advancements in music generation with machine learning
+approaches, the musical quality of the results is still not
+always sufﬁcient to enable a widespread adoption in real-
+istic professional scenarios such as studio production using
+standard Digital Audio Workstations (DAWs) or live per-
+formance of electronic music.
+In this paper, we focus on the autonomous generation of
+polyphonic and multi-instrument MIDI partitures, aiming
+at producing relatively long pseudo-songs (i.e. tracks that
+have the duration of a song but whose temporal structure
+is not controlled by a compositional intent) in mainstream
+genres such as Acid Jazz, Soul or High Pop, that are effec-
+tively usable in a professional music production context.
+We argue that achieving this goal requires not only the ef-
+fective exploitation of algorithmic ideas but also a care-
+ful selection of coherent musical materials to be used as
+training data. Unlike the case of image data, where there
+exist large scale high quality coherent datasets (for exam-
+ple CelebA [16] focusing on human faces), existing sym-
+bolic music datasets for mainstream music contain large
+variations in genre, style, and track/instrument role, that
+make it more difﬁcult to learn to generate musically co-
+herent pseudo-songs. In the attempt to verify the impact
+of dataset quality on the results, we introduce in this paper
+(perhaps for the ﬁrst time in this research area) two new
+datasets that were not extracted from existing collections
+but that have been especially composed and edited by two
+musicians made aware of creating training sets for genera-
+tive models. One dataset, ASF-4, is in Acid Jazz, Soul and
+Funk; the other one, HP-10, in High Pop. Compared to
+datasets used in other experiments (e.g. LPD-5 [17]) they
+are small, i.e. of a size that individual musicians would be
+able to compose or curate by themselves. This opens up the
+
+possibility of personalized generators, assisting musicians
+in producing their own music.
+From the algorithmic point of view, possible solutions
+to the music generation problem can be characterized
+across several separate dimensions (see [3] for a thorough
+taxonomy). The most important ones for the goals of this
+paper are (1) the type of data structures that are used to de-
+scribe MIDI patterns (2) the nature of the generative learn-
+ing models, and (3) the strategy used to produce a whole
+musical piece. The system presented in this paper intro-
+duces novelties across all these three dimensions, whose
+combination allows us to generate meaningful and profes-
+sionally usable streams of music. In terms of data descrip-
+tion, we introduce a novel pianoroll-like pattern descrip-
+tion that stores velocities and durations in two separate
+channels. The description is lossless (i.e., it can be in-
+verted to recover the original MIDI data exactly) and per-
+ceptually robust to reconstruction errors (i.e., it does not
+suffer the note shattering problem associated with binary
+pianorolls that store consecutive high bits to represent note
+durations). As a generative model, we experiment with
+Wasserstein autoencoders (WAE) [18], a type of autoen-
+coder that is less subject to the “blurriness” problem typi-
+cally associated with variational autoencoders (VAE) [19].
+To the best of our knowledge, WAEs have not been applied
+to music generation before. Third, our generation strategy
+is based on interpolation as in previous works [7,14] but we
+formulate it as an optimization problem for exploring the
+autoencoder latent space in a way that prevents abrupt tran-
+sitions between consecutively generated patterns, as well
+as regions with little variation.
+We call our system CONLON, for Channeled Onset of
+Notes and Length Of Notes, and in honor of Conlon Nan-
+carrow (1912–1997), a pioneer of piano roll compositions.
+A thorough evaluation with human experts suggest that
+CONLON is able to produce pseudo-songs that are truly
+exploitable by professional musicians in mainstream gen-
+res.
+2. A NEW PIANOROLL WITH EXPLICIT
+DURATIONS
+Each track in a MIDI stream consists of a sequence of time
+stamped events. We consider here only two types of note
+events: ON(t, n, v), and OFF(t, n). Here t denotes the
+time at which a note with pitch n begins or ends, measured
+in MIDI clock pulses. In general, n takes values between 0
+(C-1) and 127 (G9). The MIDI velocity, v, takes values in
+the integer range [0, 127]. Roughly, velocity is associated
+with the note intensity (allowing to represent dynamic ex-
+pression elements, such as pianissimo, forte, or accents in
+percussive instruments) but depending on the instrument
+attached to the track, it can also affect timbre (for exam-
+ple, a “clicked” Hammond organ sound could be selected
+in the sound bank when the velocity exceed a given thresh-
+old). Note that although n and v take values in the same
+range, v should be regarded as a continuous variable and n
+as a categorical one.
+Before this data can be fed into a learning algorithm,
+it needs to be arranged in a proper description format.
+Both variable-lenght and ﬁxed-lenght descriptions have
+been studied in the literature. Variable-length descriptions
+are typically used in conjunction with various types of re-
+current neural networks (RNNs) [20].
+Fixed-length de-
+scription include the pianorolls (PR) introduced in [21] for
+melodies and later extended to the multitrack polyphonic
+case [17, 22], and are suitable for modules based on con-
+volutional neural networks (CNNs) [23]. Pianorolls, how-
+ever, are a lossy description of MIDI data in at least two
+ways. First, they do not include note velocities, which are
+important for dynamic expression in many musical gen-
+res. Second, they make it impossible to distinguish be-
+tween long notes and repeated occurrences of the same
+notes (see Fig. 1). The latter limitation can be mitigated
+by using a ﬁner quantization step or ﬁxed by adding a re-
+play matrix [9]. Still, the PR description may suffer a fun-
+damental problem when there are imperfections in the re-
+constructions generated by a trained model. In facts, false
+negatives in the reconstruction may shatter a long note into
+several shorter ones, which may produce a musically ob-
+sessive and unpleasant result.
+Figure 1. A short phrase described as PR (top right) and
+as PRC (bottom). To construct a simple example, here we
+set quantization at 1/8.
+The solution proposed in this paper uses a second chan-
+nel as in [9] but explictly represents note durations as con-
+tinuous variables. More precisely, in our PRC description,
+the tensor associated with a ﬁxed-length music pattern is
+constructed as follows. First, we introduce a time quan-
+tization function q that maps ﬁne-grained timestamps into
+coarse-grained temporal positions in the range 1, . . . , T.
+For example T = 128 if we quantize four 4
+4 bars at 1/32th.
+Assuming for simplicity a single instrument and denoting
+by N the number of pitches in the used range, we create a
+tensor x of shape T ×N×2. In the ﬁrst channel, xq(t),n,1 =
+v if there occurs an event ON(t, n, v) and xq(t),n,1 = 0
+otherwise. In the second channel, xq(t),n,2 = d if there
+occurs an event ON(t, n, v) whose duration (expressed in
+quantized steps) is d, and xq(t),n,2 = 0 otherwise. The
+construction is illustrated in Fig. 1. Polyphony is handled
+naturally in this description and multi-instrument patterns
+with K tracks can be easily described by allocating two
+channels for each track as above, resulting in a T ×N ×2K
+tensor. Our PRC description does not suffer the ambiguity
+between long notes and repeated occurrences of the same
+note and, except for time quantization, is completely loss-
+less (i.e., a quantized MIDI pattern transformed into the
+corresponding PRC tensor can be recovered exactly). Ad-
+
+ditionally, it can be perceptually more robust to reconstruc-
+tion errors. A further advantage is that all the information
+about a note is local, whereas in the case of PR, a convo-
+lutional network requires a wide receptive ﬁeld to infer the
+note duration.
+3. GENERATING PATTERNS WITH
+WASSERSTEIN AUTOENCODERS
+Generative models that have been applied to music include
+various types of encoder/decoder architectures, different
+variants of generative adversarial networks (GAN) [24], as
+well as transformer based architectures [25]. Variational
+autoencoders (VAE) [19] have been used in systems like
+VRAE [26], GLSR-VAE [27] and MusicVAE [7] while
+GANs have been used in systems like C-RNN-GAN [28]
+MidiNet [21] and MuseGAN [17,22].
+Both with autoencoders and GANs, a network G(z)
+(called either decoder or generator) is trained to map a la-
+tent or noise vector z ∈Rdz into a pattern. Here we are
+interested in autoencoder based approaches (see also Sec-
+tion 4.1 for a motivation). Among these approaches, VAEs
+are theoretically elegant and applicable to music genera-
+tion. They are regularized by penalizing the expected KL
+divergence between the posterior q(z|x) and a zero-mean
+Gaussian prior pz, with the expectation being taken over
+training points.
+However, as nothing prevents different
+patterns being mapped to close latent codes, the decoder
+is sometimes asked to reconstruct different patterns from
+similar codes, resulting into a well known blurriness phe-
+nomenon in the case of images [29]. In the case of music
+patterns described as tensors, we observed that a form of
+“blurriness” also occurs, resulting in large clusters of notes
+being played together and sometimes in swarms of short
+notes that are never present in the training data. WAEs [18]
+avoid this problem by pushing the expectation inside the
+divergence, i.e., penalizing a divergence D between the
+prior qz and the aggregated posterior qz(z) = Ep q(z|x),
+where p is the data distribution. WAEs thus minimize, with
+respect to the parameters of the decoder, the quantity
+min
+q(z|x) Ep Eq(z|x) c(x, G(z)) + λD(qz, pz)
+(1)
+where c is a reconstruction loss and λ a hyperparameter to
+be ﬁxed. In all our experiments we employed the Maxi-
+mum Mean Discrepancy (MMD) [30] for D and a Gaus-
+sian prior for pq, and we structured the encoder and the de-
+coder as in the DCGAN [31] architecture. Note that unlike
+MuseGAN, which stacks bars over an additional tensor
+axis and uses 3D convolutional layers, tensors in PRC can
+be processed by 2D convolutional layers. The input ten-
+sors are normalized in the (−1, 1) range. The ﬁnal layer of
+all our decoders has hyperbolic tangent output units. The
+mean squared error between reconstructions and input pat-
+terns was used in the optimization criterion during training.
+The latent vector size, dz, was adjusted with a trial-and-
+error approach, trying to ﬁnd the smallest possible value
+yielding good quality interpolations. If dz is too small the
+validation error is large but if dz is too large, interpolations
+tend to create many patterns that are too close to those in
+the training set, in spite of a small validation error (which is
+therefore not an useful metric). Additionally, nearly empty
+patterns tend to appear in the middle of interpolations. We
+found dz = 3 for ASF-4 and dz = 5 for HP-10 and LPD-5
+to be a reasonable compromise. The remaining hyperpa-
+rameters were tuned using random search [32] guided by
+the validation set reconstruction error. We focused in par-
+ticular on the learning rate, η, and the number of epochs T
+used in conjunction with the Adam algorithm; the number
+of layers nl; the number of ﬁlters nf and the size of ﬁlters,
+k, used in the the DCGAN encoder and decoder (strides
+were ﬁxed to 2). Interestingly, large ﬁlter sizes k = 8
+were found to perform better than standard smaller sizes
+as compact ﬁlters are not able to capture musical patterns
+and distant relationships between notes.
+3.1 Converting Generated Tensors to MIDI
+In the case of PRC descriptions, “decoding” a MIDI pat-
+tern from the output tensor is almost straightforward (un-
+like the case of PR, where specialized GAN architectures
+have been introduced to avoid post-processing based on ei-
+ther hard thresholding or Bernoulli sampling [22]). First,
+predicted velocities and durations for each time t, pitch n,
+and instrument i, are rescaled in the range 0–127. Events
+whose rescaled predicted velocity v(t, n, i) < 1 or dura-
+tion d(t, n, i) < 1 (i.e., non-audible notes) are discarded.
+Finally, we apply the following transformation (similar to a
+gamma correction) to obtain corrected velocities vc(t, n, i)
+as follows:
+vc(t, n, i) =
+$
+127
+v(t, n, i)
+127
+ 1
+γi
+%
+(2)
+where γi is an instrument speciﬁc correction factor rang-
+ing from 2.9 for drums to 4.0 for Rhodes. Durations are
+directly retrieved from the (rescaled) duration channel.
+4. PSEUDO-SONGS
+The following approach assumes that a generative model
+G : z ∈Rdz 7→x ∈Rm×q×2 from embeddings to pat-
+terns is available. Function G can be either the decoder
+of an autoencoder or the generator of a GAN. A pseudo-
+song is then generated by creating a trajectory of length T,
+z1, . . . , zT , and applying G to each latent vector to produce
+a corresponding sequence of patterns.
+4.1 Interpolations
+When using autoencoders, we have the choice of picking a
+start pattern xs and a goal pattern xg (both from the test set)
+and use the encoder E to obtain z1 = E(xs), zT = E(xg).
+This for example allows users to produce a pseudo-song
+that moves smoothly from one genre to another. Musicians
+could even create ex-novo start and goal patterns with a
+particular purpose in mind. When using GANs to gener-
+ate, this option is not available but z1 and zT can be sam-
+pled from p(z) (with a less intentional result) or, alterna-
+tively, users may be given a set of pre-generated patterns
+
+from which to pick the endpoints from the pre-images of
+the generator.
+Two options are common for creating trajectories, linear
+interpolation: zt =
+t−T
+1−T z1 + 1−t
+1−T zT , t = 2, . . . , T −1,
+and spherical interpolation:
+zt =
+sin
+
+1−t
+θ(1−T )
+
+z1 + sin
+
+θ t−T
+1−T
+
+zT
+sin(θ)
+(3)
+where θ = arccos(z1/∥z1∥, zT /∥zT ∥).
+The latter is
+preferable when p(z) is Gaussian and dz is large [33].
+4.2 Swirls
+In this approach (also applicable to GANs), latent trajec-
+tories are produced by taking real and imaginary parts of
+periodic complex-valued parametric functions of the form
+f(t; al, bl, cl, dl) = ejalt −ejblt/2 + jejclt/3 + ejdlt/4
+for random choices of (al, bl, cl, dl), i.e., using z2l,t =
+ℜ(f(t; al, bl, cl, dl)) and z2l+1,t = ℑ(f(t; al, bl, cl, dl)),
+for l = 1, . . . , ⌊dz/2⌋, t = 1, . . . , T.
+4.3 Trajectory Smoothing
+Equally spaced points in the embedding space do not nec-
+essarily correspond to equally spaced reconstructions in
+the pattern space. This essentially depends on how gen-
+erative models allocate points in the pattern space to points
+in the embedding space. When creating pseudo-songs with
+either interpolations or swirls, this fact may lead in some
+cases to abrupt transitions and in some other cases to repet-
+itive regions that might be musically uninteresting. To ad-
+dress this issue, we suggest to increase T beyond the de-
+sired length and then subsample the trajectory. Smooth-
+ness can be achieved by maximizing the minimum distance
+between consecutive reconstructions and constraining the
+ﬁnal length to a desired integer L:
+max
+t1,...,tL
+min
+i=1,...,L−1 δ(G(zti), G(zti+1))
+(4)
+s.t.
+1 ≤ti < ti+1 ≤T i = 1, . . . L −1
+(5)
+ti+1 −ti ≤H i = 1, . . . L −1
+(6)
+where δ is a distance function on patterns (e.g., the Eu-
+clidean distance on PRC tensors) and H a lookahead hori-
+zon, i.e., the maximum allowed number of positions that
+may be skipped. Problem (4) can be reduced to an instance
+of the bottleck shortest path problem [34] on the T ×L trel-
+lis with vertex set {(t, τ), t = 1, . . . , T; τ = 1, . . . , L},
+edge set {((t, τ), (t + 1, τ + s)), t = 1, . . . , T; τ
+=
+1, . . . , L, s = 1, . . . , H}, and edge weights w((t, τ), (t +
+1, τ + s)) = δ(G(zt), G(zt+s)) (see Fig. 2). The problem
+is solvable by a slightly modiﬁed version of the Dijkstra
+algorithm (where nodes in the frontier are labeled by their
+maximum step cost rather than the sum of the step costs)
+or by a faster algorithm based on bucketing [34].
+5. DATASETS
+We tested CONLON on three dataset. ASF-4 is a set of
+910 patterns of four bars in three genres: acid jazz, soul
+Figure 2. Trellis for trajectory smoothing. The horizon H
+is 2 in this example. Among all paths from Start to Goal,
+the highlighted path is the one whose smallest edge weight
+is maximum.
+and funk. Each pattern has K = 4 tracks associated with a
+simple electro-acoustic quartet: drums, bass, Rhodes pi-
+ano, and Hammond organ.
+HP-10 is a set of 968 pat-
+terns of four bars in two genres: high-pop and progres-
+sive trance. Each pattern has K = 10 tracks associated
+with the following instrument set: drums, bass, Rhodes,
+brass-synth, choir, dark-pad, guitar, lead, pad, and strings.
+Both ASF-4 and HP-10 have been especially composed by
+two professional musicians for this study. In both cases,
+composers were instructed to create coherent 120bpm pat-
+terns of four bars. All patterns in these datasets were sub-
+sequently quantized at 1/32th resolution, manually curated
+for mistakes (including ﬁxing errors due to quantization),
+and ﬁnally transposed to either Cmaj or Amin to prevent
+tonality variations.
+The resulting PRC tensors have size
+128 × N × 2K, where N = 55 for ASF-4 and N = 60
+for HP-10. LPD-5 (cleansed version) was derived from
+the Lakh MIDI dataset [35] by Dong et al. [17] by retain-
+ing only songs with high matching scores to the Million
+Song Dataset. It contains 21,425 multitrack MIDI songs
+with K = 5 tracks and N = 108 pitches, where original
+tracks/instruments were merged into instrument families
+and cut by the authors of [17] into patterns consisting of
+two 4/4 bars. Automatic quantization at 1/48 was applied
+yielding tensors of size 192 × 108 × 10.
+Being manually curated, ASF-4 and HP-10 are much
+more coherent than LPD-5 in at least three ways. First,
+music style and genre is highly constrained, whereas LPD-
+5 contains a wide assortment of different genres. Second,
+instrument-role is well deﬁned, i.e., the instrument that
+plays in a certain track always maintains its role across the
+whole dataset. In LPD-5, some heuristics have been ap-
+plied by the authors of [17] to map instruments to the ﬁve
+tracks but in some cases very different instruments may
+collide on the same track. Third, the endpoints that demar-
+cate patterns always cover homogeneous phrases, i.e., the
+phrase always begins on the ﬁrst bar. In LPD-5, patterns
+are extracted by an automatic segmentation technique that
+cannot be equally reliable.
+6. LISTENING EXPERIMENTS
+To validate the CONLON approach, we conducted three
+listening experiments with a group of 69 musicians, re-
+
+cruited by the authors with the help of colleagues teaching
+in several music educational institutes. Subjects mainly
+identiﬁed themselves as composers and producers (often
+in combination with instrumentalist/performer), working
+mostly in three (non mutually exclusive) genres: Classi-
+cal, Contemporary and Electronic Dance Music. Over half
+the participants had more than 10 years of professional ex-
+perience in music, only one less than 3 years.
+Participants were told that the survey was part of a re-
+search project on the generation of music with machine
+learning techniques, with the long-term aim of developing
+new tools for music production and performance. They
+participated through an online survey service 1 that allows
+for questions with audio materials. The experiments con-
+sisted of two types of tasks.
+Comparison Subjects listen to a pair of short music tracks
+(64 bars, 130s), and indicate which of the two tracks
+is most usable in the context of mainstream music
+production (forced choice). The scenario they are
+asked to keep in mind is that they would receive the
+tracks as a midi ﬁle for inclusion and editing in the
+production of a mainstream song in their own DAW.
+Analysis Subjects listen to a single track, an excerpt (64
+bars) from a longer piece and assess the musical de-
+velopment of the composition over time, with re-
+gards to four aspects: Harmony, Rhythm, Melody,
+and Interplay of instruments, each judged on a 5-
+point Likert scale (from “very incoherent" to “very
+coherent"). To obtain further feedback, we asked the
+subjects to comment on good points of the composi-
+tion and points for improvement.
+Answers in the comparison task were converted to ranks
+for the tracks in a pair (i.e. rank is 1 for the preferred track
+and 2 for the other). We then computed the mean rank of
+the tracks across subjects. Following [36], we employed
+Kendall’s Coefﬁcient of Concordance (W) [37], to analyse
+the level of agreement among subjects, along with a com-
+monly used signiﬁcance test against the null hypothesis of
+no agreement [38].
+In the following we describe three experiments aim-
+ing at testing speciﬁc hypotheses relating CONLON to
+MuseGAN, PR to PRC, and the usability of pseudo-songs.
+For all models we set the interpolation length T =64, the
+desired length L=16, and the widest-path horizon H =20.
+1 http://www.surveygizmo.com
+Method
+HP-10
+LPD-5
+CONLON
+1.17
+1.45
+MuseGAN
+1.83
+1.55
+Concordance
+0.64
+0.01
+Signiﬁcance
+p<0.0005
+ns
+Table 1. Mean ranks assigned by subjects to the usability
+of interpolations generated with our system (CONLON)
+and MuseGAN [22]. m = 75 pairs were ranked.
+Description
+ASF-4
+HP-10
+LPD-5
+PRC
+1.08
+1.31
+1.5
+PR
+1.92
+1.69
+1.5
+Concordance
+0.72
+0.15
+0
+Signiﬁcance
+p<0.0005
+p<0.001
+ns
+Table 2. Mean ranks assigned by subjects to the usability
+of pseudo-songs generated with PRC and PR descriptions.
+m = 78 pairs were ranked.
+Aspect
+Harmony
+Rhythm
+Melody
+Interplay
+Coherent
+49%
+67%
+42%
+51%
+Neutral
+35%
+20%
+29%
+20%
+Incoherent
+16%
+13%
+29%
+29%
+Signiﬁcance
+p<.005
+p<.0005
+p<.005
+p<.0005
+Table 3. Coherence of CONLON pseudo-songs as judged
+by subjects, with respect to harmony, rhythm, melody, in-
+terplay of instruments.
+m = 69 judgements were col-
+lected.
+6.1 Comparing CONLON and MuseGAN
+To substantiate that CONLON is more usable in music pro-
+duction than previous approaches, we tested Hypothesis 1:
+Musicians ﬁnd pseudo-songs generated with WAEs and
+PRC descriptions more useable in music production than
+pseudo-songs generated with the MuseGAN model and PR
+(other factors being equal). A WAE-model was trained on
+PRC representations of the datasets HP-10 and LPD-5, and
+a MuseGAN model on PR representations of datasets HP-
+10 and LPD-5 to generate interpolations. On the same data,
+we trained a MuseGAN model with binary neurons [22]
+using the implementation at https://github.com/
+salu133445/musegan. Subjects were given pairs of
+matching interpolations to compare, differing in the ap-
+proach used, but with the same start, goal and length. Six
+pairs (three for each dataset) were presented for compari-
+son to 25 subjects, producing a total of 75 observations per
+dataset.
+Subjects generally judged pseudo-songs generated by
+CONLON to be more usable than pseudo-songs generated
+with the MuseGAN approach (for 5 out of the 6 pairs). But
+whereas the difference in ranking is clear and concordance
+among participants is signiﬁcant for the three pairs on the
+HP-10 dataset, differences were small and concordance
+not signiﬁcant among subjects for pseudo-songs generated
+from LPD-5. Table 1 shows the aggregated mean ranking
+per dataset.
+6.2 Comparing PR and PRC
+To investigate whether part of the improvement over previ-
+ous approaches is due to the representation, we tested Hy-
+pothesis 2: Musicians ﬁnd pseudo-songs generated with
+PRC descriptions more useable in music production than
+pseudo-songs generated with PR descriptions (other fac-
+tors being equal).
+A WAE-model was trained on PR
+
+ASF-4
+HP-10
+LPD-5
+P
+R
+V
+D
+P
+R
+V
+D
+P
+R
+V
+D
+PR
+6.1
+51.1
+32.2
+2.5
+4.1
+58.9
+28.8
+3.1
+1.4
+89.7
+41.0
+5.5
+PRC
+32.1
+53.9
+24.3
+1.0
+37.0
+58.0
+23.4
+1.8
+35.5
+60.2
+19.5
+2.6
+Table 4. Test set precision (P), recall (R), mean absolute errors on velocity (V ) and duration (D) for PR and PRC .
+and PRC representations of the datasets ASF-4, HP-10 and
+LPD-5 to generate interpolations. 26 subjects were given
+nine pairs of matching interpolations to compare (differing
+only in representation used), three for each dataset, result-
+ing in 78 observations per dataset.
+Subjects generally judged pseudo-songs generated with
+PRC representations to be more usable than pseudo-songs
+generated with PR representations (for 8 out of the 9 pairs).
+The difference in ranking is clear and concordance among
+participants is signiﬁcant for the 6 pairs on the ASF-4 and
+HP-10 datasets, but differences were small and concor-
+dance not signiﬁcant for the 3 pairs generated on different
+representations of the LPD-5 dataset. Table 2 shows the
+aggregated mean ranking and cross-subject concordance
+per dataset.
+6.3 Analyzing Development over Time
+To validate the way patterns are chained together by
+CONLON, we tested Hypothesis 3: Musicians ﬁnd the
+development over time of pseudo-songs generated with
+WAEs and PRC description coherent rather than incoher-
+ent (in terms of harmony, rhythm, melody and interplay
+between instruments).
+A WAE-model was trained on a
+PRC representation of datasets ASF-4 and HP-10 to gen-
+erate swirls. All subjects were given the analysis task for a
+swirl, resulting in 69 observations per aspect.
+Subjects generally judged the coherence of pseudo-
+songs on the positive side of the scale. For the three swirls
+presented in the experiment, each with four aspects, the
+median for all aspects lies at “somewhat coherent” (8 out
+of 12) or “neutral” (4 out of 12). The rating “very coher-
+ent” is reached for all aspects, the rating “very incoherent”
+in 10 out of 12. For all swirls, rhythm is the aspect with
+the highest coherence rating. Table 3 shows the aggregated
+answers for the three swirls, recoded to a 3-point scale.
+7. QUANTITATIVE EVALUATIONS
+When only a limited amount of human expert time is avail-
+able for surveys, it becomes difﬁcult to cover all differ-
+ent dimensions on which alternative methods can be com-
+pared. Rather that allowing non experts in our surveys, it
+may be preferable to complement human evaluation with a
+number of automatically computed metrics [39]. Here we
+consider reconstruction error and note shattering.
+7.1 Reconstruction error
+Here we complement human evaluations with some auto-
+matically computed metrics that are derived from test set
+reconstructions and are applicable to autoencoder-based
+methods. In particular, we aim to compare WAEs fed by
+PR vs WAEs fed by PRC . Precision and recall are deﬁned
+on the binary classiﬁcation problem where the ground truth
+consists of Bernoulli variables y(t, n, i) = 1 if there is
+a note-on event at time t for note n and instrument i.
+For these metrics we considered as predictions the binary
+quantities by(t, n, i) = 1 if the reconstructed value of the
+velocity at position (t, n, i) is above the smallest velocity
+encountered in the training set. In the case of PR descrip-
+tion, the predicted note-on event was the ﬁrst element in the
+merged row of consecutive predictions. We further consid-
+ered the mean absolute errors in predicting velocities (in
+the range [0 −127]) and durations (in units of 1/32ths of
+bar). Test set results comparing PR and PRC (everything
+else being equal) are reported in Table 4.
+7.2 Note Shattering
+Results in Table 4 indicate that PR yields good recall but
+very low precision, and has a higher error on both velocity
+and duration. This can be partially explained by the pres-
+ence of a high number of shattered notes. To verify this
+hypothesis we computed the note number growth due to
+shattering as follows. For each note in the ground truth,
+identiﬁed by the triplet (n, i, T), being n the pitch, i the
+instrument, and T = [tON, tOFF] the temporal interval, we
+counted the number of notes in the reconstruction that have
+the same pitch n and instrument i, and whose note-ON
+time falls within T. We then summed these counts over
+all notes in the test set. In the absence of shattering, the
+total count equals the original number of notes. We found
+that WAE-PR increased the number of notes by 19%, 12%,
+38% on ASF-4, HP-10, and LPD-5, respectively. By com-
+parison, the increase factors were only 5%, 3%, and 10%
+in the case of WAE-PRC .
+8. CONCLUSIONS
+CONLON combines the new PRC data description with
+Wasserstein autoencoders and generation strategies based
+on optimized interpolation and swirling to produce pattern-
+based pseudo-songs. When trained on coherent datasets,
+the generated material is musically coherent and poten-
+tially useful in music production by professional musi-
+cians.
+Pseudo-songs can sound like directed musical ﬂows,
+but this is entirely due to the properties of the embed-
+ding space, longer-term structure is not considered. In that
+sense, interpolating and swirling are closer to improvisa-
+tion than to composition. A natural next step is to label
+dataset patterns with structural categories (e.g. verse, cho-
+rus) and introduce form via mechanisms of conditioning.
+
+9. REFERENCES
+[1] L. A. Hiller and L. M. Isaacson, Experimental Music:
+Composition with an Electronic Computer.
+McGraw-
+Hill, 1959.
+[2] I. Xenakis, “Musiques formelles: nouveaux principes
+formels de composition musicale,” La Revue musicale,
+no. 253–254, 1963, paris: Editions Richard-Masse.
+[3] J.-P. Briot, G. Hadjeres, and F. Pachet, Deep Learning
+Techniques for Music Generation, Computational Syn-
+thesis and Creative Systems.
+Springer Nature, 2019.
+[4] F. Carnovalini and A. Rodà, “Computational creativ-
+ity and music generation systems: An introduction to
+the state of the art,” Frontiers in Artiﬁcial Intelligence,
+vol. 3, Apr 2020.
+[5] A. van den Oord, S. Dieleman, H. Zen, K. Simonyan,
+O. Vinyals, A. Graves, N. Kalchbrenner, A. W. Senior,
+and K. Kavukcuoglu, “Wavenet: A generative model
+for raw audio,” CoRR, vol. abs/1609.03499, 2016.
+[6] S. Dieleman, A. van den Oord, and K. Simonyan, “The
+challenge of realistic music generation: modelling raw
+audio at scale,” in Advances in Neural Information Pro-
+cessing Systems 31, 2018, pp. 8000–8010.
+[7] A. Roberts, J. H. Engel, C. Raffel, C. Hawthorne, and
+D. Eck, “A hierarchical latent vector model for learn-
+ing long-term structure in music,” in Proceedings of
+the 35th International Conference on Machine Learn-
+ing, vol. 80.
+PMLR, 2018, pp. 4361–4370.
+[8] N. Boulanger-Lewandowski, Y. Bengio, and P. Vin-
+cent,
+“Modeling temporal dependencies in high-
+dimensional sequences:
+Application to polyphonic
+music generation and transcription,” in Proceedings of
+the 29th International Conference on Machine Learn-
+ing, 2012.
+[9] H. H. Mao, T. Shin, and G. W. Cottrell, “Deepj: Style-
+speciﬁc music generation,” in 12th IEEE International
+Conference on Semantic Computing, 2018, pp. 377–
+382.
+[10] C. Donahue, H. H. Mao, Y. E. Li, G. W. Cot-
+trell, and J. J. McAuley, “Lakhnes: Improving multi-
+instrumental music generation with cross-domain pre-
+training,” in Proceedings of the 20th International
+Society for Music Information Retrieval Conference,
+2019, pp. 685–692.
+[11] H. Lim, S. Rhyu, and K. Lee, “Chord generation from
+symbolic melody using BLSTM networks,” in Pro-
+ceedings of the 18th International Society for Music
+Information Retrieval Conference, 2017, pp. 621–627.
+[12] I. Malik and C. H. Ek, “Neural translation of musical
+style,” CoRR, vol. abs/1708.03535, 2017.
+[13] S. Dai, Z. Zhang, and G. Xia, “Music style transfer
+issues: A position paper,” CoRR, vol. abs/1803.06841,
+2018.
+[14] G. Brunner, A. Konrad, Y. Wang, and R. Wattenhofer,
+“MIDI-VAE: modeling dynamics and instrumentation
+of music with applications to style transfer,” in Pro-
+ceedings of the 19th International Society for Music
+Information Retrieval Conference, 2018, pp. 747–754.
+[15] M. A. Boden, The Creative Mind: Myths and Mecha-
+nisms.
+Routledge, 2004.
+[16] Z. Liu, P. Luo, X. Wang, and X. Tang, “Deep learn-
+ing face attributes in the wild,” in Proceedings of Inter-
+national Conference on Computer Vision (ICCV), De-
+cember 2015.
+[17] H. Dong, W. Hsiao, L. Yang, and Y. Yang, “Musegan:
+Multi-track sequential generative adversarial networks
+for symbolic music generation and accompaniment,” in
+Proceedings of the Thirty-Second AAAI Conference on
+Artiﬁcial Intelligence, 2018, pp. 34–41.
+[18] I.
+O.
+Tolstikhin,
+O.
+Bousquet,
+S.
+Gelly,
+and
+B. Schölkopf, “Wasserstein auto-encoders,” in 6th In-
+ternational Conference on Learning Representations,
+2018.
+[19] D. P. Kingma and M. Welling, “Auto-encoding vari-
+ational bayes,” in 2nd International Conference on
+Learning Representations, 2014.
+[20] K. Greff, R. K. Srivastava, J. Koutník, B. R. Steune-
+brink, and J. Schmidhuber, “LSTM: A search space
+odyssey,” IEEE Trans. Neural Networks Learn. Syst.,
+vol. 28, no. 10, pp. 2222–2232, 2017.
+[21] L. Yang, S. Chou, and Y. Yang, “Midinet: A convo-
+lutional generative adversarial network for symbolic-
+domain music generation,” in Proceedings of the 18th
+International Society for Music Information Retrieval
+Conference, 2017, pp. 324–331.
+[22] H. Dong and Y. Yang, “Convolutional generative ad-
+versarial networks with binary neurons for polyphonic
+music generation,” in Proceedings of the 19th Interna-
+tional Society for Music Information Retrieval Confer-
+ence, 2018, pp. 190–196.
+[23] Y. LeCun, B. E. Boser, J. S. Denker, D. Henderson,
+R. E. Howard, W. E. Hubbard, and L. D. Jackel, “Back-
+propagation applied to handwritten zip code recogni-
+tion,” Neural Computation, vol. 1, no. 4, pp. 541–551,
+1989.
+[24] I. J. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu,
+D. Warde-Farley, S. Ozair, A. C. Courville, and Y. Ben-
+gio, “Generative adversarial nets,” in Advances in
+Neural Information Processing Systems 27, 2014, pp.
+2672–2680.
+[25] C. A. Huang, A. Vaswani, J. Uszkoreit, I. Simon,
+C. Hawthorne, N. Shazeer, A. M. Dai, M. D. Hoffman,
+M. Dinculescu, and D. Eck, “Music transformer: Gen-
+erating music with long-term structure,” in 7th Interna-
+tional Conference on Learning Representations, 2019.
+
+[26] O. Fabius, J. R. van Amersfoort, and D. P. Kingma,
+“Variational recurrent auto-encoders,” in 3rd Interna-
+tional Conference on Learning Representations, ICLR,
+2015.
+[27] G. Hadjeres, F. Nielsen, and F. Pachet, “GLSR-VAE:
+geodesic latent space regularization for variational au-
+toencoder architectures,” in IEEE Symposium Series on
+Computational Intelligence, 2017, pp. 1–7.
+[28] O. Mogren, “C-RNN-GAN: continuous recurrent neu-
+ral networks with adversarial training,” CoRR, vol.
+abs/1611.09904, 2016, constructive Machine Learning
+Workshop at NIPS 2016, Barcelona.
+[29] A. Dosovitskiy and T. Brox, “Generating images with
+perceptual similarity metrics based on deep networks,”
+in Advances in Neural Information Processing Systems
+29, 2016, pp. 658–666.
+[30] M. Binkowski, D. J. Sutherland, M. Arbel, and A. Gret-
+ton, “Demystifying MMD gans,” in 6th International
+Conference on Learning Representations, 2018.
+[31] A. Radford, L. Metz, and S. Chintala, “Unsupervised
+representation learning with deep convolutional gener-
+ative adversarial networks,” in 4th International Con-
+ference on Learning Representations, 2016.
+[32] J. Bergstra and Y. Bengio, “Random search for hyper-
+parameter optimization,” Journal of Machine Learning
+Research, vol. 13, no. Feb, pp. 281–305, 2012.
+[33] T. White, “Sampling generative networks: Notes on a
+few effective techniques,” CoRR, vol. abs/1609.04468,
+2016.
+[34] V. Kaibel and M. Peinhardt, “On the bottleneck short-
+est path problem,” Otto-von-Guericke-Univ. Magde-
+burg, Magdeburg, Germany, Tech. Rep., 2006.
+[35] C. Raffel, “Learning-based methods for comparing se-
+quences, with applications to audio-to-Midi alignment
+and matching,” Ph.D. dissertation, Columbia Univer-
+sity, 2016.
+[36] A. Novello, M. F. McKinney, and A. Kohlrausch, “Per-
+ceptual evaluation of music similarity,” in Proceedings
+of the 7th International Conference on Music Informa-
+tion Retrieval, 2006, pp. 246–249.
+[37] M. Kendall, Rank Correlation Methods (5th ed.). Lon-
+don: Charles Grifﬁn, 1975.
+[38] M. Kendall and J. D. Gibbons, Rank Correlation Meth-
+ods (5th ed.).
+New York, NY: Oxford University
+Press, 1990.
+[39] L. Yang and A. Lerch, “On the evaluation of genera-
+tive models in music,” Neural Computing and Appli-
+cations, vol. 32, no. 9, pp. 4773–4784, 2020.

@@ -1,0 +1,914 @@
+ATTRIBUTES-AWARE DEEP MUSIC TRANSFORMATION
+Lisa Kawai1
+Philippe Esling2
+Tatsuya Harada1,3
+1 The University of Tokyo, Japan
+2 IRCAM, France
+3 RIKEN, Japan
+{kawai, harada}@mi.t.u-tokyo.ac.jp, philippe.esling@ircam.fr
+ABSTRACT
+Recent machine learning techniques have enabled a large
+variety of novel music generation processes.
+However,
+most approaches do not provide any form of interpretable
+control over musical attributes, such as pitch and rhythm.
+Obtaining control over the generation process is critically
+important for its use in real-life creative setups. Neverthe-
+less, this problem remains arduous, as there are no known
+functions nor differentiable approximations to transform
+symbolic music with control of musical attributes.
+In this work, we propose a novel method that enables
+attributes-aware music transformation from any set of mu-
+sical annotations, without requiring complicated derivative
+implementation. By relying on an adversarial confusion
+criterion on given musical annotations, we force the latent
+space of a generative model to abstract from these features.
+Then, reintroducing these features as conditioning to the
+generative function, we obtain a continuous control over
+them. To demonstrate our approach, we rely on sets of mu-
+sical attributes computed by the jSymbolic library as anno-
+tations and conduct experiments that show that our method
+outperforms previous methods in control. Finally, com-
+paring correlations between attributes and the transformed
+results show that our method can provide explicit control
+over any continuous or discrete annotation.
+1. INTRODUCTION
+For a long time, music composition has been considered
+a skill reserved for highly-trained experts. However, since
+the emergence of new technologies, it appears possible for
+non-expert and untrained users to indulge in this task. One
+such way is to rely on machine learning models, which
+train on existing sets of music to produce pieces with
+similar characteristics. The importance of music gener-
+ation is growing in the industrial world as well, for in-
+stance, in the generation of soundtracks for video games
+and movies [1,2].
+In this context, models that provide control over the
+attributes of the generated music are of critical impor-
+tance [1, 3–5].
+Indeed, the simple generation of “self-
+contained” music through a single button rapidly becomes
+dull. Instead, users are rather looking to transform aspects
+c⃝L. Kawai, P. Esling, and T. Harada. Licensed under a
+Creative Commons Attribution 4.0 International License (CC BY 4.0).
+Attribution:
+L. Kawai, P. Esling, and T. Harada, “Attributes-Aware
+Deep Music Transformation”, in Proc. of the 21st Int. Society for Music
+Information Retrieval Conf., Montréal, Canada, 2020.
+of the music to make it ﬁt their intent in terms of musi-
+cal attributes such as pitch, rhythm, and melody. Ideally,
+these controls should be continuous, providing ﬂexibility
+akin to the knobs of musical synthesizers. For instance, if
+a user wants to generate music with longer notes, the sys-
+tem should provide a way to decide how much the notes
+are extended, not just whether extend them or not.
+Nevertheless, obtaining explicit controls over music
+generation is still an open and complex problem [5]. Al-
+though recent generative models can produce a large vari-
+ety of music genres, they usually do not provide any mech-
+anism on how to modify the generation with musical at-
+tributes in a controllable way. However, acquiring such
+controls seems to require the implementation of compli-
+cated derivatives or approximation for each attribute [6].
+In this paper, we introduce a novel method to gener-
+ate symbolic music similar to a given dataset, while be-
+ing able to control its musical attributes continuously. Our
+method can be trained using raw annotations, without re-
+quiring access to their computational functions nor deriva-
+tive implementations. This allows us to rely on any form
+of musical annotations, even high-level semantic or sub-
+jective characteristics. To demonstrate this aspect, we rely
+on attribute vectors computed by jSymbolic [7] as anno-
+tations to make the model learn a continuous control for
+each. This produces numerical descriptions of music, such
+as pitch ranges and mean note durations, which enables us
+to learn understandable control over the generation.
+To empower our generative model with continuous con-
+trol over non-differentiable musical attributes, we rely on
+adversarial learning.
+Our model is based on a latent
+encoder-decoder model, where the decoding function takes
+continuous musical attributes as conditioning information.
+As the model is trained to reconstruct input data, the la-
+tent encoding potentially contains all the information nec-
+essary for reconstruction. Hence, this would lead to a de-
+coding function that can generate the output without re-
+ﬂecting changes in the conditioning. Aiming to prevent
+this situation, we introduce an adversarial discriminator on
+the latent space of the model. The role of this discrim-
+inator is to drive the encoder to remove any attribute in-
+formation from the latent vector. This adversarial frame-
+work with an encoder-decoder model is similar to Fader
+Networks [8]. However, one major difference is that we
+handle continuous values instead of binary ones. Hence,
+a major contribution of this paper is to deﬁne an approach
+to train an adversarial discriminator on continuous values.
+Indeed, discriminators across the literature [8–15] predict
+
+binary values such as real/fake or with/without attributes,
+whereas we aim to deal with continuous values. We solve
+this problem in two steps. First, we quantize attribute val-
+ues and compute balanced class labels. Second, we extend
+the discriminator so that it relies on multivariate class vec-
+tors. As usual in adversarial training, the encoder is trained
+to prevent the discriminator from predicting the labels cor-
+rectly. This produces continuous controls over the musi-
+cal characteristics by shifting the condition to the decoder.
+This behavior stems from the need for the model to cor-
+rectly utilize the decoder condition so as to reconstruct the
+input data. That way, we force the generated data to reﬂect
+the musical control values, for any attribute annotation.
+For the purpose of evaluation, we demonstrate the abil-
+ity to gain interpretable control over musical attributes
+by conducting extensive experiments. We show that our
+method outperforms previous proposals [6,16,17] and also
+allows us to rely on unconstrained sets of attributes. We
+evaluate these results by computing the correlation be-
+tween control attributes and generation results. This en-
+ables us to evaluate quantitatively how the generation re-
+ﬂects the control. Our contributions are: (1) We propose a
+novel training framework to learn from ordered annotation
+values. (2) We solve the above problem by quantizing an-
+notations and adversarial training to obtain controllability
+of musical attributes without their derivatives.
+2. RELATED WORK
+2.1 Generative Models
+Generative models allow production of new data samples
+˜x, by training on a collection of examples x, with the most
+popular approaches being Generative Adversarial Net-
+works [9] and Variational Auto-Encoder (VAE) [18,19].
+2.1.1 Variational Auto-Encoder
+The VAE is based on an encoder-decoder architecture. The
+encoder takes input data x ∈Rdx and outputs a com-
+pressed latent vector z ∈Rdz. The decoder takes this la-
+tent vector z as input and tries to reconstruct the input data
+x. Hence, this approach models two distributions: z ∼
+penc(z | x, θenc) and ˜x ∼pdec(x | z, θdec), where θenc
+and θdec are parameters of the encoder and the decoder.
+The original objective function for training a VAE approx-
+imates the distribution p(x), that we wish to model by a
+lower bound (Evidence Lower Bound (ELBO)) [18,19].
+ELBO{θenc,θdec} = −(LR + LKL) ≤log p(x)
+(1)
+Here, LR and LKL are mean reconstruction error and
+Kullback-Leibler divergence, respectively.
+LR = −Epenc(z|x)
+
+log(pdec(x | z))
+
+(2)
+LKL = DKL
+ penc(z | x) || p(z)
+
+(3)
+Therefore, the model optimizes its parameters by minimiz-
+ing the reconstruction error LR, while regularizing the la-
+tent space through LKL, so that the encoded latent vari-
+ables match with a Gaussian prior.
+2.1.2 Attribute Control in Generative Models
+Several works have focused on attribute control for gen-
+erative models in the image domain [8, 20–23], which en-
+able changing properties of the generation, such as facial
+attributes. In some cases [21], learning is not performed
+on the attributes themselves, but rather through a rich pre-
+trained model. This allows computing the mean directions
+of interpolation, which maximize attribute change in fea-
+ture space, in order to re-apply the obtained direction.
+In Fader Networks [8],
+an encoder-decoder-based
+model is trained to generate facial images given binary
+visual attributes through adversarial learning. As the de-
+coder is expected to rely on control attributes for genera-
+tion, this requires that the other latent vector input does not
+contain any information about the attributes. Thus, they in-
+troduce a discriminator on those latent vectors, which tries
+to classify the input latent vectors based on target binary
+attributes, such as wearing glasses or not. The encoder is
+simultaneously trained to prevent the discriminator from
+predicting target attributes correctly. Therefore, this ad-
+versarial criterion enables the model to learn an attributes-
+invariant representation by forcing the encoder to remove
+any attribute information from the latent vector. In a simi-
+lar way, [20,22] also proposed to gain attributes control by
+removing attribute information from a latent vector.
+Given the success of these methods for facial image-
+speciﬁc components, our proposed model explores a sim-
+ilar approach. However, our model needs to train on con-
+tinuous ordered values instead of binary attributes.
+2.2 Controllable Music Generation
+Several works have been focusing on music generation
+conditioned on composer styles [1, 24] or chord progres-
+sion [10]. In contrast, our work focuses on the direct and
+continuous transformation of music.
+2.2.1 Music Interpolation
+In most music interpolation approaches, the models do not
+rely on annotations while training [16, 17]. Instead, they
+interpolate musical data by moving the latent vector in
+different directions. These directions are usually deﬁned
+by reference points from the training set. In some cases,
+musical annotations are also used to learn the characteris-
+tics or certain styles of music, or even sequences of fea-
+tures [4,25], which mean the models have annotation val-
+ues in every time step. For instance, [4] relies on contour
+and fragmentation & consolidation sequences in addition
+to rhythmic ones, and they split the latent vector between
+a target attribute and the other unsupervised dimensions.
+Although these models are able to account for target at-
+tributes, their precise control remains unclear. Moreover,
+only a single attribute can be learned in each model, requir-
+ing a full model per attribute. In [26], the authors train sep-
+arate models to explore the latent space based on gradient
+descent using binary annotations or user-deﬁned functions.
+Similarly, [6] explicitly maps the number of notes to a
+dimension of the latent vector with geometrical regulariza-
+tion. However, it requires access to a differentiable compu-
+
+Encoder
+Decoder
+VAE
+Classiﬁer-
+Discriminator
+s
+z
+a
+Adversarial
+1 −B
+B
+pdis (B|z)
+pdis (1 −B|z)
+Attributes control
+Feedbacks
+VAE
+Encoder adversarial
+Classiﬁer-discriminator
+Targets
+Example (             )
+[1, 1, 1, 0, 1, 1, 1, 1]
+[0, 0, 0, 1, 0, 0, 0, 0]
+bn = 3
+˜s
+Figure 1. Overview of our proposed model. It is based on the Variational Auto-Encoder, and the decoder is conditioned
+on an attribute vector a. To force the output to reﬂect the conditioning, our model has a classiﬁer-discriminator in addition,
+which induces the encoder to remove the attribute information from the latent vector z. The classiﬁer-discriminator predicts
+the class labels B, which are calculated by quantizing musical attributes a, and trains the encoder in an adversarial way.
+tational function of attributes. Thus, there is no guarantee
+that this model can deal with more complex attributes nor
+multiple attributes at the same time. Recent works [27,28]
+also map the musical attributes to certain dimensions.
+2.2.2 Music Style Transfer
+A ﬁeld related to our research is music style transfer. In
+this task, models aim to apply a target style while preserv-
+ing the content of a given music piece. This task appears
+more complex than music interpolation as the precise def-
+inition of style is somewhat elusive. Depending on papers,
+style is either deﬁned as genre, composer, or other unde-
+ﬁned factors. The wide array of researches on music style
+transfer [15, 29–31] can be broadly separated between su-
+pervised and unsupervised approaches.
+In the supervised realm, [31] relies on synthesized data
+of the same content in a variety of target styles, which can
+be considered as a ground-truth for transfer. Although this
+work appears to perform transfer successfully, its problem
+setting appears unrealistic, as we usually do not have ac-
+cess to paired ground truth data for every style.
+Unsupervised music style transfer [15,29,30], provide a
+more realistic approach, by simply collecting random data
+with style labels and aiming to learn a model of the differ-
+ent musical styles. Therefore, these approaches avoid the
+pitfall of providing a clear deﬁnition of content or style.
+However, this leads to models which are extremely difﬁ-
+cult to evaluate and does not provide controls on the pre-
+cise characteristics of the generated material.
+In our work, we aim to provide explicit control over a
+set of interpretable musical attributes, which can be deﬁned
+as musical style collectively. Hence, we believe that our re-
+search can provide the ﬁrst step towards a more grounded,
+interpretable music style transfer.
+3. METHODOLOGY
+In this paper, our goal is to devise a method for symbolic
+music generation, providing understandable controls over
+musical attributes of the generation. Furthermore, these
+controls should provide continuous modiﬁcations to the
+output, akin to the parameters of a modern synthesizer.
+This implies that we need to control the extent of differ-
+ent transformations, ensuring the quality of the generation.
+3.1 Model Overview
+To achieve our goal, we rely on a VAE architecture with
+an adversarial classiﬁer-discriminator on the latent vec-
+tor, as depicted in Figure 1. The encoder-decoder model
+is trained to reconstruct the input data, as in usual VAE
+frameworks. Moreover, as we aim to address the explicit
+control of musical attributes, the decoder takes these musi-
+cal attributes as additional conditioning information to the
+latent vector. However, this latent vector potentially al-
+ready contains all the information required to reconstruct
+the input data.
+This would lead to a decoder that sim-
+ply does not use the information of conditioned attributes.
+In this degenerate situation, the model would not account
+for control modiﬁcations in the generation. The classiﬁer-
+discriminator solves this problem, by driving the encoder
+to remove any information on the attribute from the latent
+space. Hence, the decoder is forced to use the attribute in-
+formation to reconstruct the input data adequately, as this
+information is missing from the latent vector.
+Although this architecture is similar to Fader Net-
+works [8], our model is based on the VAE, and the at-
+tributes in our work are continuous ordered values, instead
+of binary indicators. This means that we cannot make di-
+rect use of existing discriminators [8–15]. To overcome
+this problem, we extend the discriminator mechanism so
+that it acts as a classiﬁer as well. To do so, we quantize
+the attributes into K balanced classes and use these as tar-
+gets to a multivariate discriminator. As a result of adver-
+sarial training, the encoder prevents the discriminator from
+predicting the class labels correctly. Hence, the resulting
+latent vectors should not contain any musical attributes in-
+formation.
+3.2 Model Architecture
+We consider a monophonic pitch sequence s1:T as input,
+where T represents time steps, encoded in a piano-roll rep-
+resentation, as a sequence of its one-hot vectors (Eq. 4).
+Encoder: The encoder is simply deﬁned as a one-layer
+bidirectional Gated Recurrent Unit (GRU), followed by
+
+linear layers (denoted as MLP) to generate the mean and
+variance of the latent vector z.
+Et = onehot(st)
+(4)
+(O, H) = GRU(E1:T )
+(5)
+penc(z | s) =N
+
+z
+MLP(OT ), diag
+ exp(MLP(OT ))
+
+(6)
+where O is the output feature, and H the hidden state.
+Decoder: The decoder reconstructs the input Et at time
+t, based on the latent vector z, the one-hot vector of the
+previous step Et−1, and the vector of musical attributes a.
+The difference between our decoder and a conditional VAE
+is that this musical attributes vector is used along with the
+latent information, based on the premise that the latent vec-
+tor does not have information about these attributes. This
+decoder is composed of a two-layer GRU.
+pdec(z) = N(z | 0, I)
+(7)
+(O1, H1) = GRU
+ [E0; z; a], MLP(z)
+
+(8)
+(Ot, Ht) = GRU
+ [Et−1; z; a], Ht−1
+
+(9)
+pdec(st | s1:t−1, z, a) = Cat
+ st
+ σ(MLP(Ht))
+
+(10)
+where [; ] is a concatenation of vectors, Cat the categorical
+distribution, and σ the softmax function.
+3.3 Attribute Control
+In this section, we detail our method to provide under-
+standable control over musical attributes in the music gen-
+eration process.
+3.3.1 Musical Attributes
+We rely on the jSymbolic [7] software to calculate sta-
+tistical musical attributes from symbolic music data.
+It
+provides 246 kinds of features, such as pitch statistics,
+melodies, intervals, rhythm, instrumentation, texture, and
+dynamics. Out of these, we picked twelve features based
+on their interpretability such as the total number of notes,
+pitch variability, and rhythmic value variability 1 . Each
+feature is normalized to have zero mean and unit variance.
+We obtain a set a = (a1, . . . , aN) of N attributes, where
+each attribute is averaged across a given input example.
+3.3.2 Quantize Attributes
+To train our discriminator, we ﬁrst quantize the attributes
+into class labels bn ∈{1, 2, 3, . . . , K}, where K = 8 in
+this work. The quantization operation bn = quantize(an),
+which is a µ-law compression, leading to an equal number
+of training data in each class, as depicted in Figure 2.
+3.3.3 Classiﬁer-Discriminator
+The classiﬁer-discriminator takes a latent vector z and pre-
+dicts the class which the data belongs to. Hence, the target
+of the classiﬁer-discriminator can be described as follows
+gt(n, k) =
+(
+1
+(k = bn)
+0
+(else)
+(11)
+1 The detailed set of features along with their meaning is available in
+associated webpage of this paper (https://lisakawai.github.
+io/music_transformation/).
+Normalized pitch variability
+-3
+-2
+-1
+0
+1
+2
+3
+1 2
+20
+80
+140
+Number of examples
+3 4
+Class label
+5 6
+8
+7
+Figure 2. Data distribution of pitch variability, showing
+how the data is split.
+where k ∈[1, K] is the index of the quantized class and
+n ∈[1, N] is the attribute index. In order to deﬁne the ad-
+versarial criterion, the target of the encoder is 1−gt(n, k).
+The classiﬁer-discriminator is deﬁned as linear layers
+followed by tanh activation functions for all layers, except
+the last layer, which uses a sigmoid function. Thus, this
+network outputs a matrix B ∈RN×K. Hence, this is a
+major difference of our classiﬁer-discriminator, which re-
+lies on a multivariate output, instead of a scalar one [8].
+3.4 Loss Function
+In this work, three separate loss functions are used to op-
+timize the model, namely, the reconstruction loss LR, the
+Kullback-Leibler divergence LKL, and the adversarial loss
+LD.
+The ﬁrst two functions are used to optimize the
+VAE, as detailed in Section 2.1.1. LD is used to train the
+classiﬁer-discriminator and inﬂuences the encoded latent
+vectors, as detailed in the following section.
+3.4.1 Adversarial Loss
+To compute LD, we rely on the vectors of attribute class
+labels b = (b1, . . . , bN), as detailed in Section 3.3.2.
+The classiﬁer-discriminator aims to predict the class la-
+bels, by optimizing its probability distribution pdis. On
+the other hand, the encoder aims to prevent the classiﬁer-
+discriminator from predicting the class labels correctly.
+Hence, the targets of the encoder for the classiﬁer-
+discriminator prediction is the complement vector of the
+class labels instead of a scalar in [8], deﬁned as 1 −B ∈
+RN×K, where all the elements of 1 are equal to 1.
+B = onehot(b)
+(12)
+LD(θdis|θenc) = −Epenc(z|s)[log(pdis(B|z))]
+(13)
+LD(θenc|θdis) = −Epenc(z|s)[log(pdis(1 −B|z))] (14)
+where θdis is parameters of the discriminator. Note that
+each element of the one-hot vectors Bn,k is equal to
+gt(n, k) in Eq (11).
+3.4.2 Total Loss Function
+The complete loss function of our method is deﬁned as:
+L(θenc, θdec | θdis) = LR + αLKL + βLD(θenc | θdis) (15)
+L(θdis | θenc) = LD(θdis | θenc)
+(16)
+where α and β are hyperparameters for controlling the
+impact of each loss in the optimization of the model.
+
+4. EXPERIMENTS
+4.1 Dataset
+In our experiments, we rely on Nottingham dataset [32], a
+collection of monophonic British and American folk tunes,
+including both melodies and chords information. The ex-
+amples are divided between 694 train, 170 test, and 173
+validation instances. We ﬁltered the dataset to retain only
+examples with 4/4 signature and used only the melody in-
+formation. We split the data to obtain every sequence of
+four bars and performed pitch augmentation by shifting
+pitches from -5 to 6 for the training set. In the ﬁnal dataset,
+the pitch ranges from 50 (D3) to 95 (B6).
+4.2 Input Representation
+In this work, we use a piano-roll-like input representation
+of monophonic music, which is a sequence of one-hot vec-
+tors, representing ﬁxed-bar melodies as a matrix of dimen-
+sion time×(pitch+2). The difference from a piano-roll is
+that we add two dimensions to represent continue (holding
+the previous note) and rest (no pitch is on) information.
+We choose this representation as it allows distinguishing
+short repeated notes more precisely. We compute the ﬁnal
+matrix from the input s = (s1, s2, . . . , sT ), where T = 64.
+4.3 Baselines
+We compare our proposal with two baselines: naive VAE
+and GLSR-VAE [6]. The implementation of the naive VAE
+is the same as ours without the attribute conditioning and
+the classiﬁer-discriminator, and we calculate mean latent
+vectors with/without an attribute to decide an interpolation
+direction for a given latent vector following [16,17]. To ap-
+ply binary attributes information, in this case, we split the
+data into two classes so that the instance is considered with
+an attribute if an ≥0 and without the attribute if an < 0.
+We deﬁne the mean latent vector of the attribute presence
+as zw and absence as zwo and perform the interpolation
+by moving a latent vector as z + δ × (zw −zwo), where δ
+ranges from -0.5 to 0.5 by steps of 0.1, which is within the
+interquartile range of N(0, I).
+In the implementation of the GLSR-VAE, we simply
+add its regularization term to the naive VAE model. In this
+model, one dimension of the latent vector z0 corresponds
+to the number of notes attribute. The interpolation is per-
+formed by computing z0 + δ, where δ is as deﬁned previ-
+ously. Note that this model is only able to interpolate the
+number of notes with existing implementation, while ours
+is applicable to any attributes.
+4.4 Implementation Details
+We train all of the models by using a batch size of 64, the
+learning rate is set to 1e-4, and we use the ADAM opti-
+mizer [33] for 50K iterations. The GRU layer has a hidden
+size of 1024 for both the encoder and the decoder, and the
+latent vector has 128 dimensions. In the VAE loss function
+(see Eq (15)), we use α = 0.1 and β = 0.1.
+attribute
+Naive
+GLSR
+Ours
+total number of notes
+0.973
+0.975
+0.981
+pitch variability
+0.807
+-
+0.938
+rhythmic value variability
+0.830
+-
+0.938
+pitch kurtosis
+0.528
+-
+0.723
+pitch skewness
+0.366
+-
+0.492
+most common rhythm val.
+0.795
+-
+0.851
+average note duration
+0.968
+-
+0.983
+note density variability
+0.677
+-
+0.855
+amount of arpeggiation
+0.126
+-
+0.386
+chromatic motion
+0.284
+-
+0.622
+direction of melodic motion
+0.428
+-
+0.702
+melodic arcs interval span
+0.262
+-
+0.523
+total number of notes
+0.949
+0.279
+0.950
+pitch variability
+0.797
+-
+0.918
+rhythmic value variability
+0.809
+-
+0.849
+Table 1. Correlation coefﬁcient comparison of musical at-
+tributes. Top: Results of transformed outputs by changing
+δ. Bottom: Results of cycle transformation reverting orig-
+inal attributes as condition to already transformed outputs.
+4.5 Evaluation Metrics
+To evaluate our model performance, we need to assess both
+the reconstruction accuracy and the efﬁciency of the at-
+tributes control. Hence, the outputs generated by the model
+should adequately reﬂect the changes in the attributes. To
+evaluate this aspect, we rely on Spearman’s rank-order cor-
+relation coefﬁcient between conditioning attribute ain and
+the resulting attribute aout calculated from the output. The
+conditioning attribute ain is calculated from the original at-
+tribute aorg depending on the change made in the control,
+so that ain = aorg + δ, where δ is the same as Section 4.3.
+5. RESULTS
+5.1 Results with Single Attribute
+We compute the correlation coefﬁcient between the target
+attributes and the corresponding jSymbolic features calcu-
+lated on the interpolated outputs. All the interpolation re-
+sults can be found in Table 1 (Top). Although some at-
+tributes such as the total number of notes and the pitch
+variability are easily handled by a naive VAE, some oth-
+ers such as chromatic motion and amount of arpeggiation
+are largely more difﬁcult to detect. Our model allows us
+to obtain control over all the features, while outperforming
+others on the interpolated results.
+Cycle consistency check. We also perform an experi-
+ment to check the consistency of attribute control. Ideally,
+based on a transformed output, if we revert the attribute to
+its original value, and use it as a condition to regenerate
+the interpolated results, the model should be expected to
+reproduce the original score. According to Table 1 (Bot-
+tom), our model is able to maintain high correlation co-
+efﬁcients even after successive interpolations. Oppositely,
+GLSR-VAE is unable to maintain this correlation, as the
+model cannot control the degree of attribute change.
+
+Pitch
+Original score
+Time steps
+Reduce nb. notes
+Increase pitch variability
+65
+70
+65
+70
+16
+32
+48
+16
+48
+16
+32
+48
+Figure 3. Generated samples by changing the total number of notes and pitch variability attributes. Top left shows the orig-
+inal score and the others are outputs from our model, which is able to transform multiple musical attributes simultaneously.
+Naive
+GLSR
+Ours
+NLL
+2.269
+1.002
+1.679
+accuracy
+0.759
+0.808
+0.790
+Table 2.
+Negative log-likelihood (NLL) and accuracy
+comparison when models are trained on an attribute, the
+total number of notes.
+Naive
+GLSR
+Ours
+Cosine similarity
+.2
+.4
+.6
+.8
+Interpolation ratio
+-0.4
+-0.2
+0
+0.2
+0.4
+Figure 4. Cosine similarity of chroma features changing
+the total number of notes to compare chord consistency.
+Reconstruction quality. We compute the negative log-
+likelihood (NLL) and reconstruction quality (accuracy) for
+unchanged attribute values and display results in Table 2.
+It seems that the GLSR-VAE approach provides slightly
+better results in the pure reconstruction scenario. However,
+our proposed model does not deteriorate the reconstruction
+quality as seen with the naive VAE.
+Chord consistency check. Previous works in the ﬁeld
+of music style transfer [30, 31] rely on chord consistency
+analysis to evaluate the capacity of the model to transfer
+the style in a given music piece while keeping its content.
+In [14], the authors use chroma feature as one of the crite-
+ria for the evaluation of music similarity. We follow this
+evaluation metrics to observe how different models can
+preserve the chord structures. This feature possesses 12
+dimensions, each of them representing the intensity of a
+given pitch across octaves in one bar. To evaluate consis-
+tency, we compute the cosine similarity between chroma
+features of the original data and the interpolated one. The
+results for the total number of notes attribute are displayed
+N
+attribute
+corr
+2
+total number of notes
+0.983
+pitch variability
+0.944
+3
+total number of notes
+0.978
+pitch variability
+0.936
+rhythmic value variability
+0.922
+Table 3. Correlation coefﬁcient with multiple attributes
+used in experiments for our model.
+in Figure 4 for varying values of δ. As a result, our method
+performs better than baselines for preserving chord con-
+sistency. Although GLSR-VAE provides better results for
+δ ≈0, its cosine similarity signiﬁcantly drops for a posi-
+tive δ, where its chord consistency quality rapidly degrades
+as |δ| becomes larger.
+5.2 Results with Multiple Attributes
+We display in Figure 3 the samples generated by our model
+trained on multiple attributes simultaneously (here the total
+number of notes and pitch variability). It shows that we
+can obtain interesting transformations on a given original
+score, while using interpretable controls. This emphasizes
+the ability of our model to control multiple attributes.
+To further analyze this behavior, we compute the corre-
+lation coefﬁcient of multiple attributes by shifting only one
+attribute at the same time, while inputting the original val-
+ues for the others, as displayed in Table 3. These results in-
+dicate that the correlation coefﬁcient remains stable, even
+when successively adding new controls. This shows that
+our model is able to produce independent control of mul-
+tiple musical attributes, which is of prime importance for
+precise and intuitive music creation.
+6. CONCLUSION
+In our work, we proposed a new model for deep mu-
+sic transformation. We relied on musical attributes and
+introduced a model able to learn how to generate mu-
+sic based on these attributes. This was done by quantiz-
+ing the attributes and introducing an adversarial classiﬁer-
+discriminator on latent features. The experimental results
+showed that our model leads to independent and robust
+controls of musical attributes for monophonic music.
+
+7. ACKNOWLEDGEMENTS
+This work was partially supported by JST AIP Ac-
+celeration Research Grant Number JPMJCR20U3, and
+partially supported by JSPS KAKENHI Grant Num-
+ber JP19H01115.
+This work was also supported by
+the ANR:17-CE38-0015-01 MAKIMOno project,
+the
+SSHRC:895-2018-1023 ACTOR Partnership and Emer-
+gence(s) ACIDITEAM project from Ville de Paris and
+ACIMO project of Sorbonne Université.
+8. REFERENCES
+[1] H. H. Mao, T. Shin, and G. W. Cottrell, “Deepj: Style-
+speciﬁc music generation,” in Proc. of International
+Conference on Semantic Computing, ICSC, 2018, pp.
+377–382.
+[2] D. Williams, A. Kirke, J. Eaton, E. Miranda, I. Daly,
+J. Hallowell, E. Roesch, F. Hwang, and S. J. Nasuto,
+“Dynamic game soundtrack generation in response to
+a continuously varying emotional trajectory,” in Au-
+dio Engineering Society Conference: Audio for Games,
+2015.
+[3] F. Pachet, A. Papadopoulos, and P. Roy, “Sampling
+variations of sequences for structured music genera-
+tion,” in Proc. of International Society for Music Infor-
+mation Retrieval Conference, ISMIR, 2017, pp. 167–
+173.
+[4] T. Akama, “Controlling symbolic music generation
+based on concept learning from domain knowledge,”
+in Proc. of International Society for Music Information
+Retrieval Conference, ISMIR, 2019, pp. 816–823.
+[5] L. Ferreira and J. Whitehead, “Learning to generate
+music with sentiment,” in Proc. of International So-
+ciety for Music Information Retrieval Conference, IS-
+MIR, 2019, pp. 384–390.
+[6] G. Hadjeres, F. Nielsen, and F. Pachet, “Glsr-vae:
+Geodesic latent space regularization for variational
+autoencoder architectures,” in IEEE Symp. Series on
+Computational Intelligence, SSCI, 2017, pp. 1–7.
+[7] C. McKay and I. Fujinaga, “jsymbolic: A feature ex-
+tractor for midi ﬁles,” in Proc. of the International
+Computer Music Conference, ICMC, 2006, pp. 302–
+305.
+[8] G. Lample, N. Zeghidour, N. Usunier, A. Bor-
+des, L. Denoyer, and M. A. Ranzato, “Fader net-
+works:manipulating images by sliding attributes,” in
+Advances in Neural Information Processing Systems,
+NeurIPS, 2017, pp. 5967–5976.
+[9] I. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu,
+D. Warde-Farley, S. Ozair, A. Courville, and Y. Bengio,
+“Generative adversarial nets,” in Advances in Neural
+Information Processing Systems, NeurIPS, 2014, pp.
+2672–2680.
+[10] L. Yang, S. Chou, and Y. Yang, “Midinet: A convo-
+lutional generative adversarial network for symbolic-
+domain music generation,” in Proc. of International
+Society for Music Information Retrieval Conference,
+ISMIR, 2017, pp. 324–331.
+[11] H.-M. Liu and Y.-H. Yang, “Lead sheet generation and
+arrangement by conditional generative adversarial net-
+work,” in Proc. of Machine Learning and Applications,
+ICMLA, 2018, pp. 722–727.
+[12] H. Dong, W. Hsiao, L. Yang, and Y. Yang, “Musegan:
+Multi-track sequential generative adversarial networks
+for symbolic music generation and accompaniment,”
+in Proc. of Conference on Artiﬁcial Intelligence, AAAI,
+2018, pp. 34–41.
+[13] H. Dong and Y. Yang, “Convolutional generative ad-
+versarial networks with binary neurons for polyphonic
+music generation,” in Proc. of International Society for
+Music Information Retrieval Conference, ISMIR, 2018,
+pp. 190–196.
+[14] M. Bretan and L. P. Heck, “Self-supervised methods
+for learning semantic similarity in music,” in Proc. of
+International Society for Music Information Retrieval
+Conference, ISMIR, 2019, pp. 446–453.
+[15] G. Brunner, Y. Wang, R. Wattenhofer, and S. Zhao,
+“Symbolic music genre transfer with cyclegan,” in
+Proc. of Tools with Artiﬁcial Intelligence, ICTAI, 2018,
+pp. 786–793.
+[16] A. Roberts, J. H. Engel, C. Raffel, C. Hawthorne, and
+D. Eck, “A hierarchical latent vector model for learn-
+ing long-term structure in music,” in Proc. of Interna-
+tional Conference on Machine Learning, ICML, 2018,
+pp. 4361–4370.
+[17] I.
+Simon,
+A.
+Roberts,
+C.
+Raffel,
+J.
+Engel,
+C. Hawthorne, and D. Eck, “Learning a latent space
+of multitrack measures,” CoRR, vol. abs/1806.00195,
+2018.
+[18] D. P. Kingma and M. Welling, “Auto-encoding varia-
+tional bayes,” in Proc. of International Conference on
+Learning Representations, ICLR, 2014.
+[19] D. J. Rezende,
+S. Mohamed,
+and D. Wierstra,
+“Stochastic backpropagation and approximate infer-
+ence in deep generative models,” in Proc. of Interna-
+tional Conference on Machine Learning, ICML, 2014,
+pp. 1278–1286.
+[20] N. Hadad, L. Wolf, and M. Shahar, “A two-step disen-
+tanglement method,” in Proc. of Computer Vision and
+Pattern Recognition, CVPR, 2018, pp. 772–780.
+[21] P.
+Upchurch,
+J.
+Gardner,
+G.
+Pleiss,
+R.
+Pless,
+N. Snavely, K. Bala, and K. Weinberger, “Deep fea-
+ture interpolation for image content changes,” in Proc.
+of Computer Vision and Pattern Recognition, CVPR,
+2017, pp. 6090–6099.
+
+[22] M. Li, W. Zuo, and D. Zhang, “Deep identity-
+aware transfer of facial attributes,”
+CoRR, vol.
+abs/1610.05586, 2016.
+[23] Z. Shu, E. Yumer, S. Hadap, K. Sunkavalli, E. Shecht-
+man, and D. Samaras, “Neural face editing with intrin-
+sic image disentangling,” in Proc. of Computer Vision
+and Pattern Recognition, CVPR, 2017, pp. 5444–5453.
+[24] C. M. Payne, MuseNet, 2019, https://openai.com/blog/
+musenet/.
+[25] R. Yang, D. Wang, Z. Wang, T. Chen, J. Jiang, and
+G. Xia, “Deep music analogy via latent representation
+disentanglement,” in Proc. of International Society for
+Music Information Retrieval Conference, ISMIR, 2019,
+pp. 596–603.
+[26] J. H. Engel, M. Hoffman, and A. Roberts, “Latent con-
+straints: Learning to generate conditionally from un-
+conditional generative models,” in Proc. of Interna-
+tional Conference on Learning Representations, ICLR,
+2018.
+[27] A. Pati and A. Lerch, “Latent space regularization for
+explicit control of musical attributes,” in ICML Work-
+shop on Machine Learning for Music Discovery Work-
+shop (ML4MD), 2019.
+[28] A. Pati and A. Lerch, “Attribute-based regularization of
+vae latent spaces,” CoRR, vol. abs/2004.05485, 2020.
+[29] G. Brunner, A. Konrad, Y. Wang, and R. Wattenhofer,
+“Midi-vae: Modeling dynamics and instrumentation of
+music with applications to style transfer,” in Proc. of
+International Society for Music Information Retrieval
+Conference, ISMIR, 2018, pp. 747–754.
+[30] W. T. Lu and L. Su, “Transferring the style of homo-
+phonic music using recurrent neural networks and au-
+toregressive model,” in Proc. of International Society
+for Music Information Retrieval Conference, ISMIR,
+2018, pp. 740–746.
+[31] O. Cífka, U. Simsekli, and G. Richard, “Supervised
+symbolic music style translation using synthetic data,”
+in Proc. of International Society for Music Information
+Retrieval Conference, ISMIR, 2019, pp. 588–595.
+[32] E. Foxley, Nottingham Database, 2011, http://abc.
+sourceforge.net/NMD/.
+[33] D. P. Kingma and J. Ba, “Adam: A method for stochas-
+tic optimization,” in Proc. of International Conference
+on Learning Representations, ICLR, 2015.

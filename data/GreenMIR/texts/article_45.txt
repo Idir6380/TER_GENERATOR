@@ -1,0 +1,910 @@
+CONNECTIVE FUSION:
+LEARNING TRANSFORMATIONAL JOINING OF SEQUENCES
+WITH APPLICATION TO MELODY CREATION
+Taketo Akama
+Sony Computer Science Laboratories, Tokyo, Japan
+taketo.akama@sony.com
+ABSTRACT
+We present Connective Fusion, a music generation scheme
+by transformational joining of two musical sequences for
+creative purposes. Given two shorter sequences as inputs,
+our model transforms each of them such that their concate-
+nation is more coherent to form a longer sequence, while
+each of the transformed shorter sequences retains mean-
+ingful similarity with the corresponding input sequence. In
+short, our model connects and fuses two contextually unre-
+lated sequences in a coherent way. This transformation can
+be applied iteratively to gradually fuse the input sequences.
+The style latent space is simultaneously learned, allowing
+users to control how the two sequences are merged. Our
+approach comprises two steps of unsupervised learning: a
+deep generative model with a latent space is learned, fol-
+lowed by adversarial learning of the transformation func-
+tion in the latent space. We demonstrate the usefulness of
+our method through the task of melody creation using a
+symbolic music dataset.
+1. INTRODUCTION
+Spurred by the progress of deep neural networks, symbolic
+music generation systems, especially the ones with user
+controllability have gathered renewed interests these days.
+Most of the systems with controllability can be categorized
+into generating continuation [1], regenerating arbitrary po-
+sitions [2, 3], unsupervised conditional generation [4, 7],
+or transforming musical sequences such that musical at-
+tributes, concepts, or styles are altered [4–8].
+In this paper, we seek another category, generation by
+fusing input musical sequences as ideas. Speciﬁcally, we
+propose Connective Fusion, a generative transformation
+scheme which allows two input musical sequences to be
+transformed such that the concatenated musical sequence
+is musically plausible (See Fig.1 for the illustration). After
+the transformation, each of the two sequences has mean-
+ingful similarity with the one before the transformation.
+Two input musical sequences can also be transformed it-
+c⃝T. Akama. Licensed under a Creative Commons Attri-
+bution 4.0 International License (CC BY 4.0). Attribution: T. Akama,
+“Connective Fusion: Learning Transformational Joining of Sequences
+with Application to Melody Creation”, in Proc. of the 21st Int. Society
+for Music Information Retrieval Conf., Montréal, Canada, 2020.
+0
+1
+2
+3
+4
+time (bars)
+55
+60
+65
+70
+75
+80
+pitch
+0
+1
+2
+3
+4
+time (bars)
+(a) Given inputs: random combination of two sequences
+55
+60
+65
+70
+75
+80
+pitch
+55
+60
+65
+70
+75
+80
+pitch
+55
+60
+65
+70
+75
+80
+pitch
+(b) Transformed outputs of iteration 1,2, and 3
+Figure 1: Iterated application of transformation.
+0
+1
+2
+3
+4
+time (bars)
+56
+61
+66
+71
+76
+81
+pitch
+0
+1
+2
+3
+4
+time (bars)
+(a) Given inputs: random combination of two sequences
+56
+61
+66
+71
+76
+81
+pitch
+56
+61
+66
+71
+76
+81
+pitch
+0
+1
+2
+3
+4
+5
+6
+7
+8
+time (bars)
+56
+61
+66
+71
+76
+81
+pitch
+0
+1
+2
+3
+4
+5
+6
+7
+8
+time (bars)
+0
+1
+2
+3
+4
+5
+6
+7
+8
+time (bars)
+(b) Transformed outputs
+Figure 2: Transformation with style space exploration.
+eratively to gradually increase the coherency of joining
+(Fig.1). Our generative transformation differs from pure
+transformation in that it permits users to explore or sample
+from the style space of how the two sequences are com-
+bined (Fig.2). The application of Connective Fusion in-
+cludes i) providing users with musical ideas based on not
+
+(a) Pre-training
+(b) Training
+(c) Transformation
+Figure 3: Connective Fusion schematic diagrams.
+necessarily polished ideas on hand, and ii) creating novel
+musical ﬂows by combining and fusing musical fragments
+of different characteristics in a coherent way.
+Technically, our approach is training a transformation
+function in an unsupervised learning manner, consisting of
+two steps: the pre-training step and the training step. In the
+pre-training step, a Variational Auto-Encoder (VAE) [9] is
+trained to obtain mappings between the data space and the
+latent space. A given pair of musical sequences are fed into
+the encoder of the VAE to be mapped to the corresponding
+latent vectors in the latent space. In the following train-
+ing step, models are trained upon the representation of the
+VAE latent space. The transformation function, the gen-
+erator is trained adversarially [10] such that transformed
+results are indistinguishable from the human-made musi-
+cal sequences. Together with the adversarial loss, the sim-
+ilarity loss, consisting of the latent space distance before
+and after the transformation, is simultaneously taken into
+account in order to train models with desired amount of
+transformation.
+In experiments, we empirically demonstrate that our
+method outperforms a baseline method with various pa-
+rameter settings in terms of reality and ﬁve musical statis-
+tics at each transformation amount. We also quantitatively
+show that iterated application of our transformation allows
+gradual transformation while having comparable to or bet-
+ter performance than single (non-iterative) transformation.
+Our contributions of this paper are: i) proposing a new
+problem setting/task and its solution, ii) presenting a model
+and procedure for learning style space, iii) introducing it-
+erated application of transformation for gradual transfor-
+mation, and iv) demonstrating the performance and the ap-
+plication for melody creation.
+2. METHODOLOGY
+2.1 Problem Scenario
+Suppose we have a dataset of sequences Dy = {y(i) =
+x(i)
+L ⊕x(i)
+R }N
+i=1, where y(i) ∈Y is the concatenation of two
+subsequences x(i)
+L
+∈X and x(i)
+R
+∈X. We can consider
+Dy as a sequence pair dataset D = {(x(i)
+L , x(i)
+R )}N
+i=1. For
+instance, y(i) is a musical sequence of 8 bars, whereas x(i)
+L
+and x(i)
+R are musical sequences of 4 bars.
+Using the dataset D, the scheme of Connective Fusion
+basically solves the following task: given two sequences
+xL, xR ∈X, transforming xL to x′
+L and xR to x′
+R such that
+the concatenated sequence x′
+L ⊕x′
+R becomes more proba-
+ble to be a sample in Y than xL⊕xR, while the transformed
+sequences x′
+L, x′
+R retain meaningful similarity to the given
+sequences xL, xR, respectively. For example, this serves as
+a solution for generating longer musical sequences given
+shorter musical sequence pairs of any combinations as in-
+spiration, which is useful for composing new music based
+on unpolished musical ideas on hand.
+2.2 Approach
+Schematic diagrams of pre-training, training, and transfor-
+mation of Connective Fusion are depicted in Fig.3.
+2.2.1 Pre-training
+Our approach is ﬁrst training a Variational Auto-Encoder
+(VAE) model for obtaining bidirectional mappings be-
+tween each sequence x ∈X and its latent vector z ∈Z ⊂
+Rdz, which has the compressed information of x.
+2.2.2 Training
+Then we train a generator G that transforms any pair
+(zL, zR) ∈Z × Z to (z′
+L, z′
+R) ∈Z × Z that are in-
+distinguishable from the pairs in the dataset.
+The gen-
+erator also takes a style vector s ∈S from the style
+space S = [0, 1]ds as an additional input. Formally, the
+generator can be written as (z′
+L, z′
+R) = G(zL, zR, s) and
+G: Z × Z × S →Z × Z. The generator G is trained to-
+gether with the discriminator D: Z × Z →[0, 1] with the
+adversarial learning framework [10]. In addition to the ad-
+versarial loss, we add the similarity loss in order to adjust
+the degree of similarity before and after the transforma-
+tion.
+2.2.3 Transformation
+Given two sequences xL and xR, these sequences are ﬁrst
+fed to the encoder of the VAE to obtain zL and zR, respec-
+tively. The latent vectors zL and zR together with a style
+vector s ∈S sampled from S = [0, 1]ds are then fed to the
+
+generator G to transform zL, zR to z′
+L, z′
+R, respectively.
+Finally, the transformed latent vectors z′
+L, z′
+R are fed to the
+decoder to generate x′
+L, x′
+R, respectively. The concatena-
+tion x′
+L ⊕x′
+R is the generated sequence. Instead, zL and zR
+can also be sampled from the prior distribution p(z), pro-
+viding users with scratch generation functionality followed
+by the transformation functionality.
+The style space S allows us to control how the two se-
+quences are connectively fused. For example, as illustrated
+in Fig.2 and explained in the experiments Sec.3.3, users
+can choose preferred styles of fusion among interpolated
+styles on a 2D plane.
+We also propose iterated transformation with G, which
+consists in applying G repeatedly, drawing two inter-
+related trajectories in the latent space. The higher the num-
+ber of iterations becomes, the farther the latent vectors tend
+to move from the original position. This is useful for users
+to control the degree of similarity in transformation.
+2.3 Advantage of Approach Using Latent Space
+Using the representation in Z but not the one in X i) is use-
+ful for deﬁning similarity before and after the transforma-
+tion, ii) is computationally inexpensive, and iii) bypasses
+the difﬁcult problem of back-propagating through discrete
+sampling of sequences.
+2.4 Pre-training Detail: Encoder and Decoder
+Training with Auto-Encoding VB algorithm
+To train the VAE, another dataset D′ = {x(j)}2N
+j=1 is
+derived from the dataset D = {(x(i)
+L , x(i)
+R )}N
+i=1, where
+x(2i−1) = x(i)
+L
+and x(2i) = x(i)
+R .
+The encoder model
+qθ(x|z) and the decoder model pθ(z|x) in the VAE are
+trained with the following optimization problem:
+max
+θ
+E
+x∼D′
+
+E
+z∼qθ(z|x) [log pθ(x|z)] −KL (qθ(z|x)||p(z))
+
+,
+(1)
+which is the maximization of the variational lower bound
+[9], the lower bound of the marginal log likelihood. Here,
+KL denotes the Kullback-Leibler (KL) divergence. Note
+that the sampling operation z ∼qθ(z|x) is differentiable
+using the reparametrization trick. For the purpose of visu-
+alization in Fig.3, we name the two terms in the optimiza-
+tion problem Lrec = −Ex∼D′ 
+Ez∼qθ(z|x) [log pθ(x|z)]
+
+and Lpri = Ex∼D′ [KL (qθ(z|x)||p(z))]. For the rest of
+this paper, ˆθ denotes the estimated model parameter after
+the optimization of Eq.1. We use normal distribution for
+the encoder model qθ(z|x).
+2.5 Training Detail: Generator and Discriminator
+Training with Adversarial Learning
+For notational simplicity, we introduce datasets of latent
+vectors Dz = {(z(i)
+L , z(i)
+R )}N
+i=1 and D′
+z = {z(j)}2N
+j=1 corre-
+sponding to D = {(x(i)
+L , x(i)
+R )}N
+i=1 and D′ = {x(j)}2N
+j=1
+respectively, where z(i)
+L
+= argmaxz qˆθ(z|x(i)
+L ), z(i)
+R
+=
+argmaxz qˆθ(z|x(i)
+R ), and z(j) = argmaxz qˆθ(z|x(j)). The
+generator G and the discriminator D are parametrized by
+ψ and φ, respectively.
+In the following, we use short
+hand Lp
+Dφ(zL, zR) = −log Dφ(zL, zR), Ln
+Dφ(zL, zR) =
+−(1 −log Dφ(zL, zR)), and U = U(0, 1)ds.
+2.5.1 Discriminator Loss
+In the adversarial learning framework, the discriminator
+classiﬁes two sets of samples: the real class and the fake
+class. In Connective Fusion, samples in the real class are
+latent vector pairs (zL, zR) sampled from the dataset Dz.
+Formally, the loss function for the real class of the discrim-
+inator is
+Lp
+dis =
+E
+(zL,zR)∼Dz
+h
+Lp
+Dφ(zL, zR)
+i
+.
+(2)
+The fake class for the discriminator are latent vector pairs
+(zL, zR) which are obtained by i) sampling independently
+with the uniform distribution over the dataset D′
+z (1st term
+of Eq.3), ii) sampling independently from the prior p(z)
+(2nd term of Eq.3), iii) the generator G transforming sam-
+ples (zL, zR, s), where zL, zR are sampled in the same way
+as i, while s are sampled from U, the uniform distribution
+over S = [0, 1]ds (3rd term of Eq.3), and iv) the genera-
+tor G transforming samples (zL, zR, s), where zL, zR are
+sampled in the same way as ii, while s are sampled from U
+(4th term of Eq.3). Formally, the loss function is
+Ln
+dis =
+E
+zL∼D′z
+E
+zR∼D′z
+h
+Ln
+Dφ(zL, zR)
+i
++
+E
+zL∼p(z)
+E
+zR∼p(z)
+h
+Ln
+Dφ(zL, zR)
+i
++
+E
+zL∼D′z
+E
+zR∼D′z
+E
+s∼U
+h
+Ln
+Dφ(Gψ(zL, zR, s))
+i
++
+E
+zL∼p(z)
+E
+zR∼p(z) E
+s∼U
+h
+Ln
+Dφ(Gψ(zL, zR, s))
+i
+.
+(3)
+Finally, the overall loss function for the discriminator be-
+comes
+Ldis = Lp
+dis + Ln
+dis.
+(4)
+2.5.2 Generator Loss
+Based on the discriminator, a generator is trained such that
+the generated samples become more like the real samples
+rather than the fake samples. We consider two kinds of
+generated samples which are sampled in the same way as
+iii and iv in the previous section 2.5.1. Formally, the loss
+function is
+Lp
+gen =
+E
+zL∼D′z
+E
+zR∼D′z
+E
+s∼U
+h
+Lp
+Dφ(Gψ(zL, zR, s))
+i
++
+E
+zL∼p(z)
+E
+zR∼p(z) E
+s∼U
+h
+Lp
+Dφ (Gψ(zL, zR, s))
+i
+. (5)
+Additionally, we introduce the similarity loss which is the
+latent space distance between samples before and after the
+transformation:
+Lsim =
+E
+zL∼D′z
+E
+zR∼D′z
+E
+s∼U [Ldist(zL, zR, s)]
++
+E
+zL∼p(z)
+E
+zR∼p(z) E
+s∼U [Ldist(zL, zR, s)] ,
+(6)
+
+Figure 4: Evaluation of our model on six metrics vs z-distance. The upper/lower rows are transformation results where
+inputs are randomly created pairs of test/generated (sampled from prior) data. The color gradient corresponds to the number
+of iterations for LP. For all metrics, higher values are better. See Sec.3.5.
+Figure 5: Musical statistics are corrected after our trans-
+formation. Brighter color indicates higher probability. See
+the second paragraph of 3.4.
+Figure 6: Analysis of z-distance in the latent space Z. See
+the last paragraph of 3.4.
+where
+Ldist(zL, zR, s) = 1
+dz
+
+1
+¯σ2z
+log
+
+1 + (z′
+L −zL)2
+1
++ 1
+dz
+
+1
+¯σ2z
+log
+
+1 + (z′
+R −zR)2
+1
+with (z′
+L, z′
+R) = Gψ(zL, zR, s).
+(7)
+Following the latent constraint paper [6], ¯σz ∈Rdz is
+chosen to be the standard deviation σ(x) ∈Rdz of the
+encoder model qˆθ(z|x) = N
+ µ(x), diag
+ σ2(x)
+
+av-
+eraged over all the training dataset.
+Precisely, ¯σz
+=
+1/|D′| P
+x∈D′ σ(x). Finally, the overall loss function for
+the generator becomes
+Lgen = Lp
+gen + λLsim.
+(8)
+3. EXPERIMENTS
+3.1 Dataset
+We create datasets from LMD-matched of Lakh MIDI
+dataset [11], comprising 45,129 ﬁles matched to the song
+identity entries in the Million Song Dataset [12]. Each
+song has one or several different versions of MIDI ﬁles.
+We ﬁrst extract ﬁles with 4/4 time signature, use accom-
+panying tempo information to determine beat locations,
+and quantize each beat into 4.
+We then split the song
+identities into the proportion of 11:1:6:1:1 to create train-
+1, validation-1, train-2, validation-2, and test dataset, re-
+spectively. Train-1 and validation-1 datasets are for train-
+ing proposed and baseline models, whereas train-2 and
+validation-2 datasets are for training evaluation models.
+We ﬁlter out non-monophonic tracks, bass or drum tracks,
+and the tracks outside the pitch range of [55, 84]. We con-
+duct data augmentation by transposing tracks to all pos-
+sible keys if the transposed tracks stay within the pitch
+range of [55, 84].
+We retrieve 8-bar sliding windows
+(with a stride of 1 bar) from each track followed by ﬁl-
+tering out windows that have more than one bar consec-
+utive rests. Finally, for each split of train-1, validation-1,
+train-2, validation-2, and test dataset, we create a dataset
+D = {(x(i)
+L , x(i)
+R )}N
+i=1 by assigning the ﬁrst 4-bars and the
+last 4-bars of each 8-bar window to x(i)
+L and x(i)
+R , respec-
+tively. For encoding musical sequences, we use Melodico-
+rhythmic encoding proposed in [3].
+
+Figure 7: Evaluation of iterated application of our model. Iterated application of models with larger λ tends to com-
+pare favorably with others. The upper/lower rows are transformation results where inputs are randomly created pairs of
+test/generated (sampled from prior) data. The color gradient corresponds to the number of iterations for our method. For
+all metrics, higher values are better. See Sec.3.6.
+3.2 Implementation Details
+2-layered long short term memory (LSTM) [13] is used for
+the encoder and the decoder of the VAE, with the number
+of latent dimensionality dz = 64. 5-layered multilayer per-
+ceptron (MLP) is used for the generator and the discrimina-
+tor, where input vectors are simply concatenated and ReLU
+activation is employed. Following the latent constraint pa-
+per [6], we use the gating mechanism for each of the out-
+puts z′
+L and z′
+R. For the decoder to generate sequences,
+argmax operation is utilized at each time step greedily for
+sampling each token. In the adversarial learning, the pa-
+rameter updates of the model are alternating between up-
+dating the discriminator 10 times and updating the genera-
+tor once. Adam optimizer [14] is used for training with the
+parameters (α, β1, β2) = (0.000005, 0, 0.9).
+3.3 Transformation Examples
+Fig.1 and Fig.2 are the transformation examples for λ =
+2.0 and λ = 0.3, respectively. In Fig.1b at iteration 1, the
+used pitch set of xL becomes aligned to that of xR, and the
+note at time around 4 transforms to the one with longer du-
+ration to join two input sequences. As the number of iter-
+ations increases, the note durations become more uniform,
+while retaining similarity to the input sequences in terms
+of pitch contours or rhythmic properties. In Fig.2b, four
+corners are generated by feeding s randomly sampled from
+{0, 1} for each dimension and the others are interpolations.
+Interestingly, the time 4 to 8 of the bottom left sequence is
+the exact transposition of the right input of Fig.2a, whereas
+other sequences has variations and transpositions.
+3.4 Evaluation Metrics
+We use reality, correlations of ﬁve musical statistics eval-
+uated against the test data, and z-distance as evaluation
+metrics. Reality is deﬁned as the probability that a gen-
+erated sequence is classiﬁed as human-made. Two-layered
+transformer binary classiﬁcation model is trained on train-
+2 and validation-2 datasets, where the pair sequences from
+the dataset D are labeled as positive, while the randomly
+shufﬂed pair sequences from the same dataset are labeled
+as negative. The mean of output values of this classiﬁca-
+tion model and its accuracy are 0.959 and 0.953 on the test
+dataset. Reality is a holistic metric of quality which quan-
+tiﬁes how likely a sequence is human-made.
+As musical statistics, we choose to use key, mean-pitch
+(MP), mean-duration (MD) for evaluating whether the ﬁrst
+and the last 4-bars are more musically consistent after
+transformation. We also employ pitch-transition (PT) and
+duration-transition (DT) for evaluating if transitions be-
+tween the ﬁrst and the last 4-bars are smooth and natural.
+Fig.5 illustrates these ﬁve musical statistics. For key, MP,
+and MD, these values are estimated for the ﬁrst and the
+last 4-bars, which are interpreted as Markov transitions of
+musical states, creating matrices as in Fig.5. For PT and
+DT, we extract two or three consecutive notes around the
+boundary of the ﬁrst and the last 4-bars, and again com-
+pute Markov transition matrices of each statistics as states.
+Finally, as a quantitative metric, we compute Pearson cor-
+relation coefﬁcient between the matrix made from the test
+dataset and the one from the samples outputted by models.
+z-distance is a scaled squared Mahalanobis distance
+dist(z′, z) = 1/dz(z′ −z)Σ−1(z′ −z)⊺, where Σ =
+diag(¯σ2
+z). We analyze z-distance in the latent space Z us-
+ing song id annotations of the dataset. We randomly sam-
+pled 1,000,000 pairs of 4-bar sequences from the entire
+dataset, where pairs are sampled either from the same or
+different song id, corresponding to intra- and inter-song in
+Fig.6. Pairs with identical sequences are ﬁltered out to ana-
+lyze the similarity rather than the identicality. Fig.6 shows
+
+that sequences from different song ids are several orders of
+magnitude less likely to have smaller (say, less than 1.0 or
+3.0) z-distances, compared with those from the same ids.
+The difference of z-distances probably comes from the fact
+that a lot of variations can be seen within each song id and
+similar themes are rarely seen among different song ids
+especially for melody, suggesting that smaller z-distances
+includes variations and that z-distance encodes musically
+meaningful similarity.
+Algorithm 1 Latent Perturb (baseline method).
+Input: zL, zR, and σLP
+1: Smax ←argmaxx pˆθ(x|zL) ⊕argmaxx pˆθ(x|zR)
+2: Rmax ←estimate reality of Smax
+3: for i = 1 to NumIter do
+4:
+ϵL, ϵR ∼N(0, diag(σ2
+LP))
+5:
+SL ←argmaxx pˆθ(x|zL + ϵL)
+6:
+SR ←argmaxx pˆθ(x|zR + ϵR)
+7:
+Rtmp ←estimate reality of Stmp = SL ⊕SR
+8:
+if Rtmp > Rmax then
+9:
+Smax ←Stmp; Rmax ←Rtmp
+10:
+zL ←zL + ϵL; zR ←zR + ϵR
+11:
+end if
+12: end for
+13: return Smax
+3.5 Comparisons of Methods
+We introduce a naive but strong baseline method called
+Latent Perturb (LP), which is summarized in Algorithm
+1. Note that the reality estimation model is trained with
+the train-1 dataset, and the argmax operation is approx-
+imated with the greedy sampling scheme. Compared to
+data space, perturbation in the latent space can efﬁciently
+search similar samples with high reality.
+Fig.4 shows the comparisons of baseline methods and
+ours evaluated on z-distance vs the other evaluation met-
+rics, where z-distance is the average of the mean of z-
+distances for zL and zR. The reason for choosing LP with
+σLP in [0.01, 0.2] is to make sure their resulting evaluation
+metrics span the range that the proposed technique “ours”
+spans. For samples from the prior as well as from the test
+dataset, our methods, especially with larger λ tend to out-
+perform in all the metrics, even though LP methods use
+abundant computational budgets—100 forward computa-
+tions of the decoder model and the classiﬁcation model.
+3.6 Evaluation of Iterated Transformation
+Fig.7 illustrates the performance of iterated application of
+our transformation. Interestingly, performance of models
+with larger λ after several iterations are often compara-
+ble to or better than that of models with smaller λ. This
+means that a model with larger λ can be used for transfor-
+mation with different distances, without sacriﬁcing the per-
+formance. For example, as illustrated in Fig.1, the model
+with λ = 2.0, if iteratively applied, can be used for grad-
+ual transformations with several different distances. Their
+quality is as satisfactory as single (non-iterative) transfor-
+mation with models of smaller λ.
+4. RELATED WORK
+Concatenative Synthesis (CS) methods [15, 16] typically
+use a large database of source audio segmented into units,
+and search units that match each segment of the target au-
+dio by unit selection algorithms. Mashup methods [17,18]
+combine two or more songs to create entertaining musi-
+cal results. Typically tracks from different songs are su-
+perimposed and combined. Our Connective Fusion differs
+from CS and Mashup in that i) ours is generative rather
+than searching and using existing segments of music, ii)
+ours tries to combine any segments, whereas CS/Mashup
+typically combine some searched segments, iii) ours is un-
+supervised learning which does not need any human anno-
+tation in the dataset or musical expertise for training mod-
+els, and iv) ours is symbolic which is often not the case in
+CS/Mashup.
+Learning transformation in the latent space has been
+studied for image, texts, and music [6, 19–23]. Notably,
+Mueller et al. proposed to transform texts to have speciﬁed
+attributes based on optimization in the latent space [21].
+Engel et al. proposed to transform image or music to be-
+come more realistic or to have speciﬁed attributes in the
+latent space by using adversarial learning [6]. Lore et al.
+and more recently Jahanian et al. instead proposed to trans-
+form image by learning latent space directions [22,23].
+Learning transformation with adversarial learning with-
+out paired data has been extensively studied. The input
+and output domain of transformation in these studies can
+be categorized into the same data domain with different
+classes [24] or attributes [6,25], the semantic domain to the
+data domain [24], and semantically similar domain such
+as simulation to real [26, 27] and unsupervised language
+translation [28, 29]. On the other hand, the input and out-
+put domains of transformation in this paper are essentially
+the same except that they have different lengths/counts.
+5. CONCLUSION
+We introduced Connective Fusion, a new scheme of inter-
+actively generating sequences for creative purposes. Given
+two sequences of random combination, our model trans-
+forms each of them to similar one such that their con-
+catenation is more indistinguishable from human-made
+sequences.
+The transformation model is adversarially
+learned in the latent space. Our model equips with user
+control—choosing the amount of transformation as well as
+exploring in the style space. In experiments of melody cre-
+ation on a symbolic music dataset, we empirically demon-
+strated that our method outperforms a baseline method of
+various parameter settings, and that iterative gradual trans-
+formation not just introduced new functionality but also
+works as satisfactory as or sometimes better than non-
+iterative transformation.
+
+6. REFERENCES
+[1] C.-Z. A. Huang, A. Vaswani, J. Uszkoreit, I. Simon,
+C. Hawthorne, N. Shazeer, A. M. Dai, M. D. Hoffman,
+M. Dinculescu, and D. Eck, “Music transformer: Gen-
+erating music with long-term structure,” in Interna-
+tional Conference on Learning Representations, 2019.
+[2] G. Hadjeres, F. Pachet, and F. Nielsen, “DeepBach:
+a steerable model for Bach chorales generation,” in
+Proc. of the 34th International Conference on Machine
+Learning, 2017.
+[3] G. Hadjeres and F. Nielsen, “Anticipation-rnn: en-
+forcing unary constraints in sequence generation,
+with application to interactive music generation,”
+Neural
+Computing
+and
+Applications,
+vol.
+32,
+no. 4,
+pp. 995–1005,
+2020. [Online]. Available:
+https://doi.org/10.1007/s00521-018-3868-4
+[4] J. Gillick, A. Roberts, J. H. Engel, D. Eck, and D. Bam-
+man, “Learning to groove with inverse sequence trans-
+formations,” in Proceedings of the 36th International
+Conference on Machine Learning, ICML, 2019.
+[5] A. Roberts, J. Engel, C. Raffel, C. Hawthorne, and
+D. Eck, “A hierarchical latent vector model for learn-
+ing long-term structure in music,” in Proc. of the 35th
+International Conference on Machine Learning, 2018.
+[6] J. Engel, M. Hoffman, and A. Roberts, “Latent con-
+straints: Learning to generate conditionally from un-
+conditional generative models,” in International Con-
+ference on Learning Representations, 2018.
+[7] T. Akama, “Controlling symbolic music generation
+based on concept learning from domain knowledge,” in
+Proceedings of the 20th International Society for Mu-
+sic Information Retrieval Conference, ISMIR, 2019.
+[8] G. Brunner, A. Konrad, Y. Wang, and R. Wattenhofer,
+“MIDI-VAE: modeling dynamics and instrumentation
+of music with applications to style transfer,” in Pro-
+ceedings of the 19th International Society for Music
+Information Retrieval Conference, ISMIR, E. Gómez,
+X. Hu, E. Humphrey, and E. Benetos, Eds., 2018.
+[9] D. P. Kingma and M. Welling, “Auto-encoding vari-
+ational bayes,” in 2nd International Conference on
+Learning Representations, ICLR, 2014.
+[10] I. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu,
+D. Warde-Farley, S. Ozair, A. Courville, and Y. Ben-
+gio, “Generative adversarial nets,” in Advances in Neu-
+ral Information Processing Systems 27, 2014.
+[11] C. Raffel, “Learning-based methods for comparing se-
+quences, with applications to audio-to-midi alignment
+and matching,” Ph.D. dissertation, 2016.
+[12] T. Bertin-Mahieux, D. P. Ellis, B. Whitman, and
+P. Lamere, “The million song dataset,” in Proceedings
+of the 12th International Conference on Music Infor-
+mation Retrieval (ISMIR 2011), 2011.
+[13] S. Hochreiter and J. Schmidhuber, “Long short-term
+memory,” Neural computation, vol. 9, pp. 1735–80, 12
+1997.
+[14] D. P. Kingma and J. Ba, “Adam: A method for stochas-
+tic optimization,” in 3rd International Conference on
+Learning Representations, ICLR, 2015.
+[15] A. J. Hunt and A. W. Black, “Unit selection in a con-
+catenative speech synthesis system using a large speech
+database,” in 1996 IEEE International Conference on
+Acoustics, Speech, and Signal Processing Conference
+Proceedings, vol. 1, 1996, pp. 373–376 vol. 1.
+[16] A. Zils and F. Pachet, “Musical Mosaicing,” in Pro-
+ceedings of the International Conference on Digital
+Audio Effects, 2001.
+[17] N. Tokui, “Massh!
+- a web-based collective music
+mashup system,” in Proceedings - 3rd International
+Conference on Digital Interactive Media in Entertain-
+ment and Arts, DIMEA 2008, 2008.
+[18] M. E. P. Davies, P. Hamel, K. Yoshii, and M. Goto,
+“Automashupper: Automatic creation of multi-song
+music mashups,” IEEE/ACM Trans. Audio, Speech and
+Lang. Proc., 2014.
+[19] A. Nguyen, A. Dosovitskiy, J. Yosinski, T. Brox, and
+J. Clune, “Synthesizing the preferred inputs for neu-
+rons in neural networks via deep generator networks,”
+in Advances in Neural Information Processing Systems
+29, 2016.
+[20] A. Nguyen, J. Yosinski, Y. Bengio, A. Dosovitskiy, and
+J. Clune, “Plug & play generative networks: Condi-
+tional iterative generation of images in latent space,”
+in Computer Vision and Pattern Recognition (CVPR),
+2017.
+[21] J. Mueller, D. Gifford, and T. Jaakkola, “Sequence to
+better sequence: Continuous revision of combinatorial
+structures,” in Proceedings of the 34th International
+Conference on Machine Learning, 2017.
+[22] L. Goetschalckx, A. Andonian, A. Oliva, and P. Isola,
+“Ganalyze: Toward visual deﬁnitions of cognitive im-
+age properties,” in The IEEE International Conference
+on Computer Vision (ICCV), 2019.
+[23] A. Jahanian*, L. Chai*, and P. Isola, “On the "steer-
+ability" of generative adversarial networks,” in Interna-
+tional Conference on Learning Representations, 2020.
+[24] J. Zhu, T. Park, P. Isola, and A. A. Efros, “Unpaired
+image-to-image translation using cycle-consistent ad-
+versarial networks,” in IEEE International Conference
+on Computer Vision, ICCV, 2017.
+[25] G. Lample,
+S. Subramanian,
+E. Smith,
+L. De-
+noyer, M. Ranzato, and Y.-L. Boureau, “Multiple-
+attribute text rewriting,” in International Conference
+on Learning Representations, 2019. [Online]. Avail-
+able: https://openreview.net/forum?id=H1g2NhC5KQ
+
+[26] K. Bousmalis, N. Silberman, D. Dohan, D. Erhan,
+and D. Krishnan, “Unsupervised pixel-level domain
+adaptation with generative adversarial networks,” in
+2017 IEEE Conference on Computer Vision and Pat-
+tern Recognition, CVPR, 2017.
+[27] A. Shrivastava, T. Pﬁster, O. Tuzel, J. Susskind,
+W. Wang, and R. Webb, “Learning from simulated and
+unsupervised images through adversarial training,” in
+2017 IEEE Conference on Computer Vision and Pat-
+tern Recognition, CVPR, 2017.
+[28] G. Lample, A. Conneau, L. Denoyer, and M. Ranzato,
+“Unsupervised machine translation using monolingual
+corpora only,” in International Conference on Learn-
+ing Representations, 2018.
+[29] M. Artetxe, G. Labaka, E. Agirre, and K. Cho, “Unsu-
+pervised neural machine translation,” in International
+Conference on Learning Representations, 2018.

@@ -1,0 +1,1098 @@
+SKETCHING THE EXPRESSION:
+FLEXIBLE RENDERING OF EXPRESSIVE PIANO PERFORMANCE
+WITH SELF-SUPERVISED LEARNING
+Seungyeon Rhyu1
+Sarah Kim2
+Kyogu Lee1,3
+1 Music and Audio Research Group (MARG), Seoul National University, South Korea
+2 Krust Universe, South Korea
+3 Graduate School of AI, AI Institute, Seoul National University, South Korea
+rsy1026@snu.ac.kr, estelle.kim@krustuniverse.com, kglee@snu.ac.kr
+ABSTRACT
+We propose a system for rendering a symbolic piano per-
+formance with flexible musical expression. It is necessary
+to actively control musical expression for creating a new
+music performance that conveys various emotions or nu-
+ances. However, previous approaches were limited to fol-
+lowing the composer’s guidelines of musical expression
+or dealing with only a part of the musical attributes. We
+aim to disentangle the entire musical expression and struc-
+tural attribute of piano performance using a conditional
+VAE framework. It stochastically generates expressive pa-
+rameters from latent representations and given note struc-
+tures. In addition, we employ self-supervised approaches
+that force the latent variables to represent target attributes.
+Finally, we leverage a two-step encoder and decoder that
+learn hierarchical dependency to enhance the naturalness
+of the output. Experimental results show that our system
+can stably generate performance parameters relevant to the
+given musical scores, learn disentangled representations,
+and control musical attributes independently of each other.
+1. INTRODUCTION
+Computational modeling of expressive music performance
+focuses on mimicking human behaviors that convey the
+music [1, 2]. For piano performance, one common task
+is to render an expressive performance from a quantized
+musical score. It aims to reproduce the loudness and tim-
+ing of musical notes that fits to the given score. Most of the
+conventional studies have used musical scores of Western
+piano music that includes sufficient amount of guidelines
+for musical expressions [3±6]. Recent studies using deep
+learning methods have successfully rendered plausible pi-
+ano performances that are comparable to those of profes-
+sional pianists from the given Classical scores [7±9].
+More recently, it has increased attention to controlling
+© S. Rhyu, S. Kim, and K. Lee. Licensed under a Creative
+Commons Attribution 4.0 International License (CC BY 4.0). Attribu-
+tion: S. Rhyu, S. Kim, and K. Lee, ªSketching the Expression:
+Flexible
+Rendering of Expressive Piano Performance with Self-Supervised Learn-
+ingº, in Proc. of the 23rd Int. Society for Music Information Retrieval
+Conf., Bengaluru, India, 2022.
+music performance by manipulating one or more disentan-
+gled representations from a generative model. These rep-
+resentations are sensitive to the variation of certain factors
+while invariant to other factors [10]. Maezawa et al. aimed
+to control a performer’s interpretation through a condi-
+tional variational recurrent neural network (CVRNN) [11].
+They intended to disentangle a time-variant representation
+of the personal interpretation. In the acoustic domain, Tan
+et al. proposed a generative model based on a Gaussian
+mixture variational autoencoder (GM-VAE) that separately
+controlled dynamics and articulations of the notes [12].
+Their novelty lied in learning multiple representations of
+high-level attributes from the low-level spectrogram.
+However, these studies have constrained musical cre-
+ativity. Maezawa et al. controlled musical expression only
+through quantized features from the musical scores. Tan
+et al. did not consider controlling tempo or timing with a
+latent representation. These methods may have restricted
+any potential for rendering piano performances with flex-
+ible musical expression.
+Musical creativity can be ex-
+panded not only by composers but also by performers who
+can elastically choose various strategies to highlight mul-
+tiple nuances or emotions [13±15]. Moreover, the music
+generation field can be also broadened if static music cre-
+ated by automatic composition systems can be easily col-
+ored with realistic and elastic expression [16].
+Therefore, we attempt a new approach that renders pi-
+ano performances with flexible musical expressions. We
+disregard a typical assumption from previous studies that a
+performer must follow a composer’s intent [4,17±19]. Ac-
+cording to the literature, performers learn to identify or im-
+itate "expressive models", or explicit planning, of existing
+piano performances [20]. We focus on this attribute, defin-
+ing it as a higher-level sketch of the expressive attributes
+(i.e. dynamics, articulation, and tempo [21]) that the per-
+former draws based on a personal interpretation of the mu-
+sical piece [4, 11, 20]. We also assume that the remaining
+attribute represents common performing strategies that are
+connected to certain musical patterns, while these strate-
+gies slightly differ across performers [22,23]. We call this
+attribute as a structural attribute that belongs to given note
+structures of a musical piece.
+In this study, we propose a generative model that can
+178
+
+flexibly control the entire musical expression, or the ex-
+plicit planning, of symbolic piano performance 1 .
+Our
+system is based on a conditional variational autoencoder
+(CVAE) that is modified for sequential data [11, 24]. The
+system generates multiple parameters of piano perfor-
+mance from a note structure of a musical passage, using
+disentangled representations for the explicit planning and
+structural attribute.
+We employ a self-supervised learning framework to
+force the latent representations to learn our target attributes
+[24±26]. In addition, we facilitate independent control of
+the three expressive attributes±dynamics, articulation, and
+tempo±by utilizing an existing method that aligns the la-
+tent code with a target attribute [27,28]. Finally, we design
+a novel mechanism that intuitively models a polyphonic
+structure of piano performance. In particular, we insert
+intermediate steps for chordwise encoding and decoding
+of the piano performance to our encoder-decoder architec-
+ture, where a chord denotes a group of simultaneous notes.
+Our approach has several contributions as follows: 1)
+Our system aims to control musical expression while main-
+taining any characteristics induced by a given musical
+structure; 2) We use self-supervised learning where new
+supervisory signals are involved in regularizing the latent
+representations effectively; 3) Our system aims to control
+multiple expressive attributes independently of each other;
+4) Lastly, we leverage an intermediate step that projects a
+notewise representation into the chordwise in the middle
+of our system to intuitively model the polyphonic structure
+of piano performance.
+2. PROPOSED METHODS
+We aim to build a generative model that factorizes expres-
+sive piano performance as the explicit planning and struc-
+tural attribute. The model is based on a conditional vari-
+ational autoencoder (CVAE) that reproduces performance
+parameters based on a given musical structure.
+2.1 Data Representation
+We extract features that represent a human performance
+and the corresponding musical score, following the con-
+ventional studies [11,19,29].
+Performance Features. We extract three features that
+represent the expressive attributes of each performed note,
+respectively: MIDIVelocity is a MIDI velocity value that
+ranges from 24 to 104. IOIRatio represents an instan-
+taneous variation in tempo. We compute an inter-onset-
+interval (IOI) between the onset of a note and the mean
+onset of the previous chord for both a performed note and
+the corresponding score note. Then, a ratio of performed
+IOI to score IOI is calculated, clipped between 0.125 and
+8, and converted into a logarithmic scale [4]. Articula-
+tion represents how much a note is shortened or length-
+ened compared to the instantaneous tempo. It is a ratio of
+a performed duration to an IOI value between the onset of
+1 https://github.com/rsy1026/sketching_piano_
+expression
+a note and mean onset of the next chord [19]. It is clipped
+between 0.25 and 4 and converted into a logarithmic scale.
+Score Features. The features for a musical score repre-
+sent eight categorical attributes for how the notes are com-
+posed: Pitch is a MIDI index number that ranges from 21
+to 108. RelDuration and RelIOI are 11-class attributes of
+a quantized duration and IOI between a note onset and a
+previous chord, respectively. They range from 1 to 11, and
+each class represents a multiple of a 16th note’s length with
+respect to a given tempo [30, 31]. IsTopVoice is a binary
+attribute of whether the note is the uppermost voice. It is
+heuristically computed regarding pitches and durations of
+surrounding notes. PositionInChord and NumInChord
+are 11-class attributes of a positional index of a note within
+its chord and the total number of notes in that chord, re-
+spectively, that range from 1 to 11. An index 1 for Posi-
+tionInChord denotes the most bottom position. Staff is a
+binary attribute of the staff of a note, either of the G clef or
+F clef. IsDownbeat is a binary attribute of whether a note
+is at a downbeat or not.
+2.2 Modeling Musical Hierarchy
+Inspired by previous studies [4, 8, 9, 32], we build a two-
+step encoder and decoder: An encoder models both note-
+wise and chordwise dependencies of the inputs, and a
+decoder reconstructs the notewise dependency from the
+chordwise representation and the notewise condition. We
+denote a chord as a group of notes that are hit simultane-
+ously, regardless of the staff, so that they sound together
+at an instant time [33]. Thus, learning the chordwise de-
+pendency is analogous to direct modeling of the temporal
+progression of the piano performance. Let M ∈RC×N
+be a matrix that aligns serialized notes to their polyphonic
+structure, where C and N are the number of chords and
+the number of notes, respectively. Within the encoder, the
+notewise representation is sequentially average-pooled by
+M with dynamic kernel sizes where each size represents
+the number of notes in each chord. We denote this opera-
+tion as N2C. In this way, we can directly model chord-level
+dependency of the note-level expressive parameters [32].
+In contrast, the decoder extends the chordwise representa-
+tion from the encoder back to the notewise using the trans-
+posed alignment matrix MT , of which process we denote
+as C2N. Along this, the notewise embedding of the score
+features replenishes the notewise information for the out-
+put. Consequently, notes in the same chord share any in-
+formation of their corresponding chord, while maintaining
+their differences by the conditional score features:
+N2C(e) =
+M · e
+PN
+n=1 Mn,1:C
+,
+C2N(e) = MT · e
+(1)
+where e denotes a notewise or chordwise representation.
+2.3 Overall Network Architecture
+Our proposed network is generally based on the condi-
+tional VAE framework [34, 35]. Concretely, we use the
+sequential VAE that is modified for generation of sequen-
+tial data [11,24,36]. Let x = {xn}N
+n=1 be a sequence of the
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+179
+
+Notewise
+Encoder
+N2C
+ො𝑥
+𝑥
+𝑦
+෠𝑘
+𝐷(pln)
+𝐷(str)
+𝐿pln
+𝐿reg
+𝐿fac
+At Training Only
+Chordwise
+Encoder
+𝑧(str)
+N2C
+N2C
+𝐿str
+𝑧(pln)
+𝑧(str)
+Notewise
+Encoder
+Chordwise
+Generator
+C2N
+RNN
+BiRNN
+𝑧(pln)
+Notewise
+Encoder
+Figure 1: Overall architecture of the proposed system. The
+orange box includes the auxiliary tasks only for training.
+performance features, and y = {yn}N
+n=1 be a sequence of
+the conditional score features. Our network has two chord-
+wise latent variables z(pln) = {z(pln)
+c
+}C
+c=1 ∈RC×d(pln) and
+z(str) = {z(str)
+c
+}C
+c=1 ∈RC×d(str) that represent explicit plan-
+ning and structural attribute, where d(pln) and d(str) are the
+sizes of z(pln) and z(str), respectively. Our network gener-
+ates notewise performance parameters x from these latent
+variables and given score features y. The overall architec-
+ture of our proposed system is illustrated in Figure 1.
+Generation. A probabilistic generator parameterized
+by θ produces the note-level performance parameters x
+from the two latent variables z(pln) and z(str) with the given
+condition y. We note that the latent variables are in chord-
+level. This decreases a computational cost and also enables
+intuitive modeling of polyphonic piano performance where
+each time step represents a stack of notes and the simulta-
+neous notes share common characteristics [8]:
+pθ(x, y, z(pln), z(str)) =pθ(x|z(pln), z(str), y)
+pθ(z(pln))
+C
+Y
+c=1
+pθ(z(str)
+c
+|z(str)
+<c , y(chd)
+≤c )
+(2)
+where y(chd) = N2C(ey) is the chordwise embedding, and
+ey is the notewise embedding for y. We assume that the
+prior of z(pln)
+c
+is a standard normal distribution. In contrast,
+z(str)
+c
+is sampled from a sequential prior [24, 36, 37], con-
+ditioned on both previous latent variables and chordwise
+score features: z(str)
+c
+∼N(µ(prior), diag(σ(prior)2), where
+[µ(prior), σ(prior)] = f (prior)(z(str)
+<c , y(chd)
+≤c ), and f (prior) is a
+unidirectional recurrent neural network. The latent repre-
+sentations and y(chd) pass through the decoder as shown in
+Figure 1. During training, the model predicts the interme-
+diate chordwise output that is computed as N2C(x). This
+is to enhance reconstruction power of our system, propa-
+gating accurate information of chord-level attributes to the
+final decoder. The intermediate activation is then extended
+to the notewise through the C2N operation. The note-level
+parameters are generated autoregressively based on this ac-
+tivation and the notewise score feature. We use teacher
+forcing during training [38].
+Inference. A probabilistic encoder parameterized by ϕ
+approximates the posterior distibutions of the latent rep-
+resentations z(pln) and z(str) from the performance input x
+and conditional score input y:
+qφ(z(pln), z(str)|x, y) =qφ(z(pln)|x(chd))
+C
+Y
+c=1
+qφ(z(str)
+c
+|x(chd)
+≤c , y(chd)
+≤c )
+(3)
+where x(chd) = N2C(ex) is the chordwise embedding,
+and ex is the notewise embedding for x.
+The pos-
+terior distributions of z(pln)
+c
+and z(str)
+c
+are approximated
+by distribution parameters encoded by f (pln)(x(chd)) and
+f (str)(x(chd), y(chd)), where f (pln) and f (str) are bidirec-
+tional and unidirectional recurrent neural networks, respec-
+tively. We note that z(pln) is independent of the score fea-
+tures y. This allows a flexible transfer of the explicit plan-
+ning among other musical pieces. On the other hand, z(str)
+is constrained by y since the structural attributes are de-
+pendent on the note structure.
+Training. We train the models pθ and qφ by approxi-
+mating marginal distributions of the performance features
+x conditioned on the score features y. This requires to
+maximize negative evidence lower bound (ELBO) that
+includes regularization force by Kullback±Leibler diver-
+gence [34]:
+LVAE = Eqφ(z(pln),z(str)|x,y)
+h
+log pθ(x|z(pln), z(str), y)
+i
++ Eqφ(z(pln),z(str)|x,y)
+h
+log pθ(k|z(pln), z(str), y)
+i
+−KL(qφ(z(pln)|x)∥pθ(z(pln)))
+−
+C
+X
+c=1
+KL(qφ(z(str)
+c
+|x(chd)
+≤c , y(chd)
+≤c )∥pθ(z(str)
+c
+|z(str)
+<c , y(chd)
+≤c ))
+(4)
+where k = N2C(x) is the chordwise performance features.
+2.4 Regularizing the Latent Variables
+We enhance disentanglement of the latent representations
+z(pln) and z(str) using four regularization tasks [24].
+Prediction Tasks. We extract new supervisory signals
+for additional prediction tasks from the input data [24].
+We define a signal of explicit planning I(pln) as a set of
+smoothed contours of the expressive parameters. It is ex-
+tracted as a polynomial function predicted from the chord-
+wise performance parameters k. We also derive a signal
+of structural attribute as I(str) = sign(k −I(pln)) which
+represents normalized directions of the performance pa-
+rameters. We train two discriminators D(pln) and D(str)
+that directly receive z(pln) and z(str), respectively. D(pln)
+is composed of A sub-discriminators where each discrim-
+inator D(pln)
+a
+predicts a signal I(pln)
+a
+for each expressive
+attribute a from z(pln)
+a
+∈RC×(d(pln)/A), where z(pln)
+a
+is
+a constituent part of z(pln), and A is the number of ex-
+pressive attributes.
+This setting is for a clear disentan-
+glement among the expressive attributes.
+On the other
+hand, D(str) predicts the signal I(str) at once for all ex-
+pressive attributes that belong to the same musical struc-
+ture. All discriminators are jointly trained with the gen-
+erative model, and the costs Lpln and Lstr are minimized
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+180
+
+as Lpln =
+1
+A
+P
+a MSE(D(pln)
+a
+(z(pln)
+a
+), I(pln)
+a
+) and Lstr =
+MSE(D(str)(z(str)), I(str)), respectively.
+Factorizing Latent Variables.
+We further constrain
+a generator to guarantee that z(pln) delivers correct in-
+formation regardless of z(str) [39].
+During training, we
+sample a new output ˜x using z(pln) ∼qφ(z(pln)|x) and
+˜z(str) ∼pθ(z(str)). Then, we re-infer ˜z(pln) ∼qφ(˜z(pln)|˜x)
+to estimate the superversory signal I(pln). This prediction
+loss is backpropagated only through the generator:
+Lfac = 1
+A
+X
+a
+MSE(D(pln)
+a
+(˜z(pln)
+a
+), I(pln)
+a
+)
+(5)
+Aligning Latent Variables with Factors. Finally, we
+enable the "sliding-fader" control of the expressive at-
+tributes [28]. To this end, we employ the regularization
+loss proposed by Pati et al. [27] that aligns specific dimen-
+sions of z(pln) with the target expressive attributes. This
+method assumes that a latent representation can be disen-
+tangled through its monotonic relationship with a target at-
+tribute. Let di and dj be a target dimension d of ith and
+jth latent representations, respectively, where d ∈z(pln)
+a
+,
+i, j ∈[1, M], and M is the size of a mini-batch. A dis-
+tance matrix Dd is computed between di and dj within a
+mini-batch, where Dd = di−dj. A similar distance matrix
+Da is computed for the two target attribute values ai and
+aj. We minimize a MSE between Dd and Da as follows:
+Lreg = MSE(tanh(Dd), sign(Da))
+(6)
+2.5 Overall Objective
+The overall objective of our proposed network aims to gen-
+erate realistic performance features with properly disentan-
+gled representations for the intended factors:
+L = LVAE + λplnLpln + λstrLstr + λfacLfac + λregLreg (7)
+where λpln, λstr, λfac, and λreg are hyperparameters for bal-
+ancing the importance of the loss terms.
+3. EXPERIMENTAL SETUPS
+3.1 Dataset and Implementation
+We use Yamaha e-Competition Dataset [8] and Vienna
+4x22 Piano Corpus [40]. From these datasets, we collect
+356 performances of 34 pieces by Frédéric Chopin, which
+have been representative research subjects for analyzing
+the Western musical expression [6, 22, 41, 42]. We use 30
+pieces (108,738 batches) for training and the rest for test-
+ing. To verify the generality of model performances, we
+also collect the external dataset from ASAP dataset [43].
+We use 116 performances for 23 pieces by 10 composers
+who represent various eras of Western music. For subjec-
+tive evaluation, we collect 42 songs of non-Classical songs
+from online source 2 which are less constrained to written
+expression than most Classical excerpts.
+2 http://www.ambrosepianotabs.com/page/library
+We basically follow Jeong et al. [8] to compute the input
+features from the aligned pairs of performance and score
+data. We set MIDI velocities and Beat Per Minute (BPM)
+of all notes in the score data to be 64 and 120, respec-
+tively. We also remove any grace notes for simplicity and
+manually correct any errors. The performance features are
+further normalized into a range from -1 to 1 for training.
+We use an ADAM optimizer [44] with an initial learning
+rate of 1e-5, which is reduced by 5% every epoch during
+backpropagation. We empirically set λpln, λstr, λfac, and
+λreg to be 1000, 100, 1, 10, respectively. We set a degree of
+the polynomial function computing I(pln) as 4 through an
+ablation study described in the supplementary material.
+3.2 Comparative Methods
+To the best of our knowledge, there is no existing method
+that does not intentionally follow the written guidelines in
+the musical score. Therefore, we use variants of our pro-
+posed network as comparing methods that differ in model
+architecture: Notewise denotes the proposed model with-
+out the hierarchical learning. CVAE denotes a variant of
+Notewise where z(pln) is substituted with the supervisory
+signal I(pln). We also conduct an ablation study that inves-
+tigates necessity of the four loss terms.
+4. EVALUATION
+We evaluate the proposed network in terms of both objec-
+tive and subjective criteria.
+4.1 Generation Quality
+We compute Pearson’s correlation coefficients between the
+reconstructed or generated samples and human piano per-
+formances [6, 9, 11, 19]. We first measure the reconstruc-
+tion quality of the test samples ("Rrecon"). Then, we eval-
+uate the samples generated from ˜z(str) ∼pθ(z(str)) and ei-
+ther of : 1) z(pln) ∼qφ(z(pln)|x) ("Rx|pln") and 2) z(pln)
+0
+∼
+qφ(z(pln)
+0
+|x0) ("Rx|pln0"), where x0 is a zero matrix.
+The results are shown in Table 1. Notewise shows the
+best scores in both datasets, and our method outperforms
+CVAE in Rrecon. It indicates that our proposed architecture
+where a latent representation is used instead of a direct
+condition is generally good at reconstructing the human
+data. When using the randomly sampled ˜z(str), our method
+and the model without Lreg show stable scores compared
+to other baseline models.
+The model without Lreg also
+shows the highest scores in Rx|pln for both datasets. It indi-
+cates that Lreg may contribute the least to generation power
+among other loss terms. CVAE and the model only with
+L(pln) also show high scores in Rx|pln0. This may be due
+to the posterior collapse that makes the decoder depends
+mostly on the score condition [45], which is demonstrated
+in the supplementary material.
+4.2 Disentangling Latent Representations
+We verify whether the latent representations are well-
+disentangled by appropriate information [24].
+To this
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+181
+
+(a)
+(b)
+(c)
+Figure 2: Qualitative samples for the proposed system. Light-blue, blue and gray lines denote the reconstructed results,
+sampled results from the inferred z(pln), and their ground truths, respectively; black and orange lines denote the controlled
+results that are generated from different random ˜z(str); and green lines denote the "sketch" values, or α, that are inserted to
+z(pln). The samples demonstrate three excerpts that are: (a) Haydn’s Keyboard Sonata, Hob. XVI:39, 3rd movement, mm.
+53-56; (b) Schubert’s Impromptu, Op. 90, No. 4, mm. 149-152; and (c) Balakirev’s Islamey, Op. 18, mm. 29-32.
+(a)
+(b)
+(c)
+Figure 3: Qualitative results for estimating the explicit
+planning from raw piano performances.
+Pink and gray
+lines denote the estimated contours and raw performance
+parameters, respectively. The results in (a), (b), and (c) are
+from the same excerpts for (a), (b), and (c) in Figure 2, re-
+spectively.
+Dataset
+Internal
+External
+Metric
+Rrecon
+Rx|pln
+Rx|pln0
+Rrecon
+Rx|pln
+Rx|pln0
+Notewise
+0.870
+0.392
+0.203
+0.875
+0.479
+0.177
+CVAE
+0.730
+0.338
+0.223
+0.741
+0.399
+0.216
+Lpln
+0.627
+0.357
+0.229
+0.687
+0.414
+0.220
+Lpln + Lstr
+0.770
+0.325
+0.181
+0.837
+0.398
+0.195
+w/o Lfac
+0.774
+0.289
+0.176
+0.838
+0.354
+0.173
+w/o Lreg
+0.737
+0.437
+0.224
+0.793
+0.502
+0.216
+Ours
+0.737
+0.427
+0.231
+0.789
+0.498
+0.203
+Table 1: Evaluation results for the generation quality. The
+higher score is the better.
+end, each model infers the latent representations z(pln)
+and z(str) from the test sets. Each model also randomly
+samples ˜z(str) and infers z(pln)
+0
+∼
+qφ(z(pln)|x0).
+We
+use z(pln)
+0
+to measure the structural attribute, since z(pln)
+0
+represents a flat expression where the structural attribute
+can be solely exposed. Each model generates new out-
+puts as x(pln) ∼pθ(x(pln)|z(pln), ˜z(str), y) and x(str) ∼
+pθ(x(str)|z(pln)
+0
+, z(str), y). Then, we compute a new signal
+˜I(pln) from x(pln) using the polynomial regression.
+The
+MSE values are calculated as MSEp = MSE(˜I(pln), I(pln))
+and MSEs = MSE(x(str), k −I(pln)).
+Dataset
+Internal
+External
+Metric
+MSEp
+MSEs
+MSEp
+MSEs
+Notewise
+0.003
+0.006
+0.022
+0.028
+CVAE
+0.034
+0.045
+0.085
+0.092
+Lpln
+0.028
+0.036
+0.074
+0.077
+Lpln + Lstr
+0.012
+0.015
+0.022
+0.027
+w/o Lfac
+0.018
+0.023
+0.021
+0.025
+w/o Lreg
+0.002
+0.004
+0.014
+0.022
+Ours
+0.001
+0.002
+0.012
+0.020
+Table 2: Evaluation results for the disentanglement of the
+latent representations.
+Dataset
+Internal
+External
+Metric
+C
+R
+L
+C
+R
+L
+Notewise
+0.782
+0.916
+0.632
+0.775
+0.914
+0.656
+CVAE
+0.798
+0.812
+0.620
+0.773
+0.802
+0.649
+Lpln
+0.693
+0.852
+0.323
+0.694
+0.834
+0.324
+Lpln + Lstr
+0.633
+0.882
+0.253
+0.639
+0.865
+0.277
+w/o Lfac
+0.831
+0.846
+0.789
+0.832
+0.831
+0.847
+w/o Lreg
+0.804
+0.955
+0.653
+0.808
+0.946
+0.657
+Ours
+0.942
+0.953
+0.976
+0.944
+0.945
+0.977
+Table 3: Evaluation results for the controllability of the
+expressive attributes. C, R, and L denotes consistency, re-
+strictiveness, and linearity, respectively. Each score is the
+average score for the expressive attributes.
+Table 2 shows that our method achieves the best scores
+in all metrics for both datasets.
+This confirms that our
+proposed system can learn the latent representations that
+reflect the intended attributes.
+Notewise and the model
+without Lreg also show the robust scores compared to other
+baseline models. It indicates that using the notewise mod-
+eling alone is still relevant for achieving appropriate repre-
+sentations. It also implies that Lreg may not contribute to
+the disentanglement as much as other loss terms.
+4.3 Controllability of Expressive Attributes
+We sample a new input ¯x where entries of each fea-
+ture are constant across time.
+Then, each model infers
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+182
+
+Metric
+Winning Rate (Human-likeness)
+Group
+T
+UT
+Overall
+Notewise
+0.317(±0.223) 0.541(±0.316) 0.493(±0.309)
+CVAE
+0.467(±0.356) 0.477(±0.342) 0.475(±0.338)
+Ours
+0.417(±0.256) 0.555(±0.256) 0.525(±0.258)
+Table 4: Evaluation results for the winning rate in terms
+of human-likeness. T, UT, and Overall denote musically
+trained, untrained, and all groups, respectively.
+¯z(pln) ∼qφ(¯z(pln)|¯x). We control each attribute by vary-
+ing dimension values of ¯z(pln) following Tan et al. [28] and
+examine the new samples generated from ¯z(pln). We lever-
+age the existing metrics to measure the controllability of
+each model [28]: Consistency ("C") measures consistency
+across samples in terms of their controlled attributes; re-
+strictiveness ("R") measures how much the uncontrolled
+attributes maintain their flatness over time; and linearity
+("L") measures how much the controlled attributes are cor-
+related with the corresponding latent dimensions. We av-
+erage over the three expressive attributes±dynamics, artic-
+ulation, and tempo±into one score for each metric.
+Table 3 demonstrates that our system shows the best
+scores in consistency and linearity in both internal and ex-
+ternal datasets. This indicates that our proposed method
+can robustly control the latent representation z(pln) in in-
+tended way.
+The model without Lreg outperforms our
+method in restrictiveness. It indicates that the uncontrolled
+attributes by this model are the least interfered by the con-
+trolled attribute. However, its scores on consistency and
+linearity are lower than ours. It confirms that Lreg promotes
+linear control of the target attributes.
+4.4 Subjective Evaluation
+We conduct a listening test to compare the proposed model
+architecture to Notewise and CVAE. We qualitatively eval-
+uate the base quality of the samples that have flat expres-
+sions, so that quality judgments are independent of any
+preference of arbitrary explicit planning. We generate each
+sample using z(pln)
+0
+. A listening test is composed of 30 tri-
+als where each participant chooses a more "human-like"
+sample out of the generated sample and its plain MIDI [9].
+Both samples have the same length which is a maximum of
+15 seconds, rendered with TiMidity++ 3 without any pedal
+effect. Human-likeness denotes how similar the sample is
+to an actual piano performance that commonly appears in
+popular music. A total of 28 participants are involved, and
+6 participants are professionally trained in music.
+The results are demonstrated in Table 4. We measure
+a winning rate, a rate of winning over the plain MIDI,
+and a top-ranking rate, a rate of being the highest rank
+among the three models in terms of winning rate. These
+metrics are further explained in the supplementary mate-
+rial. The results show that musically trained ("T") and un-
+trained ("UT") groups show the different tendency of each
+other: in the trained group, CVAE shows the best winning
+rate, and our method gets the best top-ranking rate; in the
+3 https://sourceforge.net/projects/timidity/
+Figure 4: Evaluation results for the top-ranking rate. T,
+UT, and Overall denote musically trained, untrained, and
+all groups, respectively.
+untrained group, our method shows the highest winning
+rate, whereas Notewise is top-ranked most frequently. We
+note that our system reveals smaller variances than those
+of CVAE and Notewise of the musically trained and un-
+trained groups in the winning rate, respectively. Moreover,
+our system receives the highest overall scores for both met-
+rics. It indicates that our system can be stably perceived
+more human-like than the plain MIDI compared to other
+baseline models.
+4.5 Qualitative Examples
+Our system can render new piano performances from the
+scratch given a musical score. It can directly generate ex-
+pressive parameters from the randomly sampled ˜z(pln) ∼
+pθ(z(pln)) and ˜z(str) ∼pθ(z(str)). We note that ˜z(pln) does
+not have temporal dependency: each ˜z(pln)
+c
+is sampled in-
+dependently of ˜z(pln)
+c−1 . Hence, we need to insert specific
+values {α(c)}C
+c=1, which we call as "smooth sketches",
+into the target dimensions of z(pln) if any temporal depen-
+dency of explicit planning is necessary. Figure 2 shows
+that the controlled parameters are greatly correlated with
+α, while their local characteristics follow those of the
+ground truth. In addition, the black and orange lines to-
+gether demonstrate granular variety in the parameters in-
+duced by different ˜z(str) for the same musical structure.
+Moreover, Figure 3 shows that our system can estimate ex-
+plicit planning from arbitrary human performances, indi-
+cating that our system can derive relevant information on
+explicit planning from the unseen data.
+5. CONCLUSION
+We propose a system that can render expressive piano per-
+formance with flexible control of musical expression. We
+attempt to achieve representations for the explicit planning
+and structural attribute through self-supervised learning
+objectives. We also leverage the two-step modeling of two
+hierarchical units for an intuitive generation. Experimen-
+tal results confirm that our system shows stable generation
+quality, disentangles the target representations, and con-
+trols all expressive attributes independently of each other.
+Future work can be improving our system using a larger
+dataset for various genres and composers. We can also
+further compare our system with recent piano-rendering
+models [8] to investigate any connections between a per-
+former’s explicit planning and a composer’s intent.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+183
+
+6. ACKNOWLEDGMENTS
+We deeply appreciate Dasaem Jeong, Taegyun Kwon, and
+Juhan Nam for giving technical support to initiate this re-
+search. We also especially appreciate Hyeong-Seok Choi
+for providing critical feedback on the model architecture
+and evaluation. We greatly appreciate You Jin Choi and all
+of my colleagues who gave great help with respect to the
+listening test.
+7. REFERENCES
+[1] G. Widmer and W. Goebl, ªComputational models of
+expressive music performance: The state of the art,º
+Journal of New Music Research, vol. 33, no. 3, pp.
+203±216, 2004.
+[2] C. E. Cancino-Chacón, M. Grachten, W. Goebl, and
+G. Widmer, ªComputational models of expressive mu-
+sic performance:
+A comprehensive and critical re-
+view,º Frontiers in Digital Humanities, vol. 5, no. 25,
+pp. 1±23, 2018.
+[3] G. Widmer, S. Flossmann, and M. Grachten, ªYQX
+plays Chopin,º AI Magazine, vol. 30, no. 3, pp. 35±48,
+2009.
+[4] T.
+H.
+Kim,
+S.
+Fukayama,
+T.
+Nishimoto,
+and
+S. Sagayama, ªStatistical approach to automatic ex-
+pressive rendition of polyphonic piano music,º in
+Guide to Computing for Expressive Music Perfor-
+mance.
+Springer, 2013, pp. 145±179.
+[5] C. E. Cancino-Chacón and M. Grachten, ªAn evalu-
+ation of score descriptors combined with non-linear
+models of expressive dynamics in music,º in Proceed-
+ings of the International Conference on Discovery Sci-
+ence, 2015.
+[6] C. E. Cancino-Chacón, T. Gadermaier, G. Widmer, and
+M. Grachten, ªAn evaluation of linear and non-linear
+models of expressive dynamics in classical piano and
+symphonic music,º Machine Learning, vol. 106, no. 6,
+pp. 887±909, 2017.
+[7] A. Maezawa, ªDeep piano performance rendering with
+conditional VAE,º in Late-Breaking Demo, the 19th
+International Society for Music Information Retrieval
+Conference, 2018.
+[8] D. Jeong, T. Kwon, Y. Kim, K. Lee, and J. Nam, ªVir-
+tuosoNet: A hierarchical RNN-based system for mod-
+eling expressive piano performance,º in Proceedings of
+the 20th International Society for Music Information
+Retrieval, 2019.
+[9] D. Jeong, T. Kwon, Y. Kim, and J. Nam, ªGraph neural
+network for music score data and modeling expressive
+piano performance,º in Proceedings of the 36th Inter-
+national Conference on Machine Learning, 2019.
+[10] Y. Bengio, A. Courville, and P. Vincent, ªRepresenta-
+tion learning: A review and new perspectives,º IEEE
+Transactions on Pattern Analysis and Machine Intelli-
+gence, vol. 35, no. 8, 2013.
+[11] A. Maezawa, K. Yamamoto, and T. Fujishima, ªRen-
+dering music performance with interpretation varia-
+tions using conditional variational RNN,º in Proceed-
+ings of the 20th International Society for Music Infor-
+mation Retrieval Conference, 2019.
+[12] H. H. Tan, Y.-J. Luo, and D. Herremans, ªGenerative
+modeling for controllable audio synthesis of expressive
+piano performance,º in Proceedings of the 37th Inter-
+national Conference on Machine Learning, 2020.
+[13] R. Bresin and A. Friberg, ªEmotional coloring of
+computer-controlled music performances,º Computer
+Music Journal, vol. 24, no. 4, 2000.
+[14] S. R. Livingstone, R. Muhlberger, A. R. Brown, and
+W. F. Thompson, ªChanging musical emotion: A com-
+putational rule system for modifying score and perfor-
+mance,º Computer Music Journal, vol. 34, no. 1, 2010.
+[15] M. Bernays and C. Traube, ªInvestigating pianists’ in-
+dividuality in the performance of five timbral nuances
+through patterns of articulation, touch, dynamics, and
+pedaling,º Frontiers in Psychology, vol. 5, no. 157, pp.
+1±19, 2014.
+[16] S. Oore, I. Simon, S. Dieleman, D. Eck, and K. Si-
+monyan, ªThis time with feeling: Learning expressive
+musical performance,º Neural Computing and Appli-
+cations, vol. 32, pp. 955±967, 2020.
+[17] A. Bhatara, A. K. Tirovolas, L. M. Duan, B. Levy, and
+D. J. Levitin, ªPerception of emotional expression in
+musical performance,º Journal of Experimental Psy-
+chology: Human Perception and Performance, vol. 37,
+no. 3, pp. 921±934, 2011.
+[18] A. Friberg, R. Bresin, and J. Sundberg, ªOverview of
+the KTH rule system for musical performance,º Ad-
+vances in Cognitive Psychology, vol. 2, no. 2-3, pp.
+145±161, 2006.
+[19] S. Flossmann, M. Grachten, and G. Widmer, ªExpres-
+sive performance rendering with probabilistic models,º
+in Guide to Computing for Expressive Music Perfor-
+mance.
+Springer, 2013, pp. 75±98.
+[20] R. H. Woody, ªThe relationship between explicit plan-
+ning and expressive performance of dynamic variations
+in an aural modeling task,º Journal of Research in Mu-
+sic Education, vol. 47, no. 4, pp. 331±342, 1999.
+[21] A. Lerch, C. Arthur, A. Pati, and S. Gururani, ªMusic
+performance analysis: A survey,º in Proceedings of the
+20st International Society for Music Information Re-
+trieval Conference, 2019.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+184
+
+[22] B. H. Repp, ªA microcosm of musical expression: II.
+quantitative analysis of pianists’ dynamics in the initial
+measures of Chopin’s Etude in E major,º The Journal
+of the Acoustical Society of America, vol. 105, no. 3,
+pp. 1972±1988, 1999.
+[23] H. Honing, ªFrom time to time: The representation of
+timing and tempo,º Computer Music Journal, vol. 25,
+no. 3, 2001.
+[24] Y. Zhu, M. R. Min, A. Kadav, and H. P. Graf, ªS3VAE:
+Self-supervised sequential VAE for representation dis-
+entanglement and data generation,º in Proceedings of
+Computer Vision and Pattern Recognition, 2020.
+[25] F. Locatello, S. Bauer, M. Lucic, G. Rätsch, S. Gelly,
+B. Schölkopf, and O. Bachem, ªChallenging common
+assumptions in the unsupervised learning of disentan-
+gled representations,º in Proceedings of the 36th Inter-
+national Conference on Machine Learning, 2019.
+[26] D. Hendrycks, M. Mazeika, S. Kadavath, and D. Song,
+ªUsing self-supervised learning can improve model ro-
+bustness and uncertainty,º in Proceedings of the 33rd
+Conference on Neural Information Processing Sys-
+tems, 2019.
+[27] A. Pati and A. Lerch, ªAttribute-based regularization of
+latent spaces for variational auto-encoders,º in Neural
+Computing and Applications, 2020.
+[28] H. H. Tan and D. Herremans, ªMusic FaderNets: Con-
+trollable music generation based on high-level features
+via low-level feature modeling,º in Proceedings of the
+21st International Society for Music Information Re-
+trieval Conference, 2020.
+[29] D. Jeong, T. Kwon, Y. Kim, and J. Nam, ªScore and
+performance features for rendering expressive music
+performances,º in Proceedings of the Music Encoding
+Conference, 2019.
+[30] A. Roberts, J. Engel, and D. Eck, ªHierarchical vari-
+ational autoencoders for music,º in Proceedings of
+the 31st Conference on Neural Information Processing
+Systems, 2017.
+[31] H.-W. Dong, W.-Y. Hsiao, L.-C. Yang, and Y.-H. Yang,
+ªMuseGAN: Multi-track sequential generative adver-
+sarial networks for symbolic music generation and ac-
+companiment,º in Proceedings of the 32nd AAAI Con-
+ference on Artificial Intelligence, 2018.
+[32] S.-L. Wu and Y.-H. Yang, ªMuseMorphose: Full-song
+and fine-grained music style transfer with just one
+Transformer VAE,º arXiv preprint arXiv:2105.04090,
+2021.
+[33] Z. Wang, Y. Zhang, Y. Zhang, J. Jiang, R. Yang, J. Z.
+(Jake), and G. Xia, ªPianotree VAE: Structured repre-
+sentation learning for polyphonic music,º in Proceed-
+ings of the 37th International Conference on Machine
+Learning, 2020.
+[34] D. P. Kingma and M. Welling, ªAuto-encoding varia-
+tional bayes,º arXiv preprint arXiv:1312.6114, 2013.
+[35] K. Sohn, X. Yan, and H. Lee, ªLearning structured out-
+put representation using deep conditional generative
+models,º in Proceedings of the 28th International Con-
+ference on Neural Information Processing Systems,
+2015.
+[36] Y. Li and S. Mandt, ªDisentangled sequential autoen-
+coder,º in Proceedings of the 35th International Con-
+ference on Machine Learning, 2018.
+[37] J. Chung, K. Kastner, L. Dinh, K. Goel, A. C.
+Courville, and Y. Bengio, ªA recurrent latent variable
+model for sequential data,º in Proceedings of the 28th
+International Conference on Neural Information Pro-
+cessing Systems, 2015.
+[38] R. J. Williams and D. Zipser, ªA learning algorithm for
+continually running fully recurrent neural networks,º
+Neural Computation, vol. 1, no. 2, 1989.
+[39] Z. Hu, Z. Yang, X. Liang, R. Salakhutdinov, and E. P.
+Xing, ªToward controlled generation of text,º in Pro-
+ceedings of the 34th International Conference on Ma-
+chine Learning, 2017.
+[40] W. Goebl, ªMelody lead in piano performance: Ex-
+pressive device or artifact?º The Journal of the Acous-
+tical Society of America, vol. 110, no. 1, 2001.
+[41] M. Grachten and G. Widmer, ªLinear basis models for
+prediction and analysis of musical expression,º Journal
+of New Music Research, vol. 41, no. 4, pp. 311±322,
+2012.
+[42] Z. Shi, ªComputational analysis and modeling of ex-
+pressive timing in Chopin Mazurkas,º in Proceedings
+of the 22nd International Society for Music Informa-
+tion Retrieval Conference, 2021.
+[43] F. Foscarin, A. McLeod, P. Rigaux, F. Jacquemard, and
+M. Sakai, ªASAP: A dataset of aligned scores and per-
+formances for piano transcription,º in Proceedings of
+the 21st International Society for Music Information
+Retrieval Conference, 2020.
+[44] D. P. Kingma and J. Ba, ªAdam: A method for stochas-
+tic optimization,º arXiv preprint arXiv:1412.6980,
+2014.
+[45] I. Higgins, L. Matthey, A. Pal, C. Burgess, X. Glorot,
+M. Botvinick, S. Mohamed, and A. Lerchner, ªβ-VAE:
+Learning basic visual concepts with a constrained vari-
+ational framework,º in Proceedings of the 5th Interna-
+tional Conference on Learning Representations, 2017.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+185

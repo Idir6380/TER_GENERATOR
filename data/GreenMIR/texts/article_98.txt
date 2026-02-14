@@ -1,0 +1,883 @@
+MEL SPECTROGRAM INVERSION WITH STABLE PITCH
+Bruno Di Giorgi∗
+Apple
+bdigiorgi@apple.com
+Mark Levy∗
+Apple
+mark_levy@apple.com
+Richard Sharp
+Apple
+richard_sharp@apple.com
+ABSTRACT
+Vocoders are models capable of transforming a low-
+dimensional spectral representation of an audio signal, typ-
+ically the mel spectrogram, to a waveform. Modern speech
+generation pipelines use a vocoder as their ﬁnal compo-
+nent. Recent vocoder models developed for speech achieve
+a high degree of realism, such that it is natural to won-
+der how they would perform on music signals. Compared
+to speech, the heterogeneity and structure of the musical
+sound texture offers new challenges. In this work we fo-
+cus on one speciﬁc artifact that some vocoder models de-
+signed for speech tend to exhibit when applied to music:
+the perceived instability of pitch when synthesizing sus-
+tained notes.
+We argue that the characteristic sound of
+this artifact is due to the lack of horizontal phase coher-
+ence, which is often the result of using a time-domain tar-
+get space with a model that is invariant to time-shifts, such
+as a convolutional neural network.
+We propose a new vocoder model that is speciﬁcally de-
+signed for music. Key to improving the pitch stability is the
+choice of a shift-invariant target space that consists of the
+magnitude spectrum and the phase gradient. We discuss
+the reasons that inspired us to re-formulate the vocoder
+task, outline a working example, and evaluate it on musical
+signals1. Our method results in 60% and 10% improved re-
+construction of sustained notes and chords with respect to
+existing models, using a novel harmonic error metric.
+1. INTRODUCTION
+In modern speech synthesis pipelines a ﬁrst model gen-
+erates a low-dimensional audio representation, usually
+the mel spectrogram, from text; and a second model,
+named Vocoder, transforms the mel spectrogram to an
+audio waveform.
+Theoretically, vocoders designed for
+speech could be directly applied to musical signals; how-
+ever closer inspection reveals features and constraints that
+are exclusive to the music domain.
+For example, un-
+like speech, music signals can be polyphonic and contain
+*Equal contribution
+1Reconstruction
+examples
+https://machinelearning.
+apple.com/research/mel-spectrogram
+© B. Di Giorgi, M. Levy, and R. Sharp. Licensed under a
+Creative Commons Attribution 4.0 International License (CC BY 4.0).
+Attribution:
+B. Di Giorgi, M. Levy, and R. Sharp, “Mel Spectrogram
+Inversion with Stable Pitch”, in Proc. of the 23rd Int. Society for Music
+Information Retrieval Conf., Bengaluru, India, 2022.
+<latexit sha1_base64="FG9kwABaXzYyOjlAlQsA9HVrTU=">AB6HicbVBNS8NAEJ34WetX1aOXxSJ4KomIeix68SK0YD+gDWznbRrN5uwuxFK6C/w4kERr/4kb/4bt20O2vpg4PHeDPzgkRwbVz321lZXVvf2CxsFbd3dvf2SweHTR2nimGDxSJW7YBqFxiw3AjsJ0opFEgsBWMbqd+6wmV5rF8MOME/YgOJA85o8ZK9fteqexW3BnIMvFyUoYctV7pq9uPWRqhNExQrTuemxg/o8pwJnBS7KYaE8pGdIAdSyWNUPvZ7NAJObVKn4SxsiUNmam/JzIaT2OAtsZUTPUi95U/M/rpCa89jMuk9SgZPNFYSqIicn0a9LnCpkRY0soU9zeStiQKsqMzaZoQ/AWX14mzfOKd1nx6hfl6k0eRwGO4QTOwIMrqMId1KABDBCe4RXenEfnxXl3PuatK04+cwR/4Hz+AKcFjNc=</latexit>M
+<latexit sha1_base64="f5NrmU0LCNgBXKtmZNV78UH5SLc=">AB63icbVBNS8NAEJ3Ur1q/qh69LBbBU0lE1GPRi8cK9gPaUDbTbN0dxN2N0IJ/QtePCji1T/kzX/jJs1BWx8MPN6bYWZekHCmjet+O5W19Y3Nrep2bWd3b/+gfnjU1XGqCO2QmMeqH2BNOZO0Y5jhtJ8oikXAaS+Y3uV+74kqzWL5aGYJ9QWeSBYygk0uDZOIjeoNt+kWQKvEK0kDSrRH9a/hOCapoNIQjrUeG5i/Awrwin89ow1TBZIondGCpxIJqPytunaMzq4xRGCtb0qBC/T2RYaH1TAS2U2AT6WUvF/zBqkJb/yMySQ1VJLFojDlyMQofxyNmaLE8JklmChmb0UkwgoTY+Op2RC85ZdXSfei6V01vYfLRu2jKMKJ3AK5+DBNbTgHtrQAQIRPMrvDnCeXHenY9Fa8UpZ47hD5zPHxWAjkU=</latexit>φ
+<latexit sha1_base64="BrYPwFCVDin5uYGXU3poaFwfQ=">AB63icbVBNS8NAEJ3Ur1q/qh69LBbBU0lE1GPRi8cK9gPaUDbTbt0swm7E6GE/gUvHhTx6h/y5r9x0+agrQ8GHu/NMDMvSKQw6LrfTmltfWNzq7xd2dnd2z+oHh61TZxqxlslrHuBtRwKRvoUDJu4nmNAok7wSTu9zvPHFtRKwecZpwP6IjJULBKOZSXygcVGtu3Z2DrBKvIDUo0BxUv/rDmKURV8gkNabnuQn6GdUomOSzSj81PKFsQke8Z6miETd+Nr91Rs6sMiRhrG0pJHP190RGI2OmUWA7I4pjs+zl4n9eL8Xwxs+ESlLki0WhakGJP8cTIUmjOU0so08LeStiYasrQxlOxIXjL6+S9kXdu6p7D5e1xm0RxlO4BTOwYNraMA9NKEFDMbwDK/w5kTOi/PufCxaS04xcwx/4Hz+ACSgjk8=</latexit>Z
+<latexit sha1_base64="Nk/bB/4qbjC4+uX2bwFHMWg9Ko=">AB8XicbVBNS8NAEJ3Ur1q/qh69LBbBU0lE1GPRi8cKthabUCbTbt0swm7G6GE/gsvHhTx6r/x5r9x2+agrQ8GHu/NMDMvTAXxnW/ndLK6tr6RnmzsrW9s7tX3T9o6yRTlLVoIhLVCVEzwSVrGW4E6SKYRwK9hCObqb+wxNTmify3oxTFsQ4kDziFI2VHn2JoUA/HfJetebW3RnIMvEKUoMCzV71y+8nNIuZNFSg1l3PTU2QozKcCjap+JlmKdIRDljXUokx0E+u3hCTqzSJ1GibElDZurviRxjrcdxaDtjNEO96E3F/7xuZqKrIOcyzQyTdL4oygQxCZm+T/pcMWrE2BKkitbCR2iQmpsSBUbgrf48jJpn9W9i7p3d15rXBdxlOEIjuEUPLiEBtxCE1pAQcIzvMKbo50X5935mLeWnGLmEP7A+fwBkv2Q2w=</latexit>rφ
+iSTFT
+1d-Conv Net
+mel spectrogram
+waveform
+Figure 1: Our proposed model for mel spectrogram inver-
+sion. A one dimensional CNN estimates the magnitude and
+the phase gradient from the mel spectrogram. The phase
+gradient is then integrated to estimate the phase spectrum
+and ﬁnally audio is obtained via the inverse STFT.
+longer sustained notes whose pitch precision and stability
+is essential.
+The stability of a sustained pitched note manifests in
+the time-domain audio signal as the steady repetition of a
+periodic waveform. Periodic patterns are by deﬁnition not
+shift-invariant, except for shifts of an integer number of pe-
+riods, therefore they require some form of auto-regression
+in order to be reproduced accurately. As expected, time-
+domain vocoders using shift invariant architectures [1, 2],
+despite other advantages such as generation efﬁciency, pro-
+duce jitters that are perceived as pitch and timbre instabil-
+ity. For this reason, other time-domain generative models
+for audio include an autoregressive mechanism in the neu-
+ral architecture [3–5]. In practice, time-domain models are
+required to learn all possible shifts of periodic patterns, a
+space that increases exponentially for polyphonic music,
+and how to create smooth sequences of these patterns.
+Inspired by a recent generative model for single notes
+[6], we propose a new vocoder model for music (Fig. 1),
+where the target of the neural network is an intermedi-
+ate frequency-domain audio representation that is shift-
+invariant for sustained notes. This representation is com-
+posed of the magnitude spectrum and the phase gradient,
+and can be later turned to audio via: 1. a phase integration
+algorithm and 2. the inverse STFT. The proposed design
+can be used with an efﬁcient shift-invariant neural architec-
+ture and still yield stable reconstruction of sustained notes.
+Speciﬁcally, our contributions include:
+• a formulation of the mel spectrogram inversion task,
+matching shift-invariant network and target, in order
+to improve the perceived stability of sustained notes
+• a phase integration algorithm
+• an evaluation metric measuring pitch stability for
+multiple notes
+233
+
+2. BACKGROUND
+Figure 2: Magnitude M, phase φ and phase gradient ∇φ
+patterns for a sinusoidal (top row) and an impulse (bottom
+row) signal. While the magnitude spectrum is easy to in-
+terpret visually, patterns in the phase spectrum are harder
+to decipher, but become evident in the phase gradient.
+A discrete audio signal x can be analyzed in the time-
+frequency space using the STFT:
+X[m, n] =
+X
+i
+x[i + nR]w[i]e−jωmi,
+(1)
+where m and n are the integer frequency bin and
+time frame indices, R is the hop size between suc-
+cessive frames, w is a window function deﬁned in the
+[−N/2, N/2) interval, with N being the frame size and
+ωm = 2πm/N the angular frequency. The STFT is a
+complex-valued matrix, as such it can be represented in
+the polar form:
+X[m, n] = M[m, n]e−jφ[m,n].
+(2)
+The magnitude component M highlights the energy of the
+signal at various locations in the time-frequency grid: it
+is easier to interpret and more widely used than the phase
+component φ. However, the phase spectrum is of primary
+perceptual importance to reconstruct the audio signal pre-
+cisely, and while harder to interpret at ﬁrst sight, it does
+contain patterns that can guide model design choices (Fig.
+2).
+In Sect. 2.1 we describe two patterns that form in the
+magnitude and phase spectrum corresponding to the occur-
+rence of ideal sinusoidal and impulsive signal components.
+2.1 Sinusoidal and impulsive components
+2.1.1 Sinusoidal components
+In the magnitude spectrum, sinusoidal components such
+as any single harmonic of a pitched instrument’s sustained
+note, show up as horizontal lines (Fig. 2(a)). While the
+magnitude spectrum does not depend on the frame index
+n, and is therefore shift-invariant, the phase spectrum de-
+pends linearly on n (Fig. 2(b)), and the rate of change is
+given by the frequency of the sinusoidal component. Fail-
+ing to reconstruct this linear relation between phase and
+time results in loss of horizontal phase coherence, per-
+ceived as unstable pitch, because errors are attributed to
+sudden changes of the frequency of the sinusoidal compo-
+nent.
+2.1.2 Impulsive components
+Impulsive components such as the attack of a percussion
+instrument show up as vertical lines in the magnitude spec-
+trum (Fig. 2(d)). While the magnitude spectrum does not
+depend on the frequency index m, the phase spectrum de-
+pends linearly on m (Fig. 2(e)), and the rate of change
+depends on the offset between the location of the impulse
+and the frame center. Failing to reconstruct this linear rela-
+tion between phase and frequency results in loss of vertical
+phase coherence, which is perceived as smeared transients,
+because the errors are attributed to the location of the im-
+pulse.
+2.2 Phase gradient
+The linear patterns that emerge in the phase for sinusoidal
+and impulsive components are better highlighted in the two
+components of the phase gradient ∇φ = (φ′
+i, φ′
+m).
+The partial derivative of phase along the time dimen-
+sion φ′
+i is called instantaneous frequency. For the bins that
+belong to sinusoidal components, φ′
+i is constant and the
+phase can be propagated horizontally:
+φ[m, n + 1] = φ[m, n] + Rφ′
+i[m, n].
+(3)
+The partial derivative along the frequency dimension φ′
+m
+is called local group delay. For the bins that belong to
+impulsive components, φ′
+m is constant and the phase can
+be propagated vertically:
+φ[m + 1, n] = φ[m, n] + φ′
+m[m, n].
+(4)
+In the time-frequency reassignment literature (see e.g. [7]),
+the phase gradient components are used to assign the en-
+ergy of a spectral bin (m, n) to a nearby point of maximum
+contribution ( ˙m, ˙n):
+˙m[m, n]= m + ∆m[m, n]
+˙n[m, n]= n + ∆n[m, n],
+(5)
+where ∆n[m, n] (Fig. 2(f)) and ∆m[m, n] (Fig. 2(c)) rep-
+resent time and frequency bin offsets and are derived from
+the phase gradient
+∆m[m, n]= φ′
+i[m, n] N
+2π −m
+∆n[m, n]= −φ′
+m[m, n] N
+2πR.
+(6)
+In the following sections, we discuss how the phase gradi-
+ent can be used for mel spectrogram inversion.
+2.3 Mel spectrogram inversion
+The log-amplitude mel spectrogram (simply mel spectro-
+gram from now on) is a low-resolution time-frequency rep-
+resentation that is derived from the power spectrogram
+M 2, by ﬁrst warping the frequency axis using the mel
+scale, then scaling the values to log-amplitude.
+Esti-
+mating the original audio signal x from the mel spectro-
+gram requires recovering the information that has been lost
+in the direct computation, i.e. the phase information and
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+234
+
+the linearly-spaced and higher frequency resolution of the
+magnitude spectrum.
+While the majority of the recent approaches try to learn
+this inverse transformation end-to-end, this is especially
+hard for a polyphonic music signal. To precisely reproduce
+a sustained note, an end-to-end model needs to learn: 1.
+different patterns for every combination of phase shift and
+period of a periodic waveform, and 2. how to activate them
+in the right sequence [6].
+Accomplishing both tasks is
+challenging for speech and arguably even more so for mu-
+sic, which contains generally longer pitched sounds with
+wider pitch range, possibly multiple concurrent fundamen-
+tal frequencies (polyphony), and whose absolute precision
+is essential.
+Instead of reconstructing the signal in the time domain,
+we propose to use as output space an intermediate time-
+frequency representation consisting of three channels: the
+magnitude spectrum and the two components of the phase
+gradient: (M, φ′
+i, φ′
+m). The phase gradient is later inte-
+grated to estimate the phase spectrum φ, and ﬁnally audio
+is computed via the inverse STFT.
+A model trained on our proposed output representation
+does not need to learn: 1. the shift variations of periodic
+waveforms as those are explicitly modeled by the inverse
+STFT, and 2. how to sequence phase, which is handled via
+the phase integration algorithm. Differently from the phase
+spectrum, the phase derivative along time is shift-invariant,
+thus it is a more suitable target for a shift-invariant archi-
+tecture, such as the convolutional neural network.
+The approaches that have been suggested in the recent
+years for neural audio synthesis in the time-domain have to
+use auto-regression to achieve horizontal phase coherence.
+For example, autoregression is at the core of models like
+WaveNet [3] and WaveRNN [4], however the fact that it is
+applied at the rate of audio samples make these model pro-
+hibitively expensive for the generation of high-resolution
+audio signals.
+Audio domain shift-invariant convolutional neural
+vocoders can generate audio samples with much higher
+efﬁciency, but are not suited to reconstruct long pitched
+components precisely. This holds regardless of the training
+strategy, and includes for example generative adversarial
+networks (GAN) based models [1, 2] and diffusion based
+models [8, 9].
+A recent neural vocoder for speech mel
+spectrogram inversion [5] adds an autoregressive loop that
+works on chunks of audio. The autoregressive nature of
+this architecture allows performing temporal integration,
+the operation needed to reconstruct stable sinusoidal com-
+ponents, while advancing by audio chunks rather than sam-
+ples improves efﬁciency. However, the poor reconstruction
+quality observed when applying this model to music sig-
+nals suggests that it is difﬁcult to learn signal properties
+such as the rotation of phase from data with sufﬁcient gen-
+eralization.
+In the neural audio synthesis literature, using instan-
+taneous frequency has been considered explicitly in [6],
+where it is generated alongside the magnitude spectrum in
+order to reconstruct the audio of single notes, conditioned
+on the pitch contour and a timbre embedding.
+2.4 Phase integration
+Recovering the phase spectrum from the phase gradients
+requires an integration step. Theoretically, perfect inte-
+gration should be possible under speciﬁc constraints, such
+as continuous phase gradient spectrum and window func-
+tions with inﬁnite support. In practice, however there is no
+closed-form solution for integrating typical discrete phase
+gradient spectra [10].
+Well-known phase gradient integration algorithms have
+been developed in the Time-Scale Modiﬁcation (TSM)
+literature.
+The standard Phase-Vocoder (PV) algorithm
+propagates the phase derivative along the time dimension
+to modify the duration of sinusoidal components [11].
+The PV is able to preserve horizontal phase coherence,
+but struggles with vertical phase coherence, leading to
+smeared transients. Improvements to the standard phase-
+vocoder algorithm [12–14] use the magnitude spectrum to
+identify sinusoidal and/or impulsive components, and can
+propagate phase in either direction (time or frequency) de-
+pending on the local properties of the signal.
+The phase gradient integration algorithm that we de-
+velop (Sect. 3.2) is inspired by these recent variations,
+and leads to subjectively improved reconstruction quality,
+alongside increased computational efﬁciency.
+A formal
+evaluation of the integration algorithm is out of the scope
+of this manuscript and left as future work.
+3. MODEL
+In this section we describe our proposed model for mel
+spectrogram inversion. The model is composed of a time-
+wise convolutional neural network (Sect. 3.1) that esti-
+mates magnitude and phase gradient from the mel spec-
+trogram, and a phase integration algorithm (Sect. 3.2) that
+estimates the phase spectrum given the phase gradient. The
+time-domain reconstructed audio is ﬁnally obtained via in-
+verse STFT from the magnitude and phase spectra.
+3.1 Network architecture
+The neural network is a stack of 8 1-d (time) convolutional
+layers with 1536 hidden channels, a kernel size of 3 frames
+and ReLU activations (Fig. 3). The input and output have
+the same number of time frames, but different numbers of
+frequency bins, and their center frequencies are different,
+i.e. log-spaced for the mel spectrogram input and linearly
+spaced for the magnitude and phase gradient outputs. The
+frequency bins of the input and the magnitude channel of
+the output are independently standardized using the mean
+and standard deviation values computed from the training
+set. We found that a direct path from the input to the mag-
+nitude channel of the output leads to signiﬁcant improve-
+ments in the reconstruction of magnitude and the training
+speed. This direct path consists only of a frequency warp-
+ing operation from mel- to linear-scale.
+The phase gradients (φ′
+i, φ′
+m) are computed using the
+Auger-Flandrin technique [15]. Although we have not ex-
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+235
+
+Conv-1d k=3 ch=1536
+ReLU
+Conv-1d k=3 ch=3x2048
+Mel2Lin
+Mel
+96
+2048
+<latexit sha1_base64="NJYlJLm8uRjurZrpQPVRuwOmX0=">AB73icbVBNS8NAEN3Ur1q/qh69LBbBU0mkqMeCHjxWsB/QhrLZTtqlm03cnQgl9E948aCIV/+ON/+N2zYHbX0w8Hhvhpl5QSKFQdf9dgpr6xubW8Xt0s7u3v5B+fCoZeJUc2jyWMa6EzADUihokAJnUQDiwIJ7WB8M/PbT6CNiNUDThLwIzZUIhScoZU6vVuQyKjqlytu1Z2DrhIvJxWSo9Evf/UGMU8jUMglM6bruQn6GdMouIRpqZcaSBgfsyF0LVUsAuNn83un9MwqAxrG2pZCOld/T2QsMmYSBbYzYjgy95M/M/rphe+5lQSYqg+GJRmEqKMZ09TwdCA0c5sYRxLeytlI+YZhxtRCUbgrf8ipXVS9y6p3X6vUa3kcRXJCTsk58cgVqZM70iBNwokz+SVvDmPzovz7nwsWgtOPnNM/sD5/AGEH4+W</latexit>∆n
+<latexit sha1_base64="BrFt0fgogo8dW9fGAoag6zNYU=">AB73icbVBNS8NAEJ3Ur1q/qh69LBbBU0mkqMeCHjxWsB/QhrLZbtqlm03cnQgl9E948aCIV/+ON/+N2zYHbX0w8Hhvhpl5QSKFQdf9dgpr6xubW8Xt0s7u3v5B+fCoZeJUM95ksYx1J6CGS6F4EwVK3k0p1EgeTsY38z89hPXRsTqAScJ9yM6VCIUjKVOr1bLpGSqF+uFV3DrJKvJxUIEejX/7qDWKWRlwhk9SYrucm6GdUo2CST0u91PCEsjEd8q6likbc+Nn83ik5s8qAhLG2pZDM1d8TGY2MmUSB7YwojsyNxP/87ophtd+JlSIldsShMJcGYzJ4nA6E5QzmxhDIt7K2EjaimDG1EJRuCt/zyKmldVL3Lqndfq9RreRxFOIFTOAcPrqAOd9CAJjCQ8Ayv8OY8Oi/Ou/OxaC04+cwx/IHz+QOCm4+V</latexit>∆m
+<latexit sha1_base64="kv8EzdzAI3Z5fl7/HGSfJidEbc=">AB6HicbVBNS8NAEJ3Ur1q/qh69LBbBU0mkqMeCFy9C7YW2lA20m7drMJuxuhP4CLx4U8epP8ua/cdvmoK0PBh7vzTAzL0gE18Z1v53C2vrG5lZxu7Szu7d/UD48aus4VQxbLBax6gRUo+ASW4YbgZ1EIY0CgQ/B+GbmPzyh0jyW92aSoB/RoeQhZ9RYqXnXL1fcqjsHWSVeTiqQo9Evf/UGMUsjlIYJqnXcxPjZ1QZzgROS71UY0LZmA6xa6mkEWo/mx86JWdWGZAwVrakIXP190RGI60nUWA7I2pGetmbif953dSE137GZIalGyxKEwFMTGZfU0GXCEzYmIJZYrbWwkbUWZsdmUbAje8surpH1R9S6rXrNWqdfyOIpwAqdwDh5cQR1uoQEtYIDwDK/w5jw6L86787FoLTj5zDH8gfP5A6LPjMk=</latexit>M
+x7
++
+Figure 3: Convolutional network architecture
+perimented with other ways to compute the phase gradient,
+it was argued [16] that using a less precise method, such as
+ﬁnite differences might perform just as well. Instead of
+using the phase gradients directly, we use the vertical and
+horizontal bin offsets (Eq. (6)), which are derived from the
+two components of the phase gradient. In order to remove
+outliers, the absolute bin offsets are clipped to 4.0 on the
+frequency dimension and to N/2R on the time dimension.
+The model uses linear output activation on all output
+channels except for the magnitude channel, where we ap-
+ply a scaled tanh activation fβ(x) = β tanh(x/β) with
+β = 5 to use mostly the linear regime while also prevent-
+ing overﬂow [6]. The three channels are then scaled and
+offset appropriately to match the statistics of the targets.
+3.1.1 Losses
+The magnitude channel is trained with a Mean Square Er-
+ror (MSE) loss term, and a further MSE loss term com-
+puted on the ﬁrst 20 linear-frequency cepstral coefﬁcients
+(LFCC).
+L1
+=
+( ˆ
+M −M)2
+(7)
+L2
+=
+(DCT:20( ˆ
+M) −DCT:20(M))2,
+(8)
+where ˆ
+M indicates the estimated magnitude spectrum, M
+the target magnitude spectrum, and DCT the normalized
+Discrete Cosine Transform; in these and the following loss
+formulas the [m, n] indices and the global average opera-
+tion have been omitted for simplicity. While L1 acts on
+point estimates, L2 pushes the spectral envelope towards
+its true value, leading to faster convergence and better re-
+construction quality.
+The phase gradient channels are trained with another
+MSE loss, weighted by the power spectrum of the target
+signal M 2. A matrix λ ∈[0, 1], computed from the phase
+gradient (Sect. 3.2), is used to distinguish sinusoidal and
+impulsive components. The idea is that the phase deriva-
+tive along the time/frequency dimension contributes to the
+loss only for sinusoidal/impulsive components:
+L3 =
+(
+M 2( ˆ
+∆m −∆m)2
+λ > 0.5
+M 2( ˆ
+∆n −∆n)2
+λ ≤0.5, ,
+(9)
+where ( ˆ
+∆m, ˆ
+∆n) are the estimated bin offsets.
+Finally, because λ is a function of ∇φ and is used for
+integration, we add a loss term:
+L4 = M 2(ˆλ −λ)2,
+(10)
+where ˆλ is computed using the phase gradient estimates
+and λ using the target values. The ﬁnal loss is a weighted
+sum of all the loss terms:
+L =
+X
+l
+αlLl,
+(11)
+where all weights are set to 1 except α2 = 0.1 to balance
+the contribution of all terms during training.
+Differently from time-domain methods for mel spectro-
+gram inversion, we found reconstruction losses to yield
+satisfying results and did not add any adversarial loss.
+Evaluating the advantages of including adversarial losses
+is left for future research.
+3.2 Phase integration
+The algorithm we use for integrating phase from phase gra-
+dients relies on the classiﬁcation of spectral bins into either
+sinusoidal, transient or noise components.
+The classiﬁcation uses the phase gradient and relies on
+the following rationale [7]: around sinusoidal/impulsive
+components the reassigned frequency/time is approxi-
+mately constant along frequency/time
+λ[m, n] = e−(
+d
+dm ˙m[m,n]/ d
+dn ˙n[m,n])2,
+(12)
+where the derivatives d/dm and d/dn are computed with
+centered ﬁnite differences.
+After computing λ, the phase gradients are propagated
+horizontally (Eq. (3)) if λ > λS, vertically (Eq. (4)) if
+λ < λI, and set to a random value otherwise. λI and λS
+are threshold values for impulsive and sinusoidal compo-
+nents, and are used to identify the spectral bins over which
+respectively vertical or horizontal phase coherence should
+be enforced. We empirically set λI = 0.4 and λS = 0.5, as
+these values performed well on early trials.
+4. EXPERIMENTS
+In this section we discuss how we evaluate the pitch sta-
+bility of the proposed model, comparing to strong baseline
+vocoder models from the speech synthesis literature.
+4.1 Experimental Setup
+We
+compare
+the
+reconstruction
+of
+the
+proposed
+phase-gradient
+model
+against
+state-of-the-art
+approaches: melgan [1]2, hifigan [2]3, cargan [5]4,
+and diffwave [8]5. All models have been trained on the
+same data, containing 13 hours of ambient music loops
+2https://github.com/descriptinc/melgan-neurips
+3https://github.com/kan-bayashi/ParallelWaveGAN.git
+4https://github.com/descriptinc/cargan
+5https://github.com/lmnt-com/diffwave
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+236
+
+C3
+C4
+C5
+C6
+pitch
+0.2
+0.4
+0.6
+0.8
+semitones
+Mean Harmonic Error
+C3
+C4
+C5
+C6
+pitch
+0
+1
+2
+3
+4
+Max Harmonic Error
+melgan
+griffin-lim
+cargan
+hifigan
+diffwave
+phase-gradient
+0
+0, 12
+0, 16
+0, 7
+0, 7, 12
+0, 7, 12, 16
+0, 4, 7
+0, 4, 7, 11
+chord
+0.1
+0.2
+0.3
+semitones
+0
+0, 12
+0, 16
+0, 7
+0, 7, 12
+0, 7, 12, 16
+0, 4, 7
+0, 4, 7, 11
+chord
+1
+2
+3
+Figure 4: Harmonic error of different mel spectrogram in-
+version models for synthesized notes in the (C2, C7) range
+(top row). phase-gradient model achieves lower er-
+ror than the baseline models on the entire range. The values
+have been smoothed with a moving average with size/stride
+equal to 12/6 semitones to ﬁlter out noise. The bottom row
+shows the error when adding more notes in different com-
+binations, where the error is averaged over the entire pitch
+range, and the numbers on the x axis indicate the intervals
+in semitones that are played simultaneously, e.g. "0, 4, 7"
+is the major triad.
+from commercial libraries6, split into training, validation
+and test in the ratio of 80/10/10, which we refer to as the
+Ambient dataset. The audio from these loop libraries is
+converted to mono at 44.1kHz, 16-bit, the spectrograms
+are computed with a frame size of 2048 samples and hop
+size of 256 samples, and ﬁnally 96 bands are used for the
+mel spectrogram.
+All neural networks were trained from scratch.
+The
+phase-gradient network was trained using 2 Volta
+GPUs in parallel and batches of 32 examples, with the
+Adam optimizer and learning rate set to 3e−5. The train-
+ing was stopped after 1024 epochs, when the validation
+loss converged, which took approximately 2 days.
+As a further non machine-learned baseline, we consider
+a reconstruction algorithm griffin-lim, which gener-
+ates audio from the mel spectrogram by ﬁrst warping the
+frequency axis and the values to obtain a magnitude spec-
+trogram, then applying the Grifﬁn-Lim algorithm [17] for
+500 iterations.
+4.2 Pitch stability
+To evaluate the pitch stability of our model, we used Flu-
+idSynth7 to synthesize a dataset of one second long notes
+and chords in the (C2, C7) range, using a set of four dif-
+ferent sounds: a rhodes piano, a church organ, a string en-
+semble and a nylon guitar.
+6we used the following loop packs licensed from Big Fish Audio Ltd.:
+Ambient Piano, Ambient Skyline 3, Ambient Waves, Eclipse: Ambient
+Guitars, Ethereal Harp, Zen Ambient Vol. 2
+7http://www.ﬂuidsynth.org
+Figure 5: Reconstructions of an E2 nylon guitar note us-
+ing different mel spectrogram inversion models. The ﬁgure
+shows the reassigned spectrograms [7] which highlight the
+instability on the fundamental and the harmonics caused
+by the lack of temporal phase coherence.
+Measuring stability with a pitch tracker is only feasible
+for single notes, and we found that errors computed with
+a pitch tracker even for monophonic signals did not reﬂect
+our perception of reconstruction quality. A possible expla-
+nation is that pitch-trackers average out errors in the har-
+monic frequencies, which is inconvenient in this context
+because the precise location of the overtones is important
+for timbre perception [18].
+For this reason, we deﬁne a harmonic error metric Herr
+as the sum of the frequency errors of the fundamental and
+the ﬁrst 4 harmonic frequencies, expressed in the pitch
+scale:
+Herr[p, h, n] = 12| log2(
+ˆfp,h[n]
+fp,h[n])|,
+(13)
+where fp,h[n] and ˆfp,h[n] are the frequencies of the h-th
+harmonic of the p-th note, at frame n, for the original and
+the reconstructed audio respectively; the frequencies are
+estimated as the closest peaks to the nominal frequency
+of the partial, using quadratic interpolation, on a mag-
+nitude spectrum computed using frame/hop size equal to
+4096/256 samples. We look at the mean and maximum
+values of the harmonic error, as a way to summarize the
+expected and worst case reconstruction errors.
+Results show that our phase-gradient model was
+able to reconstruct the single notes with lower mean and
+maximum harmonic error over the entire range of notes,
+especially in the lower pitch range (Fig. 4(a)). A possible
+explanation for the larger improvement on the low register
+is that the long waveform period of lower-pitched notes
+makes them challenging to learn in the time-domain, given
+the high number of phase variations. A visualization of the
+different models’ reconstruction of the same E2 guitar note
+is provided in Fig. 5.
+We also synthesized different combinations of notes, to
+test the reconstruction quality on more challenging sig-
+nals.
+The combinations include octaves, major 12ths,
+perfect ﬁfths, an open- and a close-position voicing of
+the major triad, and a close-position voicing of the ma-
+jor seventh chord. As expected, the harmonic error in-
+creases when adding more notes (Fig. 4(b)), as they are
+harder to recognize in the input mel spectrogram.
+The
+phase-gradient model is able to yield lower mean
+and maximum harmonic error on all the considered combi-
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+237
+
+FAD (↓)
+Herr (↓)
+MOS (↑)
+RTF (↑)
+#Params
+Ambient
+NSynth
+N+C
+Notes
+Chords
+NSynth
+griffin-lim [17]
+10.59
+6.16
+6.79
+0.28
+0.24
+1.42 ± 0.11
+7.14
+0
+melgan [1]
+2.07
+2.80
+2.84
+0.36
+0.30
+1.58 ± 0.15
+179.90
+4M
+cargan [5]
+6.47
+8.31
+8.45
+0.21
+0.21
+1.74 ± 0.12
+4.36
+25M
+hifigan [2]
+0.85
+1.31
+1.81
+0.16
+0.17
+2.89 ± 0.12
+68.12
+13M
+diffwave [8]
+2.62
+6.84
+1.89
+0.14
+0.15
+3.19 ± 0.12
+0.32
+7M
+phase-gradient
+1.26
+1.26
+1.86
+0.09
+0.14
+3.73 ± 0.13
+3.58
+28M
+oracle
+0.51
+0.33
+0.00
+0.00
+0.00
+4.34 ± 0.15
+—
+—
+Table 1: Reconstruction results
+nations of notes. However, the decrease in the reconstruc-
+tion quality, particularly on close-position chord voicings,
+suggests possible connections with the target’s frequency
+resolution.
+4.3 Reconstruction quality
+To evaluate the overall reconstruction quality of the pro-
+posed model, we compute the Frechét Audio Distance
+(FAD) [19] on the Ambient dataset, the dataset of 1920
+one second long notes and chords (“N+C”) used in Sect.
+4.2, and the NSynth dataset [20]. The results are shown in
+Table 1 alongside aggregated mean harmonic error results
+from the experiment discussed in Sect. 4.2.
+The FAD metric compares embedding statistics gener-
+ated on two potentially different sets of audio signals, i.e.
+evaluation and reference set. On the Ambient and NSynth
+datasets we compute the FAD between the reconstructed
+test split (evaluation) and the original training split (ref-
+erence). On N+C, the reconstructed and original signals
+from the entire dataset are used as evaluation and refer-
+ence sets. An ideal model (oracle) is added to provide
+reference values, useful when the evaluation and reference
+sets are different.
+The aggregated mean harmonic error results are com-
+puted over two meaningful subsets of the N+C dataset:
+a “Notes” dataset, representing all single notes, and a
+“Chords” dataset, containing all note combinations with
+more than one pitch class (see Fig. 4 bottom row).
+We conducted a small listening test to evaluate a set
+of notes reconstructed with different models. The set in-
+cludes G2 and G3 notes randomly selected from NSynth,
+for each instrument family.
+The 5-scale Mean Opinion
+Score (MOS) values and the 95% conﬁdence intervals are
+shown in Table 1.
+The results show that the phase-gradient model
+is competitive with other state-of-the-art models, despite
+having simpler neural network and training procedure. The
+fact that hifigan model is able to score lower FAD than
+the proposed model on the Ambient and N+C datasets
+suggests it has higher reconstruction accuracy on different
+sonic characteristics.
+Speciﬁcally, we noticed that hifigan was able to re-
+construct impulsive components such as transients and per-
+cussive onsets with higher energy and often more accu-
+rately than the phase-gradient model, while strug-
+gling with the stability of pitched notes and chords. The
+diffwave model exhibited high frequency “hissing”
+noise, but was otherwise surprisingly stable on harmonic
+components. This quality likely stems from the wide ~7s
+receptive ﬁeld, obtained using the entire reverse process at
+generation time instead of a fast sampling schedule [8]. As
+reported by its authors in [5], we conﬁrm that the recon-
+structions made by the cargan model contained “bound-
+ary artifacts that appear as repeated clicks”, compromising
+their usability. Finally, the reconstructions obtained with
+the melgan model were characterized by heavy phase ar-
+tifacts such as metallic sounds, and very unstable pitch.
+Generation time is also shown in Table 1 in terms of
+real-time factor (RTF), deﬁned as the number of seconds
+of audio that can be generated per second, evaluated on
+a single NVidia Volta GPU. phase-gradient’s gen-
+eration is faster than real time, and close to cargan.
+While phase-gradient’s neural network is as fast as
+hifigan and melgan, 99% of the generation time is
+spent during the auto-regressive phase integration stage,
+suggesting a clear direction for optimization.
+5. CONCLUSIONS
+In this work we have proposed a new mel spectrogram in-
+version model designed for music that achieves improved
+reconstruction of sustained notes and chords, compared
+to state-of-the-art models from the speech synthesis liter-
+ature. This improvement is obtained using a frequency-
+domain target representation that is time shift invariant for
+harmonic signal components. The proposed model is able
+to reconstruct single notes and chords respectively 60%
+and 10% more precisely than existing models, when eval-
+uated with a novel harmonic error metric, while still be-
+ing competitive on generic loop reconstruction. Potential
+directions for improvement include using pitch-shift aug-
+mentation, investigating log-frequency target representa-
+tions, and training a separate time-domain model to supply
+the percussive components.
+6. ACKNOWLEDGEMENTS
+We would like to thank the following colleagues for their
+valuable help and feedback: David Varas Gonzalez, Tim
+O’Brien, Avery Wang, Meghna Ranjit, and André Bergner.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+238
+
+7. REFERENCES
+[1] K. Kumar, R. Kumar, T. de Boissiere, L. Gestin, W. Z.
+Teoh, J. Sotelo, A. de Brébisson, Y. Bengio, and A. C.
+Courville, “Melgan: Generative adversarial networks
+for conditional waveform synthesis,” Advances in neu-
+ral information processing systems, vol. 32, 2019.
+[2] J. Kong, J. Kim, and J. Bae, “Hiﬁ-gan: Generative ad-
+versarial networks for efﬁcient and high ﬁdelity speech
+synthesis,” Advances in Neural Information Processing
+Systems, vol. 33, pp. 17 022–17 033, 2020.
+[3] A. v. d. Oord, S. Dieleman, H. Zen, K. Simonyan,
+O. Vinyals, A. Graves, N. Kalchbrenner, A. Senior, and
+K. Kavukcuoglu, “Wavenet: A generative model for
+raw audio,” in ISCA Speech Synthesis Workshop (SSW),
+2016.
+[4] N. Kalchbrenner, E. Elsen, K. Simonyan, S. Noury,
+N. Casagrande, E. Lockhart, F. Stimberg, A. v. d. Oord,
+S. Dieleman, and K. Kavukcuoglu, “Efﬁcient neural
+audio synthesis,” in International Conference on Ma-
+chine Learning (ICML), 2018.
+[5] M. Morrison, R. Kumar, K. Kumar, P. Seetharaman,
+A. Courville, and Y. Bengio, “Chunked autoregres-
+sive gan for conditional waveform synthesis,” in In-
+ternational Conference on Learning Representations
+(ICLR), 2022.
+[6] J. Engel, K. K. Agrawal, S. Chen, I. Gulrajani, C. Don-
+ahue, and A. Roberts, “Gansynth: Adversarial neu-
+ral audio synthesis,” in International Conference on
+Learning Representations (ICLR), 2019.
+[7] K. R. Fitz and S. A. Fulop,
+“A uniﬁed the-
+ory of time-frequency reassignment,” arXiv preprint
+arXiv:0903.3080, 2009.
+[8] Z. Kong, W. Ping, J. Huang, K. Zhao, and B. Catan-
+zaro, “Diffwave: A versatile diffusion model for au-
+dio synthesis,” in International Conference on Learn-
+ing Representations (ICLR), 2021.
+[9] N. Kandpal, O. Nieto, and Z. Jin, “Music enhancement
+via image translation and vocoding,” in IEEE Inter-
+national Conference on Acoustics, Speech and Signal
+Processing (ICASSP), 2022, pp. 3124–3128.
+[10] Z. Pruša and P. L. Søndergaard, “Real-time spectro-
+gram inversion using phase gradient heap integration,”
+in International Conference on Digital Audio Effects
+(DAFx), 2016, pp. 17–21.
+[11] M. Dolson, “The phase vocoder: A tutorial,” Computer
+Music Journal, vol. 10, no. 4, pp. 14–27, 1986.
+[12] Z. Pruša and N. Holighaus, “Phase vocoder done right,”
+in IEEE European Signal Processing Conference (EU-
+SIPCO), 2017, pp. 976–980.
+[13] J. Laroche and M. Dolson, “Improved phase vocoder
+time-scale modiﬁcation of audio,” IEEE Transactions
+on Speech and Audio Processing, vol. 7, no. 3, pp. 323–
+332, 1999.
+[14] E.-P. Damskägg and V. Välimäki, “Audio time stretch-
+ing using fuzzy classiﬁcation of spectral bins,” Applied
+Sciences, vol. 7, no. 12, p. 1293, 2017.
+[15] F. Auger and P. Flandrin, “Improving the readability of
+time-frequency and time-scale representations by the
+reassignment method,” IEEE Transactions on signal
+processing, vol. 43, no. 5, pp. 1068–1089, 1995.
+[16] S. A. Fulop and K. Fitz, “Algorithms for comput-
+ing the time-corrected instantaneous frequency (reas-
+signed) spectrogram, with applications,” Journal of the
+Acoustical Society of America, vol. 119, no. 1, pp. 360–
+371, 2006.
+[17] N. Perraudin, P. Balazs, and P. L. Søndergaard, “A fast
+grifﬁn-lim algorithm,” in IEEE Workshop on Appli-
+cations of Signal Processing to Audio and Acoustics,
+2013, pp. 1–4.
+[18] H. Fletcher, E. D. Blackham, and R. A. Stratton, “Qual-
+ity of piano tones,” Journal of the Acoustical Society of
+America, vol. 34, pp. 749–761, 1962.
+[19] K. Kilgour, M. Zuluaga, D. Roblek, and M. Shariﬁ,
+“Fréchet audio distance: A reference-free metric for
+evaluating music enhancement algorithms,” in ISCA
+Interspeech, 2019, pp. 2350–2354.
+[20] J. Engel, C. Resnick, A. Roberts, S. Dieleman,
+M. Norouzi, D. Eck, and K. Simonyan, “Neural audio
+synthesis of musical notes with wavenet autoencoders,”
+in International Conference on Machine Learning
+(ICML), 2017.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+239

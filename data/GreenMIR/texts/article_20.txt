@@ -1,0 +1,863 @@
+MUSIKA!
+FAST INFINITE WAVEFORM MUSIC GENERATION
+Marco Pasini
+Jan Schlüter
+Institute of Computational Perception, Johannes Kepler University Linz, Austria
+marco.pasini.98@gmail.com
+jan.schlueter@jku.at
+ABSTRACT
+Fast and user-controllable music generation could enable
+novel ways of composing or performing music. However,
+state-of-the-art music generation systems require large
+amounts of data and computational resources for training,
+and are slow at inference. This makes them impractical
+for real-time interactive use. In this work, we introduce
+Musika, a music generation system that can be trained
+on hundreds of hours of music using a single consumer
+GPU, and that allows for much faster than real-time gener-
+ation of music of arbitrary length on a consumer CPU. We
+achieve this by first learning a compact invertible represen-
+tation of spectrogram magnitudes and phases with adver-
+sarial autoencoders, then training a Generative Adversarial
+Network (GAN) on this representation for a particular mu-
+sic domain. A latent coordinate system enables generating
+arbitrarily long sequences of excerpts in parallel, while a
+global context vector allows the music to remain stylisti-
+cally coherent through time. We perform quantitative eval-
+uations to assess the quality of the generated samples and
+showcase options for user control in piano and techno mu-
+sic generation. We release the source code and pretrained
+autoencoder weights at github.com/marcoppasini/musika,
+such that a GAN can be trained on a new music domain
+with a single GPU in a matter of hours.
+1. INTRODUCTION
+Generating raw audio remains a difficult task to perform,
+considering the high temporal dimensionality of wave-
+forms. Recently, a number of techniques based on deep
+learning architectures have been proposed: however, they
+often present limitations such as low generated music qual-
+ity, lack of general coherence between distant time frames
+and slow generation speed. Regarding unconditional au-
+dio generation, autoregressive models are able to gener-
+ate high quality audio with long-range dependencies; how-
+ever, the sampling process is extremely slow and ineffi-
+cient, which hinders possible real-world applications. On
+the other hand, non-autoregressive models can reach real-
+time generation, while they struggle to synthesize samples
+© M. Pasini, and J. Schlüter. Licensed under a Creative
+Commons Attribution 4.0 International License (CC BY 4.0). Attribu-
+tion: M. Pasini, and J. Schlüter, ªMusika! Fast Infinite Waveform Music
+Generationº, in Proc. of the 23rd Int. Society for Music Information Re-
+trieval Conf., Bengaluru, India, 2022.
+with satisfactory sound quality and are only able to gener-
+ate samples of a fixed duration.
+Considering
+the
+current
+shortcomings
+of
+non-
+autoregressive audio generation systems, in this work
+we propose Musika, a GAN-based system that allows
+fast unconditional and conditional generation of audio
+of arbitrary length.
+We achieve this by combining the
+following contributions:
+• The use of a raw audio autoencoder which allows
+to encode samples into lower-dimensional invertible
+representations that are easier to model. We engineer
+the autoencoder with the specific goal of maximiz-
+ing inference speed and minimizing training time,
+by relying on the generation of magnitude and phase
+spectrograms with low temporal resolution and an
+efficient adversarial training process
+• The use of a latent coordinate system for the task of
+infinite-length audio generation
+• The addition of a global style conditioning which
+allows the infinite-length generated samples to be
+stylistically coherent through time
+• The possibility to perform both unconditional and
+conditional generation, with a variety of different
+conditioning signals, such as note density and tempo
+information
+By avoiding auto-regression, generation can be fully paral-
+lelized and works much faster than real-time even on CPU.
+2. RELATED WORK
+A popular family of generative models for audio consists in
+autoregressive models, such as WaveNet [1], SampleRNN
+[2] and Jukebox [3]. WaveNet was the first model to show
+that autoregressive generation of raw audio waveforms is
+possible, and uses dilated convolutions to acquire a large
+receptive field over the input sample. SampleRNN is a
+model consisting of a hierarchical stack of recurrent units
+that are able to model the waveform at different resolu-
+tions, and thus capture a larger context and reduce the com-
+putational cost required to model the next sample. Juke-
+box uses a hierarchical VQVAE [4,5] to encode raw sam-
+ples into a sequence of discrete codes at different levels.
+It then uses autoregressive transformers [6] to both gener-
+ate new top-level samples and upsample them to the lower
+543
+
+levels, accepting different features, such as lyrics, as con-
+ditioning. While autoregressive systems can achieve satis-
+fying audio quality and long-range coherence, they suffer
+from extremely slow generation, as audio samples are pro-
+duced sequentially. For example, Jukebox requires more
+than eight hours to generate one minute of audio on a V100
+GPU. As an exception, RAVE [7] achieves real-time syn-
+thesis by encoding raw audio of a specific domain with
+a variational autoencoder [8] into a compact latent space
+and using a lightweight autoregressive model to generate
+codes: however, the short receptive field of the autoregres-
+sive model does not allow to model dependencies over dis-
+tant time windows in the generated audio.
+Non-autoregressive models avoid the slow sequential
+generation, but are mostly employed for conditional au-
+dio synthesis. For example, several works focus on the
+task of inverting a low-dimensional audio representation
+(often a mel-spectrogram) back to the original waveform,
+which constitutes a building block of modern text-to-
+speech (TTS) systems [9±11]. In contrast, literature on
+long-form non-autoregressive unconditional audio gener-
+ation is scarce.
+Systems such as WaveGAN and Spec-
+GAN [12], GANSynth [13], DrumGAN [14] and MP3Net
+[15] attempt to generate audio of a fixed length using vari-
+ous architectures of Generative Adversarial Networks [16]
+(GANs).
+WaveGAN and SpecGAN represent the first
+works in which a GAN is successfully applied to audio,
+in the waveform and spectrogram representations, respec-
+tively. GANSynth generates instantaneous frequency (IF)
+and magnitude of spectrograms with high frequency reso-
+lution of short monophonic instrument notes [17], show-
+ing that generating IFs and magnitudes instead of wave-
+forms is advantageous for highly harmonic sounds. Drum-
+GAN synthesizes drum sounds using the real and imag-
+inary components of a complex STFT spectrogram and
+demonstrates the effectiveness of this audio representation,
+first introduced in [18]. Finally, MP3Net achieves minute-
+long coherent piano music generation using Modified Dis-
+crete Cosine Transform (MDCT) spectrograms as audio
+representations and Progressive GAN [19] as the model:
+however, the generated samples suffer from low perceived
+audio quality. To the best of our knowledge, UNAGAN
+[20] is the only non-autoregressive GAN-based system ca-
+pable of generating audio of arbitrary length. The model
+takes a sequence of noise vectors as input and uses a hierar-
+chical structure to achieve short-term coherence in the gen-
+erated mel-spectrograms, which are then inverted to wave-
+form using a pretrained MelGAN vocoder [9]. However,
+the model only generates single-channel audio and the in-
+dependent sampling of noise vectors cause the generated
+samples to lack coherence through time.
+Contrary to autoregressive models, the majority of
+GAN-based unconditional audio generation models are
+only able to synthesize audio samples of a fixed length.
+However, in the field of computer vision, several recent
+works propose models capable of generating images of ar-
+bitrary size, by synthesizing single image patches in paral-
+lel and assembling them into the final image. This process
+results in a fast and efficient generation of images on mod-
+ern hardware. The two most notable contributions to this
+line of work are InfinityGAN [21] and ALIS [22]. Infinity-
+GAN generates in parallel single patches that are coherent
+with each other by disentangling global appearance, local
+structures and textures, which are then fed into a genera-
+tor, together with coordinate information, to synthesize the
+final patch. ALIS proposes the use of latent vectors as an-
+chor points for the coordinate system of the model: the
+resulting generator is equivariant and can thus produce co-
+herent patches from interpolations of different latent codes.
+However, both of the methods rely on prior knowledge re-
+garding the particular image domain that is being gener-
+ated: the experiments are conducted on a dataset of images
+of landscapes, where the image features of a single patch
+are spatially invariant on the horizontal dimension and thus
+permit infinite length generation along the horizontal axis.
+The process of generating sequences of encoded repre-
+sentations has been explored in different previous works
+[4, 5, 23] for both image and audio data. However, these
+works focus on encoding samples to a discrete set of codes
+using vector-quantized variational autoencoders, and pro-
+pose to model sequences of codes using autoregressive
+models. On the other hand, [24] proposes to autoencode
+molecules with a basic autoencoder, to then generate se-
+quences of continuous-valued latent vectors with a GAN.
+This approach manages to circumvent the problematic be-
+haviour of GANs when applied on discrete data [25], in
+this case molecules in the SMILES format. Similarly to
+this work, we propose to generate latent representations of
+audio with the aim of making the generation and training
+process faster, and achieving coherent generated samples
+over long time windows.
+3. METHOD
+Let x = {x1, ..., xT} be the waveform of an audio sample.
+We aim to encode a waveform x into a sequence of latent
+vectors c = {c1, ..., cT/rtime} with time compression ratio
+rtime, sampled at a lower sampling rate than the original
+waveform. We use an autoencoder model to perform this
+task, such that a reconstruction of the original waveform
+can be obtained from the encoded latent vectors.
+We then aim to model the distribution p(c) with a Gen-
+erative Adversarial Network (GAN). We employ a latent
+coordinate system that is used as conditioning for the gen-
+erator G to generate sequences of latent vectors of arbi-
+trary length. We additionally condition the generator with
+a variety of conditioning signals, such that the generation
+process can be guided by human input. Finally, the gener-
+ated sequence of latent vectors is inverted to a waveform
+with the previously trained decoder.
+3.1 Audio Autoencoder
+Considering the inherent high dimensionality of wave-
+forms, generating long sequences of raw audio samples is
+prohibitively expensive. A frequently used audio represen-
+tation in the field of speech processing and music informa-
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+544
+
+...
+...
+...
+...
+...
+...
+Enc1
+Enc2
+Dec2
+real/
+   fake
+Dec1
+c1
+c2
+D
+Figure 1. The proposed 2-level audio autoencoder. A log-magnitude spectrogram is used as the encoder input, while
+the decoder outputs magnitude and phase spectrograms which are then inverted with iSTFT to the waveform domain. A
+discriminator evaluates the magnitude spectrogram of two adjacent excerpts passed through the autoencoder. This training
+process removes both phase errors (which would manifest after the iSTFT and STFT) and boundary artifacts.
+tion retrieval is the Short-Time Fourier Transform (STFT)
+spectrogram: while the phase component of the spectro-
+gram is usually discarded, in case of audio synthesis ap-
+plications both magnitude and phase components are nec-
+essary to perform the inverse STFT (iSTFT) and obtain a
+waveform.
+We design an audio autoencoder with the aim of mini-
+mizing inference and training time while maximizing the
+compression ratio allowing to reconstruct samples with
+reasonable accuracy. Our proposed autoencoder takes a
+log-magnitude STFT spectrogram as input, and outputs
+magnitude and phase spectrograms which can be inverted
+to a waveform. Parallel to our work, iSTFTNet [26] also
+proposes to improve the inference speed of the model by
+generating magnitude and phase of a STFT spectrogram:
+however, they only report experiments using spectrograms
+with very high temporal resolution and low frequency res-
+olution, while our proposed autoencoder reconstructs spec-
+trograms with low temporal resolution and high frequency
+resolution. This should result in an even higher inference
+speed for similarly-sized models. In practice, we sepa-
+rately train two stacked autoencoders; this allows a higher
+compression ratio with satisfactory reconstruction quality,
+especially for more complex music domains. Similarly to
+RAVE [7], we utilize a two-step training process:
+3.1.1 First training phase
+We first train the model to autoencode log-magnitude spec-
+trograms, not producing phases for now. We use a L1 loss
+function for the reconstruction task:
+L(Enc,Dec),rec = Es∼p(s)||Dec(Enc(s)) −s||1
+where Enc and Dec are the encoder and decoder, and s is
+a log-magnitude spectrogram of a waveform w.
+3.1.2 Second training phase
+In the second phase, we freeze the encoder weights and
+have the decoder produce a phase spectrogram as well,
+such that we can reconstruct a waveform through an
+iSTFT. We add an adversarial objective to aid the model-
+ing of both the magnitudes and phases, ensuring the wave-
+form is of perceptually satisfactory quality. Since directly
+modeling phase spectrograms with deep learning models
+is known to be difficult [13, 18], we propose to model the
+phases indirectly, by encouraging waveforms whose mag-
+nitude spectrogram must appear realistic. Specifically, we
+compute a log-magnitude spectrogram ˜s from the recon-
+structed waveform ˜w:
+˜w = iSTFT(Dec(Enc(s)))
+˜s = log(|STFT( ˜w)|2 + ϵ)
+The reconstructions ˜s are fed to a discriminator D, using
+the hinge loss [27] to distinguish them from originals s:
+LD = −Es∼p(s)[min(0, −1 + D(s))]
+−Es∼p(s)[min(0, −1 −D(˜s))]
+The decoder is trained to fool the discriminator:
+LDec,adv = −Es∼p(s)D(˜s)
+Note that we can calculate spectrograms from the recon-
+structed waveforms with different hop size and window
+length than used for the spectrograms fed to the autoen-
+coder. We leverage this by including the multi-scale spec-
+tral distance [7,28] in the objective of the decoder:
+LDec,ms = Ew∼p(w)
+N
+X
+hop
+log(|| |STFThop(w)|
+−|STFThop( ˜w)| ||1)
+where hop indicates a choice of hop_size and fft_size.
+In total, we train the discriminator with LD, and the
+decoder with a linear combination of three losses:
+LDec = LDec,adv + λrecLDec,rec + λmsLDec,ms
+3.2 Latent Coordinate System
+We use a GAN to model sequences of latent vectors pro-
+duced by a trained audio encoder. In order to generate in-
+dependent audio samples that can be seamlessly concate-
+nated with each other along the temporal axis, we condi-
+tion the generator with the latent coordinate system pro-
+posed by [22], originally introduced to generate landscape
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+545
+
+G
+D
+G
+real/
+   fake
+c
+w1
+,
+zsty
+w1
+w2
+wl
+wr
+wc
+w
+time
+w2
+,
+zsty
+Figure 2. The proposed latent GAN training process. Two adjacent latent coordinate sequences are randomly cropped
+from the linear interpolation between three anchor vectors. They are then used as input to the generator, together with a
+shared style vector and a conditioning signal in the case of a conditional model. The discriminator takes as input the two
+concatenated generated sequences and a real sequence of latent vectors.
+images of infinite width. Specifically, during training we
+sample three noise vectors wl, wc, wr with dimension d
+that are used as anchor points (left, center, right anchors)
+to guide the generation process. With seq_len being the
+length of the sequence of latent vectors that is produced by
+the generator, we linearly interpolate the three anchor vec-
+tors to create a sequence of coordinate vectors of length
+equal to 4 · seq_len + 1:
+w = [wl, ..., (1−k)wl+kwc, ..., wc, ..., wr] ∈R4seq_len+1×d
+To generate sequences that are temporally coherent with
+each other, we follow [22]: we randomly crop a sequence
+w12 of 2·seq_len coordinate vectors from w, divide it into
+two sequences w1, w2 with length seq_len, generate two
+patches using each sequence as conditioning, concatenate
+the two patches along the time axis, and feed the resulting
+generated sample of length 2·seq_len to the discriminator.
+This process is illustrated in Figure 2. It allows the genera-
+tor to align the sequence of latent coordinates with the gen-
+erated sequence of latent vectors. Specifically, the discrim-
+inator forces the generator to learn that adjacent sequences
+of latent coordinates must result in adjacent sequences of
+latent vectors, which can be temporally concatenated re-
+sulting in a coherent final sample without artifacts at the
+boundaries of the generated patches.
+Similarly to InfinityGAN [21], when generating adja-
+cent sequences of latent vectors, we also condition both
+generations on a single random vector zsty: during the
+learning process, this vector serves as conditioning for the
+global style of the generated samples. Specifically, while
+the latent coordinate vectors allow the generator to produce
+sequences of latent vectors that can be seamlessly concate-
+nated along the temporal axis, the global style vector al-
+lows the final concatenated sequence of possibly infinite
+length to be stylistically coherent throughout. Without the
+global style vector, any temporal context available to the
+generator would completely change every 4·seq_len sam-
+ples of a sequence, resulting in a final generated sample
+which continuously changes style through time.
+Formalized, we have
+ˆc = concat[G(w1, zsty), G(w2, zsty)],
+where ˆc is a stylistically and temporally coherent sequence
+of latent vectors of length 2 · seq_len, and G is the gener-
+ator model.
+At inference time, a latent coordinate sequence of the
+desired length is created. The coordinate sequence is pre-
+pared in the same way as during the training phase, by
+placing a latent anchor vector at positions that are mul-
+tiples of 2 · seq_len, and by linearly interpolating these
+anchor vectors to calculate in-between vectors. A single
+random global style vector is also sampled. Each genera-
+tion considers a seq_len crop and the global style vector
+as conditioning, and finally all generated latent vectors are
+concatenated together in the appropriate order. This pro-
+cess can be performed in a parallel manner, thus resulting
+in a fast generation on modern hardware.
+4. IMPLEMENTATION DETAILS
+4.1 Audio Autoencoder Architecture
+We first train an audio autoencoder with a relatively low
+compression ratio, then train a second-level autoencoder
+that encodes the first-level latent vectors, as shown in Fig-
+ure 1. During the training of the second-level autoencoder,
+we utilize the same training strategy and objective as ex-
+plained in section 3.1, by propagating gradients through
+the frozen weights of the previously trained first-level de-
+coder and adversarially discriminating between samples
+reconstructed by both decoders and samples reconstructed
+by only the first-level decoder. Both model architectures
+are fully convolutional, and we do not use any padding
+in both encoders, such that possible boundary artifacts in
+the encoded representations are avoided. We utilize 1d-
+convolutions considering the frequency bins as different
+channels for both encoders and decoders: this is usually
+not efficient regarding total number of model parameters
+when compared to using 2d-convolutions across the two
+spectrogram dimensions, but can result in a much faster
+inference time. We use 2d-convolutions for the discrim-
+inator, as inference time for this model is not a priority.
+We use tanh as the activation for the bottleneck layer of
+both encoders. Regarding the multi-scale spectral distance
+loss, we use hop_size ∈[64, 128, 256, 512] and we always
+choose fft_size = 4 · hop_size, while the discriminator
+takes as input log-magnitude spectrograms calculated with
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+546
+
+Figure 3. Log-melspectrograms of generated piano and techno samples from the conditional models. For the piano samples
+(top row), we indicate the corresponding note density conditioning with a green line. Note density signals were generated
+using a random walk algorithm. The tempo used as conditioning for the techno samples (bottom row) is 120 bpm and 160
+bpm, respectively. Each sample is 23 seconds long. Visit marcoppasini.github.io/musika to listen to the examples.
+hop_size = 256 and fft_size = 6 · hop_size. As pro-
+posed by [29, 30], two consecutive reconstructed spectro-
+grams are concatenated along the temporal dimension and
+fed to the discriminator, such that concatenated reconstruc-
+tions do not suffer from boundary artifacts. During train-
+ing, spectrograms calculated from 0.76 s of audio are used
+as input to both autoencoders. We use spectral normaliza-
+tion [31] on the weights of the discriminator. Regarding
+the training loss weights, we use λrec = 1 and λms = 4.
+We choose Adam [32] as the optimizer with learning rate
+of 0.0001 and β1 = 0.5, and train the first-level autoen-
+coder for 1 million iterations with batch size of 32 for both
+training phases, and the second-level autoencoder for 400k
+iterations with batch size of 32 for both training phases.
+4.2 Latent GAN Architecture
+We choose to adapt the FastGAN [33] architecture to our
+specific task. The FastGAN architecture promises fast con-
+vergence with limited amounts of data. To achieve this,
+it proposes a Skip-Layer channel-wise Excitation (SLE)
+module in the generator, for more direct propagation of
+gradients, and proposes to strongly regularize the discrim-
+inator with an added self-supervised reconstruction ob-
+jective. We adapt the proposed architectures to use 1d-
+convolutions instead of 2d-convolutions and we simplify
+the added reconstruction objective of the discriminator, by
+using a single lightweight decoder which reconstructs the
+whole input of the discriminator. Differently from Fast-
+GAN, we do not use Batch Normalization [34] in both the
+generator and discriminator, while we apply the variation
+of Adaptive Instance Normalization [35] (AdaIN) called
+Spatially Aligned AdaIN (SA-AdaIN), originally proposed
+in [22], after each convolutional layer in the generator. To
+generate stereo samples, the generator produces two la-
+tent vectors at each timestep, one for each audio channel,
+stacked on the channel axis. We use Cross Channel Mixing
+(CCM), first introduced in [36], to randomly mix channels
+of the stereo stacked latent vectors before being fed to the
+discriminator. In our experience, this technique helps re-
+ducing collapses during training. Both anchor and style
+vectors are sampled from a normal distribution with zero
+mean and unit variance, and have dimension d of 64. We
+use R1 gradient penalty [37] as regularization, and Adam
+with learning rate of 0.0001 and β1 = 0.5 as the optimizer.
+We train for 1.5 mio iterations with a batch size of 32 for all
+experiments. Training takes 23 h on a RTX 2080 Ti GPU.
+Model (Faster than real-time)
+GPU
+CPU
+Musika Uncond. Piano
+972x
+40x
+Musika Cond. Piano
+921x
+40x
+UNAGAN [20] Piano
+28x
+11x
+Musika Uncond. Techno
+994x
+39x
+Musika Cond. Techno
+917x
+39x
+Table 1. Comparison of generation speed between the dif-
+ferent models. For the Musika models, we include both
+the generation of the latent vectors and the decoding step
+to the waveform domain. We use a RTX 2080 Ti and a
+Ryzen 3950x as the GPU and CPU, respectively. We re-
+port the average of 100 trials.
+Model
+FAD
+Musika Uncond. Piano
+1.641
+Musika Cond. Piano Rand.
+2.150
+Musika Cond. Piano Const. 0.15
+2.584
+Musika Cond. Piano Const. 0.30
+3.400
+Musika Cond. Piano Const. 0.45
+4.389
+Musika Cond. Piano Const. 0.60
+4.839
+Musika Cond. Piano Const. 0.75
+5.434
+UNAGAN [20] Piano
+11.183
+Table 2. FAD evaluation for generated piano music. We
+evaluate conditional Musika models using different con-
+stant values of note density as conditioning. We notice that
+FAD increases with higher note density.
+5. EXPERIMENTS
+Considering the relatively low compression ratio of the
+first autoencoder and thus its need to only encode low-level
+audio features, we find it possible to train a single universal
+model which we can later use for different music domains.
+As training data, we choose to use songs released and made
+freely available by South by SouthWest 1 (SXSW) in oc-
+casion of their yearly conference. The current collection
+consists of 17k songs of various genres, and for this rea-
+son it represents a fitting choice for training our univer-
+sal model. We use the LibriTTS corpus [38] as additional
+training data, to steer the universal model into accurately
+synthesizing human voices, which are notoriously hard to
+model. Even though LibriTTS only contains speech, in-
+1 https://www.sxsw.com/festivals/music/
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+547
+
+cluding it improves reconstructions of singing voice. We
+resample audio to 22.05 kHz for all experiments. We use
+single channel audio to train the audio autoencoders, as the
+latent GAN is able to generate stereo samples by using la-
+tent representations of the two mono samples stacked in the
+channel dimension as training data. We use r1
+time = 256
+as the time compression ratio, which results in a sampling
+rate of the first-level latent representations of 190.22 Hz.
+Each of the encoded latent vectors has a dimension of 128.
+5.1 Piano Music
+We use the MAESTRO dataset [39], consisting of 200
+hours of piano performances, to train a second-level au-
+toencoder and a latent GAN. The final time compression
+ratio achieved by both autoencoders is rtime = 4096,
+which results in a sampling rate of the second-level latent
+representations of 11.89 Hz. The dimension of each latent
+vector is 32. We train both an unconditional and a condi-
+tional latent GAN. For both models, the generator outputs
+latent vectors with seq_len = 64, which results in about
+12 s of audio after decoding. For the conditional model, we
+apply the CNN-based onset detector [40] of the madmom
+Python library [41] to all audio files in the dataset. We then
+use Gaussian Kernel Density Estimation (KDE) with band-
+width of 0.004 on the detected onsets to estimate a contin-
+uous note density signal for each sample. This signal is
+log-scaled between 0 and 1 and serves as a conditioning
+signal for the conditional (and thus controllable) GAN.
+5.2 Techno Music
+To evaluate the performance of the system on a more mu-
+sically varied domain, we scrape 10,190 songs categorized
+with the ªtechnoº genre from jamendo.com and use them
+as training data. Considering the wide diversity of sounds
+that are present in the dataset, we train the second-level au-
+toencoder with the same SXSW data used to train the first-
+level universal autoencoder. Comparing to what is achiev-
+able when training an autoencoder on a single and limited
+domain, such as piano music, a lower compression ratio
+is needed to reach a satisfactory reconstruction accuracy.
+However, this solution allows users to directly train a la-
+tent GAN on a new audio domain using the universal latent
+representations, without the need to train an autoencoder
+on the domain of interest. The final achieved time com-
+pression ratio is rtime = 2048, which results in a sampling
+rate of the second-level latent representations of 23.78 Hz.
+The dimension of each latent vector is 64. We train an
+unconditional and a conditional latent GAN model, both
+generating stereo latent vectors with seq_len = 128, re-
+sulting in about 12 s of decoded audio. We use the Tempo-
+CNN framework 2 [42] to estimate the global tempo of
+each song in the dataset. Tempo information is then used
+as conditioning for the conditional model.
+2 https://github.com/hendriks73/tempo-cnn
+6. RESULTS
+A comprehensive collection of generated audio samples
+is available on marcoppasini.github.io/musika. Since cur-
+rent quantitative evaluation metrics are not able to assess
+the overall compositional and musical quality of generated
+music, we strongly encourage the reader to listen to the
+provided samples while reading the paper.
+We report the generation speed of the system trained
+on the MAESTRO and on the techno datasets in Table 1,
+on both GPU and CPU. We also use the Frechét Audio
+Distance [43] (FAD) metric to quantitatively evaluate the
+quality of the generated piano samples in Table 2. A UN-
+AGAN [20] model that was trained on the same dataset is
+used as comparison. While our system is capable of gen-
+erating stereo audio, UNAGAN can only produce single-
+channel audio. The unconditional model obtains the lowest
+FAD, while the conditional system results in higher FADs
+when using more intense note density values as condition-
+ing. This is expected, since samples with low note density
+are more common than samples with high note density in
+the MAESTRO dataset. However, considering that audio
+is split in short 1 s samples to calculate embeddings, FAD
+is not designed to evaluate overall musical and composi-
+tional quality of samples, and to the best of our knowledge
+there are no available quantitative metrics to evaluate these
+characteristics. Piano and techno samples generated by the
+system seem to often demonstrate long-range coherence
+and successfully keep a fixed general music style through
+time. Both conditional models successfully generate sam-
+ples that are coherent with the conditioning signal, as can
+be seen in Figure 3.
+7. CONCLUSION
+We proposed Musika, a non-autoregressive music genera-
+tion system that generates raw-audio samples of arbitrary
+length much faster than real-time on a consumer CPU.
+An efficient hierarchical autoencoder allows to encode au-
+dio to a sequence of low-dimensional latent vectors, from
+which a waveform can be reconstructed. A GAN is then
+used to generate new sequences of latent vectors, using a
+latent coordinate system that allows for generation of sam-
+ples of infinite length. A style conditioning vector is in-
+troduced to force the samples to be stylistically coherent
+through time. We successfully use the system to gener-
+ate piano and techno music, and show that the generation
+process can be conditioned on note density and tempo in-
+formation for piano and techno music, respectively. We
+finally show that the system achieves lower FAD than com-
+parable systems on piano music generation while being
+faster. We release the source code and pretrained mod-
+els, enabling users to generate samples of different music
+domains and test new conditioning signals with ease and
+using consumer hardware. We see our system as solving
+an important technical challenge ± real-time music gener-
+ation of sufficient quality, conditioned on user input ± and
+hope it can serve as a basis for interactive real-world appli-
+cations and for research into human-AI co-creation.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+548
+
+8. REFERENCES
+[1] A. van den Oord, S. Dieleman, H. Zen, K. Simonyan,
+O. Vinyals, A. Graves, N. Kalchbrenner, A. W. Senior,
+and K. Kavukcuoglu, ªWaveNet: A generative model
+for raw audio,º in The 9th ISCA Speech Synthesis Work-
+shop, Sep. 2016, p. 125.
+[2] S. Mehri, K. Kumar, I. Gulrajani, R. Kumar, S. Jain,
+J. Sotelo, A. C. Courville, and Y. Bengio, ªSam-
+pleRNN: An unconditional end-to-end neural audio
+generation model,º in 5th International Conference on
+Learning Representations (ICLR), Apr. 2017.
+[3] P. Dhariwal, H. Jun, C. Payne, J. W. Kim, A. Radford,
+and I. Sutskever, ªJukebox: A generative model for
+music,º arXiv preprint arXiv:2005.00341, 2020.
+[4] A. van den Oord, O. Vinyals, and K. Kavukcuoglu,
+ªNeural discrete representation learning,º in Advances
+in Neural Information Processing Systems 30, Dec.
+2017, pp. 6306±6315.
+[5] A. Razavi, A. van den Oord, and O. Vinyals, ªGen-
+erating diverse high-fidelity images with VQ-VAE-2,º
+in Advances in Neural Information Processing Systems
+32, Dec. 2019, pp. 14 837±14 847.
+[6] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit,
+L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin,
+ªAttention is all you need,º in Advances in Neural
+Information Processing Systems 30, Dec. 2017, pp.
+5998±6008.
+[7] A. Caillon and P. Esling, ªRAVE: A variational autoen-
+coder for fast and high-quality neural audio synthesis,º
+arXiv preprint arXiv:2111.05011, 2021.
+[8] D. P. Kingma and M. Welling, ªAuto-encoding vari-
+ational bayes,º in 2nd International Conference on
+Learning Representations (ICLR), Apr. 2014.
+[9] K. Kumar, R. Kumar, T. de Boissiere, L. Gestin, W. Z.
+Teoh, J. Sotelo, A. de Brébisson, Y. Bengio, and A. C.
+Courville, ªMelGAN: Generative adversarial networks
+for conditional waveform synthesis,º in Advances in
+Neural Information Processing Systems 32, Dec. 2019,
+pp. 14 881±14 892.
+[10] J. Kong, J. Kim, and J. Bae, ªHiFi-GAN: Genera-
+tive adversarial networks for efficient and high fidelity
+speech synthesis,º in Advances in Neural Information
+Processing Systems 33, Dec. 2020.
+[11] I. Elias, H. Zen, J. Shen, Y. Zhang, Y. Jia, R. J.
+Skerry-Ryan, and Y. Wu, ªParallel tacotron 2: A non-
+autoregressive neural TTS model with differentiable
+duration modeling,º in 22nd Annual Conference of the
+International Speech Communication Association (IN-
+TERSPEECH), Aug. 2021, pp. 141±145.
+[12] C. Donahue, J. J. McAuley, and M. S. Puckette, ªAd-
+versarial audio synthesis,º in 7th International Confer-
+ence on Learning Representations (ICLR), May 2019.
+[13] J. H. Engel, K. K. Agrawal, S. Chen, I. Gulrajani,
+C. Donahue, and A. Roberts, ªGANSynth: Adversar-
+ial neural audio synthesis,º in 7th International Confer-
+ence on Learning Representations (ICLR), May 2019.
+[14] J. Nistal, S. Lattner, and G. Richard, ªDRUMGAN:
+synthesis of drum sounds with timbral feature condi-
+tioning using generative adversarial networks,º in Pro-
+ceedings of the 21th International Society for Music
+Information Retrieval Conference (ISMIR), Oct. 2020,
+pp. 590±597.
+[15] K. v. d. Broek, ªMp3net: coherent, minute-long music
+generation from raw audio with a simple convolutional
+GAN,º arXiv preprint arXiv:2101.04785, 2021.
+[16] I. J. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu,
+D. Warde-Farley, S. Ozair, A. C. Courville, and Y. Ben-
+gio, ªGenerative adversarial nets,º in Advances in Neu-
+ral Information Processing Systems 27, Dec. 2014, pp.
+2672±2680.
+[17] J. H. Engel, C. Resnick, A. Roberts, S. Dieleman,
+M. Norouzi, D. Eck, and K. Simonyan, ªNeural au-
+dio synthesis of musical notes with WaveNet autoen-
+coders,º in Proceedings of the 34th International Con-
+ference on Machine Learning (ICML), ser. Proceedings
+of Machine Learning Research, vol. 70, Aug. 2017, pp.
+1068±1077.
+[18] J. Nistal, S. Lattner, and G. Richard, ªComparing rep-
+resentations for audio synthesis using generative adver-
+sarial networks,º in 28th European Signal Processing
+Conference (EUSIPCO).
+IEEE, Jan. 2020, pp. 161±
+165.
+[19] T. Karras, T. Aila, S. Laine, and J. Lehtinen, ªPro-
+gressive growing of GANs for improved quality, sta-
+bility, and variation,º in 6th International Conference
+on Learning Representations (ICLR), Apr. 2018.
+[20] J. Liu, Y. Chen, Y. Yeh, and Y. Yang, ªUnconditional
+audio generation with generative adversarial networks
+and cycle regularization,º in 21st Annual Conference of
+the International Speech Communication Association
+(INTERSPEECH), Oct. 2020, pp. 1997±2001.
+[21] C. H. Lin, Y.-C. Cheng, H.-Y. Lee, S. Tulyakov, and
+M.-H. Yang, ªInfinityGAN: Towards infinite-pixel im-
+age synthesis,º in 10th International Conference on
+Learning Representations (ICLR), Apr. 2022.
+[22] I. Skorokhodov, G. Sotnikov, and M. Elhoseiny,
+ªAligning latent and image spaces to connect the un-
+connectable,º in 2021 IEEE/CVF International Con-
+ference on Computer Vision (ICCV). IEEE, Oct. 2021,
+pp. 14 124±14 133.
+[23] P. Esser, R. Rombach, and B. Ommer, ªTaming trans-
+formers for high-resolution image synthesis,º in IEEE
+Conference on Computer Vision and Pattern Recogni-
+tion (CVPR).
+Computer Vision Foundation / IEEE,
+Jun. 2021, pp. 12 873±12 883.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+549
+
+[24] O. Prykhodko, S. Johansson, P. Kotsias, J. Arús-Pous,
+E. J. Bjerrum, O. Engkvist, and H. Chen, ªA de novo
+molecular generation method using latent vector based
+generative adversarial network,º J. Cheminformatics,
+vol. 11, no. 1, p. 74, 2019.
+[25] M.
+J.
+Kusner
+and
+J.
+M.
+Hernández-Lobato,
+ªGANs for sequences of discrete elements with
+the Gumbel-softmax distribution,º
+arXiv preprint
+arXiv:1611.04051, 2016.
+[26] T. Kaneko, K. Tanaka, H. Kameoka, and S. Seki,
+ªiSTFTNET: fast and lightweight mel-spectrogram
+vocoder incorporating inverse short-time fourier trans-
+form,º in IEEE International Conference on Acoustics,
+Speech and Signal Processing (ICASSP).
+IEEE, May
+2022, pp. 6207±6211.
+[27] J. H. Lim and J. C. Ye, ªGeometric GAN,º arXiv
+preprint arXiv:1705.02894, 2017.
+[28] J. H. Engel, L. Hantrakul, C. Gu, and A. Roberts,
+ªDDSP: differentiable digital signal processing,º in 8th
+International Conference on Learning Representations
+(ICLR), Apr. 2020.
+[29] C. H. Lin, C. Chang, Y. Chen, D. Juan, W. Wei, and
+H. Chen, ªCOCO-GAN: generation by parts via condi-
+tional coordinating,º in 2019 IEEE/CVF International
+Conference on Computer Vision (ICCV).
+IEEE, Oct.
+2019, pp. 4511±4520.
+[30] M. Pasini, ªMelGAN-VC: Voice conversion and audio
+style transfer on arbitrarily long samples using spectro-
+grams,º arXiv preprint arXiv:1910.03713, 2019.
+[31] T. Miyato, T. Kataoka, M. Koyama, and Y. Yoshida,
+ªSpectral normalization for generative adversarial net-
+works,º in 6th International Conference on Learning
+Representations (ICLR), Apr. 2018.
+[32] D. P. Kingma and J. Ba, ªAdam: A method for stochas-
+tic optimization,º in 3rd International Conference on
+Learning Representations (ICLR), May 2015.
+[33] B. Liu, Y. Zhu, K. Song, and A. Elgammal, ªTowards
+faster and stabilized GAN training for high-fidelity
+few-shot image synthesis,º in 9th International Confer-
+ence on Learning Representations (ICLR), May 2021.
+[34] S. Ioffe and C. Szegedy, ªBatch normalization: Accel-
+erating deep network training by reducing internal co-
+variate shift,º in Proceedings of the 32nd International
+Conference on Machine Learning (ICML), ser. JMLR
+Workshop and Conference Proceedings, vol. 37, Jul.
+2015, pp. 448±456.
+[35] X. Huang and S. J. Belongie, ªArbitrary style trans-
+fer in real-time with adaptive instance normalization,º
+in IEEE International Conference on Computer Vision
+(ICCV), Oct. 2017, pp. 1510±1519.
+[36] A. Sauer, K. Chitta, J. Müller, and A. Geiger, ªPro-
+jected GANs converge faster,º in Advances in Neu-
+ral Information Processing Systems 34, Dec. 2021, pp.
+17 480±17 492.
+[37] L. M. Mescheder, A. Geiger, and S. Nowozin, ªWhich
+training methods for GANs do actually converge?º in
+Proceedings of the 35th International Conference on
+Machine Learning (ICML), ser. Proceedings of Ma-
+chine Learning Research, vol. 80, Jul. 2018, pp. 3478±
+3487.
+[38] H. Zen, V. Dang, R. Clark, Y. Zhang, R. J. Weiss,
+Y. Jia, Z. Chen, and Y. Wu, ªLibriTTS: A corpus de-
+rived from LibriSpeech for text-to-speech,º in 20th An-
+nual Conference of the International Speech Commu-
+nication Association (INTERSPEECH), Sep. 2019, pp.
+1526±1530.
+[39] C. Hawthorne, A. Stasyuk, A. Roberts, I. Simon, C. A.
+Huang, S. Dieleman, E. Elsen, J. H. Engel, and D. Eck,
+ªEnabling factorized piano music modeling and gener-
+ation with the MAESTRO dataset,º in 7th International
+Conference on Learning Representations (ICLR), May
+2019.
+[40] J. Schlüter and S. Böck, ªImproved musical onset de-
+tection with convolutional neural networks,º in IEEE
+International Conference on Acoustics, Speech and
+Signal Processing (ICASSP), May 2014, pp. 6979±
+6983.
+[41] S. Böck, F. Korzeniowski, J. Schlüter, F. Krebs, and
+G. Widmer, ªmadmom: A new python audio and music
+signal processing library,º in Proceedings of the 2016
+ACM Conference on Multimedia Conference (MM),
+Oct. 2016, pp. 1174±1178.
+[42] H. Schreiber and M. Müller, ªA single-step approach to
+musical tempo estimation using a convolutional neural
+network,º in Proceedings of the 19th International So-
+ciety for Music Information Retrieval Conference (IS-
+MIR), Sep. 2018, pp. 98±105.
+[43] K. Kilgour, M. Zuluaga, D. Roblek, and M. Shar-
+ifi, ªFréchet audio distance: A reference-free metric
+for evaluating music enhancement algorithms,º in 20th
+Annual Conference of the International Speech Com-
+munication Association (INTERSPEECH), Sep. 2019,
+pp. 2350±2354.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+550

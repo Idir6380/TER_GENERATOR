@@ -1,11 +1,20 @@
 import json 
+from operator import gt
 import os 
 import re 
 import random
 from datetime import datetime 
 import google.generativeai as genai
-
-from config import OUTPUT_DIR_IMPROVED
+import pandas as pd
+import requests
+import fitz
+from config import (
+    OUTPUT_DIR_IMPROVED,
+    TEXT_DIR,
+    PDF_DIR,
+    CORPUS1_PATH,
+    CORPUS2_PATH
+    )
 ALL_FIELDS = ["model_name", "parameter_count", "gpu_count",
              "hardware", "training_duration", "country", "year"]
 
@@ -150,8 +159,95 @@ def merge_articles(output_dir: str, data_dir:str):
     return all_articles
 
 
-def main():
-    merge_articles('data', OUTPUT_DIR_IMPROVED)
+def load_links():
+    articles = []
+    for path, corps_name in [(CORPUS1_PATH, "corpus1"), (CORPUS2_PATH, "corpus2")]:
+        df = pd.read_excel(path)
+        df = df.iloc[1:]
+        for _, row in df.iterrows():
+            idx = row['Global_idx']
+            link = row['Link']
+            if pd.notna(link) and str(link).startswith("http"):
+                articles.append({
+                    "idx": int(idx),
+                    "link": str(link).strip(),
+                    "corpus": corps_name
+                    })
+    return articles
 
+
+def download_pdfs(articles):
+    os.makedirs(PDF_DIR, exist_ok=True)
+    headers = {"User-Agent": "Mozilla/5.0"}
+    for a in articles:
+        pdf_path = os.path.join(PDF_DIR, f'article_{a["idx"]}.pdf')
+        if os.path.exists(pdf_path):
+            print(f"PDF for article {a['idx']} already exists. Skipping download.")
+            continue
+        try:
+            response = requests.get(a['link'], timeout=30, headers=headers)
+            response.raise_for_status()
+            with open(pdf_path, 'wb') as f:
+                f.write(response.content)
+            print(f"Downloaded PDF for article {a['idx']}.")
+        except Exception as e:
+            print(f"Failed to download PDF for article {a['idx']} from {a['link']}: {e}")
+def extract_text_from_pdf():
+    os.makedirs(TEXT_DIR, exist_ok=True)
+    for pdf_file in os.listdir(PDF_DIR):
+        if not pdf_file.endswith('.pdf'):
+            continue
+        name = pdf_file.replace('.pdf', '')
+        text_path = os.path.join(TEXT_DIR, f'{name}.txt')
+        if os.path.exists(text_path):
+            print(f"Text for {name} already exists. Skipping extraction.")
+            continue
+        try:
+            doc = fitz.open(os.path.join(PDF_DIR, pdf_file))
+            text = '\n'.join(page.get_text() for page in doc)
+            doc.close()
+            with open(text_path, 'w', encoding='utf-8') as f:
+                f.write(text)
+            print(f"Extracted text for {name}.")
+        except Exception as e:
+            print(f"Failed to extract text from {pdf_file}: {e}")
+
+
+def load_ground_truth():
+    ground_truth = {}
+    for path, corpus in [(CORPUS1_PATH, "corpus1"), (CORPUS2_PATH, "corpus2")]:
+        df = pd.read_excel(path)
+        df = df.iloc[1:]
+        for _, row in df.iterrows():
+            idx = int(row['Global_idx'])
+            gt = {
+                "year": row.get('Year'),
+                "gpu_count": row.get('Number of GPUs'),
+                "tdp": row.get('TDP/W'),
+                "training_hours": row.get('Training time.1'),
+                "energy_kwh": row.get('Energy cost'),
+                "corpus": corpus,
+            }
+            if corpus == "corpus1":
+                gt["country"] = row.get('Countries')
+                gt["hardware_text"] = row.get('Resources')
+                gt["parameter_count"] = row.get('Number of parameters')
+            else:
+                gt["country"] = None
+                gt["hardware_text"] = row.get('GPU*')
+                gt["parameter_count"] = None
+
+            ground_truth[idx] = gt
+    return ground_truth
+
+def main():
+    #merge_articles('data', OUTPUT_DIR_IMPROVED)
+    articles = load_links()
+
+    download_pdfs(articles)
+    extract_text_from_pdf()
+    #gt = load_ground_truth()                                                      
+    #print(f"Loaded {len(gt)} articles")
+    #print(gt[11])
 if __name__ == "__main__":
     main()

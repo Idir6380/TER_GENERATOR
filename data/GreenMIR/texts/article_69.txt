@@ -1,0 +1,774 @@
+A GENERALIZED PARSING FRAMEWORK FOR GENERATIVE MODELS
+OF HARMONIC SYNTAX
+Daniel Harasim1,2
+Martin Rohrmeier1,2
+Timothy J. O’Donnell3
+1 Digital and Cognitive Musicology Lab, ´Ecole Polytechnique F´ed´erale de Lausanne, Switzerland
+2 Institut f¨ur Kunst- und Musikwissenschaft, TU Dresden, Germany
+3 Department of Linguistics, McGill University, Canada
+daniel.harasim@epfl.ch
+ABSTRACT
+Modeling the structure of musical pieces constitutes a cen-
+tral research problem for music information retrieval, mu-
+sic generation, and musicology. At the present, models of
+harmonic syntax face challenges on the tasks of detecting
+local and higher-level modulations (most previous models
+assume a priori knowledge of key), computing connected
+parse trees for long sequences, and parsing sequences that
+do not end with tonic chords, but in turnarounds. This pa-
+per addresses those problems by proposing a new genera-
+tive formalism Probabilistic Abstract Context-Free Gram-
+mars (PACFGs) to address these issues, and presents vari-
+ants of standard parsing algorithms that efﬁciently enumer-
+ate all possible parses of long chord sequences and to es-
+timate their probabilities. PACFGs speciﬁcally allow for
+structured non-terminal symbols in rich and highly ﬂex-
+ible feature spaces.
+The inference procedure moreover
+takes advantage of these abstractions by sharing probabil-
+ity mass between grammar rules over joint features. The
+paper presents a model of the harmonic syntax of Jazz
+using this formalism together with stochastic variational
+inference to learn the probabilistic parameters of a gram-
+mar from a corpus of Jazz-standards. The PACFG model
+outperforms the standard context-free approach while re-
+ducing the number of free parameters and performing key
+ﬁnding on the ﬂy.
+1. INTRODUCTION
+The modeling of non-local relations between musical ob-
+jects such as notes and chords constitutes a central re-
+search problem for music information retrieval, music gen-
+eration, and music analysis. Hierarchical models express
+these relations by assuming a latent hierarchical structure
+[19,22–24,30,31]. Consider for example the Jazz chord se-
+quence Am7 D7 G7 C4 where C4 denotes a major-seventh
+chord. Since the ﬁrst three chords form a II V I sequence
+c⃝Daniel
+Harasim,
+Martin
+Rohrmeier,
+Timothy
+J.
+O’Donnell. Licensed under a Creative Commons Attribution 4.0 Inter-
+national License (CC BY 4.0). Attribution:
+Daniel Harasim, Martin
+Rohrmeier, Timothy J. O’Donnell. “A Generalized Parsing Framework
+for Generative Models of Harmonic Syntax”, 19th International Society
+for Music Information Retrieval Conference, Paris, France, 2018.
+with reference to G7 which is the dominant in C major,
+they form a dominant phrase [24]. The dominant phrase as
+a whole then refers to the tonic chord C4. All four chords
+together thus form a tonic phrase.
+Figure 1 presents a syntactic analysis of the A-part
+of the Jazz-standard Afternoon in Paris following the ap-
+proach from [22]. It illustrates the idea of how pieces can
+be decomposed into hierarchically-structured constituents
+which stand in part-whole relationship with one another.
+Subdominant, dominant, and tonic phrases are denoted by
+the scale degrees II, V, and I, respectively. Note that the
+subsequence Cm7 F7 B[4 is both a tonic progression in
+B[ major and a dominant progression in E[ major. It forms
+a dominant phrase in A[ major together with B[m7 and
+E[7.
+IC
+IC
+IC
+C4
+VC
+VC
+VC
+G7
+IIC
+Dm7
+VG
+VDb
+IAb
+IA[
+Ab4
+VAb
+VAb
+VAb
+E[7
+IIAb
+B[m7
+VEb
+IBb
+IBb
+B[4
+VBb
+VB[
+F7
+IIBb
+Cm7
+IC
+C4
+Figure 1. Hierarchical analysis of the A-part of the Jazz-
+standard Afternoon in Paris.
+Models of harmonic syntax similar to Figure 1 have
+been successfully applied to melody harmonization [16],
+chord inference from audio [5,6], and harmonic similarity
+[7]. There is also some empirical evidence for the psycho-
+logical reality of hierarchical structures in music [15, 25].
+While earlier theoretical and psychological work on hierar-
+152
+
+chical models has provided important insight about musi-
+cal structure, computational implementation of these mod-
+els to date has been limited to relatively small datasets.
+Earlier work includes applications to monophonic melodic
+data [21], a corpus of 39 blues chord progressions with a
+maximum of 24 chords per progression [12], or a dataset
+of 76 chord progressions (avg.
+length 40) from Jazz-
+standards that was restricted to subsequences of pieces that
+did not change key [4]. All these earlier approaches as-
+sume the knowledge of the key of the pieces a priori.
+In computational linguistics, Context-Free Grammars
+(CFGs) are a standard way of modeling hierarchical con-
+stituent structure. They formalize constituent structures us-
+ing rewrite rules denoted by long right arrows. The rule
+X −! Y Z for example states that the constituent X con-
+sists of the two constituents Y and Z. The existence of
+natural language treebanks makes it possible to read off the
+grammatical rewrite rules including their frequencies from
+syntactical analyses by experts. At present, there are mu-
+sic databases of simpliﬁed Schenkerian analyses [13], syn-
+tactic analyses of melodies based on the generative theory
+of tonal music [8], and annotated harmonic functions [4].
+However, to the best of our knowledge there is currently
+no dataset of hierarchically analyzed chord sequences by
+human experts that could serve for the training or the eval-
+uation of models of harmonic syntax. As a consequence,
+there exist no comparisons of models of harmonic syntax
+against expert analyses.
+In the following, we introduce Abstract Context-Free
+Grammars (ACFGs), a generalization of the CFG frame-
+work designed to account for feature structures charac-
+teristic of musical categories. A ﬁrst model of Jazz har-
+mony is proposed in this framework that covers full pieces
+by incorporating modulations (i.e., changes in key). We
+train the model in a semi-supervised fashion on a dataset
+of Jazz-standards and evaluate it on a small set of hand-
+annotated hierarchical analyses. We further propose a so-
+lution for handling sequences that do not end with tonic
+chords, but in turnarounds. Simulations demonstrate that
+the ACFG model is able to outperform a PCFG model of
+the dataset. The implementation of the algorithms devel-
+oped in this study are publicly available as a package of the
+Julia programming language [1]. 1
+2. OVERVIEW OF THE APPROACH
+While the CFG framework has proven invaluable in com-
+putational linguistics, categories and part-whole relations
+between musical constituents have properties not pos-
+sessed by linguistic structures. Musical categories such as
+scale degrees, for example, are equipped with an arithmetic
+structure that corresponds to musical transposition.
+In the following, we refer to context-free rules of the
+form X −! Y X as a preparation of X by Y . The prepa-
+ration of the scale degree VB[ by IIB[ in Afternoon in Paris
+(see Figure 1) for example is a concrete realization of the
+general principle that any category xk consisting of a scale
+1 https://github.com/dharasim/GeneralizedChartParsing.jl
+degree x and a key k can be prepared by an ascending dia-
+tonic ﬁfth (x+4 mod 7)k. [24]. In addition to facts such as
+these, a framework for modeling musical structure has to
+account for the fact that the musical categories and rewrite
+rules are grouped into key-independent classes. For exam-
+ple, both VB[ and VA[ are ﬁfth scale degrees. The prob-
+abilities of the application a rule to VB[ and VA[ should
+therefore be related.
+This paper introduces Abstract Context-free Grammars
+(ACFGs), a modeling framework with a greater ﬂexibility
+than CFGs. In particular, in ACFGs constituent categories
+are allowed to be of any data type and the rules are general-
+ized partial functions. Unlike standard context-free rules,
+ACFG rules can therefore take advantage of the algebraic
+structure of categories. Probabilistic ACFGs extend prob-
+abilistic CFGs with the ability to express a wider range of
+probability distributions over rules.
+3. ABSTRACT CONTEXT-FREE GRAMMARS
+3.1 Deﬁnitions
+Deﬁnition 1. A (non-probabilistic) Abstract Context-free
+Grammar (ACFG) G = (T, C, C0, Γ) consists of a set T
+of terminal symbols, a set C of constituent categories, a set
+of start categories C0 ✓C, and a set of partial functions
+Γ := { r | r : C 7! (T [ C)⇤} ,
+called rewrite rules or rewrite functions. The arrow 7! is
+used throughout the paper to denote partial functions. A
+sequence β 2 (T [ C)⇤can be generated in one step
+from a sequence ↵2 (T [ C)⇤by the application of
+a rewrite function r 2 Γ, denoted by ↵−!r β, if
+there exist ↵1, ↵2 2 (T [ C)⇤and A 2 C such that
+↵= ↵1A↵2 and β = ↵1r(A)↵2. A sequence of rewrite
+rules r1 . . . rn is called a derivation of a sequence of termi-
+nals ↵2 T ⇤if there exists a start category ↵1 2 C0, and
+↵2, . . . , ↵n 2 (C [ T)⇤such that
+↵1 −!r1 ↵2 −!r2 · · · −!rn ↵,
+where ri is always applied to the leftmost category of ↵i
+for i 2 { 1, . . . , n −1 }. The set of derivations of ↵is
+denoted by D(↵). The language of the grammar G is the
+set of terminal sequences that have a derivation in G.
+Note that if C is ﬁnite, the languages that can be de-
+scribed by ACFGs are exactly the languages that can be
+described by standard context-free grammars (CFGs). For
+each ACFG with ﬁnite C, a CFG with rule set R can be
+constructed by dividing each rewrite function with domain
+cardinality k into k standard context-free rewrite rules,
+R :=
+[
+r2Γ
+{ (A, ↵) 2 C ⇥(T [ C)⇤| r(A) = ↵} .
+Deﬁnition 2. A Probabilistic Abstract Context-free Gram-
+mar (PACFG) is an ACFG where each category A 2 C is
+associated with a random variable XA over rewrite func-
+tions r such that P(XA = r) is positive if and only if r(A)
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+153
+
+is deﬁned, that is A is in the domain of r, A 2 dom(A).
+The probability p(d) of a derivation d = r1 . . . rn of a se-
+quence of terminal symbols ↵2 T ⇤is deﬁned as the prod-
+uct Qn
+i=1 P(XAi = ri) where in each step ri is applied to
+a category Ai 2 C. The probability of ↵is then deﬁned as
+p(↵) = P
+d2D(↵) p(d).
+Note that PACFG categories can share the same proba-
+bility distribution over rewrite functions without rewriting
+to exactly the same right-hand sites. This important prop-
+erty allows us to model the structural relations between
+musical keys. We use this property in Section 4 to build
+a model that abstract chords sequences from their concrete
+scale by deﬁning the probability that a rewrite function is
+applied to a scale degree independently of its key. The
+sharing of probability mass between rules additionally re-
+duces the number of free parameters of a PACFG model.
+To illustrate the different learning capabilities of PCFG
+and PACFG models, consider a toy PCFG with nonter-
+minal symbols C
+= { S, A, B }, start symbol S, ter-
+minal symbols T = { a, b }, and rules S −! A | B,
+A −! A A | a, and B −! B B | b. The grammar thus
+generates sequences that solely consist either of as or bs.
+In a classical PCFG setting, no probability mass is shared
+between rules, but each rule has its separate probability.
+However, in the process of inferring the probabilities of
+the rules from data, it might be desirable to generalize the
+rules A −! A A and B −! B B to a meta rule x −! x x
+where x 2 { A, B } and to put probability mass on this ab-
+stract entity. In that way, the grammar can learn something
+about A −! A A when it observes B −! B B and vice
+versa. The PACFG version of the PCFG presented above
+addresses the problem by replacing the classical context-
+free rules by the partial functions r1, r2, r3, r4, and r5 with
+r1(S) = A, r2(S) = B, r3(x) = x x for x 2 { A, B },
+r4(A) = a, and r5(B) = b. Analogously, a PACFG of
+Jazz chord sequences can generalize classical rewrite rules
+so that their probabilities do not depend on the keys of their
+left-hand sides to model transpositional invariance.
+3.2 Parsing
+Parsing a sequence of terminal symbols with respect to a
+formal grammar is the task of computing the distribution
+of parse trees conditioned on this sequence. Many parsers
+are based on versions of the CYK algorithm that assumes
+grammars to be given in Chomsky normal form. Since
+grammar transformations into Chomsky normal form con-
+siderably blow up the grammar, the here presented parser
+transforms grammars on the ﬂy during parsing, similar
+to the transformation presented in [18]. Each rule of the
+form A −! B1 . . . Bk is transformed into a set of states
+si = B1 . . . Bi for 1 i k, a transition function
+tran : S ⇥(T [ C) ! S,
+tran(si, Bi+1) = si+1
+and a completion function comp : S ! 2C such that
+{ A } ✓comp(sk), where S denotes the set of all states.
+Note that the states and the transition function form a
+search trie where the completion function checks if there
+items:
+edges
+[s, i, j]
+for s 2 S
+constituents
+[A, i, j]
+for A 2 C
+for and i, j 2 {1, . . . , |↵| + 1}
+goal items:
+[A, 1, |↵| + 1]
+for A 2 S
+axioms:
+[↵i, i, i + 1]
+for i 2 {1, . . . , |↵|}
+introduce edge:
+[A, i, j]
+[s, i, j]
+s = tran(s0, A)
+complete edge:
+[s, i, j]
+[A, i, j]
+A 2 comp(s)
+fundamental rule:
+[s, i, j]
+[A, j, k]
+[s0, i, k]
+tran(s, A) = s0
+Figure 2. Description of the parsing algorithm in the pars-
+ing as deduction framework.
+Existing Constituents can
+start the parser to read a sequence of terminal symbols and
+categories by the introduce edge rule. The fundamental
+rule is then recursively applied to extend these sequences.
+The complete edge rule eventually merges sequences to
+single constituents if they are the right-hand side of a gram-
+mar rule.
+is a rewrite rule that has a sequence of terminal symbols
+and categories as its right-hand side. This trie data struc-
+ture leads to a compact representation of the forest of all
+trees for a given input sequence. More generally, the parser
+can handle any transition and completion functions derived
+from ﬁnite-state automata, see [14].
+In the following, a generic bottom-up parsing algorithm
+for abstract grammars is presented in the parsing as de-
+duction framework using the above deﬁned transition and
+completion functions [3, 29].
+The parsing as deduction
+framework is a meta-formalism to state and compare dif-
+ferent parsing algorithms. It views the parses of a sequence
+as logical deductions of goals from axioms by using con-
+stituents as atomic logical formulas. The formula [IB[, 2, 5]
+for example states the existence of a constituent with cate-
+gory IB[ that spans over the second, third, and fourth termi-
+nal symbol. This formula is true in the analysis presented
+in Figure 1 because that analysis contains a constituent
+with label IB[ over the span from the second to the forth
+leaf chord. The goals are constituents that span the full
+sequence and come from the set of start categories. The
+axioms are formulas of the form [ti, i, i + 1] for each ter-
+minal in the input sequence t1 . . . tn. The parsing strategy
+such as bottom-up parsing or Earley parsing is encoded in
+the deduction rules. These rules are denoted by a set of
+atomic formulas over a horizontal line, an atomic formula
+under this line, and an optional side condition (see Figure
+154
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+
+2). The formula under the line can be deduced from the
+formulas above if the side condition holds.
+The proposed algorithm makes use of two different
+kinds of atomic formulas: edges (not yet completed con-
+stituents) and constituents. A state s 2 S together with a
+start index i and an end index j is called an edge and de-
+noted by [s, i, j]. Analogously, a category A 2 C together
+with start and end indices i and j is called a constituent
+and denoted by [A, i, j]. Figure 2 shows the axioms, goal
+items, and the deduction rules of our algorithm.
+3.3 Inference of Rule Probabilities
+In this section, we give an overview of an inference algo-
+rithm for the rule probabilities P(XA = r). Let ΓA =
+{ r 2 Γ | A 2 dom(r) } be the set of rewrite functions
+whose domain contains the constituent category A. We
+place a Dirichlet distribution on the probability vector de-
+scribing the distribution over ΓA, ~✓ΓA ⇠Dirichlet(~↵ΓA)
+for pseudocount vector ~↵ΓA. The inference problem is to
+compute the posterior distribution over this set of probabil-
+ity vectors, given the data D and pseudocounts {~↵ΓA},
+p({~✓ΓA} | D, {~↵ΓA}) / p(D | {~✓ΓA})p({~✓ΓA} | {~↵ΓA}),
+where { ~
+✓ΓA} is an abbreviation for { ~
+✓ΓA}A2C, etc. Varia-
+tional Bayesian inference (VB) is used to approximate this
+posterior distribution [2, 11, 32]. We introduce an approx-
+imating variational distribution q({~✓ΓA} | {~⌫ΓA}) with
+variational parameters {~⌫ΓA} over our target hidden vari-
+ables (rule weights) and minimize the Kullback-Leibler di-
+vergence between this approximation and the true poste-
+rior,
+DKL(q({~✓ΓA} | {~⌫ΓA}) || p({~✓ΓA} | D, {~↵ΓA})),
+by adjusting the variational parameters {~⌫ΓA}.
+Following [17], we approximate the distribution over
+each probability vector with a Dirichlet distribution
+~✓ΓA | ~⌫ΓA ⇠Dirichlet(~⌫ΓA), and make use of the mean-
+ﬁeld approximation
+q({~✓ΓA} | {~⌫ΓA}) =
+Y
+A2C
+p(~✓ΓA | ~⌫ΓA).
+We minimize the Kullback-Leibler divergence with a
+coordinate descent algorithm similar to the expectation-
+maximization algorithm.
+First, we compute the expec-
+tation of the counts of rule usages in the data under our
+current setting of the variational parameters, Eq[#(r, D)]
+where #(r, D) is the number of times that rule r was used
+to generate the data D, and then we update our varia-
+tional parameters based on these expectations. Since all
+of our distributions are in the exponential family, it can
+be shown that the optimal update is given by the equation
+ˆ~⌫ΓA = ~↵ΓA + Eq[#(r, D)] [2]. In other words, we set the
+pseudocounts of our variational distributions equal to the
+expected number of rule usages plus the pseudocount for
+each rule in the prior distribution.
+Under the standard coordinate-ascent algorithm given
+in [17], expected counts must be computed for the whole
+corpus before updating using the equation above. Hoff-
+man et al. [9] propose a stochastic variant of the standard
+variational (inspired by stochastic gradient descent) where
+updates are computed with respect to randomly sampled
+minibatches of the data. We make use of this stochastic
+variational Bayes algorithm in the results reported below.
+4. A GENERATIVE MODEL OF JAZZ HARMONY
+This section presents a PACFG G = (T, C, C0, Γ) that
+models the syntax of Jazz harmony following the pro-
+posal in [24]. That work addressed the problem of ﬁnd-
+ing a restrictive grammar that describes the full variety of
+syntactic relations in the musical idiom of Jazz-standards.
+The set of terminal symbols T is a set of pairs describing
+chords each of which consists of the root of the chord and
+a string describing the chord form—one of: a major triad,
+a major-seventh chord, a major sixth chord, a dominant-
+seventh chord, a minor triad, a minor-seventh chord, a half-
+diminished-seventh chord, a diminished seventh-chord, an
+augmented triad, or a suspended chord.
+In the following, Zn denotes the ring of integers mod-
+ulo n 2 N. The categories are modeled as pairs of scale
+degrees and keys, C = Z7 ⇥K, where a key consists of
+a pitch class representing its root and a string describing
+its mode, K = Z12 ⇥{ major, min }. Scale degrees are
+denoted by roman numerals from I to VII. All categories
+with scale degree I are start symbols, C0 = { I } ⇥K. Let
+k 2 K denote an arbitrary key. The set of rewrite functions
+Γ consists of prolongation,
+PROLONG(hx, ki) = hx, ki hx, ki
+for x 2 Z7, diatonic preparation,
+DIAT-PREP(hx, ki) = hx + 4 mod 7, ki hx, ki
+for x 2 Z7 \ { IV }, dominant preparation,
+DOM-PREP(hx, ki) = hV, µ(x, k)i hx, ki
+for x 2 Z7 \ { I } where µ(x, k) denotes the modulation
+from k into the key of scale degree x (e.g. µ(II, (0, maj)) =
+(2, min), the key of the second scale degree of C major is
+D minor), plagal preparation,
+PLAGAL-PREP(hI, ki) = hIV, ki hI, ki,
+modulation,
+MODULATION(hx, ki) = hI, µ(x, k)i,
+mode change,
+MODE-CHANGE(hI, (r, m)i) =
+(
+hI, (r, min)i, if m = maj
+hI, (r, maj)i, if m = min,
+for r 2 Z12, m 2 { maj, min }, diatonic substitution,
+DIAT-SUBST(hx, (r, m)i) =
+8
+>
+>
+>
+<
+>
+>
+>
+:
+hVI, (r, m)i, if x = I, m = maj
+hIII, (r, m)i, if x = I, m = min
+hIV, (r, m)i, if x = II
+hVII, (r, m)i, if x = V
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+155
+
+Figure 3. Parsing the turnaround of All of me
+for x 2 { I, II, V } , r 2 Z12, m 2 { maj, min }, and domi-
+nant substitution,
+DOM-SUBSTi(hV, (r, m)i) = hV, (r + i mod 12, m)i
+for r 2 Z12, m 2 { maj, min }, and i 2 { 3, 6, 9 }.
+Additionally, Γ contains appropriate termination rules
+C
+7! T according to standard Jazz harmony theory (e.g.
+seventh-chord-termination(h4, (0, maj)i) = G7, see [20]
+for further explanation). The distribution of Xhx,ki over
+rules rewriting the category hx, ki is deﬁned as a categori-
+cal distribution such that P(Xhx,ki = r) = P(Xhx,k0i = r)
+for all scale degrees x, rules r, and keys k, k0 that have the
+same mode. That is, the probability of r rewriting hx, ki
+does not depend on the root of k which enables the model
+to learn the parameters of its probability distributions key-
+independently.
+These grammar rules can be grouped into three classes:
+the prolongation rule, preparation rules, and substitution
+rules. Preparation rules create categories that for the lis-
+tener generate the expectation to hear the prepared chord.
+Substitution rules substitute chords for other chords that
+fulﬁll an equivalent function inside the sequence such as
+tritone substitutions of dominants in Jazz.
+5. THE TURNAROUND PROBLEM
+A lead-sheet of a Jazz-standard consists of a melody to-
+gether with a chord sequence describing the fundamental
+harmonic structure of the piece. The chord sequence is re-
+peated multiple times in a performance. While some lead-
+sheets end with tonic chords, others include harmonic up-
+beats to the ﬁrst chord of the piece at the end of the sheet,
+called turnarounds. The ﬁnal chord of a performances is
+nevertheless usually a tonic chord. The lead-sheet of the
+Jazz-standard All of me starts for example with a C4 chord
+and ends with the turnaround E[◦7 Dm7 G7.
+The grammar of Jazz harmony proposed above assumes
+that pieces end with a tonic chord. Therefore, a simple im-
+plementation of this grammar would not able to parse lead-
+sheets that end in turnarounds. We solve this problem by
+cyclic parsing, meaning that we assume that constituents
+can have spans from the end of a piece back to the begin-
+ning, see Figure 3.
+Figure 4. Tree accuracy plot
+6. EXPERIMENTS
+6.1 Dataset
+The model is evaluated using the iRealPro dataset of Jazz-
+standards. 2 This dataset consists of 1173 chord sequences
+electronically-encoded by the Jazz musician community
+including metadata such as the titles, composers, and keys.
+The sequences were collected and converted into the Hum-
+drum format [10] by Daniel Shanahan and Yuri Broze [28],
+and are available online. 3
+For other research that uses
+this dataset see [26, 27]. The chord forms in the iRealPro
+dataset include information about nineths and elevenths
+that are not considered in this study.
+The subset of 394 Jazz-standards that consist of at most
+40 chords was considered to train the models.
+34.52%
+(136) of these pieces were parsable using the standard
+approach and 90.61% (357) pieces were parsable using
+the cyclic parsing approach described above. Less then
+55% of the considered Jazz-standards therefore end in
+turnarounds.
+6.2 Tree Accuracy Evaluation
+We compare four models: (i) the proposed PACFG model
+that uses a representation of rules independent of key,
+(ii) its PCFG counterpart the rules of which are not in-
+dependent of key, (iii) a baseline of randomly generated
+trees, and (iv) a right-branching baseline in which all con-
+stituents split into a constituent on the left and a terminal
+symbol on the right.
+The models are trained on the 357 cyclic parsable se-
+quences using minibatches of 8 sequences. They are eval-
+uated on 13 pieces hand-annotated by the authors. We re-
+port the predicted tree accuracy. That is the precision of
+correctly predicted spans of internal tree nodes. A span of
+a tree node is deﬁned as the start index of its leftmost leaf
+together with the end index of its rightmost leaf.
+Figure 4 shows the means of the tree accuracies includ-
+ing 95% conﬁdence intervals as error bars.
+The right-
+branching baseline performs at an accuracy level under
+10%. The random baseline performs slightly better at an
+2 https://irealpro.com
+3 https://musiccog.ohio-state.edu/home/index.php/iRb Jazz Corpus
+156
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+
+Figure 5. Predicted tree accuracy for each minibatch up-
+date. Note that the y-axis displays only values between
+33% and 50%.
+accuracy level of 15.35% Under a uniform prior, both the
+PACFG and the PCFG model perform at an accuracy level
+of 36.30% a priori of the data. As opposed to the trained
+PCFG model that only improves its performance by about
+3% (in comparison to the uniform prior) reaching an ac-
+curacy of 39.43%, the trained PACFG model improves by
+about 10% (in comparison to the uniform prior) reaching
+an accuracy of 45.95%. The PACFG model was thus able
+to learn more from the data than the PCFG model. Note
+that since the PCFG model does not abstract the grammar
+rules from the concrete key wherein they are applied, the
+number of free parameters of the PCFG model is approxi-
+mately 12 times higher than the number of free parameters
+of the APCFG model.
+Despite the fact that the PACFG model learns key-
+independently, it is still much simpler than models that
+produce state-of-the-art parsing results in computational
+linguistics. In particular, state-of-the-art models in com-
+putational linguistics typically make use of conditioning
+information beyond the parent constituent categories used
+in the PACFG model—such as larger tree fragments, con-
+ditioning on heads and/or adjacent elements in the string,
+state-splitting, and other richer contextual information. We
+anticipate that the inclusion of similar structures into mu-
+sical parsing models will lead to similar improvements in
+performance.
+Figure 5 shows the mean predicted tree accuracies of
+the PACFG and the PCFG models for each minibatch up-
+date. Note that this ﬁgure is produced using a stochastic
+algorithm and is therefore inherently noisy. We see that
+the stochasticity of the inference algorithm leads to ran-
+dom jumps of the accuracy up to 0.5%. The models appear
+to do most of their learning in the ﬁrst 10 minibatches.
+6.3 Performance Diagnosis using Scale Degree
+Frequencies
+Figure 6 shows the expected frequency of scale-degree use
+in the whole corpus. The scale degrees VI in major and
+III in minor are more frequently used by the model than
+expected. Because these scale degrees are substitutions for
+the ﬁrst scale degrees and because they enable modulations
+Figure 6. Expected usage of scale degrees to parse the full
+training dataset
+into the relative key (e.g. from C major to A minor and vice
+versa), the model may be using them to alternate between
+relative keys. The prominence of the VII in minor keys is
+probably related to the fact that it has a dominant-seventh
+chord form. The model may be interpreting a I in major as
+a III in the relative minor key that is then prepared by the
+VII in minor. For example, the simple chord transition G7
+C4 would in this case be derived by
+Ia −! IIIa −! VIIa IIIa −! G7 IIIa −! G7 C4.
+7. CONCLUSION AND FUTURE RESEARCH
+The research presented here introduced a new general
+grammar and parsing framework tailored to the needs of
+music and showed how to perform inference for such a
+model.
+Experiments show that in contrast to standard context-
+free models, the proposed model is able to learn character-
+istic structures of the observed data. To the best of our
+knowledge, this is the ﬁrst computational approach that
+automatically performs hierarchical analyses of chord se-
+quences and evaluates them on analyses by human experts.
+This paper lays the groundwork for more advanced
+models of harmonic syntax.
+Our future research will
+in particular focus on expanding the dataset of hand-
+annotated expert analyses to provide signiﬁcance tests of
+the performance comparison of different models, for ex-
+ample. Further studies can use the tools developed here
+to build models of unsupervised grammar induction, joint
+models of multiple musical levels of musical structure like
+harmony and rhythm, and models of musical structure that
+have more complex dependencies than those representable
+in simple tree structures.
+8. ACKNOWLEDGEMENTS
+Financial support for the research presented in this article
+has in part been provided by the Natural Sciences and En-
+gineering Research Council of Canada (NSERC) and the
+Zukunftskonzept at TU Dresden funded by the Exzellen-
+zinitiative of the Deutsche Forschungsgemeinschaft.
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+157
+
+9. REFERENCES
+[1] Jeff Bezanson, Alan Edelman, Stefan Karpinski, and
+Viral B. Shah. Julia: A Fresh Approach to Numerical
+Computing. SIAM review, 59(1):65–98, 2017.
+[2] David M Blei, Alp Kucukelbir, and Jon D McAuliffe.
+Variational Inference:
+A Review for Statisticians.
+arXiv, (arXiv:1601.00670), 2017.
+[3] Joshua T Goodman. Parsing inside-out. PhD thesis,
+1998.
+[4] Mark Granroth-Wilding and Mark Steedman. A Robust
+Parser-Interpreter for Jazz Chord Sequences. Journal
+of New Music Research, 43(4):355–374, 10 2014.
+[5] W Bas De Haas. Music information retrieval based on
+tonal harmony. PhD thesis, 2012.
+[6] W Bas De Haas, Jos Pedro Magalh˜aes, and Frans Wier-
+ing. Improving Audio Chord Transcription by Exploit-
+ing Harmonic and Metric Knowledge. International
+Society for Music Information Retrieval Conference
+(ISMIR), (Ismir):295–300, 2012.
+[7] W Bas De Haas, Martin Rohrmeier, and Frans Wier-
+ing. Modeling Harmonic Similarity using a Genera-
+tive Grammar of Tonal Harmony. Proceedings of the
+Tenth International Conference on Music Information
+Retrieval (ISMIR), 2009.
+[8] Masatoshi Hamanaka, Keiji Hirata, and Satoshi Tojo.
+Musical Structural Analysis Database Based on Gttm.
+In Proceedings of the 15th Conference of the Interna-
+tional Society for Music Information Retrieval, pages
+325–330, 2014.
+[9] Matthew D. Hoffman, David M. Blei, Chong Wang,
+and John Paisley. Stochastic Variational Inference.
+Journal of Machine Learning Research, 14:1303–
+1347, 2013.
+[10] David Brian Huron. The Humdrum Toolkit: Reference
+Manual. Center for Computer Assisted Research in the
+Humanities, 1994.
+[11] Michael I Jordan, Zoubin Ghahramani, Tommi S
+Jaakola, and Lawrence K Saul. An Introduction to
+Variational Methods for Graphical Models. Machine
+Learning, 37:183–233, 1999.
+[12] Jonah Katz. Harmonic Syntax of the Twelve-Bar Blues
+Form. Music Perception: An Interdisciplinary Journal,
+35(2):165–192, 2017.
+[13] Phillip B Kirlin and David D Jensen. Using Supervised
+Learning to Uncover Deep Musical Structure. Proceed-
+ings of the Twenty-Ninth AAAI Conference on Artiﬁcial
+Intelligence, pages 1770–1776, 2015.
+[14] Dan Klein and Christopher D. Manning. Parsing
+and Hypergraphs. Proceedings of the 7th Interna-
+tional Workshop on Parsing Technologies (IWPT-
+2001), (c):351372, 2001.
+[15] Stefan Koelsch, Martin Rohrmeier, Renzo Torrecuso,
+and Sebastian Jentschke. Processing of hierarchical
+syntactic structure in music. Proceedings of the Na-
+tional Academy of Sciences, 110(38):15443–15448,
+2013.
+[16] Hendrik Vincent Koops, Jos Pedro Magalh˜aes, and
+W. Bas de Haas. A functional approach to automatic
+melody harmonisation. In Proceedings of the ﬁrst ACM
+SIGPLAN workshop on Functional art, music, model-
+ing & design - FARM ’13, page 47. ACM Press, 2013.
+[17] Kenichi Kurihara and Taisuke Sato. An Application
+of the Variational Bayesian Approach to Probabilistic
+Context-Free Grammars. 2004.
+[18] Martin Lange and Hans Leiß. To CNF or not to CNF
+- An Efﬁcient Yet Presentable Version of the CYK Al-
+gorithm. Informatica Didactica, 8:1–21, 2009.
+[19] Fred Lerdahl and Ray Jackendoff. A Generative Theory
+of Tonal Music. Cambridge, MA, 1983.
+[20] Mark Levine. The jazz theory book. Sher Music, 1995.
+[21] Eita Nakamura, Masatoshi Hamanaka, Keiji Hirata,
+and Kazuyoshi Yoshii. Tree-structured probabilistic
+model of monophonic written music based on the gen-
+erative theory of tonal music. In 2016 IEEE Inter-
+national Conference on Acoustics, Speech and Signal
+Processing (ICASSP), pages 276–280, 2016.
+[22] Markus Neuwirth and Martin Rohrmeier. Towars a
+syntax of the Classical cadence. In What is a Cadence,
+pages 287–338. 2015.
+[23] Martin Rohrmeier. A generative grammar approach to
+diatonic harmonic structure. Proceedings SMC’07, 4th
+Sound andMusic Computing Conference, (July):11–
+13, 2007.
+[24] Martin Rohrmeier. Towards a generative syntax of
+tonal harmony. Journal of Mathematics and Music,
+5(1):35–53, 3 2011.
+[25] Martin Rohrmeier and Ian Cross. Tacit tonality : Im-
+plicit learning of context-free harmonic structure. In
+Proceedings of the 7th Triennial Conference of Euro-
+pean Society for the Cognitive Sciences of Music (ES-
+COM 2009) Jyv¨askyl¨a, Finland, number Escom, pages
+443–452, 2009.
+[26] Keith Salley and Daniel T. Shanahan. Phrase Rhythm
+in Standard Jazz Repertoire: A Taxonomy and Corpus
+Study. Journal of Jazz Studies, 11(1):1, 2016.
+[27] Daniel Shanahan and Yuri Broze. Diachronic Changes
+in Jazz Harmony: A Cognitive Perspective. Music Per-
+ception: An Interdisciplinary Journal, 31(1):32–45,
+2013.
+158
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+
+[28] Daniel Shanahan, Yuri Broze, and Richard Rodgers. A
+Diachronic Analysis of Harmonic Schemata in Jazz. In
+Proceedings of the 12th International Conference on
+Music Perception and Cognition and the 8th Triennial
+Conference of the European Society for the Cognitive
+Sciences of Music, pages 909–917, 2012.
+[29] Stuart M Shieber, Yves Schabes, and Fernando C.N.
+Pereira. Principles and Implementation of Deductive
+Parsing. Journal of Logic Programming, 1993.
+[30] Mark J. Steedman. A Generative Grammar for Jazz
+Chord Sequences. Music Perception: An Interdisci-
+plinary Journal, 2(1):52–77, 1984.
+[31] Mark J Steedman. The blues and the abstract truth:
+Music and mental models. Mental models in cognitive
+science: essays in honour of Phil Johnson-Laird, pages
+305–318, 1996.
+[32] Martin J Wainwright and Michael I Jordan. Graphi-
+cal models, exponential families, and variational in-
+ference. Foundations and Trends in Machine Learning,
+1(1–2):1–305, 2008.
+Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018
+159

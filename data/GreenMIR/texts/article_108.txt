@@ -1,0 +1,1055 @@
+A DIFFUSION-INSPIRED TRAINING STRATEGY FOR SINGING VOICE
+EXTRACTION IN THE WAVEFORM DOMAIN
+Genís Plaja-Roglans
+Marius Miron
+Xavier Serra
+Music Technology Group, Universitat Pompeu Fabra, Barcelona, Spain
+{genis.plaja, marius.miron, xavier.serra}@upf.edu
+ABSTRACT
+Notable progress in music source separation has been
+achieved using multi-branch networks that operate on both
+temporal and spectral domains. However, such networks
+tend to be complex and heavy-weighted. In this work, we
+tackle the task of singing voice extraction from polyphonic
+music signals in an end-to-end manner using an approach
+inspired by the training and sampling process of denoising
+diffusion models. We perform unconditional signal mod-
+elling to gradually convert an input mixture signal to the
+corresponding singing voice or accompaniment. We use
+fewer parameters than the state-of-the-art models while op-
+erating on the waveform domain, bypassing the phase es-
+timation problem. More concisely, we train a non-causal
+WaveNet using a diffusion-inspired strategy while improv-
+ing the said network for singing voice extraction and ob-
+taining performance comparable to the end-to-end state-
+of-the-art on MUSDB18. We further report results on a
+non-MUSDB-overlapping version of MedleyDB and the
+multi-track audio of Saraga Carnatic showing good gener-
+alization, and run perceptual tests of our approach. Code,
+models, and audio examples are made available. 1
+1. INTRODUCTION
+Singing voice extraction, which involves separating the vo-
+cal source from music recording mixtures, has received a
+lot of attention from the Audio Signal Processing (ASP)
+and Music Information Retrieval (MIR) communities in
+the recent years.
+The problem can be modelled in the
+waveform domain [1±4], the frequency domain [5±7], or
+a combination of both [8±10]. In general, spectrogram-
+based approaches have been more popular despite hav-
+ing to deal with the problem of the complex phase, usu-
+ally leading to artifacts or unnaturalness of the separated
+sources. Within the Music Demixing Challenge (MDX)
+framed in ISMIR 2021 [11], diverse submissions achieved
+state-of-the-art source separation performance, in the ma-
+jority of cases being multi-branch networks combining
+1 github.com/genisplaja/diffusion-vocal-sep
+© G. Plaja-Roglans, M. Miron, and X. Serra. Licensed un-
+der a Creative Commons Attribution 4.0 International License (CC BY
+4.0).
+Attribution:
+G. Plaja-Roglans, M. Miron, and X. Serra, ªA
+diffusion-inspired training strategy for singing voice extraction in the
+waveform domainº, in Proc. of the 23rd Int. Society for Music Infor-
+mation Retrieval Conf., Bengaluru, India, 2022.
+features from both time and frequency domains [8±10],
+proposing therefore solutions to account for the problem
+with the phase.
+Nonetheless, these models tend to be
+heavy-weighted and include engineered strategies to im-
+prove the predicted outputs.
+While the problem of source separation has been shown
+to be challenging on the waveform domain, promising re-
+sults have been reported [2,3,12], opening the door for the
+development of models that bypass the problem with the
+complex phase. However, as the performance improves,
+the model size and complexity accordingly grow.
+In this work we propose a training and sampling strat-
+egy inspired on the recently emerged denoising diffu-
+sion models [13] to perform end-to-end singing voice ex-
+traction.
+Denoising diffusion models are a novel class
+of generative models theoretically grounded in the non-
+equilibrium statistical physics that can gradually convert
+one distribution into another using a Markov chain [14],
+while learning to perform the reverse process. More con-
+cisely, numerous works use diffusion models to convert
+a signal from a particular data distribution to a simple
+one (e.g. isotropic Gaussian noise) by gradually adding
+samples of the said simple distribution.
+Subsequently,
+the model is trained to reverse the perturbation process
+and generate data samples of the original distribution us-
+ing the easily tractable noise as input [15±17].
+Diffu-
+sion models have recently emerged as a versatile and
+high-performance method for data generation, outperform-
+ing classical generative approaches for the task of image
+generation [13].
+In the fields of ASP and MIR, diffu-
+sion models have also shown promising performance for
+speech synthesis [16,18], speech restoration and enhance-
+ment [13, 15, 19±21], audio super-resolution [22], singing
+voice synthesis [23], and symbolic music generation [24].
+Despite that, the literature does not include many attempts
+to use diffusion models for source separation, being [25],
+to the best of our knowledge, the only attempt.
+Despite the use of deterministic signals as diffusion per-
+turbation in place of Gaussian noise has shown promising
+results in reverting different arbitrary types of image noise
+and performing image morphing [26], to the best of our
+knowledge, no exploration of this idea in the audio domain
+has been reported to date. In this work, we build on top
+of DiffWave, a versatile diffusion model for speech syn-
+thesis [16] that is based on a non-causal WaveNet architec-
+ture that has been previously used for music source separa-
+tion [12]. We introduce an end-to-end approach to model
+685
+
+the task of singing voice extraction as a diffusion-alike pro-
+cess, by converting between two audio data distributions
+that share similar content, in this case the singing voice
+and the corresponding mixture. We propose to use a deter-
+ministic diffusion perturbation, a music mixture, to gradu-
+ally transform its corresponding isolated singing voice into
+the mixture while learning to conduct the reverse process
+at inference. Given the formulation of the diffusion pro-
+cess, we train a model that learns to estimate the perturba-
+tion at different ratios. Subsequently, we leverage from the
+parametrization of the reverse process of diffusion models
+to chain these estimations and sample, given an input mix-
+ture, improved vocal source separation in terms of artifacts
+and interferences compared to the vanilla trained network.
+2. METHOD
+2.1 Diffusion process
+We assume that the waveform-domain signal correspond-
+ing to the mixture m is the sum of the singing voice v and
+the accompaniment a, such as: m = v + a. Our goal is to
+estimate v given m. In the following sections we formalize
+our method by relating it with the diffusion theory in the
+literature. In Figure 1 we display the two main steps of our
+method: the diffusion and the reverse process.
+Diffusion. The diffusion process assumes perturbing
+the training data with different scales of noise iteratively
+following a Markov chain [13]:
+q(x1, ..., xT |x0) =
+T
+Y
+t=1
+q(xt|xt−1)
+(1)
+The input signal x0 is gradually perturbed by incrementally
+adding a particular signal in small T diffusion steps. This
+process results into a latent variable xT of same distribu-
+tion of the perturbation. The standard diffusion schema, in-
+troduced in [13] and subsequently used in most of the dif-
+fusion research, perturbs x0 with random Gaussian noise,
+therefore xT is an isotropic Gaussian noise distribution. In
+our case, the input signal x0 is initialized with the isolated
+singing voice v, and perturbed by incrementally adding the
+mixture m. This results in xT being a mixture-alike sig-
+nal, containing both voice and accompaniment. Therefore,
+q(xt|xt−1) in Eq. 1 is an operation to add a small amount
+of perturbation m to the given signal xt−1, moving to the
+next diffusion step xt. We use m as perturbation to ac-
+count for the formal diffusion design in [13], in which the
+latent variable xT is expected to belong to the same data
+distribution as the perturbing noise. The level of pertur-
+bation at each diffusion step is controlled by βt, which is
+a small positive coefficient within a fixed noise schedule
+denoted β. That said, using the parametrization proposed
+in [13], we can compute any given diffusion step using:
+q(xt|x0) = √¯αtx0 +
+√
+1 −¯αtm
+(2)
+where αt = 1 −βt and ¯αt = Qt
+s=1 αs. Note also that the
+most common inference input of a singing voice extraction
+model ± which in our case is xT ± is a mixture. Given
+Figure 1. Overview of our diffusion-inspired training ap-
+proach for the case of singing voice extraction.
+Eq. 2, the perturbation is a mixture m to ensure xT ≈m,
+otherwise the said condition may not be given.
+Modelling musical signals using a mixture of Gaussian
+functions has been previously explored in [27]. Note also
+that architectures similar to DiffWave have been already
+used to model mixture, accompaniment, and vocal sig-
+nals [12,28] (for further detail see Section 2.2).
+Reverse process. The reverse process aims at itera-
+tively reverting the perturbation added by the diffusion:
+pθ(x0, ..., xT −1|m) =
+T
+Y
+t=1
+pθ(xt−1|xt)
+(3)
+We propose to parameterize the variable pθ(xt−1|xt) as
+
+xt −
+1−αt
+√1−¯αt ϵ(xt, t)
+
+1
+√αt , being ϵ(xt, t) the perturbation
+estimated by the model at a given diffusion step t. This
+parametrization is leveraged from the diffusion sampling
+process in [13]. However, we remove the deviation param-
+eter from the original parametrization, which in our deter-
+ministic noise case yields worse predictions. This process
+can be seen as an iterative refinement of the latent variable
+xT to convert it to x0, in our case to iteratively transform
+an input mixture to its corresponding singing voice source.
+Training. The training objective of the original diffu-
+sion process is to maximize the log likelihood of: pθ(x0) =
+R
+pθ(x0, ..., xT −1|xT )platent(xT )dx1:T [13], considering
+stochastic noise as perturbation. Since in this context it
+is not possible to calculate the said integral, in the litera-
+ture this problem is approached by maximizing its varia-
+tional lower bound (ELBO) [13]. The reader is referred
+to [16], for a detailed development of this maximization.
+In our case, relying on the ELBO is not required given
+the deterministic perturbation. Therefore, by using pairs
+of (xt, x0) [13], and referring to Eq. 2, we are able to ef-
+fectively optimize the model with parameters θ using the
+following objective [13]:
+L(θ) =
+ϵ −ϵθ(√¯αtx0 +
+√
+1 −¯αtm, t))
+2
+(4)
+where ϵ is the target or true perturbation, whereas ϵθ is the
+perturbation the model estimates based on ¯α, t, the mixture
+m and the input x0. In the case of extracting the singing
+voice, we use the accompaniment a instead of mixture m
+as the target corresponding to ϵ. Therefore, we do not in-
+clude the voice into the target of the training process, thus
+we alleviate the loss of vocal quality that may occur after
+several reverse steps.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+686
+
+Noise schedule. Choosing the noise schedule β has
+been found to be crucial for the performance of diffusion
+models [13] 2 and in fact, efforts have been done to learn
+said variable instead of defining it manually [29]. In our
+scenario, we require a schedule β that accounts for the pro-
+posed diffusion-inspired approach, in which x0 is expected
+to be predominant in the completely perturbed signal xT .
+Moreover, our perturbation m is the mixture corresponding
+to x0, thus x0 is contained in the perturbation, which may
+lead to an abnormally over-loud source in the completely
+diffused xT . Ultimately, the inference input is a mixture,
+therefore we propose to use a schedule that produces a la-
+tent variable xT as close as possible to an actual mixture.
+Our noise schedule is defined by β0 = 1−4, βT = 0.2,
+and T = 20, being 20 a reliable option for audio as found
+in [16]. This noise schedule produces q(xT |x0) ≈m, and
+we denote it β20. Note that the closer βT to 1, we should
+expect a more aggressive transformation, leading to less
+interference at the expense of losing quality of the esti-
+mated source. Recent diffusion-based works in the audio
+domain successfully model their task using 4±8 steps [21].
+To study the effect of the number of diffusion steps and
+explore the feasibility of modelling the task with less com-
+putational expense, we experiment with a new schedule β8,
+which is defined by β0 = 1−4, βT = 0.5, and T = 8.
+Accompaniment estimation. To perform accompani-
+ment estimation we initialize x0 to be the musical accom-
+paniment a, while the singing voice v is the target ϵ for
+training in Eq. 4, and we adjust β. Since usually the ac-
+companiment is a mixture of multiple sources, and the
+singing voice ± now the perturbation ± is normally pre-
+dominant, we may increase the number of diffusion steps
+to 100 in the schedule and experiment with a more granular
+reverse process. The other parameters remain unchanged.
+2.2 Network details
+We propose to use the unconditional vanilla DiffWave to
+learn the reverse process [16]. Although recent works in
+music separation propose various improvements with re-
+gards to the architectures used, in this work we focus on ex-
+ploring a novel diffusion-inspired process for source sep-
+aration. At the same time, we aim at improving a smaller
+model that has been previously applied for source sepa-
+ration using our diffusion-inspired training and sampling
+method, while leaving the improvements on the network,
+or using a different architecture, as future work. Nonethe-
+less, we consider the versatility and light weight of the en-
+tire method an advantage. Note that within the scope of
+this paper, we perform monaural source separation.
+Architecture. The DiffWave architecture is based on
+a modified WaveNet [30] extended with bidirectional di-
+lated convolution modules (Bi-DilConv), aiming at remov-
+ing the autoregressive generation constraint so that the
+model is non-causal and the reverse process is done in
+T steps.
+The said Bi-DilConv modules have been pre-
+2 Despite being aware that our perturbation is a deterministic signal
+instead of stochastic noise, we still use the term noise schedule in this
+work for easier understanding in relation with cited works.
+viously applied for the problem of music source separa-
+tion [12, 28]. The used non-causal WaveNet consists of a
+stack of L residual layers, which are equally grouped into
+N blocks. Therefore, each block includes L/N layers with
+skip-connections as the original WaveNet. A Bi-DilConv
+module with kernel-size 3 is included in each layer. The
+size of the dilation, initialized at 1, is doubled at each layer
+of a block: [1, 2, 4, 8, ..., 2L/N −1]. Before going through
+the stacked blocks, the input is projected using a 1D con-
+volutional layer of C channels of features. Similarly to the
+original WaveNet, the output is obtained by summing the
+skip connections of all the residual blocks. For our experi-
+ments we configure the WaveNet architecture with L = 30,
+N = 10, and C = 64, which in [16] is found to effectively
+work while preserving the light weight of the architecture.
+Diffusion step embedding. Since the training process
+is based on optimizing Eq. 4 given a pair (xt, x0), we need
+to input the diffusion step t to the model. We use a 128-
+dimension encoding vector for each t [16], defined as [31]:
+tembed =
+h
+sin
+
+10
+0∗F
+S−1 t
+
+, ..., sin
+
+10
+(S−1)∗f
+S−1
+t
+
+,
+cos
+
+10
+0∗F
+S−1 t
+
+, ..., cos
+
+10
+(S−1)∗F
+S−1
+t
+ i
+(5)
+where F is the embedding factor and S is half the embed-
+ding size. Note that F and S are pre-defined and fixed
+hyperparameters, which in our experimentation are set to
+F = 4 and S = 64. Next, the embedded diffusion step is
+passed through three dense layers, the first two having size
+S ∗2, while the latter maps the latent embedding into the
+C channels the input is projected to, therefore we can add
+the embedding to the input of each residual layer.
+Conditioning. Using a vocoder paradigm, diffusion-
+based approaches for audio modelling usually use condi-
+tioning to guide the signal generation, providing clues to
+obtain a particular desired output. Audio-related diffusion
+works in the literature propose to guide the signal genera-
+tion using, for instance, mel-spectrogram [16, 32] or lin-
+guistic features [33]. We do not condition our network
+for three reasons: (1) Conditioning our vocal extraction
+model, for instance on the mel-spectrogram of the target
+vocal signal, would probably improve the output quality,
+however the task of source separation assumes that data of
+this kind is not available at inference, (2) Our latent vari-
+able xT is not an isotropic Gaussian but a known mixture
+recording containing the target signal, therefore it serves
+as a conditioner to guide the transformation towards the
+isolated singing voice, (3) We reduce the model size.
+2.3 Post-processing
+To account for a possible over-increase of the signal ampli-
+tude during the reverse process, the output of said process
+is clamped to the amplitude levels of the input mixture.
+During the iterative signal transformation at inference
+we may generate audio content and artifacts not contained
+in the original vocal signal. Although not perceptually sig-
+nificant, these artifacts are heavily penalized by objective
+evaluation metrics [34]. Moreover, the iterative nature of
+the algorithm may accumulate several of the said artifacts
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+687
+
+in the final prediction. As an optional step, we use the
+multichannel Wiener filter to improve our separation, a
+well-known process used in numerous source separation
+works [35]. We use the Python version in norbert [36].
+Since our model operates in an end-to-end manner, we
+use the following procedure to apply the Wiener filter-
+ing. Let ˆv be an estimated vocal source and ˆa the corre-
+sponding estimated musical accompaniment. The inputs
+of the Wiener process are the Short-Time Fourier Trans-
+form (STFT) of the input mixture m, and the magnitude
+STFT of both ˆv and ˆa estimates. The outputs of the Wiener
+process are the filtered complex spectrograms for ˆv and
+ˆa. We take the magnitude of said spectrograms and com-
+bine it with the corresponding phases ϕ(ˆv) and ϕ(ˆa) that
+our proposed model estimates. In that sense, we do not
+use the Wiener filtering to estimate the phase as typically
+done for spectrogram-based approaches that cannot esti-
+mate such complex target, but refine our estimation using
+the Expectation-Maximization algorithm [37] to make sure
+that the predicted signal is contained in the input mixture.
+3. RELATION WITH PREVIOUS WORK
+The literature on waveform-based singing voice extraction
+is mainly based on encoder/decoder architectures, with the
+non-causal adaptation of WaveNet [12,30] as the only ex-
+ception. Wave-U-Net [3] is an autoencoder inspired by its
+spectrogram-based counterpart U-Net [7], while ConvTas-
+Net [2, 4] estimates prediction masks in the mid-point of
+the network. The leading model is Demucs, now available
+in two versions v1 [1] and v2 [2], which is also a con-
+volutional autoencoder with a bidirectional LSTM in the
+bottleneck. There is a growing tendency on the size of the
+above-mentioned models, while all use similar, standard
+training procedures. In contrast, we focus on the training
+strategy and propose a diffusion-inspired approach for a
+light-weight model. Building on top of DiffWave, we train
+a non-causal WaveNet very similar to the one used for mu-
+sic source separation [30], differing only on the number
+of residual layers, the output projection (since WaveNet
+in [30] estimates multiple targets while in DiffWave the
+target is only the added perturbation by the diffusion pro-
+cess), and the additional diffusion step embedding.
+Our work has common aspects with [39], in which a
+novel training strategy is built on top of Demucs (v2) by
+modelling and learning the dependencies between target
+sources, and adding an iterative refinement at the output
+using a Gibbs sampling process. Contrastingly, we use
+a diffusion-inspired algorithm to train a smaller baseline
+model for source separation, not to directly estimate the
+target sources but to gradually transform a mixture signal
+into its corresponding singing voice.
+The literature of diffusion-related approaches for music
+source separation is scarce. In [25], an improved reverse
+process based on Langevin dynamics is proposed and ap-
+plied to several autoregressive models, including WaveNet,
+which shows competitive performance on separating the
+vocals from a piano accompaniment. However no experi-
+ments on MUSDB18 [40] are reported.
+4. EXPERIMENTS
+4.1 Experimental setup
+We include the following models in our experiments:
+(1) Singing voice extraction model with different noise
+schedules: β20 and β8 and β1, (2) Singing voice extrac-
+tion model with β20 and Wiener filtering, using the accom-
+paniment obtained by subtracting the estimated vocals ˆv
+from the input mixture m, (3) Accompaniment extraction
+model with β100, (4) Combination of singing voice extrac-
+tion model with β20 and accompaniment extraction model
+with β100 using Wiener filtering. For the experiments we
+use ADAM optimizer with learning rate of 2−4 and batch
+size of 8. The models are first trained for 200k steps and
+next, we keep training while evaluating the performance
+using BSS Eval [41] repeatedly when ≈500 training steps
+are completed, storing the model that performs the best on
+the validation set, until 500k steps.
+We use the MUSDB18 dataset [40] for training. The
+accompaniment is computed as the linear sum of the bass,
+drums, and other sources as represented in the dataset. To
+train the models we first split the tracks in MUSDB18 in
+chunks of 4 seconds to optimize the training process and
+obtain more variate data batches along the training steps.
+We do not disregard the unvoiced samples, aiming at im-
+proving the estimation on vocal silences [28].
+For a comparison with the state-of-the-art, our mod-
+els are evaluated on the test set of MUSDB18, using
+the standardized metrics for source separation (Signal-to-
+Distortion Ratio or SDR, Signal-to-Interference Ratio or
+SIR, and Signal-to-Artifact Ratio or SAR) [42]. We use the
+BSS Eval implementation and the evaluation setup from
+the SiSEC challenge [41], using window and hop sizes of
+1 second, and subsequently computing the median over all
+the 1-second estimations of each song. We finally report
+the median over the entire MUSDB18 testing tracks. We
+compare our approach with the waveform-based state-of-
+the-art: WaveNet, Wave-U-Net, ConvTas-Net and Demucs
+v1 and v2. We report the metrics that the best versions of
+these methods obtain on the testing set of MUSDB18 [41].
+For WaveNet we consider the best performing configura-
+tion in [28], and for ConvTas-Net the music source separa-
+tion version proposed in [2].
+Being aware of the possible biases that might occur
+if training and evaluating on data from the same distri-
+bution, even if the splits are properly differentiated, we
+consider two additional testing sets: (1) A non-MUSDB-
+overlapping version of MedleyDB [43], in which we re-
+move the 46 overlapping tracks between MedleyDB and
+MUSDB18 [44] disregarding also the tracks from shared
+artists between the two even if the track is not present in
+both, and (2) A manually-cleaned subset of the multi-track
+audio of the Saraga Carnatic dataset [45] (ground-truth
+accompaniment is not available). The track list of both
+datasets is made available in the accompanying repository.
+The objective metrics in [41] are not always corre-
+lated with the scores from perceptual evaluations of mu-
+sic source separation [46]. However, perceptual tests are
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+688
+
+Singing Voice
+Accompaniment
+Model
+Params
+Diff. steps
+SDR
+SIR
+SAR
+SDR
+SIR
+SAR
+WaveNet [12] (w/ add. loss [38])
+≈3.3M
+-
+4.49
+13.52
+6.17
+11.39
+16.37
+13.49
+Wave-U-Net [3]
+≈10.2M
+-
+4.97
+13.98
+4.41
+11.11
+15.30
+11.44
+ConvTas-Net [2]
+≈8.75M
+-
+6.43
+-
+-
+-
+-
+-
+Demucs (v1) [1]
+-
+-
+5.44
+-
+-
+-
+-
+-
+Demucs (v2) [2]
+≈450M
+-
+6.84
+-
+-
+-
+-
+-
+Ours (vocal)
+≈750K
+1
+4.81
+9.21
+8.09
+-
+-
+-
+Ours (vocal)
+≈750K
+8
+5.63
+10.55
+8.86
+-
+-
+-
+Ours (vocal)
+≈750K
+20
+5.59
+10.78
+8.89
+-
+-
+-
+Ours (vocal) + Wiener
+≈750K
+20
+5.66
+11.60
+8.49
+-
+-
+-
+Ours (accomp)
+≈750K
+100
+-
+-
+-
+11.12
+13.11
+16.44
+Ours (vocal & accomp) + Wiener
+≈750K + 750K
+20 + 100
+6.07
+12.77
+8.61
+11.72
+14.44
+16.81
+Table 1. Performance comparison between our model and the waveform-based state-of-the-art. Metrics in dB.
+time-consuming and expensive to conduct. We run a per-
+ceptual evaluation of the vocal separation for four models:
+Wavenet (again the best model in [28]), Wave-U-Net (the
+best model in [3] for monaural separation), Demucs (the
+v2 model for stereo mixture and 4 sources), and our best
+model (combining both vocal and accompaniment extrac-
+tion models using Wiener). We reiterate the experiment
+in [28] with the same 5 songs (10 second excerpts) and
+including now our model and Demucs v2. 3
+In this perceptual experiment we follow a double-blind
+multi-stimulus experimental design with a hidden refer-
+ence. Similarly to [28], participants are asked to assess
+the global quality of vocal separation taking into account
+the suppression of other sources and the lack of distortion,
+rating the stimuli on scale from 1 to 5, with 1 being very
+intrusive interferences from other sources and degraded
+audio, and 5 being unnoticeable interferences from other
+sources and not degraded audio. In contrast to [28], the
+order of the songs is randomized, so that the final rating
+does not depend on a predefined ordering. In addition, we
+include the ground-truth vocal stem as a hidden reference
+along the other stimuli corresponding to the vocal separa-
+tion of the four models being tested. This hidden reference
+is used as a control stimuli to filter-out participants that
+have not performed the training stage, have not understood
+the task, or do not have sufficient expertise. The partici-
+pants are asked to calibrate the volume using a tone burst.
+Then, they perform a training stage where detailed instruc-
+tions and three audio examples from the same song are pre-
+sented: the reference mixture, the ground-truth vocal stem
+and a poor quality separation using a model not included
+in our test. We use the webMUSHRA framework [47] to
+implement the experimental design in an online test.
+4.2 Objective evaluation
+In Table 1 we compare the performance of our approach
+with the waveform-domain state-of-the-art models.
+No
+metrics on accompaniment separation and SIR/SAR for
+vocals are reported for Demucs and ConvTas-Net since
+3 jordipons.me/apps/end-to-end-music-source-separation
+these target to vocals, bass, drums and other. We observe
+that our vocal extraction model outperforms WaveNet
+(note that DiffWave is based on WaveNet), Wave-U-Net,
+and Demucs v1 in terms of SDR, the latter by a slight
+difference. Our model provides notable improvement on
+SAR, which is translated into an output with less artifacts.
+When combining our vocal and accompaniment extrac-
+tion models through Wiener filter we obtain closer perfor-
+mance to ConvTas-Net, while Demucs v2 is still leading
+on SDR ≈0.8dB above.
+While iteratively transform-
+ing an input mixture, for instance, to the corresponding
+singing voice, incorrectly estimated accompaniment that is
+not recognised in the subsequent reverse steps may accu-
+mulate in the final prediction. Although the said interfer-
+ences might not be audible at naked ear, these are penalized
+by the metrics. The Wiener filtering provides notable im-
+provement on that issue, as especially noted in the SIR and
+also in the perceptual evaluation in Section 4.3, albeit the
+source quality is slightly compromised. Finally, note that
+we use fewer parameters, enhancing the portability and re-
+producibility of our approach.
+The β1 singing extraction model, which directly esti-
+mates the perturbation by transforming the input mixture
+in a single run, scores similar than the baseline WaveNet,
+however we observe a notable decrease of SIR, while SAR
+improves. This may be given the transformation nature of
+our approach, which removes the perturbation from the tar-
+get source instead of directly estimating the source. The β8
+model scores similar than β20, however the SIR decreases
+while SAR is maintained. While adding more steps pro-
+vides improved interference removal, no notable negative
+effect is observed in the quality of the estimated source.
+Nonetheless, if the computational expense is prioritized,
+the β8 model may be used for an optimized inference since
+the measured performance drop in our experiments is not
+dramatic. In fact, both models predict faster than real-time
+on a TITAN Xp GPU. For accompaniment separation, us-
+ing β100 provides better predictions. However, as observed
+for vocals, we may be also capable of modelling this task
+using less steps, with no significant performance drop.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+689
+
+MUSDB18
+MedleyDB
+Saraga Carnatic
+Model for singing voice
+Model weight
+SDR
+SIR
+SAR
+SDR
+SIR
+SAR
+SDR
+Ours (vocal, β20, no Wiener)
+≈26MB
+5.59
+10.78
+8.89
+4.86
+8.87
+9.06
+4.11
+Wave-U-Net [3]
+≈117MB
+4.97
+13.98
+4.41
+1.61
+7.47
+4.50
+2.13
+Demucs (v2) [2]
+≈1GB
+6.84
+-
+-
+6.01
+-
+-
+6.12
+Table 2. Performance comparison of our baseline model and state-of-the-art on additional test datasets. Metrics in dB.
+In Table 2 we evaluate our baseline β20 singing voice
+extraction model (with no post-processing) on the two ad-
+ditional testing datasets presented in Section 4.1. We per-
+form the same evaluation procedure for Wave-U-Net and
+Demucs v2, comparing how the three models generalize to
+the testing datasets, using the performance on MUSDB18
+± which is also the training dataset for the three ± as ref-
+erence. Our model and Demucs v2 show good generaliza-
+tion to MedleyDB, both getting a similar and small perfor-
+mance drop. Contrastingly, the Wave-U-Net performance
+is negatively affected in terms of both SDR and SIR. A
+similar scenario is observed in the Carnatic Music exper-
+iment. While Wave-U-Net generalization is again com-
+promised, our model and Demucs v2 are decently able
+to maintain the performance, the latter being less affected
+by the change of domain. Similarly to what observed in
+the MUSDB18 experiment, Demucs v2 predictions include
+less artifacts, especially in the high-frequency range, being
+reflected in the metrics as such. Audio examples of this
+experiment are available in the accompanying repository.
+We analyse the behaviour of the β20 singing voice
+model along the steps in the reverse process. We observe
+that the SIR (interf.) notably increases along the steps, at
+a compromise of a much less steeply SAR (artifacts) de-
+crease. Namely, as we iteratively transform the signal from
+mixture to singing voice, we remove the accompaniment
+while trying to maintain the quality of the singing voice,
+relying on the model trained with our diffusion-inspired
+strategy to estimate the perturbation at each step while
+alleviating the additional interferences incorrectly gener-
+ated during the reverse process. We note that given the
+parametrization of the reverse process, stronger transfor-
+mation is performed in the first steps (1 to 5 for β20), while
+the rest of the steps refine the final estimation. For that
+reason, fair or good performance ± relatively to the over-
+all track difficulty ± on the first step normally leads to
+enhanced final output, while bad initial performance may
+even be further degraded through the reverse process.
+4.3 Perceptual evaluation
+In total 40 people participated in our experiment, 4 of them
+being excluded because they scored the ground-truth stim-
+uli lower than a separation stimuli. We compute Mean
+Opinion Score (MOS) by averaging the ratings for all
+songs and all participants. The results in terms of MOS are
+presented in Figure 2. Note that Ground-truth is not reach-
+ing 5, meaning that the test includes difficult cases with
+distorted vocals or large unvoiced segments. We observe
+that the 95% Confidence Interval for our model is very sim-
+Figure 2. Perceptual evaluation report for the waveform-
+based state-of-the-art models and ours
+ilar to Demucs and notably higher than both Wave-U-Net
+and especially WaveNet, a very similar architecture to the
+instance we have trained using our diffusion-inspired strat-
+egy. Such test suggests that the predictions made by our
+approach may include artifacts or interferences that affect
+negatively the standardized metrics but are not perceivable
+at naked ear. This test may be extended in future to sepa-
+rately study the perceivable distortion and interference.
+5. CONCLUSIONS
+In this paper we leverage from the denoising diffusion al-
+gorithm to propose a training and sampling strategy for
+singing voice extraction.
+The model trained using our
+approach learns to gradually transform a mixture into its
+corresponding vocal source or accompaniment, achieving
+comparable performance to the waveform-based state-of-
+the-art on MUSDB18. In addition, we evaluate how our
+approach generalizes to other testing sets, showing decent
+generalization to these out-of-domain data. We also run a
+perceptual test in which our approach scores similar than
+Demucs v2 and outperforms the others. Our approach op-
+erates on an architecture similar to WaveNet and obtains
+better objective and perceptual evaluation. This work has
+a broad future outlook. For the next steps, we look at sepa-
+rating other sources and supporting stereo. We also look at
+extending the approach, for instance, by using a different
+or improved network to learn the reverse process, focusing
+on U-Nets which are the leading architecture music source
+separation. We may also consider conditioning, the key el-
+ement of diffusion-based approaches in the literature. Fi-
+nally, our diffusion-inspired reverse parametrization may
+be further improved to better refine the predictions.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+690
+
+6. ACKNOWLEDGEMENTS
+This work was carried out under the projects Musical AI
+- PID2019-111403GB-I00/AEI/10.13039/501100011033
+and NextCore - RTC2019-007248-7 funded by the Span-
+ish Ministerio de Ciencia, Innovación y Universidades
+(MCIU) and the Agencia Estatal de Investigación (AEI).
+We would like to thank the 40 participants that took the
+perceptual test for this work.
+7. REFERENCES
+[1] A. Défossez, N. Usunier, L. Bottou, and F. Bach, ªDe-
+mucs: Deep Extractor for Music Sources with extra
+unlabeled data remixed,º 2019. [Online]. Available:
+http://arxiv.org/abs/1909.01174
+[2] A. Défossez, N. Usunier, L. Bottou, and F. Bach,
+ªMusic Source Separation in the Waveform Domain,º
+2019. [Online]. Available:
+http://arxiv.org/abs/1911.
+13254
+[3] D. Stoller, S. Ewert, and S. Dixon, ªWave-U-Net: A
+multi-scale neural network for end-to-end audio source
+separation,º In Proc. of the 19th Int. Society for Music
+Information Retrieval Conf. (ISMIR), Paris, France, pp.
+334±340, 2018.
+[4] Y. Luo and N. Mesgarani, ªConv-TasNet: Surpassing
+Ideal Time-Frequency Magnitude Masking for Speech
+Separation,º IEEE/ACM Transactions on Audio Speech
+and Language Processing, vol. 27, no. 8, pp. 1256±
+1266, 2019.
+[5] N. Takahashi and Y. Mitsufuji, ªD3Net:
+Densely
+connected multidilated DenseNet for music source
+separation,º 2020. [Online]. Available:
+http://arxiv.
+org/abs/2010.01733
+[6] T. Li, J. Chen, H. Hou, and M. Li, ªSams-Net: A Sliced
+Attention-based Neural Network for Music Source
+Separation,º In Proc. on the 12th Int. Symposium on
+Chinese Spoken Language Processing (ISCSLP), 2021.
+[7] A. Jansson, E. Humphrey, N. Montecchio, R. Bittner,
+A. Kumar, and T. Weyde, ªSinging voice separation
+with deep U-Net convolutional networks,º In Proc. of
+the 18th Int. Society for Music Information Retrieval
+Conf. (ISMIR), Suzhou, China, pp. 745±751, 2017.
+[8] A. Défossez, ªHybrid spectrogram and waveform
+source separation,º 2021. [Online]. Available: http:
+//arxiv.org/abs/2111.03600
+[9] M. Kim, W. Choi, J. Chung, D. Lee, and S. Jung,
+ªKUIELab-MDX-Net: A Two-Stream Neural Network
+for Music Demixing,º
+2021. [Online]. Available:
+http://arxiv.org/abs/2111.12203
+[10] C.-Y. Yu and K.-W. Cheuk, ªDanna-Sep:
+Unite
+to separate them all,º 2021. [Online]. Available:
+http://arxiv.org/abs/2112.03752
+[11] Y. Mitsufuji, G. Fabbro, S. Uhlich, F.-R. Stöter, A. Dé-
+fossez, M. Kim, W. Choi, C.-Y. Yu, and K.-W. Cheuk,
+ªMusic Demixing Challenge 2021,º Frontiers in Signal
+Processing, no. January, 2022.
+[12] D. Rethage, J. Pons, and X. Serra, ªA wavenet for
+speech denoising,º In Proc. of the IEEE Int. Conf. on
+Acoustics, Speech and Signal Processing (ICASSP),
+Paris, France, vol. 2018-April, pp. 5069±5073, 2018.
+[13] J. Ho, A. Jain, and P. Abbeel, ªDenoising diffusion
+probabilistic models,º In Proc. of the 33th Advances
+in Neural Information Processing Systems (NeurIPS),
+Online, pp. 6840±6851, 2020.
+[14] C. Jarzynski, ªEquilibrium free-energy differences
+from
+nonequilibrium
+measurements:
+A
+master-
+equation approach,º Physical Review, 1997.
+[15] J. Zhang, S. Jayasuriya, and V. Berisha, ªRestoring
+degraded speech via a modified diffusion model,º In
+Proc. of the Annual Conf. of the Int. Speech Commu-
+nication Association (INTERSPEECH), Online, vol. 4,
+pp. 2753±2757, 2021.
+[16] Z. Kong, W. Ping, J. Huang, K. Zhao, and B. Catan-
+zaro, ªDiffWave: A Versatile Diffusion Model for Au-
+dio Synthesis,º In Proc. of the 9th Int. Conf. on Learn-
+ing Representations (ICLR), Vienna, Austria, 2021.
+[17] J. Sohl-Dickstein, E. A. Weiss, N. Maheswaranathan,
+and S. Ganguli, ªDeep unsupervised learning using
+nonequilibrium thermodynamics,º In Proc. of the 32nd
+Int. Conf. on Machine Learning (ICML), Lille, France,
+vol. 3, pp. 2246±2255, 2015.
+[18] N. Chen, Y. Zhang, H. Zen, R. J. Weiss, M. Norouzi,
+and W. Chan, ªWaveGrad: Estimating Gradients for
+Waveform Generation,º In Proc. of the 9th Int. Conf.
+on Learning Representations (ICLR), Vienna, Austria,
+2021.
+[19] Y.-J. Lu, Z.-Q. Wang, S. Watanabe, A. Richard,
+C. Yu, and Y. Tsao, ªConditional Diffusion Probabilis-
+tic Model for Speech Enhancement,º In Proc. of the
+IEEE Int. Conf. on Acoustics, Speech and Signal Pro-
+cessing (ICASSP), Singapore, 2022.
+[20] Y. J. Lu, Y. Tsao, and S. Watanabe, ªA Study on
+Speech Enhancement Based on Diffusion Probabilis-
+tic Model,º In Proc. of the Asia-Pacific Signal and In-
+formation Processing Association Annual Summit and
+Conf. (APSIPA ASC), Online, pp. 659±666, 2021.
+[21] J. Serrà, S. Pascual, J. Pons, R. O. Araz, and
+D. Scaini,
+ªUniversal speech enhancement with
+score-based diffusion,º 6 2022. [Online]. Available:
+http://arxiv.org/abs/2206.03065
+[22] J. Lee and S. Han, ªNU-wave: A diffusion probabilistic
+model for neural audio upsampling,º In Proc. of the An-
+nual Conf. of the Int. Speech Communication Associa-
+tion (INTERSPEECH), Brno, Czech Republic, vol. 4,
+no. 3, pp. 2698±2702, 2021.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+691
+
+[23] J. Liu, C. Li, Y. Ren, F. Chen, and Z. Zhao, ªDiff-
+Singer: Singing Voice Synthesis via Shallow Diffusion
+Mechanism,º In Proc. of the 36th Conf. on Artificial
+Intelligence (AAAI), Online, 2022.
+[24] G. Mittal, J. Engel, C. Hawthorne, and I. Simon, ªSym-
+bolic Music Generation with Diffusion Models,º In
+Proc. of the 22th Int. Society for Music Information Re-
+trieval Conf. (ISMIR), Online, pp. 468±475, 2021.
+[25] V. Jayaram and J. Thickstun, ªParallel and Flexible
+Sampling from Autoregressive Models via Langevin
+Dynamics,º In Proc. of the Int. Conf. on Learning Rep-
+resentations (ICLR), Online, 2021.
+[26] A. Bansal,
+E. Borgnia,
+H.-M. Chu,
+J. S. Li,
+H. Kazemi, F. Huang, M. Goldblum, J. Geiping,
+and T. Goldstein, ªCold diffusion: Inverting arbitrary
+image transforms without noise,º 8 2022. [Online].
+Available: http://arxiv.org/abs/2208.09392
+[27] J. L. Durrieu, G. Richard, B. David, and C. Févotte,
+ªSource/filter model for unsupervised main melody ex-
+traction from polyphonic audio signals,º IEEE Trans-
+actions on Audio, Speech, and Language Processing,
+vol. 18, no. 3, 2010.
+[28] F. Lluís, J. Pons, and X. Serra, ªEnd-to-end music
+source separation: Is it possible in the waveform do-
+main?º In Proc. of the Annual Conf. of the Int. Speech
+Communication Association (INTERSPEECH), Graz,
+Austria, vol. 2019-September, pp. 4619±4623, 2019.
+[29] D. P. Kingma, T. Salimans, B. Poole, and J. Ho, ªVari-
+ational Diffusion Models,º In Proc. of the 35th Conf.
+on Neural Information Processing Systems (NeurIPS
+2021), Online, pp. 21 696±21 707, 2021.
+[30] A. van den Oord, S. Dieleman, H. Zen, K. Simonyan,
+O. Vinyals, A. Graves, N. Kalchbrenner, A. Senior,
+and K. Kavukcuoglu,
+ªWaveNet:
+A Generative
+Model for Raw Audio,º 2016. [Online]. Available:
+http://arxiv.org/abs/1609.03499
+[31] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit,
+L. Jones, A. N. Gomez, è. Kaiser, and I. Polosukhin,
+ªAttention is all you need,º Advances in Neural In-
+formation Processing Systems (NeurIPS), Long Beach,
+USA, vol. 2017-December, pp. 5999±6009, 2017.
+[32] W. Ping, K. Peng, A. Gibiansky, S. O. Arik, A. Kan-
+nan, S. Narang, J. Raiman, and J. Miller, ªDeep Voice
+3: Scaling text-to-speech with convolutional sequence
+learning,º In Proc. of the Int. Conf. on Learning Repre-
+sentations (ICLR), Vancouver, Canada, 2018.
+[33] S. O. Arik, G. Diamos, A. Gibiansky, J. Miller,
+K. Peng, W. Ping, J. Raiman, and Y. Zhou, ªDeep
+Voice 2: Multi-speaker neural text-to-speech,º In Proc.
+of the Conf. on Neural Information Processing Systems
+(NeurIPS), Long Beach, USA, 2017.
+[34] P. Chandna, M. Blaauw, J. Bonada, and E. Gomez, ªA
+Vocoder Based Method for Singing Voice Extraction,º
+In Proc. of the IEEE Int. Conf. on Acoustics, Speech
+and Signal Processing (ICASSP), Brighton and Hove,
+UK, vol. 2019-May, pp. 990±994, 2019.
+[35] A. Nugraha, A. Liutkus, and E. Vincent, ªMultichannel
+audio source separation with deep neural networks,º
+IEEE/ACM Transactions on Audio, Speech, and Lan-
+guage Processing, vol. 24, no. 9, pp. 1652±1664, 2016.
+[36] A. Liutkus and F. R. Stöter, ªsigsep/norbert,º 2019.
+[Online]. Available:
+https://doi.org/10.5281/zenodo.
+3269749
+[37] N. Duong, E. Vincent, and R. Gribonval, ªUnder-
+determined reverberant audio source separation using a
+full-rank spatial covariance model,º IEEE Transactions
+on Audio, Speech, and Language Processing, vol. 18,
+no. 7, pp. 1830±1840, 2010.
+[38] P. Huang,
+M. Kim,
+M. Hasegawa-Johnson,
+and
+P. Smaragdis, ªSinging-voice separation from monau-
+ral recordings using deep recurrent neural networks,º
+In Proc. of the 15th Int. Society for Music Information
+Retrieval Conf. (ISMIR), Taipei, Taiwan, pp. 477±482,
+2014.
+[39] E. Manilow, C. Hawthorne, C.-Z. Huang, B. Pardo, and
+J. Engel, ªImproving Source Separation by Explicitly
+Modeling Dependencies Between Sources,º In Proc. of
+the IEEE Int. Conf. on Acoustics, Speech and Signal
+Processing (ICASSP), Singapore, 2022.
+[40] Z. Rafii, A. Liutkus, F.-R. Stöter, S. I. Mimilakis,
+and R. Bittner, ªMUSDB18 - a corpus for music
+separation,º Dec. 2017. [Online]. Available:
+https:
+//doi.org/10.5281/zenodo.1117372
+[41] F. R. Stöter, A. Liutkus, and N. Ito, ªThe 2018 Sig-
+nal Separation Evaluation Campaign,º Lecture Notes
+in Computer Science, vol. 10891, pp. 293±305, 2018.
+[42] E. Vincent, R. Gribonval, and C. Févotte, ªPerfor-
+mance measurement in blind audio source separation,º
+IEEE Transactions on Audio, Speech, and Language
+Processing, vol. 4, no. 14, pp. 1462±1469, 2006.
+[43] R. Bittner, J. Salamon, M. Tierney, M. Mauch, C. Can-
+nam, and J. Bello, ªMedleyDB: A multitrack dataset
+for annotation-intensive MIR research,º In Proc. of the
+15th Int. Society for Music Information Retrieval Conf.
+(ISMIR), Taipei, Taiwan, pp. 155±160, 2014.
+[44] ªSigSep MUSDB Website,º https://sigsep.github.io/
+datasets/musdb.html, accessed: 01-05-2022.
+[45] A. Srinivasamurthy, S. Gulati, R. C. Repetto, and
+X. Serra, ªSaraga: Open Datasets for Research on In-
+dian Art Music,º Empirical Musicology Review, 2020.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+692
+
+[46] E. Cano, D. Fitzgerald, and K. Brandenburg, ªEvalua-
+tion of quality of sound source separation algorithms:
+Human perception vs quantitative metrics,º In Proc.
+of the 24th European Signal Processing Conf. (EU-
+SIPCO), Budapest, Hungary, pp. 1758±1762, 2016.
+[47] M. Schoeffler, S. Bartoschek, F.-R. Stöter, M. Roess,
+S. Westphal, B. Edler, and J. Herre, ªwebmushraÐa
+comprehensive framework for web-based listening
+tests,º Journal of Open Research Software, vol. 6,
+no. 1, 2018.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+693

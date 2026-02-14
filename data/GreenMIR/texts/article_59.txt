@@ -1,0 +1,913 @@
+CONTROLLING SYMBOLIC MUSIC GENERATION BASED ON
+CONCEPT LEARNING FROM DOMAIN KNOWLEDGE
+Taketo Akama
+Sony Computer Science Laboratories, Tokyo, Japan
+taketo.akama@sony.com
+ABSTRACT
+Machine learning allows automatic construction of gener-
+ative models for music. However, they are learned from
+only the succession of notes itself without explicitly em-
+ploying domain knowledge of musical concepts such as
+rhythm, contour, and fragmentation & consolidation. We
+approximate such musical domain knowledge as a func-
+tion, and feed it into our model.
+Then, two decoupled
+spaces are learned: the extraction space that captures the
+target concept, and the residual space that captures the
+remainder. For monophonic symbolic music, our model
+exhibits high decoupling/modeling performance. Control-
+lability in generation is improved: (i) our interpolation
+enables concept-aware ﬂexible control over blending two
+musical fragments, and (ii) our variation generation en-
+ables users to make concept-aware adjustable variations.
+1. INTRODUCTION
+Listeners not only perceive the succession of notes itself,
+but also respond to higher-level concepts in music. Two
+critical components in melodic perception and memory are
+scale and contour [5]. It is said that similarity between mu-
+sical fragments is important in listeners’ emotional arousal
+responses to music [18]. Listeners sense those similarities
+through perceiving patterns of music constructs or trans-
+formations such as rhythm, interval, and fragmentation &
+consolidation (F&C) [20].
+Music data processing, especially music generation and
+analysis have attracted much attention. One of the ma-
+jor methods exploits models that learn the latent space
+[1, 6, 9, 16, 27–29]. These models learn compressed but
+informative feature vectors of data samples and distribute
+them in the multi-dimensional latent space. The spacial ar-
+rangement represents the relation of data samples. Also,
+numerous intermediate features—corresponding to sam-
+ples hopefully not in the dataset—are yielded to ﬁll in the
+“holes” in the latent space. Then generation and analysis
+are performed by bidirectional mapping of the latent space
+and the data space. The latent space is, however, learned
+from raw musical data without supervision. Therefore, the
+c⃝Taketo Akama. Licensed under a Creative Commons At-
+tribution 4.0 International License (CC BY 4.0). Attribution:
+Taketo
+Akama.
+“Controlling Symbolic Music Generation Based on Concept
+Learning from Domain Knowledge”, 20th International Society for Mu-
+sic Information Retrieval Conference, Delft, The Netherlands, 2019.
+musical notions or concepts that are important for people
+are not sufﬁciently organized on the latent space. Here-
+inafter, we refer to such notions or concepts as musical
+concepts, examples of which include rhythm, contour, and
+F&C, as mentioned above.
+How do we organize those musical concepts on the la-
+tent space? People possess domain knowledge about mu-
+sical concepts, although even the major concepts are not
+necessarily deﬁned clearly. In fact, various musical con-
+cepts can be approximated as a function of raw musical
+sequences. We input such domain knowledge to our model
+in the form of a function, and then our model learns latent
+spaces that capture the corresponding musical concepts.
+Our model is called ExtRes (Extraction-Residual La-
+tent Space Decoupling Model), and it aims at learning de-
+coupled latent spaces, each of which is associated with a
+musical concept. In other words, each musical concept
+is learned as a latent-space concept that occupies a part
+of the dimensions in the multi-dimensional latent space.
+The concept-wise decoupled latent spaces allow us to mea-
+sure similarity between musical fragments in terms of each
+concept. The similarity is then used for e.g., pattern dis-
+covery in a musical piece [17]. In generation, the control
+over concept-wise latent features helps us to create musical
+phrases as imagined or to compose patterns/structures in a
+musical piece [23].
+Our ExtRes has the following characteristics.
+(I)
+Knowledge based: musical concepts can be incorporated
+as function approximations on the basis of domain knowl-
+edge. For monophonic musical sequences, various impor-
+tant musical concepts can be incorporated such as rhythm,
+chromatic/diatonic interval or pitch, step-leap/signed con-
+tour, and F&C. This is possible because given an input se-
+quence, these concepts can be approximated as other se-
+quences with rules or algorithms [2, 19] to construct the
+functions.
+(II) Complex concept and active learning:
+complex concepts are actively learned without obtaining
+attributes ﬁrst [3, 4, 12, 14], where a set of attributes is
+a concept. (III) Extraction-residual: aiming at compre-
+hending complex data by repeatedly analyzing “one con-
+cept versus the rest.” The rest (residual) may capture the
+useful concepts (e.g., scale for contour and “pitch order”
+for rhythm). (IV) Coexisting latent spaces: depending on
+the input domain knowledge, corresponding concepts are
+captured in latent spaces. Users can exploit multiple mod-
+els of ours—wherein latent spaces with different concepts
+coexist—for handling many concepts.
+816
+
+We apply our ExtRes to improving controllability in in-
+teractive music generation. (i) Concept-axes interpola-
+tion: this mechanism helps users to create musical phrases
+as imagined. Users ﬁrst input two musical fragments into
+the system. Prior methods allow users to adjust the blend-
+ing ratio of the two fragments uniformly regardless of con-
+cepts [27, 28], whose blending is more musically mean-
+ingful than the naive data space blending. Our concept-
+axes interpolation offers more ﬂexibility: enabling users
+to blend only the factor of the desired concept in musical
+fragments and to also adjust the blending ratio for each tar-
+get/residual concept. (ii) Concept-aware variation gen-
+eration: given a musical fragment, this mechanism al-
+lows users to obtain variations, where the amount of vari-
+ation for each concept is adjustable. When generating a
+long structured piece of music, this mechanism helps to
+faithfully realize either of the instructions of a song tem-
+plate [23] or the user intention.
+2. METHODOLOGY
+2.1 Outline
+We propose ExtRes, a generative model that allows learn-
+ing reusable representation (as latent features and embed-
+ding vectors) for a user-speciﬁed concept, given a function
+based on domain knowledge on the concept (Sec.2.2). We
+then instantiate our proposed ExtRes model for sequence
+datasets (Sec.2.4). In Sec.2.5, musical concepts are ap-
+proximated as functions on the basis of domain knowledge.
+For applications of our ExtRes, we focus on meaning-level
+controllability in generation. We consider the following
+kinds of control: (i) altering in relation to other samples
+(e.g., interpolation), (ii) altering a sample to another sam-
+ple with similar but not the same meaning (e.g., varia-
+tion), and (iii) altering individual concepts. ExtRes not
+only puts (iii) into practice by free explorations in con-
+cept spaces, but also allows hybridizing the meaning-level
+controls (i-iii) for more intended controllability: Sec.2.3
+Concept-Axes Interpolation is for bridging (i) and (iii),
+Sec.2.3 Concept-Aware Variation Generation is for bridg-
+ing (ii) and (iii).
+2.2 Extraction-Residual Latent Space Decoupling
+Model (ExtRes)
+Let us consider a dataset D = {x(n)}N
+n=1, consisting of
+N i.i.d. samples of stochastic variable x ∈X. Given
+fext : X →Y that extracts information of a target concept
+as y ∈Y from x, ExtRes is for learning latent spaces Ze
+and Zr that correspond to fext. Ze is called an extraction
+space, which captures the extracted target concept, and Zr
+is called a residual space, which is expected to be decou-
+pled from Ze, aiming at capturing a concept corresponding
+to all the rest. Figure 1 summarizes our model.
+fext can be obtained e.g., by constructing rules or al-
+gorithms on the basis of the data domain knowledge (for
+musical sequences, see [2, 19]). Speciﬁc examples based
+on musical domain knowledge are shown in Sec.2.5.
+Figure 1: Graphical model of ExtRes.
+First, we conduct data derivation:
+augmenting the
+dataset D to obtain Ddrv = {(x(n), y(n))}N
+n=1, through
+the mapping y = fext(x).
+Then, our approach is to
+learn a generative model involving two latent variables:
+ze ∈Ze for capturing variability in y and zr ∈Zr for
+variability in x given y. We assume the dataset is gen-
+erated from the following process: (i) z(n)
+e
+∼pθ∗e (ze),
+z(n)
+r
+∼pθ∗r (zr), (ii) y(n) ∼pθ∗y(y|z(n)
+e
+), and (iii) x(n) ∼
+pθ∗x(x|y(n), z(n)
+r
+). Then we model this generative process
+by maximizing marginal log likelihood log pθ(Ddrv) =
+PN
+n=1 log pθ(x(n), y(n)) with each term rewritten as:
+log pθ(x, y) = log
+R
+pθx(x|y, zr)pθr(zr)dzr ,
++ log
+R
+pθy(y|ze)pθe(ze)dze. (1)
+Since this is computationally intractable in general, we de-
+rive an evidence lower bound (ELBO) [16]:
+log pθ(x, y) ≥Lres + Lext,
+(2)
+where Lres = Eqφr (zr|x,y) [log pθx(x|y, zr)]
+−DKL (qφr(zr|x, y)||pθr(zr)),
+(3)
+and Lext = Eqφe(ze|y)
+
+log pθy(y|ze)
+
+−DKL (qφe(ze|y)||pθe(ze)).
+(4)
+Here, DKL denotes the Kullback-Leibler (KL) divergence.
+We maximize the data likelihood of right hand side of
+Eq.(2) for optimizing parameters {θx, θy, θr, θe, φr, φe}.
+We refer to the models corresponding to Eq.(3) and Eq.(4)
+as the residual model and extraction model, respectively.
+2.3 Controlling Generation
+Concept-Axes Interpolation. With our decoupled latent
+spaces, interpolation can be done for each latent space Ze
+and Zr. In the simplest linear case, interpolation between
+two latent vectors [z(i)
+e ; z(i)
+r ] and [z(j)
+e ; z(j)
+r ] produces sam-
+ples x(αe, αr) ∼pθx(x|y(αe), zr(αr)) with y(αe) ∼
+pθy(y|ze(αe)), where zr(αr) = z(i)
+r
++ αr(z(j)
+r
+−z(i)
+r )
+and ze(αe) = z(i)
+e
++ αe(z(j)
+e
+−z(i)
+e ) with (αr, αe) ∈
+[0, 1] × [0, 1].
+Variation Generation Approach. Finding the boundary,
+in a latent space, between variations and non-variations
+is semi-automatically learned by deﬁning that variations
+of a given data sample are the samples that contain
+enough information in terms of reconstruction error ϵ,
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+817
+
+in expectation.
+For our ExtRes, the error ϵ can be ad-
+justed by introducing trade-off parameters in Eq.(3) and
+Eq.(4) (see Sec.4.2). Intuitively, the latent vectors cap-
+ture high-level features for the corresponding data sam-
+ples, and given a data sample ˆx, the learned inference
+distributions qφr(zr|ˆx, fext(ˆx)) and qφe(ze|fext(ˆx)) spec-
+ify feature-wise similar/dissimilar (i.e.
+variations/non-
+variations) boundaries of the given sample. Therefore, our
+approach is to generate variations x(i) of ˆx in accordance
+with the boundaries as follows: x(i) ∼pθx(x|y(i), z(i)
+r )
+with y(i) ∼pθy(y|z(i)
+e ) and z(i)
+r
+∼qφr(zr|ˆx, fext(ˆx)),
+where z(i)
+e
+∼qφe(ze|fext(ˆx)).
+Concept-Aware Variation Generation. We also propose
+how to generate variations x(i) in a concept-wise manner
+when the inference models are normal distributions. The
+amount of variation is controlled for each concept in either
+of the following ways: simply changing the ratio of the co-
+variance scales of inference distributions, or ordering the
+samples z(i)
+e
+or z(i)
+r
+on the basis of Mahalanobis distances:
+DM(z(i), ˆz) =
+p
+(z(i) −ˆz)TΣ−1(z(i) −ˆz),
+(5)
+for (z(i), ˆz, Σ) ∈{(z(i)
+e , ˆze, Σe), (z(i)
+r , ˆzr, Σr)},
+where
+qφe(ze|fext(ˆx)) = N(ze|ˆze, Σe),
+and qφr(zr|ˆx, fext(ˆx)) = N(zr|ˆzr, Σr).
+Here, N denotes normal distribution.
+2.4 Instantiation of ExtRes for Sequences
+Throughout the rest of this paper, we consider the case
+where x consists of a sequence of discrete variables st i.e.
+x = (s1, ..., sT ). Here, each st has a distribution over the
+elements of a ﬁnite alphabet set A. Let fext be a func-
+tion that maps a sequence of length T to that of length
+T, i.e. fext : AT →BT , where B is another alphabet
+set. First, we conduct data derivation using fext(x(n)) =
+y(n) = (a(n)
+1 , ..., a(n)
+T ). The given dataset D = {x(n)}N
+n=1
+can be augmented to become Ddrv = {(x(n), y(n))}N
+n=1,
+where x(n) = (s(n)
+1 , ..., s(n)
+T ) and y(n) = (a(n)
+1 , ..., a(n)
+T ).
+We refer to (a(n)
+1 , ..., a(n)
+T ) as an abstract sequence of
+(s(n)
+1 , ..., s(n)
+T ). Now, the inference models are
+(hze,t, cze,t) = LSTM(E(at), hze,t−1, cze,t−1),
+(6)
+qφe(ze|a1:T )
+= N(ze|MLP(hze,T ), diag(exp(MLP(hze,T )))),
+(7)
+(hzr,t, czr,t)
+= LSTM([E(st); E(at)], hzr,t−1, czr,t−1),
+(8)
+qφr(zr|s1:T , a1:T )
+= N(zr|MLP(hzr,T ), diag(exp(MLP(hzr,T )))),
+(9)
+where LSTM, E, and MLP denote a long short-term mem-
+ory RNN (ﬁrst, second, and third arguments of LSTM
+are input, hidden state, and cell state, respectively) [13],
+embedding layer, and multi-layer perceptron, respectively.
+The generative model for the abstract sequence is
+pθe(ze) = N(ze|0, I),
+(10)
+(ha,1, ca,1) = LSTM([Ea0; ze], MLP(ze), ca,0),
+(11)
+(ha,t, ca,t) = LSTM([E(at−1); ze], ha,t−1, ca,t−1),
+(12)
+pθy(at|a1:t−1, ze) = Cat(at|σ(MLP(ha,t))),
+(13)
+pθy(a1:T |ze) = QT
+t=1 pθy(at|a1:t−1, ze),
+(14)
+where Cat and σ denote the categorical distribution and
+softmax function, respectively. Note that we use notation
+pθy(a1|a1:0, ze) = pθy(a1|ze) for brevity. The generative
+model for the original sequence is
+pθr(zr) = N(zr|0, I),
+(15)
+(h1, c1) = LSTM([Es0; E(a1); zr], MLP(zr), c0),
+(16)
+(ht, ct) = LSTM([E(st−1); E(at); zr], ht−1, ct−1),
+(17)
+pθx(st|s1:t−1, a1:t, zr) = Cat(st|σ(MLP(ht))),
+(18)
+pθx(s1:T |a1:T , zr) = QT
+t=1 pθx(st|s1:t−1, a1:t, zr),
+(19)
+where
+we
+use
+the
+following
+notation
+for
+brevity:
+pθx(s1|s1:0, a1:1, zr) = pθx(s1|a1, zr).
+2.5 Formulating Musical Domain Knowledge
+On the basis of musical domain knowledge, we approx-
+imate musical concepts as fext(x) for monophonic se-
+quences.
+As mentioned in Sec.1, given an input mu-
+sical sequence, many abstract sequences expressing im-
+portant musical concepts can be derived [2, 19]. Among
+these, we demonstrate formulating two examples: rhythm
+and contour.
+Our ﬁnding is that a concept of musical
+transformations—fragmentation & consolidation, which is
+the main characteristic of similarity in musical sequences
+[20]—can also be approximated as a function, and we
+demonstrate it. We use the real name of musical notes as
+symbols (‘C3’, ‘D#4’, etc.) and use ‘R’ to represent a rest
+symbol. We add an extra symbol ‘__’ representing that a
+note is held and not replayed [11]. Then the alphabet set A
+becomes a set of symbols listed above. Let O be a set of
+symbols that has no pitch, i.e., O = {‘__’ , ‘R’}. We use
+the notation S1:t−1 = {s(n)
+1 , ..., s(n)
+t−1}.
+Rhythm. Let ‘N’ denote a symbol that represents any note.
+Then the rhythm sequence for (s(n)
+1 , ..., s(n)
+T ) is deﬁned as
+(a(n)
+1 , ..., a(n)
+T ), where
+a(n)
+t
+=
+(
+s(n)
+t
+(s(n)
+t
+∈O)
+‘N’
+(otherwise)
+Thus, B = O ∪{‘N’}. Now we deﬁne fext for rhythm as:
+fext(x) = (a1, ..., aT ).
+Contour. In this paper, we refer to a chromatic signed
+contour with rhythm information as contour. Formally,
+the contour sequence for (s(n)
+1 , ..., s(n)
+T ) can be deﬁned as
+(a(n)
+1 , ..., a(n)
+T ), where
+a(n)
+t
+=
+
+
+
+
+
+s(n)
+t
+(s(n)
+t
+∈O)
+‘SP’
+(s(n)
+t
+̸∈O ∧S1:t−1 ⊂O)
+sgn(Interval(s(n)
+t
+))
+(otherwise)
+Here ‘SP’ stands for Starting Pitch, sgn is a real sign
+function, and Interval is a function that calculates the
+chromatic pitch difference between the symbol of its ar-
+gument and the previous symbol that has pitch.
+Then
+sgn(Interval(s(n)
+t
+)) outputs whether the pitch of s(n)
+t
+is
+higher than (‘1’), lower than (‘-1’), or the same as (‘0’)
+the last symbol that has pitch.
+Thus, the alphabet set
+B={‘__’ , ‘R’, ‘SP’, ‘1’, ‘-1’, ‘0’}. Now we deﬁne fext
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+818
+
+for contour as: fext(x) = (a1, ..., aT ).
+Fragmentation and Consolidation (F&C). Fragmenta-
+tion involves replacing one long note with several shorter
+notes, whereas consolidation conversely involves replac-
+ing several shorter notes with a single long note [20]. For-
+mally, the F&C-invariant sequence for (s(n)
+1 , ..., s(n)
+T ) can
+be deﬁned as (a(n)
+1 , ..., a(n)
+T ), where
+a(n)
+t
+=
+(
+‘FC’
+(s(n)
+t
+∈O ∨s(n)
+t
+= LSP(s(n)
+t
+))
+s(n)
+t
+(otherwise)
+Here LSP stands for Last Symbol with Pitch, and
+LSP(s(n)
+t
+) = s(n)
+tl , where tl = max{u: s(n)
+u
+∈S1:t−1 ∧
+s(n)
+u
+̸∈O}. Thus, the alphabet set B = {‘FC’} ∪A \ O.
+Now we deﬁne fext for F&C as: fext(x) = (a1, ..., aT ).
+3. RELATED WORK
+Conditional Models. Conditional deep generative models
+are widely studied especially in the image domain [15,22].
+Although our residual model is similar to this family of
+models, their methods are different from ours in that (i)
+the problem setting itself is different: data for conditioning
+variable y is given in their method, (ii) condition y is not as
+structured as ours (usually labels), and (iii) the latent space
+of condition Ze is not learned (i.e., their method has no ex-
+traction model of ours). In the music domain, conditions
+of notes or chords are used for factoring out those informa-
+tion from latent variables [7,28,29].
+Disentangled Latent Spaces. In the image domain, some
+approaches successfully disentangle latent space [3,4,14].
+The popular approach is regularizing each latent dimension
+to be independent, hoping to obtain interpretable factors as
+attributes. Meanwhile, an approach that permits disentan-
+gling a latent space applicable to symbolic music has been
+proposed [10], although this method assumes an attribute
+has order.
+Exploring Latent Space in Music. After learning the la-
+tent space, some methods attempt to discover a meaningful
+direction in a latent space [8, 27]. These methods are also
+useful for exploring within our individual concept spaces.
+Variation Generation in Music. The differences between
+our concept-aware variation generation and the variation
+mechanism proposed by Pachet et al. [23] are (i) their
+method is based on a Markov model; (ii) their method
+controls variation generation in terms of edit operations,
+while our method controls it in terms of musical concepts;
+(iii) our ExtRes tries to learn the notion of variation (see
+Sec.2.3). Difference (iii) also differentiates our method
+from the previous VAE method for generating melody vari-
+ation, wherein simply Gaussian noises are added to the la-
+tent vector to create perturbed latent vectors [29], although
+their method could produce more diverse variations. One
+can also use their method within our concept spaces.
+Regularizing Latent Space in Music. Human dissimi-
+larity ratings on timbre are utilized to regularize the latent
+space for bridging audio analysis, perception, and genera-
+tion [9].
+4. EXPERIMENTS
+4.1 Dataset
+We conduct experiments using a leadsheet dataset intro-
+duced by Pachet et al. [24] with more than 12,000 songs,
+by hundreds of famous songwriters, covering several gen-
+res of popular music: jazz, blues, pop, and rock.
+The
+dataset has been used in music generation studies [21, 23,
+25,26]. We extract all monophonic melody parts with time
+signature 4/4, which are transposed in all possible keys if
+the transposition remains within the midi pitch range of
+[55, 84]. We choose to discretize time with 24 symbols in
+a bar, where every beat has six symbols whose note-on tim-
+ings in one beat are {0, 1/4, 1/3, 1/2, 2/3, 3/4}. We then
+extract all consecutive subsequences of length T = 24 (1
+bar) or T = 96 (4 bars). The total dataset is split into pro-
+portion of {0.85, 0.1, 0.05} for train, validation, and test
+data respectively.
+4.2 Implementation Details
+The numbers of dimensions for ze or zr are chosen to
+be (16, 32) for the T = (24, 96) model. 2-layer stacked
+LSTMs are employed.
+We introduce trade-off parame-
+ters β1 for Eq.(3) and β2 for Eq.(4) to weight the sec-
+ond terms [9, 27, 28].
+Intuitively, the amount of infor-
+mation required for each latent variable depends on the
+target concepts: rhythm, contour, and F&C. Therefore,
+we conduct a hyper-parameter search using the validation
+dataset such that β1 and β2 are the maximum subject to
+reconstruction accuracies being sufﬁciently high. Then,
+β1 and β2 for rhythm, contour, and F&C are chosen to
+be (β1, β2) = (0.7, 0.7), (1.0, 0.7), and (0.9, 0.7), respec-
+tively. The number of training epochs is set to 20, KL-
+annealing is used [1,9], and teacher forcing is not used.
+4.3 Model Performance
+Decoupling Performance.
+We ﬁrst sample sequences
+{x(i) : i ∈{1, ..., I}} and {x(i,j) : (i, j) ∈{1, ..., I} ×
+{1, ..., J}}, following the sampling procedure:
+x(i) ∼pθx(x|y(i), z(i)
+r ), x(i,j) ∼pθx(x|y(i), z(j)
+r ),
+with z(i)
+r
+∼pθr(zr), z(j)
+r
+∼pθr(zr), and
+y(i) ∼pθy(y|z(i)
+e ), where z(i)
+e
+∼pθe(ze).
+For x(i) and x(i,j), we count
+Ni,j = |{t ∈{1, ..., T}: fext(x(i))t = fext(x(i,j))t}|,(20)
+which is how many elements of the same index are the
+identical symbol between abstract sequences of x(i) and
+x(i,j). Then, we deﬁne the accuracy for a pair (x(i), x(i,j))
+as Ni,j/T.
+Figure 2 illustrates the results of cumulative decoupling
+accuracies for I = 1000 and J = 100. F&C accura-
+cies are almost perfect.
+Even for rhythm and contour,
+(T = 24, T = 96) = (99.6, 97.5)% and (85.0, 37.6)%
+of the samples have perfect accuracies, respectively. In-
+terestingly, for rhythm and contour, the cumulative per-
+centage of samples grows sharply if one symbol mistake
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+819
+
+Figure 2: Decoupling accuracy.
+NLL
+Accuracy
+T=24
+T=96
+T=24
+T=96
+VAE (β=1.0)
+0.714
+0.577
+0.880
+0.880
+VAE (β=0.8)
+0.730
+0.586
+0.935
+0.913
+VAE (β=0.7)
+0.753
+0.606
+0.952
+0.923
+VAE (β=0.5)
+0.792
+0.660
+0.974
+0.956
+VAE (β=0.3)
+0.856
+0.748
+0.988
+0.960
+Ours, Rhythm
+0.412
+0.322
+0.967
+0.969
+0.335
+0.274
+0.982
+0.976
+Ours, Contour
+0.297
+0.212
+0.968
+0.968
+0.468
+0.405
+0.973
+0.938
+Ours, F&C
+0.141
+0.130
+0.978
+0.975
+0.630
+0.497
+0.963
+0.950
+Table 1: Negative log-likelihood and reconstruction accu-
+racy. For our models, upper and lower rows denote the
+residual model and extraction model, respectively.
+is allowed. For instance, the percentage for contour grows
+from (85.0, 37.6)% to (97.6, 66.3)%.
+Modeling Performance.
+Table 1 shows negative log-
+likelihoods (NLLs; per symbol and lower bound) and re-
+construction accuracies (accuracies) for the test dataset.
+We compare baseline variational auto-encoders (VAEs)
+[16] (its model implementation and the training algorithms
+are the same as our residual model without the condition y
+except that the number of dimensions for the latent variable
+is doubled for fair comparisons) with our three proposed
+models. Each of our models is divided into two models
+(residual/extraction model (see Sec.2.2)), whose individ-
+ual NLLs and accuracies are shown in the table. The ad-
+ditions of two NLLs for the residual/extraction model are
+comparable to the NLLs for the baseline VAE. The mul-
+tiplications of two accuracies for the residual/extraction
+model are also comparable to the accuracies for the base-
+line VAE.
+4.4 Concept-Axes Interpolation
+As depicted in Fig.4, given two musical fragments (top-
+left and bottom-right) in each subﬁgure with 5 × 5 frag-
+ments, the other 23 fragments “in between” are yielded
+using concept-axes interpolation, whereas the interpola-
+tion in a traditional latent space [27, 28] would produce
+only the three diagonal fragments. In these ﬁgures, hor-
+izontal axes are the extraction space Ze axes, and mov-
+ing towards the axes smoothly changes the extracted target
+concepts (i.e., rhythm, contour, and F&C-invariant), while
+generally not changing the residual concepts. On the other
+hand, vertical axes are the residual space Zr axes, show-
+ing smooth change in residual concepts and little change
+in target concepts. Note that here we only show 5 × 5,
+but interpolation of the two fragments could be arbitrarily
+ﬁner/coarser (at any positions of the subﬁgure) upon users’
+demand. In Fig.4a, rhythm direction preserves “pitch ap-
+pearing order,” showing that the Zr successfully captures
+concepts that are important but might be difﬁcult to learn in
+Ze. In Fig.4b, in non-contour direction, fragments tend to
+transpose to match the “pitch set” of the bottom-right frag-
+ment without changing contour, which captures the scale-
+like concept. In contour direction, the fragments gradually
+adopt the descending-like contour. In other words, only
+the descending-like feature is retrieved from the bottom-
+right fragment to generate fragments in the ﬁrst row. For
+Fig.4c, in F&C-invariant direction, the gradual altering of
+fragmenting or consolidating notes is observed. Similar
+analyses can also be done in longer sequences: Figure 3
+shows results for T = 96 in piano roll representation with
+each subﬁgure consisting of 3 × 3 musical fragments.
+4.5 Concept-Aware Variation Generation
+In Fig.5, our variation generation approach is applied to
+ExtRes/VAE, which are for concept-aware/-unaware vari-
+ation generations, respectively. In each column of the ﬁg-
+ure, the generated variations are sorted from top to bot-
+tom in the ascending order of learned Mahalanobis dis-
+tance (see Sec.2.3). Figure 5a depicts the variations for
+rhythm. The second column shows the extraction space
+Ze variations, where various rhythms are produced with-
+out changing the other factors. In contrast, residual space
+Zr variations (the third column) all keep the rhythm un-
+changed, whereas the other factors such as the “order of
+used pitches” change. Variations by VAE (the fourth col-
+umn) mix factors of rhythm/non-rhythm, without drastic
+change in rhythm. Figure 5b depicts the variations for con-
+tour. Ze variations have various contours without chang-
+ing other factors. In contrast, Zr variations all keeps the
+contour unchanged, whereas the scale-like concept “set of
+used pitches” changes. VAE yields relatively conservative
+variations with mixed contour/scale-like factors. Lastly,
+variations for F&C are in Fig.5c. For the Ze variations,
+melodies with different pitches are generated, while ﬁx-
+ing the concept of “the consecutive notes with the same
+pitch” except the third row from the bottom. As for the
+Zr variations, F&C of notes are observed, which is not the
+case in the fourth column except the second row from the
+bottom, indicating that our ExtRes successfully captures
+the notion of F&C. Note that the variations by ExtRes are
+generated with simply (0, 1) or (1, 0) variance scales for
+two spaces to clearly explain the capabilities of ExtRes,
+but one could interactively change the scale ratio to obtain
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+820
+
+(a) Rhythm
+(b) Contour
+(c) F&C
+Figure 3: Concept-axes interpolation (T=96, 0.5 stride). Vertical axis denotes MIDI note number, and horizontal axis
+denotes t ∈{1, ..., T}.
+(a) Rhythm
+(b) Contour
+(c) F&C
+Figure 4: Concept-axes interpolation (T=24, 0.25 stride).
+variations with desired mixing proportions of the concepts.
+5. CONCLUSION AND FUTURE WORK
+We presented a latent space decoupling model for learn-
+ing concept spaces using domain knowledge. For mono-
+phonic symbolic music, we experimented on three musi-
+cal concepts. Controllability in generation was improved
+by concept-axes interpolation and concept-aware varia-
+tion generation. In future, other musical concepts men-
+tioned in Sec.1 should also be tested on ExtRes. We believe
+that this paper opens up possibilities for learning models
+with concept-aware inference/generative processes to be
+(a) Rhythm comparison.
+(b) Contour comparison.
+(c) F&C comparison.
+Figure 5: Our variation generation approach is applied to
+ExtRes and VAE. For each subﬁgure (a,b,c), left (ﬁrst col-
+umn): top is an original fragment and bottom is its recon-
+struction; center left (second column): ExtRes extraction
+space Ze variations; center right (third column): ExtRes
+residual space Zr variations; right (fourth column): VAE
+variations.
+used for different information retrieval tasks or more con-
+trolled and ﬂexible generations.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+821
+
+6. ACKNOWLEDGMENTS
+I would like to thank Gaëtan Hadjeres for data encoding
+codes and reviewing my manuscript. I also greatly ap-
+preciate Frank Nielsen for helping me with writing the
+manuscript.
+7. REFERENCES
+[1] Samuel R. Bowman, Luke Vilnis, Oriol Vinyals, An-
+drew Dai, Rafal Jozefowicz, and Samy Bengio. Gen-
+erating sentences from a continuous space. In Proc. of
+The 20th SIGNLL Conference on Computational Natu-
+ral Language Learning, 2016.
+[2] Emilios
+Cambouropoulos,
+Tim
+Crawford,
+and
+Costas S. Iliopoulos. Pattern processing in melodic se-
+quences: challenges, caveats and prospects. Computers
+and the Humanities, 35(1):9–21, 2001.
+[3] Tian Qi Chen, Xuechen Li, Roger B. Grosse, and
+David K. Duvenaud. Isolating sources of disentangle-
+ment in variational autoencoders. In Annual Confer-
+ence on Neural Information Processing Systems, 2018.
+[4] Xi Chen, Yan Duan, Rein Houthooft, John Schul-
+man, Ilya Sutskever, and Pieter Abbeel. Infogan: Inter-
+pretable representation learning by information maxi-
+mizing generative adversarial nets. In Annual Confer-
+ence on Neural Information Processing Systems, 2016.
+[5] Walter Dowling. Scale and contour: Two components
+of a theory of memory for melodies. Psychological Re-
+view, 85:341–354, 07 1978.
+[6] Vincent Dumoulin, Ishmael Belghazi, Ben Poole, Alex
+Lamb, Martín Arjovsky, Olivier Mastropietro, and
+Aaron C. Courville. Adversarially learned inference.
+In International Conference on Learning Representa-
+tions, 2017.
+[7] Jesse Engel, Kumar Krishna Agrawal, Shuo Chen,
+Ishaan Gulrajani, Chris Donahue, and Adam Roberts.
+GANSynth: Adversarial neural audio synthesis. In In-
+ternational Conference on Learning Representations,
+2019.
+[8] Jesse Engel, Matthew Hoffman, and Adam Roberts.
+Latent constraints: Learning to generate conditionally
+from unconditional generative models. In International
+Conference on Learning Representations, 2018.
+[9] Philippe Esling, Axel Chemla-Romeu-Santos, and
+Adrien Bitton. Bridging audio analysis, perception
+and synthesis with perceptually-regularized variational
+timbre spaces. In Proc. of the 19th International Soci-
+ety for Music Information Retrieval Conference, ISMIR
+2018.
+[10] Gaëtan Hadjeres, Frank Nielsen, and François Pa-
+chet. GLSR-VAE: Geodesic latent space regulariza-
+tion for variational autoencoder architectures. In 2017
+IEEE Symposium Series on Computational Intelligence
+(SSCI 2017), pages 1–7. IEEE, 2017.
+[11] Gaëtan Hadjeres, François Pachet, and Frank Nielsen.
+DeepBach: a steerable model for Bach chorales gener-
+ation. In Proc. of the 34th International Conference on
+Machine Learning, 2017.
+[12] Irina Higgins, Nicolas Sonnerat, Loic Matthey, Arka
+Pal, Christopher P Burgess, Matko Bošnjak, Mur-
+ray Shanahan, Matthew Botvinick, Demis Hassabis,
+and Alexander Lerchner. SCAN: Learning hierarchical
+compositional visual concepts. In International Con-
+ference on Learning Representations, 2018.
+[13] Sepp Hochreiter and Jürgen Schmidhuber. Long short-
+term memory. Neural computation, 9:1735–80, 12
+1997.
+[14] Arka Pal Christopher Burgess Xavier Glorot Matthew
+Botvinick
+Shakir
+Mohamed
+Alexander
+Lerchner
+Irina Higgins, Loic Matthey. beta-vae: Learning basic
+visual concepts with a constrained variational frame-
+work. In International Conference on Learning Repre-
+sentations, 2017.
+[15] Diederik P. Kingma, Shakir Mohamed, Danilo Jimenez
+Rezende, and Max Welling. Semi-supervised learning
+with deep generative models. In Annual Conference on
+Neural Information Processing Systems, 2014.
+[16] Diederik P. Kingma and Max Welling. Auto-encoding
+variational bayes. CoRR, abs/1312.6114, 2013.
+[17] Stefan Lattner, Maarten Grachten, and Gerhard Wid-
+mer. Learning transposition-invariant interval features
+from symbolic music and audio. In Proc. of the 19th
+International Society for Music Information Retrieval
+Conference, ISMIR 2018.
+[18] Steven Livingstone, Caroline Palmer, and Emery Schu-
+bert. Emotional response to musical repetition. Emo-
+tion (Washington, D.C.), 12:552–67, 06 2011.
+[19] David Meredith. The ps13 pitch spelling algorithm.
+Journal of New Music Research, 35, 06 2006.
+[20] Marcel Mongeau and David Sankoff. Comparison of
+musical sequences. Computers and the Humanities,
+24(3):161–175, 1990.
+[21] Simon Moulieras and François Pachet. Maximum en-
+tropy models for generation of expressive music.
+CoRR, abs/1610.03606, 2016.
+[22] Siddharth Narayanaswamy, T. Brooks Paige, Jan-
+Willem van de Meent,
+Alban Desmaison,
+Noah
+Goodman, Pushmeet Kohli, Frank Wood, and Philip
+Torr. Learning disentangled representations with semi-
+supervised deep generative models. In Annual Confer-
+ence on Neural Information Processing Systems, 2017.
+[23] François Pachet, Alexandre Papadopoulos, and Pierre
+Roy. Sampling variations of sequences for structured
+music generation. In Proc. of the 18th International So-
+ciety for Music Information Retrieval Conference, IS-
+MIR 2017.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+822
+
+[24] François Pachet, Jeff Suzda, and Dani Martínez. A
+comprehensive online database of machine-readable
+lead-sheets for jazz standards. In In Proc. of the 14th
+International Society for Music Information Retrieval
+Conference, ISMIR 2013.
+[25] François Pachet. A joyful ode to automatic orchestra-
+tion. ACM TIST, 8:18:1–18:13, 2016.
+[26] Alexandre Papadopoulos, Pierre Roy, and François Pa-
+chet. Assisted lead sheet composition using ﬂowcom-
+poser. In CP, 2016.
+[27] Adam Roberts, Jesse Engel, Colin Raffel, Curtis
+Hawthorne, and Douglas Eck. A hierarchical latent
+vector model for learning long-term structure in mu-
+sic. In Proc. of the 35th International Conference on
+Machine Learning, 2018.
+[28] Ian Simon, Adam Roberts, Colin Raffel, Jesse Engel,
+Curtis Hawthorne, and Douglas Eck. Learning a latent
+space of multitrack measures. CoRR, abs/1806.00195,
+2018.
+[29] Yifei Teng, Anny Zhao, and Camille Goudeseune.
+Generating nontrivial melodies for music as a service.
+In Proc. of the 18th International Society for Music In-
+formation Retrieval Conference, ISMIR 2017.
+Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019
+823

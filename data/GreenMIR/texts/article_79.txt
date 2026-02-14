@@ -1,0 +1,878 @@
+FROM BACH TO THE BEATLES: THE SIMULATION OF HUMAN TONAL
+EXPECTATION USING ECOLOGICALLY-TRAINED PREDICTIVE
+MODELS
+Carlos Cancino-Chac´on1,2
+Maarten Grachten2
+Kat Agres3
+1 Austrian Research Institute for Artiﬁcial Intelligence (OFAI), Vienna, Austria
+2 Department of Computational Perception, Johannes Kepler University, Linz, Austria
+3 Institute of High Performance Computing, A*STAR, Singapore
+carlos.cancino@ofai.at, maarten.gracthen@ofai.at, kat agres@ihpc.a-star.edu.sg
+ABSTRACT
+Tonal structure is in part conveyed by statistical regularities
+between musical events, and research has shown that com-
+putational models reﬂect tonal structure in music by cap-
+turing these regularities in schematic constructs like pitch
+histograms.
+Of the few studies that model the acquisi-
+tion of perceptual learning from musical data, most have
+employed self-organizing models that learn a topology of
+static descriptions of musical contexts. Also, the stimuli
+used to train these models are often symbolic rather than
+acoustically faithful representations of musical material.
+In this work we investigate whether sequential predictive
+models of musical memory (speciﬁcally, recurrent neural
+networks), trained on audio from commercial CD record-
+ings, induce tonal knowledge in a similar manner to listen-
+ers (as shown in behavioral studies in music perception).
+Our experiments indicate that various types of recurrent
+neural networks produce musical expectations that clearly
+convey tonal structure. Furthermore, the results imply that
+although implicit knowledge of tonal structure is a neces-
+sary condition for accurate musical expectation, the most
+accurate predictive models also use other cues beyond the
+tonal structure of the musical context.
+1. INTRODUCTION AND RELATED WORK
+Computers are increasingly being used to perform music-
+related tasks (automated music analysis, music recommen-
+dation, composition, etc). To perform such tasks reliably,
+there is a need for computers to grasp concepts that are rel-
+evant to our perception and understanding of music [37].
+Empirical ﬁndings from music psychology are valuable in
+this respect, since they shed light on the process of human
+music perception and cognition.
+c⃝Carlos Cancino-Chac´on, Maarten Grachten, Kat Agres.
+Licensed under a Creative Commons Attribution 4.0 International Li-
+cense (CC BY 4.0). Attribution:
+Carlos Cancino-Chac´on, Maarten
+Grachten, Kat Agres. “From Bach to the Beatles: The simulation of
+human tonal expectation using ecologically-trained predictive models”,
+18th International Society for Music Information Retrieval Conference,
+Suzhou, China, 2017.
+We know from extensive research in music psychology
+that listeners implicitly extract statistical properties gov-
+erning tonal structure through exposure to music [3,19,29].
+The tonal stability, or relative importance, of notes in a
+key may be largely due to the frequency of occurrence
+of pitches in a piece of music.
+The more foundational
+pitches (e.g., C, E, and G in the key of C major) will tend
+to be anchor points in the music, and will often occur on
+metrically-important positions [21,26].
+Through exposure to these kinds of melodic (and
+harmonic) statistical properties, listeners form an im-
+plicit mental model of tonality.
+Evidence for this has
+been provided, for example, through the seminal work
+of Krumhansl and colleagues employing a ‘probe-tone
+paradigm’, in which listeners rate how well the last pitch,
+or probe-tone, of a musical sequence ﬁts in with the previ-
+ous context. When provided with a tonal context, such as
+an ascending or descending musical scale, listeners per-
+ceive certain pitches as sounding more appropriate than
+others [19, 21, 22].
+The proﬁle of listeners’ ratings of
+probe-tones reﬂects a tonal hierarchy, and it is this hier-
+archy of pitch stabilities that plays a large role in govern-
+ing tonal perception. The extent to which different music
+listening behaviors and one’s musical ‘culture’ inﬂuence
+tonal perception is an open question, although evidence ex-
+ists that Western classical music training results in differ-
+entiated, and often more nuanced, pitch expectations and
+probe-tone proﬁles [4,10,20,34].
+To model these types of ﬁndings, computational mod-
+els of tonal perception typically aim to provide methods
+that, given a musical context, compute a response that can
+be judged to be more or less appropriate for the implicit
+tonality of that context. Given the predominance of the
+probe-tone paradigm for studies of human tonal percep-
+tion, a common practice is to elicit a quasi-goodness-of-ﬁt
+response from the model for a probe-tone given a musical
+stimulus, such that the responses can be compared to hu-
+man probe-tone ratings (e.g. [6, 23, 25, 35]). Another way
+to judge the responses is to deﬁne a metric over the re-
+sponses and compare the resulting topology to geometric
+constructs from music theory, such as the Tonnetz [36], a
+toroidal representation of key distance [18], or the circle of
+494
+
+ﬁfths [6].
+The computational models proposed in the literature
+tend to emphasize one of various different factors that are
+thought to play a role in tonal perception. Whereas some
+works seek to explain empirical results mainly by a com-
+putational account of the lower levels of the auditory sys-
+tem [23,25], others focus more strongly on the role of long-
+term memory in tonal perception [6,24,35].
+Of the models that involve some representation of long-
+term memory, most do not account for that representation
+in an ecologically plausible manner, meaning that there is
+no plausible simulation of how the long-term memory rep-
+resentations come about as a result of long-term exposure
+to music. First, long-term memory is usually modeled by
+some form of self-organization of static representations of
+musical contexts or events, producing a low-dimensional
+map of musical stimuli, in which the neighborhood re-
+lationship captures semantic information (such as tonal
+afﬁnity) [6, 24, 35, 36].
+Although the principle of self-
+organization has been used to account for the structure of
+cortical maps such as those in the visual cortex [12], there
+is no evidence that this principle also underpins long-term
+memory. Moreover, the fact that musical contexts are be-
+ing mapped as static entities is at odds with the fundamen-
+tally temporal nature of the music listening process. As
+formalized in the predictive coding framework [13], an in-
+creasingly prominent idea in cognitive science is that of an-
+ticipation as a universal driving force for cognition [8,11].
+Music researchers have also focused on the temporal
+dynamics of tonal and harmonic expectations (e.g., [32]
+and [30]), and some models based on self-organizing maps
+(SOMs) [17] do account for effects of temporal order in
+musical listening [25, 35]. A limitation, however, is that
+these effects are not taken into account in the training of
+the maps, representing the learning process that forms long
+term memory of music. Toiviainen and Krumhansl [36]
+also employ a SOM, but, as they state, use it for visualiza-
+tion purposes, and not “to simulate any kind of perceptual
+learning that would occur in listeners through, for instance,
+the extraction of regularities present in Western music.”
+Although the model offered by [9] does learn from musi-
+cal sequences to predict tonal expectation in listeners, the
+model itself does not use sequential tonal information to
+learn and drive its predictions.
+Another limitation of most long-term memory models
+for tonal learning is that they work with stimuli that are re-
+duced in one or more ways. For example, the input may
+consist of discrete representations of tones such as MIDI
+note numbers [6], pitch classes [35], artiﬁcial harmonic
+representations [2], or of artiﬁcial harmonic sounds such
+as Shepard tones [25].
+Furthermore, the musical mate-
+rial that a model is exposed to may be limited to mono-
+phonic melodic lines [6], sets of chords or harmonic ca-
+dences [25], or even a set of probe-tone proﬁles [36]. A no-
+table exception to this is [24], which uses an audio record-
+ing of Bach’s Well Tempered Clavier (WTC), performed
+on a harpsichord, to train a SOM by converting the acous-
+tic signal to auditory images. The work of [9] also takes an
+ecological approach by using real audio and plausible psy-
+chological representations, with multiple representations
+along the sensory-cognitive spectrum, to better account for
+human tonal expectation.
+The central question of this work is whether sequen-
+tial predictive models of musical memory induce memory
+representations that convey tonal structure, similar to the
+static self-organizing models that are predominant in com-
+putational modeling of tonal learning. To answer this ques-
+tion, we employ Recurrent Neural Networks (RNNs) and
+variants such as Long Short Term Memory (LSTM) [16],
+which provide a common and effective modeling approach
+to the task of predicting future input from a history of past
+inputs. A further objective is to see whether tonal expec-
+tations can also be elicited in the models by training on
+ecologically valid musical data rather than artiﬁcial data.
+The present work approaches ecological validity in four
+ways: 1) using commercial audio recordings rather than
+symbolic or reduced music, 2) employing a psychoacous-
+tically plausible input representation (the Constant-Q rep-
+resentation), 3) training corpora that span more than one
+genre (Bach and the Beatles) to better reﬂect a lister’s mu-
+sical experience, and 4) using more than one key to train
+the model (much related research transposes the training
+dataset to one key, e.g. [1, 6]). We test the effect of the
+training data on the strength and character of the tonal ex-
+pectations of the model. Furthermore we measure the im-
+pact of shufﬂing the training data to gauge the importance
+of the sequential order of the music. Finally, we investigate
+the relationship between the training objective of the mod-
+els (to predict the immediate future based on the present
+and past), and the strength of tonal hierarchy in the model
+expectations.
+The paper is structured as follows. In Section 2, we
+provide a brief description of both the audio representa-
+tion and of the predictive RNN models used in our experi-
+ments. Section 3 brieﬂy reviews the datasets used to train
+the RNN models, and presents and discusses a comparison
+of model predictions to the results of probe-tone experi-
+ments. Finally, conclusions and future work are presented
+in Section 4.
+2. METHOD
+In this Section we describe the predictive models we use
+for our experiment (Section 2.2), and the audio representa-
+tion used to present the data to the models (Section 2.1).
+2.1 Constant-Q Transform
+The Constant-Q Transform (CQT) [5] is a discrete fre-
+quency domain representation of audio.
+Although the
+CQT was not conceived explicitly as a model of the hu-
+man auditory periphery, it shares an important character-
+istic with such models in that it samples the frequency
+axis logarithmically—a psychoacoustically plausible fea-
+ture, since human listeners tend to perceive pairs of tones
+as equidistant when their respective frequency ratios are
+equal. The CQT is widely used in applications involving
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+495
+
+musical audio, since its frequency bins can be conﬁgured
+to match the 12 tone octave division of Western music. To
+obtain a CQT spectrogram, conveying the change in fre-
+quency content of audio over time, the CQT can be com-
+puted over series of consecutive short, windowed segments
+of the audio, analogous to the Short-Time Fourier Trans-
+form.
+2.2 Recurrent Neural Networks
+An RNN is a neural architecture that allows for modeling
+dynamical systems [15]. Let x1, . . . , xt be a sequence of
+N-dimensional (normalized) input vectors and y1, . . . , yt
+be its corresponding sequence of outputs. An RNN pro-
+vides a natural way to model xt+1, the next event in the se-
+quence, by using the outputs of the network to parametrize
+a predictive distribution given by
+p(xt+1,i | xt, . . . , x1) = yt,i
+(1)
+where xt+1,i and yt,i are the i-th component of xt+1 and
+yt respectively.
+The basic component of an RNN is the recurrent layer,
+whose activation at time t depends on both the input at
+time t and its activation at time t −1. Although theo-
+retically very powerful, in practice RNNs with vanilla re-
+current layers are known to have problems learning long
+term dependencies due to a number of problems, includ-
+ing vanishing and exploding gradients [27]. Other recur-
+rent layers such as LSTM layers [16] and gated recurrent
+units (GRUs) [7] try to address some of these problems
+by introducing special structures within the layer, such as
+purpose-built memory cells and gates to better store infor-
+mation. More recently, recurrent layers with multiplicative
+integration (MI-RNNs) [38] have been shown to extend the
+expressivity of traditional additive RNNs by changing the
+way the information from different sources is aggregated
+within the layer while introducing just a small number of
+extra parameters.
+Given a training set consisting of inputs and targets, the
+parameters of an RNN can be learned in a supervised fash-
+ion by minimizing the cross entropy (CE) between its pre-
+dictions and the targets.
+A more thorough description of RNNs lies outside of
+the scope of this paper. For a more mathematical formula-
+tion of LSTMs and GRUs, we refer the reader to [7,15]. A
+more detailed description of MI-RNNs can be found in the
+Appendix of [38].
+3. EXPERIMENTS
+In this Section we describe the two datasets used for the
+experiments in this paper (Section 3.2) and brieﬂy review
+the theoretical framework of probe-tone experiments (Sec-
+tion 3.1), as well as a description of the training procedure
+(Section 3.3). In Section 3.4 the results of the probe-tone
+experiments are presented and discussed.
+3.1 Probe-Tone Experiments
+A probe-tone test is an experimental framework to quan-
+titatively assess the hierarchy of tonal stability [19]. This
+experimental framework consists of a set of musical stim-
+uli like scales or cadences that unambiguously instantiate
+a speciﬁc musical context, such as a key. After presenting
+the stimulus, a participant hears a set of probe-tones, usu-
+ally the set of 12 pitch classes, and the participant, either
+a human participant or a computer model, is asked to rate
+on quantitatively how well the probe-tones ﬁt the musical
+stimulus.
+Let X = {x1, · · · xT } be an input musical stimulus,
+and T = {τ 1, . . . , τ 12} the set of probe-tones each cor-
+responding to one of the 12 pitch classes.
+In order to
+quantitatively assess how well a probe-tone τ ﬁts the mu-
+sical stimulus, we compare y∗, the predictions of the RNN
+given the input stimulus, and the probe-tone using the
+Kullback-Leibler (KL) divergence.
+In this paper, we use the above described model to re-
+produce the classic Krumhansl and Kessler (KK) probe-
+tone experiment [18].
+This study is interesting for us
+mainly because 1) the probe tone contexts are polyphonic,
+featuring scales, chords, and cadences, thus highlighting
+capability of the proposed model to process polyphonic
+data, and 2) only expert listeners were tested (the partic-
+ipants of this experiment had an average of 11 years of
+formal music education), allowing us to directly compare
+the expectations of the model to those of an expert listener.
+The setup for this experiment requires a set of 14 tonal
+contexts 1 : ascending major and (harmonic) minor scales,
+three chord cadences (II-V-I, IV-V-I, VI-V-I) in both ma-
+jor and minor and individual chords (major triad, minor
+triad, dominant seventh chord and diminished chord). In
+our experiments, we transpose each context to every key,
+yielding 12 variants of each context. In order to aggregate
+the results over all keys, we average the KL divergence for
+each context.
+Following the original experimental setup, both stimuli
+and probe-tones are generated using Shepard-tones, which
+consists of ﬁve sine wave components in a ﬁve-octave
+range from 77.8 Hz to 2349 Hz, with an amplitude en-
+velope such that the low and high ends of the range ap-
+proached hearing threshold [19].
+We use Pearson’s correlation coefﬁcient to compare the
+goodness-of-ﬁt of the probe-tones learned by the models
+with the KK probe-tone ratings.
+3.2 Datasets
+The WTC is a collection of 96 pieces for solo keyboard,
+consisting of two sets of 24 Preludes and Fugues in each
+key. Composed by Johann Sebastian Bach, the WTC is
+widely recognized as one of the most important works in
+Western music. We use a performance of the WTC by
+renowned Canadian pianist Angela Hewitt 2 .
+The total
+duration of this recording is 4.5 hours. We perform data
+1 See Table 1 in [18].
+2 Hyperion CDS44291/4 1998
+496
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+
+augmentation on the WTC dataset by pitch shifting each
+recording between −6 and +5 semitones using pyrubber-
+band 3 . We thus obtain 1152 pieces for the WTC, equiva-
+lent to nearly 53 hours of music.
+Additionally, we use a second dataset consisting of 12
+Albums by The Beatles, with a total of 179 songs with an
+approximate duration of 7.5 hours. We do not perform data
+augmentation on the Beatles data 4 .
+To facilitate the exposure of the models to regularities
+in the change of pitch content over time, we do not com-
+pute the CQT spectrograms by taking equidistant frames
+in absolute time, but instead link the spectrogram frame
+rate to the musical time, such that the instantaneous frame
+rate is always an integer multiple or submultiple of the
+beat rate. For the Beatles data, we do so by using pub-
+licly available beat annotations 5 . For the WTC record-
+ing by Hewitt no such annotations were available, but ver-
+sions in Humdrum format of the pieces were obtained from
+KernScores 6 .
+The Humdrum ﬁles were converted into
+MIDI ﬁles, which were manually edited using MuseScore
+to match the repetitions as performed by Hewitt. By align-
+ing piano-synthesized audio renderings of the MIDI ﬁles to
+the Hewitt recordings using the method described in [14],
+beat times were automatically inferred for the recordings.
+Based on the typical temporal densities of musical
+events in the two datasets, we chose a temporal resolution
+of a quarter beat for the CQT spectrogram in the case of
+the Beatles, and a sixteenth beat in the case of WTC. We
+will return to this issue in Section 3.3.1.
+Each slice of the CQT spectrogram is a 334-
+dimensional vector that represents frequencies between
+27.5 and 16744.04 Hz with a resolution of 36 frequency
+bins per octave. This conﬁguration was chosen to avoid
+spectral leakage between adjacent frequency bins, and is
+similar to the one used by Purwins et. al. [28]. Addition-
+ally, this conﬁguration is also able to accommodate at least
+the fundamental frequency plus at least three harmonics to
+the highest note of a piano. We normalize each slice of the
+CQT to lie between 0 and 1.
+3.3 Training
+For the experiments in this paper we use RNNs as de-
+scribed in Section 2.2 as a sequential alternative to the
+static models typically used for tonal learning, such as
+SOMs and RBMs. To get an impression of the perfor-
+mance of sequential models in general for this task, we
+test ﬁve different variants of the recurrent layer, namely
+a vanilla RNN (vRNN), an LSTM, a GRU, and two mod-
+els with multiplicative integration: a vanilla recurrent layer
+(vRNN/MI) and an LSTM/MI 7 . In all variants, the model
+3 https://github.com/bmcfee/pyrubberband Accessed April 2017.
+4 Exploratory experiments showed that using pitch shifting on the
+Beatles songs worsened the predictions of the RNNs. This worsening
+might be due to the fact that most of these recordings include several in-
+struments and voices, including unpitched percussion instruments.
+5 http://isophonics.net/content/reference-annotations-beatles.
+Accessed April 2017.
+6 http://kern.ccarh.org. Accessed April 2017.
+7 In the current experiments the GRU/MI yielded pathological results,
+possibly due to an implementation problem.
+has a single hidden recurrent layer with 75 tanh units and
+an output layer with sigmoid units. The use of different
+model variants also allows us to investigate the relationship
+between the prediction error and the similarity of model
+expectations to human goodness-of-ﬁt ratings of probe-
+tones.
+In order to investigate the kind of statistical regularities
+in music that produce human-like probe-tone results, we
+train each model on two different versions of each dataset,
+namely training the model using the original data, and
+training the model shufﬂing the spectrograms in a piece-
+wise fashion. Randomizing inputs per piece preserves the
+global pitch distribution of the piece but disrupts temporal
+cues to musical expectations, like harmonic progressions
+and voice-leading.
+We split each dataset into 5 equally sized non-
+overlapping folds, resulting in 4 RNN architectures × 2
+orderings of the CQT spectrograms (original vs. random-
+ized spectrograms) × 5 folds × 2 datasets = 80 trained
+models. For each fold, 80% of the pieces (ca. 184 pieces
+for the WTC and 29 for the Beatles) are randomly se-
+lected to be used for training and 20% for testing (ca. 46
+pieces for the WTC and 7 for the Beatles). The predictive
+accuracy of each model is measured by the mean cross-
+entropy (MCE) on the test set. The models are trained us-
+ing RMSProp [33], a variant of stochastic gradient descent
+that adaptively updates the step-size using a moving av-
+erage of the of the magnitude of the gradients. The initial
+learning rate is set to 10−3. The gradients are computed us-
+ing truncated back propagation through time, where com-
+putation of the gradients is truncated after 100 steps and are
+clipped at 1. Each training batch consists of 20 sequences
+of 100 CQT slices. Each sequence is selected randomly
+out of the training data. Thus, an epoch of training cor-
+responds to the model seeing roughly the same number of
+time steps as in the whole fold. Early stopping is used af-
+ter 100 epochs without any improvement in the test set.
+All RNNs are implemented using Lasagne 8 . We provide
+online supplementary materials describing all of the tech-
+nical details for performing the probe-tone experiments in
+this paper 9 .
+3.3.1 Biasing Learning Towards Predicting Change
+A crucial question when applying discrete time recurrent
+models to a continuous stream of data such as audio is how
+to choose the rate of discrete time steps with respect to the
+absolute time of the data. This choice depends on the ap-
+proximate rate or temporal density of relevant events in the
+data—in our case the notes that make up the musical ma-
+terial. Ideally, we would like the discrete time steps to be
+small enough to capture the occurrence of even the short-
+est notes individually, but if the discrete time step is cho-
+sen much smaller than the median event rate, this leads to
+strong correlations between data at consecutive time steps.
+A result of this is that training models to predict the data
+at time step t + 1 teaches them to strongly expect the data
+8 https://github.com/Lasagne/Lasagne. Accessed April 2017.
+9 http://carloscancinochacon.com/documents/online_extras/
+ismir2017/sup_materials.html.
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+497
+
+at t + 1 to be approximately equal to the data at t. Choos-
+ing a larger discrete step size for the model alleviates this
+problem, but has the disadvantage that the data the model
+sees at a particular time may actually be an average over
+consecutive events that happened within that larger step.
+We slightly revise the training objective of the models as
+a remedy to this unfortunate trade-off. This revised objec-
+tive biases the models to care more about correctly predict-
+ing the data at t+1 when the change from t to t+1 is large
+(e.g. the start of a new note) than when it is small (e.g a
+transition without any starting or ending note events). This
+allows us to use a relatively small step size without caus-
+ing the models to trivially learn to expect the data to stay
+constant between consecutive time steps.
+More speciﬁcally, we modify the original cross-entropy
+objective CE t by multiplying it with a time-varying weight
+wt as follows:
+˜
+CE t ←wtCE t,
+(2)
+where wt is given by
+wt =
+
+1
+if PN
+i |xt+1,i −xt,i|> ε
+β
+otherwise
+(3)
+where ε ∈R acts as a threshold distinguishing small and
+large change transitions, and β ∈R controls the relative
+inﬂuence of prediction errors on the training in the case of
+small change transitions 10 .Based on an informal inspec-
+tion of the model predictions in a grid search on β and ε,
+we choose β = 10−3, and ε such that
+Ptraining(
+N
+X
+i
+|xt+1,i −xt,i| ≤ε) = 0.505
+(4)
+where Ptraining(X) denotes the empirical probability
+of event X under the training data.
+3.4 Results and Discussion
+Figure 1 compares the aggregation of the probe-tone rat-
+ings (see Section 3.1) for both major and minor contexts
+with the expectations of the best predictive models (as in
+lowest MCE in the test set) for each dataset, which in both
+cases is the GRU trained without shufﬂing the data. Table
+1 shows the correlation between the KK proﬁles and the
+model expectations. All of the correlations are statistically
+signiﬁcant (p < 0.0002). Although the values obtained for
+the models trained on the Beatles data are slightly lower,
+the strength of the correlations between the empirical data
+and the model simulation is on a par with those reported in
+the literature [24, 35]. Pairwise two-sample Kolmogorov–
+Smirnov tests (KK vs. Hewitt/WTC, KK vs. Beatles and
+WTC/Hewitt vs. Beatles) reveal that the three proﬁles are
+not signiﬁcantly different from one another (p ≥0.19).
+The above result shows that the expectations of the pro-
+posed models reﬂect the tonal characteristics of the mu-
+sical context that evoked those expectations. This is ex-
+pected but not trivial, since the training objective of the
+10 We empirically found a binary distinction between small and large
+change transitions to be more effective than a gradual weighting scheme
+C
+C#
+D
+D#
+E
+F
+F#
+G
+G#
+A
+A#
+B
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+goodness-of-fit rating (normalized)
+KK profile Major
+WTC/Hewitt
+Beatles
+Expert listeners
+C
+C#
+D
+D#
+E
+F
+F#
+G
+G#
+A
+A#
+B
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+goodness-of-fit rating (normalized)
+KK profile Minor
+WTC/Hewitt
+Beatles
+Expert listeners
+Figure 1. Expectations of the models trained on WTC and
+Beatles datasets compared to average probe-tone ratings by
+expert listeners for major and minor contexts [18]
+KK major
+KK minor
+WTC/Hewitt
+0.915
+0.940
+Beatles
+0.900
+0.885
+Table 1. Pearson’s correlation between normalized predic-
+tions of the model with the lowest mean cross-entropy for
+each dataset and KK major and minor proﬁles
+models is solely to predict how a given sequence of musi-
+cal information (in the form of CQT spectrograms) will
+continue.
+An interesting question is therefore whether
+there is any relation between the predictive accuracy of a
+model (that is, how successfully it predicts future musical
+events based on the music up to now), and the correlation
+of its probe-tone response to that of human subjects. In
+the plots of Figure 2, the vertical axis measures the Pear-
+son correlation coefﬁcient of the probe-tone responses of
+different models with the KK proﬁles, and the horizontal
+axis measures predictive accuracy of the models, in terms
+of their MCE over the test data. For each model type in
+the legend, there are ﬁve different scatter points, represent-
+ing models trained on each of ﬁve non-overlapping folds of
+498
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+
+the data (see Section 3.3). The vertical coordinate of each
+scatter point is the result of averaging the correlation coef-
+ﬁcients of responses to all transpositions of the probe-tone
+stimuli (see Section 3.1).
+The scatterplots for the WTC and Beatles show that on
+average, MCE is higher for models trained the Beatles data
+than for those trained on WTC. This is likely due to the fact
+that the WTC data are single instrument recordings (piano)
+with relatively homogeneous CQT spectrograms, whereas
+the Beatles recordings are multi-instrumental, leading to
+more dense and complex CQT spectrograms.
+For the WTC data, training models on shufﬂed CQT
+data has a noticeable negative impact on both predictive
+accuracy and tonal expectations. For the Beatles data this
+effect is less pronounced. There may be multiple explana-
+tions for this. First, even if the WTC data, being solo piano
+recordings, are spectrally simpler, they are probably more
+complex both harmonically and melodically than the Bea-
+tles data. As such, shufﬂing the data temporally is more
+of a disruption to the WTC data than to the Beatles data.
+Secondly, the WTC pieces tend to include brief modula-
+tions away from the main key of the piece. This means
+that shufﬂing the data within a piece may mix data from
+different keys, making prediction more diﬁccult.
+Despite these differences, both WTC- and Beatles-
+trained models roughly show the same overall pattern:
+models with low predictive error have high KK correla-
+tions, whereas models with high predictive error may or
+may not have high KK correlations. This suggests that
+in order to form accurate musical expectations, it is in-
+dispensable to have a notion of tonal structure. But con-
+versely, having a notion of tonal structure by itself is not
+a sufﬁcient condition for accurate musical expectations.
+This implies that there are other factors beyond tonality,
+such as voice leading, rhythm, and cadential structure, that
+help predict how a given musical context will continue
+(see [31] and [32] for behavioral evidence to this effect).
+4. CONCLUSION
+In this paper we showed that the expectations of eco-
+logically trained predictive models of music exhibit tonal
+structure very similar to that observed in humans through
+probe-tone experiments.
+We believe this ﬁnding is rel-
+evant, since most computational modeling approaches to
+tonal perception that involve a representation of statistical
+regularities in musical data do not account for the percep-
+tual learning of such regularities in a plausible way. The
+musical expectations of the models used here are formed
+by training the model to reduce the prediction error for fu-
+ture musical events based on the musical context up to the
+present—a cognitively plausible task according to the pre-
+dictive coding theory of the brain [8]. Furthermore, we
+demonstrate that tonal learning within such models is not
+only possible based on training data known to exhibit rich
+tonal qualities (Bach’s WTC, artiﬁcial cadences), but also
+occurs as an effect of exposure to audio representations of
+“real-world” popular and harmonically simpler music (The
+Beatles). This more accurately mirrors the kind of musical
+0.115
+0.120
+0.125
+0.130
+0.135
+0.140
+0.145
+Mean Cross Entropy
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+Correlation with KK profiles
+WTC/Hewitt
+vRNN
+vRNN/MI
+GRU
+LSTM
+LSTM/MI
+shuf vRNN
+shuf vRNN/MI
+shuf GRU
+shuf LSTM
+shuf LSTM/MI
+0.27
+0.28
+0.29
+0.30
+0.31
+0.32
+0.33
+Mean Cross Entropy
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+Correlation with KK profiles
+Beatles
+Figure 2.
+Similarity of model expectations to human
+probe-tone ratings (Pearson correlation coefﬁcient) plotted
+versus the mean cross-entropy of the models over a test set;
+shuf denotes models trained on shufﬂed data
+exposure people have, even if real-world musical encultur-
+ation would typically involve a wider range of music.
+An analysis of the relation between the predictive ac-
+curacy of the model and the degree of tonal structure ex-
+hibited by model expectations shows that tonal expecta-
+tions are a necessary but not a sufﬁcient condition for ac-
+curate musical expectations. This suggests that there are
+other—presumably temporal—cues to musical expectation
+beyond tonal structure. Evidence for this is the fact that
+models trained on temporally shufﬂed WTC data form less
+accurate expectations than models trained on the ordered
+data. This effect is not observed for the Beatles data, possi-
+bly because of its simpler melodic and harmonic structure.
+The empirical validation of the models we presented
+here offers various further avenues of research that we have
+not yet pursued. For example, a qualitative analysis of the
+learned representations of the models may provide further
+insights into the cues that inﬂuence musical expectations.
+In models with multiple hidden layers, an interesting ques-
+tion is where the different learned representations lie along
+the sensory-cognitive spectrum of tonal representations, as
+hypothesized by [9].
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+499
+
+5. ACKNOWLEDGMENTS
+This work has been partly funded by the European Re-
+search Council (ERC) under the EUs Horizon 2020
+Framework Programme (ERC Grant Agreement No.
+670035, project CON ESPRESSIONE). We thank Carol
+L. Krumhansl for providing the probe-tone data.
+6. REFERENCES
+[1] K. Agres, C. Cancino, M. Grachten, and S. Lattner.
+Harmonics co-occurrences bootstrap pitch and tonality
+perception in music: Evidence from a statistical unsu-
+pervised learning model. In CogSci 2015: The annual
+meeting of the Cognitive Science Society, 2015.
+[2] K. Agres, C. E. Cancino Chac´on, M. Grachten, and
+S. Lattner. Harmonics co-occurrences bootstrap pitch
+and tonality perception in music: Evidence from a sta-
+tistical unsupervised learning model. In CogSci 2015:
+The annual meeting of the Cognitive Science Society,
+Pasadena, CA, USA, 2015.
+[3] K. Agres, S. Abdallah, and M. Pearce. Information-
+theoretic properties of auditory sequences dynamically
+inﬂuence expectation and memory. Cognitive Science,
+2017.
+[4] G. M. Bidelman, S. Hutka, and S. Moreno. Tone lan-
+guage speakers and musicians share enhanced percep-
+tual and cognitive abilities for musical pitch: evidence
+for bidirectionality between the domains of language
+and music. PloS one, 8(4):e60676, 2013.
+[5] J. C. Brown. Calculation of a constant Q spectral trans-
+form. The Journal of the Acoustical Society of America,
+89(1):425–434, January 1991.
+[6] C. E. Cancino Chac´on, S. Lattner, and M. Grachten.
+Developing tonal perception through unsupervised
+learning. In Proceedings of the 15th International Con-
+ference on Music Information Retrieval, Taipei, Tai-
+wan, October 2014.
+[7] J. Chung, C. Gulcehre, K. Cho, and Y. Bengio. Empir-
+ical evaluation of gated recurrent neural networks on
+sequence modeling. arXiv preprint arXiv:1412.3555,
+2014.
+[8] A. Clark. Whatever next? predictive brains, situated
+agents, and the future of cognitive science. Behavioral
+and Brain Sciences, 36(3):181–204, 2013.
+[9] T. Collins, B. Tillmann, F. S. Barrett, C. Delbe, and
+P. Janata. A combined model of sensory and cognitive
+representations underlying tonal expectations in music:
+from audio signals to behavior. Psychological review,
+121(1):33, 2014.
+[10] L. L. Cuddy and B. Badertscher. Recovery of the tonal
+hierarchy: Some comparisons across age and levels
+of musical experience. Perception & Psychophysics,
+41(6):609–620, 1987.
+[11] D. C. Dennett. Consciousness Explained. Penguin
+Books, 1991.
+[12] R. Durbin and G. Mitchison. A dimension reduction
+framework for understanding cortical maps. Nature,
+343:644–647, 1990.
+[13] K. Friston. A theory of cortical responses. Philosophi-
+cal Transactions of the Royal Society B: Biological Sci-
+ences, 360(1456):815–836, 2005.
+[14] M. Grachten, M. Gasser, A. Arzt, and G. Widmer. Au-
+tomatic alignment of music performances with struc-
+tural differences. In Proceedings of the 14th Interna-
+tional Society for Music Information Retrieval Confer-
+ence, Curitiba, Brazil, November 2013.
+[15] A. Graves. Generating Sequences With Recurrent Neu-
+ral Networks. arXiv, 1308:850, 2013.
+[16] S. Hochreiter and J. Schmidhuber. Long Short-Term
+Memory. Neural Computation, 9(8):1735–1780, 1997.
+[17] T. Kohonen. Self-organized formation of topologi-
+cally correct feature maps. Biol. Cybernetics, 43:59–
+69, 1982.
+[18] C. L. Krumhansl and E. J. Kessler. Tracing the dynamic
+changes in perceived tonal organization in a spatial
+representation of musical keys. Psychological review,
+89(4):334–368, July 1982.
+[19] C. L. Krumhansl. Cognitive foundations of musical
+pitch. Cognitive foundations of musical pitch. Oxford
+University Press, New York, 1990.
+[20] C. L. Krumhansl. Music psychology: Tonal structures
+in perception and memory. Annual review of psychol-
+ogy, 42(1):277–303, 1991.
+[21] C. L. Krumhansl and L. L. Cuddy. A Theory of Tonal
+Hierarchies in Music. In Music Perception, pages 51–
+87. Springer New York, New York, NY, June 2010.
+[22] C. L. Krumhansl and F. C. Keil. Acquisition of the hi-
+erarchy of tonal functions in music. Memory & Cogni-
+tion, 10(3):243–251, 1982.
+[23] E. W. Large, J. C. Kim, N. K. Flaig, J. J. Bharucha,
+and C. L. Krumhansl. A neurodynamic account of mu-
+sical tonality. Music Perception: An Interdisciplinary
+Journal, 33(3):319–331, 2016.
+[24] M. Leman and F. Carreras. The self-organization of sta-
+ble perceptual maps in a realistic musical environment.
+In G. Assayah, editor, Proceedings of the Journ´ees
+d’Informatique Musicale 1996, pages 156–169, Caen,
+1996. Univ. de Caen – IRCAM, Les Cahiers du GR-
+EYC No. 4.
+[25] M. Leman. A model of retroactive tone-center percep-
+tion. Music Perception, 12(4):439–471, 1995.
+[26] F. Lerdahl and R. Jackendoff. A Generative Theory of
+Tonal Music. The MIT Press, 1983.
+500
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+
+[27] R. Pascanu, T. Mikolov, and Y. Bengio. On the difﬁ-
+culty of training recurrent neural networks. In Proceed-
+ings of the 30th International Conference on Machine
+Learning, pages 1–9, Atlanta, Georgia, USA, 2013.
+[28] H. Purwins, B. Blankertz, and K. Obermayer. A new
+method for tracking modulations in tonal music in au-
+dio data format. In Proceedings of the International
+Joint Conference on Neural Networks, volume 6, pages
+270–275. IEEE, 2000.
+[29] J. R. Saffran, E. K. Johnson, R. N. Aslin, and E. L.
+Newport. Statistical learning of tone sequences by hu-
+man infants and adults. Cognition, 70(1):27–52, 1999.
+[30] M. A. Schmuckler and M. G. Boltz. Harmonic and
+rhythmic inﬂuences on musical expectancy. Attention,
+Perception, & Psychophysics, 56(3):313–325, 1994.
+[31] M. A. Schmuckler and M. G. Boltz. Harmonic and
+rhythmic inﬂuences on musical expectancy. Attention,
+Perception, & Psychophysics, 56(3):313–325, 1994.
+[32] D. Sears, W. E. Caplin, and S. McAdams. Perceiving
+the classical cadence. Music Perception: An Interdisci-
+plinary Journal, 31(5):397–417, 2014.
+[33] T. Tieleman and G. Hinton. Lecture 6.5-rmsprop: Di-
+vide the gradient by a running average of its recent
+magnitude. In COURSERA Neural Networks for Ma-
+chine Learning, 2012.
+[34] B. Tillmann. Music cognition: Learning, perception,
+expectations. Computer music modeling and retrieval.
+Sense of sounds, pages 11–33, 2008.
+[35] B. Tillmann, J. J. Bharucha, and E. Bigand. Implicit
+learning of tonality: A self-organizing approach. Psy-
+chological Review, 107(4):885–913, 2000.
+[36] P. Toiviainen and C. L. Krumhansl. Measuring and
+modeling real-time responses to music: The dynam-
+ics of tonality induction. Perception, 32(6):741–766,
+2003.
+[37] G. Widmer. Getting closer to the essence of music: The
+Con Espressione manifesto. ACM TIST, 8(2):19:1–
+19:13, 2017.
+[38] Y. Wu,
+S. Zhang,
+Y. Zhang,
+Y. Bengio,
+and
+R. Salakhutdinov. On Multiplicative Integration with
+Recurrent Neural Networks. In 30th Conference on
+Neural Information Processing Systems (NIPS 2016),
+Barcelona, Spain, 2016.
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+501

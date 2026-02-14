@@ -1,0 +1,943 @@
+MUSIC SKETCHNET: CONTROLLABLE MUSIC GENERATION VIA
+FACTORIZED REPRESENTATIONS OF PITCH AND RHYTHM
+Ke Chen1
+Cheng-i Wang3
+Taylor Berg-Kirkpatrick2
+Shlomo Dubnov1
+1 CREL, Music Department, 2 UC San Diego
+3 Smule, Inc
+1,2{knutchen, tberg, sdubnov}@ucsd.edu,
+3cheng-i.wang@smule.com
+ABSTRACT
+Drawing an analogy with automatic image completion
+systems, we propose Music SketchNet, a neural network
+framework that allows users to specify partial musical
+ideas guiding automatic music generation. We focus on
+generating the missing measures in incomplete mono-
+phonic musical pieces, conditioned on surrounding con-
+text, and optionally guided by user-speciﬁed pitch and
+rhythm snippets. First, we introduce SketchVAE, a novel
+variational autoencoder that explicitly factorizes rhythm
+and pitch contour to form the basis of our proposed
+model.
+Then we introduce two discriminative architec-
+tures, SketchInpainter and SketchConnector, that in con-
+junction perform the guided music completion, ﬁlling in
+representations for the missing measures conditioned on
+surrounding context and user-speciﬁed snippets. We eval-
+uate SketchNet on a standard dataset of Irish folk music
+and compare with models from recent works. When used
+for music completion, our approach outperforms the state-
+of-the-art both in terms of objective metrics and subjective
+listening tests. Finally, we demonstrate that our model can
+successfully incorporate user-speciﬁed snippets during the
+generation process.
+1. INTRODUCTION
+As a research area, automatic music generation has a
+long history of studying and expanding human expres-
+sion/creativity [1]. The use of neural network techniques
+in automatic music generation tasks has shown promising
+results in recent years [2]. In this paper, we focus on a
+speciﬁc facet of the automatic music generation problem
+on how to allow users to ﬂexibly and intuitively control
+the outcome of automatic music generation. Prior work
+supports various forms of conditional music generation.
+MuseGan [3] allows users to condition generated results
+on full-length multi-track music. DeepBach [4] provides a
+constraint mechanism that allows users to limit the gen-
+erated results to match composer styles.
+Music Trans-
+c⃝Ke Chen, Cheng-i Wang, Taylor Berg-Kirkpatrick,
+Shlomo Dubnov. Licensed under a Creative Commons Attribution 4.0
+International License (CC BY 4.0). Attribution:
+Ke Chen, Cheng-
+i Wang, Taylor Berg-Kirkpatrick, Shlomo Dubnov, “Music SketchNet:
+Controllable Music Generation via Factorized Representations of Pitch
+and Rhythm”, in Proc. of the 21st Int. Society for Music Information
+Retrieval Conf., Montréal, Canada, 2020.
+User Speciﬁcation
+Latent Space Transform
+Latent Space Completion
+Back to Music
+Missing Measures
+Past Context
+Future Context
+I want 
+pitches like 
+{D5, A4, B4, C5,G4,...}
+I want 
+rhythms like 
+{ _ _ _ _ _ _ _ _ }
+Blank
+I want 
+rhythms like
+{ _ ___ __ _ _ }
+Zpitch1
+Zrhythm1
+Zpitch2
+?
+?
+Zrhythm3
+?
+?
+?
+Zrhythm5
+Zpitch6
+Zrhythm6
+Zpitch1
+Zrhythm1
+Zpitch2
+Z'rhythm2
+Z'pitch3
+Zrhythm3
+Z'pitch4
+Z'rhythm4
+Z'pitch5
+Zrhythm5
+Zpitch6
+Zrhythm6
+Figure 1. The music sketch scenario. The model is de-
+signed to ﬁll the missing part based on the known context
+and user’s own speciﬁcation.
+former [5] supports a accompaniment arrangement from
+an existing melody track in classical music. However, all
+these approaches require the user preference to be deﬁned
+in terms of complete musical tracks.
+Inspired by the sketching and patching work from com-
+puter vision [6–10], we propose Music SketchNet 1 which
+allows users to specify partial musical ideas in terms of
+incomplete and distinct pitch and rhythm representations.
+More speciﬁcally, we generalize the concept of sketching
+and patching – wherein a user roughly sketches content
+for a missing portion of an image – to music, as depicted
+in Figure 1. The proposed framework will complete the
+missing parts given the known context and user input. To
+the best of our knowledge, there has been limited work on
+sketching in music generation. Some work [4,11] has used
+Markov Chain Monte Carlo (MCMC) to generate music
+with given contexts or generate music conditioned on sim-
+ple starting and ending notes [12]. The most related task is
+music inpainting: completing a musical piece by generat-
+ing a sequence of missing measures given the surrounding
+context, but without conditioning on any form of user pref-
+erences. Music InpaintNet, [13] completes musical pieces
+by predicting vector representations for missing measures,
+then the vector representations are decoded to output sym-
+bolic music through the use of a variational autoencoder
+(VAE) [14].
+Our proposed music sketching scenario takes music in-
+1 https://github.com/RetroCirce/Music-SketchNet.
+
+SketchInpainter
+   SketchVAE Encoder
+User Sketching Info.
+SketchConnector     
+SketchVAE Decoder       
+Music Tokens
+Sketch Music Output
+...
+Figure 2. The Music SketchNet pipeline. The color pat-
+terns inside Inpainter and Connector correspond to the la-
+tent space transform and completion process in Figure 1.
+painting a step further. We let users specify musical ideas
+by controlling pitch contours or rhythm patterns, not by
+complete musical tracks. The user input is optional: users
+can choose to specify musical ideas, or let the system ﬁll
+in predictions without conditioning on user preferences.
+Music SketchNet consists of three component, as de-
+picted in Figure 2: (1) SketchVAE is a novel variational
+autoencoder that converts music measures into high dimen-
+sional latent variables. By the use of a factorized infer-
+ence network, SketchVAE decouples latent variables into
+two parts: pitch contour and rhythm, which serve as the
+control parameters for users. (2) SketchInpainter contains
+stacked recurrent networks to handle the element-level in-
+painting prediction in the latent space. (3) SketchConnec-
+tor receives users’ sketches of pitch, rhythm, or both, com-
+bines them with the prediction from SketchInpainter, and
+ﬁnalizes the generation.
+In this paper, we show that the proposed Sketch-
+VAE is capable of factorizing music input into la-
+tent variables meaningfully, and the proposed SketchIn-
+painter/SketchConnector allows users to control the gen-
+erative process. The novel training and evaluation method-
+ologies of the SketchConnector are also presented.
+2. MUSIC SKETCHING
+We formalize the music sketching task as solving the fol-
+lowing three problems: (1) how to represent music ideas or
+elements, (2) how to generate new materials given the past
+and future musical context and (3) how to process users’
+input and integrate it with the system. A visualization of
+the sketching scenario is depicted in Figure 1.
+We propose three neural network components to tackle
+the three problems. The SketchVAE encodes/decodes the
+music between external music measures and the learned
+factorized latent representations. The SketchInpainter pre-
+dicts musical ideas in the form of the latent variables given
+known context. And the SketchConnector combines the
+predictions from SketchInpainter and users’ sketching to
+generate the ﬁnal latent variables which are sent into the
+SketchVAE decoder to generate music output. A diagram
+showing the proposed pipeline is shown in Figure 2.
+2.1 Problem Deﬁnition
+More formally, the proposed sketch framework can be de-
+scribed as a joint probability model of the missing musi-
+cal content, Xm, conditioned on the past, future, and user
+sketching input. The joint probability breaks down into a
+product of conditional probabilities corresponding to sub-
+components of the framework:
+Pφ,ε,γ,θ,τ(Xm, Z, S|Xp, Xf, C) =
+Pφ(Xm|Zm)
+(SketchVAE Decoder)
+∗Pε(Zm|Sm, C)
+(SketchConnector)
+∗Pγ(Sm
+pitch|Zp
+pitch, Zf
+pitch)
+(SketchInpainter)
+∗Pγ(Sm
+rhythm|Zp
+rhythm, Zf
+rhythm)
+(SketchInpainter)
+∗Qθ(Zp
+pitch, Zf
+pitch|Xp
+pitch, Xf
+pitch)
+∗Qτ(Zp
+rhythm, Zf
+rhythm|Xp
+rhythm, Xf
+rhythm)
+(SketchVAE Encoders)
+X indicates the input/output music sequence, Z is the se-
+quence for {z} the latent variable , S is the SketchIn-
+painter’s predicted sequence, C is users’ sketching input.
+The superscripts, p, m, f indicate the past, missing and
+future context. The subscripts, pitch and rhythm indi-
+cate the pitch and rhythm latent variables. Qθ, Qτ, Pφ
+are the SketchVAE pitch/rhythm encoders and decoder pa-
+rameters, Pγ represents the SketchInpainter, and Pε is the
+SketchConnector.
+2.2 SketchVAE for Representation
+MusicVAE [15] is one of the ﬁrst works applying the vari-
+ational auto-encoder [14] to music. MeasureVAE [13] fur-
+ther focuses on representing isolated measures and utilizes
+a hierarchical decoder to handle ticks and beats. EC2-
+VAE [16] factorizes music measures with separate vectors
+representing pitch and rhythm by a single encoder and two
+decoders. Our proposed SketchVAE aims to factorize rep-
+resentations by introducing a factorized encoder that con-
+siders pitch and rhythm information separately in the en-
+coder channels.
+Different from EC2-VAE, it could al-
+low users to enter parts of the information (rhythm and/or
+pitch) optionally.
+SketchVAE aims to represent a single music measure
+as a latent variable z that encodes rhythm and pitch con-
+tour information in separate dimensions (zpitch, zrhythm).
+It contains (1) a pitch encoder Qθ(zpitch|xpitch), (2) a
+rhythm encoder Qτ(zrhythm|xrhythm), and (3) a hierar-
+chical decoder Pφ(x|zpitch, zrhythm) as shown in Figure
+4.
+2.2.1 Music Score Encoding
+Similar to [15], we encode the monophonic midi melody
+by using [0, 127] for the note onsets, 128 for holding state,
+and 129 for the rest state. We cut each measure into 24
+frames to correctly quantize eighth-note triplets like [13],
+and encode the midi as described in the previous sentence.
+
+D5 _ _ E5 _ _  A4 _ _ _ _ _ _ _ _  G4 _ _  A4 _ _ _ _ _ 
+74 128 128 76 128 128 69 128 128 128 128 128 128 128 128 67 128 128 69 128 128 128 128 128
+74 76 69 67 69 ● ● ● ● ● ● ● ● ● ● ● ● ● ● ● ● ● ● ●
+O _ _ O _ _ O _ _ _ _ _ _ _ _ O _ _ O _ _ _ _ _
+Music Melody Tokens
+Pitch Tokens (with padding ●)
+Rhythm Tokens
+Figure 3. An example of the encoding of a monophonic
+melody.
+As Figure 3 shows, we further process the encoded 24-
+frame sequence x into xpitch and xrhythm, the pitch and
+rhythm token sequences respectively. The pitch token se-
+quence xpitch is obtained by picking all note onsets in x
+with padding (shown by "•" in Figure 3) to ﬁll 24 frames.
+The rhythm token sequence xrhythm is obtained by replac-
+ing all pitch onsets with the same token (shown by "O"
+and "_" in Figure 3). A similar splitting strategy is also
+used in [17]. Our motivation is to provide users with two
+intuitive music dimensions to control, and to help enforce
+better factorization in the latent representation for later pre-
+diction and control.
+2.2.2 The Pitch Encoder and Rhythm Encoder
+After pre-processing x, xpitch only contains the note value
+sequence, while xrhythm only has the duration and onset
+information.
+xpitch and xrhythm are then fed into two
+different GRU [18] encoders for variational approxima-
+tion. The outputs of each encoder are concatenated into
+z = [zpitch, zrhythm].
+2.2.3 The Hierarchical Decoder
+After we obtain the latent variable z, we feed it into the hi-
+erarchical decoder. This decoder is similar to the decoder
+used in MeasureVAE [13]. As shown in the bottom part in
+Figure 4, it contains an upper "beat" GRU layer and a lower
+"tick" GRU layer. This division’s motivation is to decode z
+into n beats ﬁrst and then decode each beat into t ticks. As
+a result, the note information in each measure will be de-
+coded in a musically intuitive way. For the tick GRU, we
+use the teacher forcing [19, 20] and auto-regressive tech-
+niques to train the network efﬁciently. The output is condi-
+tioned frame-by-frame not only on the beat token but also
+on the last tick token.
+2.2.4 Encoding the Past, Missing and Future Musical
+Context
+The latent variable sequences Zp, Zm, and Zf are then ob-
+tained by processing the music input in measure sequences
+Xp, Xm, and Xf. Both Xm and Zm are masked during
+training. This encoding part is shown in the left block of
+Figure 5.
+2.3 SketchInpainter for Initial Prediction
+Next, we describe the model component that performs the
+music inpainting to predict latent representations for the
+missing measures.
+The SketchInpainter accepts Zpitch
+and Zrhythm as two independent inputs from SketchVAE.
+..................................................
+    ...
+D5 _ A4 _ A4 _ A4 B4 C5 _ _ _ G4 _ 
+Music Melody Tokens
+D5 A4 A4 A4 B4 C5 G4 - - - - - - - - - - - - - - - - - - - -
+O __ O __ O __ O O O __ __ __ O __
+Pitch Tokens
+Rhythm Tokens
+Embedding Layer
+Two-Layer Bidirectional GRU
+Two-Layer Bidirectional GRU
+Linear Layer
+σ
+μ
+Concat
+zpitch
+Two-Layer Bidirectional GRU
+Two-Layer Bidirectional GRU
+Linear Layer
+σ
+μ
+Concat zrhythm
+Z
+Beat GRU Layer
+Linear + SELU
+b1
+b2
+...
+bn-1
+bn
+Linear + SELU 
+c1
+c2
+...
+cn-1
+cn
+h1
+h2
+...
+hn-1
+hn
+Tick GRU 
+Tick GRU 
+Tick GRU 
+Tick GRU 
+Linear + SELU 
+x1 x2 ... xt 
+xt+1 xt+2 ... x2t 
+xnt 
+ﬁnal 
+hidden 
+state
+ﬁnal 
+hidden 
+state
+initial
+hidden
+state
+Pitch Encoder
+Rhythm Encoder
+Hierarchical Decoder
+D5 _ A4 _ A4 _ A4 B4 C5 _ _ _ G4 _ 
+Output Melody Tokens
+Figure 4. SketchVAE structure: pitch encoder, rhythm en-
+coder and hierarchical decoder. Rhythm tokens: the upper
+dashes denote the onsets of note, and the bottom dashes
+denote the hold/duration state. We use pitch symbols to
+represent the tokens numbers for better illustration.
+Then only the past and future Zpitch and Zrhythm are fed
+into the pitch/rhythm GRU groups respectively. The out-
+put from each GRU group is the hidden state h, as shown
+in the middle of Figure 5.
+Then we combine the past/future hidden states h from
+both the pitch and rhythm GRU groups and use them as the
+initial states for the pitch/rhythm generation GRUs. The
+generation GRUs then predict the missing latent variables
+by Sm = (Spitch, Srhythm), as shown in the green box in
+Figure 5. Each generation GRU is trained with the teach
+forcing and auto-regressive techniques.
+Each output vector sm from Sm has the same dimension
+as the latent variable z from Z. We ﬁrst build a model with
+only SketchVAE and SketchInpainter that directly predicts
+the missing music material, Xm. As the right block of Fig-
+ure 5 shows, Sm is sent into the SketchVAE decoder and
+we compute the cross entropy loss between the predicted
+music output and the ground truth. This is the stage I train-
+ing in our model, detailed in Section 3.3.
+2.4 SketchConnector for Finalization
+The predicted Sm from SketchInpainter can already serve
+as a good latent representation for the missing part
+Xm.
+We continue by devising the SketchConnector,
+Pε(Zm|Sm, C), to modify the prediction with user con-
+trol.
+To make up for the lack of correlation between
+pitch and rhythm in current predictions, we introduce the
+SketchConnector as a way to intervene/control the genera-
+tive process, that also leads to a wider musical expressivity
+of the proposed system.
+
+......
+zpitch seq
+zpitch seq
+zpitch seq
+zrhythm seq
+zrhythm seq
+zrhythm seq
+SketchVAE Encoder
+past
+missing
+future
+timeline
+Past-Pitch GRUs
+Future-Pitch GRUs
+Past-Rhythm GRUs
+Future-Rhythm GRUs
+ht1
+ht2
+ht3
+ht4
+ﬁnal hidden state
++
++
+Pitch Generation GRUs
+Rhythm Generation GRUs
+Auto-regressive & Teacher Foring
+Auto-regressive & Teacher Foring
+initial prediction Spitch
+initial prediction Srhythm
+CrossEntropyLoss
+SketchVAE Decoder
+SketchInpainter
+np
+nm
+nf
+Figure 5. SketchInpainter structure. We feed the music tokens into the SketchVAE and obtain the latent variable sequences.
+And we feed the sequences into the pitch GRU and the rhythm GRU groups to generate the initial prediction S.
+2.4.1 Random Unmasking
+With Sm obtained from SketchInpainter, we concatenate it
+with Zp and Zf again. However, before we feed it back
+into the network, we randomly unmask some of the miss-
+ing parts to be the ground-truth (simulating user providing
+partial musical context). The masked Sm are shown by the
+red boxes in Figure 6. We replace some s from Sm to be
+the real answer in Zm, denoted as C. We observe that this
+optimization is very similar to BERT [21] training. The
+difference is that BERT randomly masks the ground truth
+labels to be unknown, but SketchConnector randomly un-
+masks the predictions to be truths. The unmasking rate is
+set to 0.3.
+Intuitively, this allows the model to learn a more close
+relation among current rhythm, pitch tokens, and the near-
+est neighbour tokens. In the sketch inference scenario, the
+randomly unmasked measures will be replaced by the user
+sketching information, which allows a natural transition
+between the training and testing process.
+2.4.2 Transformer-based Connector
+Then with Sm and the random unmasking data C, we feed
+them into a transformer encoder with absolute positional
+encoding. In contrast to [5], we do not use relative posi-
+tional encoding because our inputs are vectors represent-
+ing individual measures, whose length is far shorter than
+midi-event sequences.
+The output of the SketchConnector, Zm, will be the ﬁ-
+nal prediction for the missing part. We feed it into the
+SketchVAE decoder, and compute the cross entropy loss
+of the output with the ground-truth.
+3. EXPERIMENT
+3.1 Dataset and Baseline
+To evaluate the SketchVAE independently, we compare
+our model with two related systems: MeasureVAE [13]
+and EC2-VAE [16].
+For SketchNet, we compare our
+generation results with Music InpaintNet [13], which has
+shown better results than the earlier baseline [12]. Similar
+to [13], we use the Irish and Scottish monophonic music
+Zp  (past)
+Zf (future)
+Re-concat
+Re-concat
+s1
+s2
+...
+st-1
+st
+Random Unmasking
+Embedding
+Positional Encoding
++
+Multihead Self-Attention
+Add & Norm
+Feed Forward
+Add & Norm
+x N
+SketchConnector
+initial prediction Sm
+CrossEntropy Loss
+SketchVAE Decoder
+...
+Zppitch
+Zprhythm
+Zfpitch
+Zf rhythm
+zm
+pitch
+1
+...
+zm
+pitch
+t-1 zm
+pitch
+t
+spitch
+2
+...
+1
+srhythm
+1
+srhythm
+t-1 srhythm
+t
+zm
+rhy
+2
+ﬁnal prediction Zm'
+Figure 6. The SketchConnector: the output of SketchIn-
+painter is randomly unmasked and fed into a transformer
+encoder to get the ﬁnal output.
+Dataset [22] and select the melodies with a 4/4 time signa-
+ture. About 16000 melodies are used for training and 2000
+melodies for testing.
+3.2 SketchVAE Measurements
+3.2.1 Reconstruction
+For SketchVAE, MeasureVAE and EC2-VAE, the dimen-
+sion of latent variable |z| is set to 256, half for the pitch
+contour, and the other half for the rhythm. We set the learn-
+ing rate to 1e-4 and use Adam Optimization with β1 = 0.9
+and β2 = 0.998. Three models achieve the accuracy (the
+reconstruction rate of melodies) 98.8%, 98.7%, 99.0% re-
+spectively. We can clearly conclude that all VAE models
+are capable of converting melodies to latent variables by
+achieving the accuracy around 99%. SketchVAE is capa-
+ble of encoding/decoding musical materials in SketchNet.
+
+Irish-Test
+Irish-Test-R
+Irish-Test-NR
+Model
+loss ↓
+pAcc ↑
+rAcc ↑
+loss ↓
+pAcc ↑
+rAcc ↑
+loss ↓
+pAcc ↑
+rAcc ↑
+Music InpaintNet
+0.662
+0.511
+0.972
+0.312
+0.636
+0.975
+0.997
+0.354
+0.959
+SketchVAE + InpaintRNN
+0.714
+0.510
+0.975
+0.473
+0.619
+0.981
+1.075
+0.374
+0.964
+SketchVAE + SketchInpainter
+0.693
+0.552
+0.985
+0.295
+0.692
+0.991
+1.002
+0.389
+0.977
+SketchNet
+0.516
+0.651
+0.985
+0.206
+0.799
+0.991
+0.783
+0.461
+0.977
+Table 1. The generation performance of different models in Irish and Scottish monophonic music dataset. The InpaintRNN
+is the generative network in Music InpaintNet.
+Model
+Complexity↑
+Structure↑
+Musicality↑
+Original
+3.22
+3.47
+3.56
+InpaintNet
+2.98
+3.01
+3.09
+SketchNet
+3.04
+3.29
+3.26
+Table 2. Results of the subjective listening test.
+3.2.2 Comparison with EC2-VAE
+EC2-VAE [16] is also capable of decoupling the la-
+tent variable into rhythm and pitch contour dimensions.
+However, SketchVAE’s encoders can accept pitch con-
+tour/rhythm inputs separately. Rhythm and pitch controls
+can be manipulated independently in the sketching sce-
+nario where the user might not specify an entire musical
+measure (e.g., just a rhythm pattern). By contrast, EC2-
+VAE requires a completed measure before encoding. If
+users want to specify either rhythm or pitch controls, the
+model must ﬁrst ﬁll in the other half part before inputting
+it, which prohibits the possibility of the separate control.
+3.3 Generation Performance
+3.3.1 Training Results
+The SketchNet’s training is separated into stage I and II. In
+stage I, after training the SketchVAE, we freeze its param-
+eters and train the SketchInpainter as shown in the right
+block of Figure 5. In stage II, with the trained Sketch-
+VAE and SketchInpainter, we freeze both, concatenate Sm
+with the past/future latent variables, and feed them to the
+SketchConnector for training.
+We compare four models by using 6 measures of past
+and future contexts to predict 4 measures in the middle (i.e.
+np = nf = 6, and nm = 4 ). Music InpaintNet [13] is
+used as the baseline, along with several variations. Early
+stopping is used for all systems.
+We compute three metrics: loss, pitch accuracy, and
+rhythm accuracy to evaluate the model’s performance.
+The pitch accuracy is calculated by comparing only the
+pitch tokens between each generation and the ground truth
+(whether the model generates the correct pitch in the cor-
+rect position).
+And the rhythm accuracy is calculated
+by comparing the duration and onset (regardless of what
+pitches it generates). The overall accuracy and loss are
+negatively correlated.
+For this part of the experiment, we also use two special
+test subsets. We compute the similarities between the past
+and future contexts of each song in the Irish test set, pick
+the top 10% similar pairs (past and future contexts are al-
+most the same) and bottom 10% pairs (almost different),
+and create the Irish-Test-R (repetition) and Irish-Test-NR
+(non-repetition) subsets.
+From Table 1, we can see that SketchNet beats all other
+models for all test sets. The performance improved more
+for pitch then for rhythm. The accuracy is almost the same
+between the 1st and 2nd model. Accuracy is slightly bet-
+ter if we use SketchInpainter to treat rhythm and pitch in-
+dependently during generation. Lastly, with the power of
+transformer encoder and random unmasking process done
+in SketchConnector, we can achieve the best performance
+by using SketchNet (bottom row in Table 1). We further
+follow [23] to use the Bootstrap signiﬁcance test to ver-
+ify the difference between each pair’s overall accuracy for
+models in the whole Irish-Test set (Four models, i.e. six
+pairs in total). The sample time is set to 10000. After
+calculation, all p-values except the ﬁst and second model
+pair (p-value = 0.402) are less than 0.05, which proves that
+SketchNet is different from the left three models.
+In the repetition test subsets, the loss of Music Inpaint-
+Net is 0.312, which is lower enough to capture repetitions
+in the musical context and ﬁll in the missing part by copy-
+ing. In most cases, copying is the correct behaviour be-
+cause the original melody has repetitive pattern structures.
+The loss is a measurement to evaluate if the model can
+learn the repetitive pattern and copy mechanism from the
+data. the SketchNet slightly outperforms InpaintNet.
+3.3.2 Subjective Listening Test
+However, the more interesting result is the generation with
+non-repetition subset. In this case, models cannot merely
+copy because original melodies do not repeat its content.
+We see higher losses in all models in this subset compared
+to the repetition subset. Intuitively, it means that repetitive
+patterns are essential to the reconstruction task, not nec-
+essarily the expressivity of the generated output would be
+less.
+To further evaluate the proposed SketchNet, we con-
+duct an online subjective listening test to let subjects judge
+the generated melodies from the non-repetition subset.
+Each subject will listen to three 32-second piano-rendered
+
+Past Context
+Future Context
+Generation
+{Ab5, Db6, Eb6, Gb6}
+{C6, Eb6, Db6, F6, Db6} 
+{F6, Gb6, Ab6, Ab6, F6} {Db6, F6, Ab6, Bb6, Db6}
+{Ab5, Db6, Eb6, Gb6}
+Original
+Control
+Pitch
+Control
+Rhythm
+Control
+Both
+No Sketch
+Figure 7. An example of sketch generation. From top to bottom: original, pitch/rhythm/mixture control. The blue pitch
+texts denote pitch controls, and the pink segments denote rhythm controls.
+Control Info.
+Rhythm
+Pitch
+Pitch Acc.
+0.189
+0.881
+Rhythm Acc.
+0.973
+0.848
+Table 3. The accuracy of the virtual control experiment.
+melodies: the original, the Music InpaintNet’s genera-
+tion, and the SketchNet’s generation. Songs are randomly
+picked from the Irish-Test-NR set. The beginning and end-
+ing (past & future) are the same for the three melodies.
+Since the subjective feeling of music is complicated to
+quantify, we chose three criteria: the number of notes
+(complexity), the repetitiveness between musical struc-
+tures (structure), and the degree of harmony of the music
+(overall musicality). In this way, subjects with different
+levels of music skills can all give reasonable answers.
+Before rating the songs, subjects will see three criteria
+descriptions as we introduced below. The rating is ranged
+from 1.0 to 5.0 with a 0.5 step. We collected 318 sur-
+veyed results from 106 subjects (each subject listens to
+three groups, nine melodies in total). The average rating of
+each criteria for all models are shown in Table 2. The sub-
+jective evaluations of all three criteria in SketchNet are bet-
+ter for those of Music InpaintNet. Similar to section 3.3.1,
+we also conduct a pairwise signiﬁcance test via Bootstrap
+in three criteria. All p-values except the <complexity: In-
+paintNet, SketchNet> (p-value = 0.364) are less than 0.05.
+It proves that three models (including original songs) are
+signiﬁcantly different in structure and overall musicality
+(subjective feeling to a person). As for the complexity, we
+believe that the results generated by the two models are
+similar in terms of the richness of notes, and our model
+does not signiﬁcantly increase the number of notes gener-
+ated.
+3.4 Sketch Scenario Usage
+The contribution of Music SketchNet is not only shown in
+the performance of the generation in section 3.3, but can
+also be shown in the interactive scenario where users can
+control the generated output by specifying the rhythm or
+pitch contour in each measure.
+Figure 7 shows an example of a non-repetition subset
+melody, where the ﬁrst and last two measures are given,
+and the middle parts is generated. The ﬁrst track is the
+original melody, the second track is generated with the
+pitch contour control, the third track is generated with the
+rhythm control, and the fourth track is controlled with both
+pitch and rhythm. We can see that each generated melody
+follows the control from users and develops music phrases
+accordingly in the missing part. Moreover, each measure
+is in line with the past and future measures even in the case
+of scale shift.
+We also provide a "virtual control experiment" to statis-
+tically show that users’ control did inﬂuence the model’s
+generation process.
+We randomly collect 3000 sample
+pairs (A, B) from the Irish-Test set.
+And we use the
+pitch/rhythm of Sample B to be the sketch information
+in the same missing position of Sample A. Then we let
+the model make the generation.
+We then compute the
+pitch/rhythm accuracy 2 in the missing position between
+the generation and Song B. From 3 we can see if we sketch
+song B’s rhythm into the model, the generation will follow
+the rhythm with 97.3% accuracy but has different (18.9%)
+pitches.
+However, when we sketch pitches, the pitches
+in the generation will be highly (88.1%) in line with the
+sketching. This proves that the user’s control has a rela-
+tively high guiding effect on the result of the model gener-
+ated at the speciﬁed position.
+4. CONCLUSION & FUTURE WORK
+In this paper, we propose a new framework to explore de-
+coupling latent variables in music generation. We further
+convert this decoupling into controllable parameters that
+can be speciﬁed by the user. The proposed Music Sketch-
+Net achieves the best results in the objective and subjective
+evaluations. Practically, we show the framework’s applica-
+tion for the music sketching scenario where users can con-
+trol the pitch contour and/or rhythm of the generated re-
+sults. There are several possible extensions for this work.
+Music elements other than pitch and rhythm can be applied
+into the music sketching scenario by the latent variable de-
+coupling. Also, how to represent a polyphonic music piece
+in the latent space is another pressing issue. Both are fu-
+ture works that can generalize this model to more applied
+scenarios.
+2 The metric to calculate the pitch accuracy is different from section
+3.3.1, because the generated pitches in the new song might have different
+onset positions. We leverage the Longest Common Sequence to calculate
+the accuracy. The implementation is presented in the code archive.
+
+5. ACKNOWLEDGEMENT
+We would like to thank Cygames for the partial support of
+this research.
+6. REFERENCES
+[1] G. Loy, Composing with Computers - a Survey of Some
+Compositional Formalisms and Music Programming
+Languages.
+MIT Press, 1990.
+[2] J. Briot, G. Hadjeres, and F. Pachet, Deep Learning
+Techniques for Music Generation.
+Springer, 2020.
+[3] H. Dong, W. Hsiao, L. Yang, and Y. Yang, “Musegan:
+Multi-track sequential generative adversarial networks
+for symbolic music generation and accompaniment,” in
+Proceedings of the Thirty-Second AAAI Conference on
+Artiﬁcial Intelligence.
+AAAI Press, 2018, pp. 34–41.
+[4] G. Hadjeres, F. Pachet, and F. Nielsen, “Deepbach: a
+steerable model for bach chorales generation,” in Pro-
+ceedings of the 34th International Conference on Ma-
+chine Learning, ICML, 2017, pp. 1362–1371.
+[5] C. A. Huang, A. Vaswani, J. Uszkoreit, I. Simon,
+C. Hawthorne, N. Shazeer, A. M. Dai, M. D. Hoffman,
+M. Dinculescu, and D. Eck, “Music transformer: Gen-
+erating music with long-term structure,” in 7th Interna-
+tional Conference on Learning Representations, ICLR,
+New Orleans, LA, USA.
+[6] C. Barnes, E. Shechtman, A. Finkelstein, and D. B.
+Goldman, “Patchmatch: a randomized correspondence
+algorithm for structural image editing,” ACM Trans.
+Graph., vol. 28, no. 3, p. 24, 2009.
+[7] Y. Güçlütürk, U. Güçlü, R. van Lier, and M. A. J.
+van Gerven, “Convolutional sketch inversion,” in Com-
+puter Vision ECCV Workshops.
+Amsterdam, The
+Netherlands: Springer, 2016, pp. 810–824.
+[8] P. Sangkloy, J. Lu, C. Fang, F. Yu, and J. Hays, “Scrib-
+bler: Controlling deep image synthesis with sketch and
+color,” in 2017 IEEE Conference on Computer Vision
+and Pattern Recognition, CVPR.
+Honolulu, HI, USA:
+IEEE Computer Society, 2017, pp. 6836–6845.
+[9] Q. Yu, F. Liu, Y. Song, T. Xiang, T. M. Hospedales,
+and C. C. Loy, “Sketch me that shoe,” in 2016 IEEE
+Conference on Computer Vision and Pattern Recogni-
+tion, CVPR.
+Las Vegas, NV, USA: IEEE Computer
+Society, 2016, pp. 799–807.
+[10] K. Xu, K. Chen, H. Fu, W. Sun, and S. Hu,
+“Sketch2scene:
+sketch-based co-retrieval and co-
+placement of 3d models,” ACM Trans. Graph., 2013.
+[11] J. Sakellariou, , F. Tria, L. Vittorio, and F. Pachet,
+“Maximum entropy model for melodic patterns,” in
+ICML Workshop on Constructive Machine Learning,
+2015.
+[12] G. Hadjeres and F. Nielsen, “Anticipation-rnn: enforc-
+ing unary constraints in sequence generation, with ap-
+plication to interactive music generation,” Neural Com-
+puting and Applications, 2018.
+[13] A. Pati, A. Lerch, and G. Hadjeres, “Learning to tra-
+verse latent spaces for musical score inpainting,” in
+Proceedings of the 20th International Society for Mu-
+sic Information Retrieval Conference, ISMIR, Delft,
+The Netherlands, 2019, pp. 343–351.
+[14] D. P. Kingma and M. Welling, “Auto-encoding vari-
+ational bayes,” in 2nd International Conference on
+Learning Representations, ICLR, Banff, AB, Canada,
+2014.
+[15] A. Roberts, J. H. Engel, C. Raffel, C. Hawthorne, and
+D. Eck, “A hierarchical latent vector model for learn-
+ing long-term structure in music,” in Proceedings of
+the 35th International Conference on Machine Learn-
+ing, ICML.
+Stockholm, Sweden: PMLR, 2018, pp.
+4361–4370.
+[16] R. Yang, D. Wang, Z. Wang, T. Chen, J. Jiang, and
+G. Xia, “Deep music analogy via latent representation
+disentanglement,” in Proceedings of the 20th Interna-
+tional Society for Music Information Retrieval Confer-
+ence, ISMIR, Delft, The Netherlands, 2019, pp. 596–
+603.
+[17] B. Genchel, A. Pati, and A. Lerch, “Explicitly condi-
+tioned melody generation: A case study with interde-
+pendent rnns,” in Proceedings of the 7th International
+Workshop on Musical Meta-creation, MUME, 2019.
+[18] K. Cho, B. van Merrienboer, Ç. Gülçehre, D. Bah-
+danau, F. Bougares, H. Schwenk, and Y. Bengio,
+“Learning phrase representations using RNN encoder-
+decoder for statistical machine translation,” in Pro-
+ceedings of the 2014 Conference on Empirical Meth-
+ods in Natural Language Processing, EMNLP.
+Doha,
+Qatar: ACL, 2014, pp. 1724–1734.
+[19] S. Bengio, O. Vinyals, N. Jaitly, and N. Shazeer,
+“Scheduled sampling for sequence prediction with re-
+current neural networks,” in Advances in Neural In-
+formation Processing Systems 28: Annual Conference
+on Neural Information Processing Systems, Montreal,
+Quebec, Canada, 2015, pp. 1171–1179.
+[20] A. Goyal, A. Lamb, Y. Zhang, S. Zhang, A. C.
+Courville, and Y. Bengio, “Professor forcing: A new
+algorithm for training recurrent networks,” in Advances
+in Neural Information Processing Systems 29: An-
+nual Conference on Neural Information Processing
+Systems, Barcelona, Spain, 2016, pp. 4601–4609.
+[21] J. Devlin, M. Chang, K. Lee, and K. Toutanova,
+“BERT: pre-training of deep bidirectional transform-
+ers for language understanding,” in Proceedings of the
+2019 Conference of the North American Chapter of
+the Association for Computational Linguistics: Human
+
+Language Technologies, NAACL-HLT.
+Minneapolis,
+MN, USA: Association for Computational Linguistics,
+2019, pp. 4171–4186.
+[22] B. L. Sturm, J. F. Santos, O. Ben-Tal, and I. Kor-
+shunova, “Music transcription modelling and composi-
+tion using deep learning,” in Conference on Computer
+Simulation of Musical Creativity, CSMC, 2016.
+[23] T. Berg-Kirkpatrick, D. Burkett, and D. Klein, “An em-
+pirical investigation of statistical signiﬁcance in NLP,”
+in Proceedings of the 2012 Joint Conference on Em-
+pirical Methods in Natural Language Processing and
+Computational Natural Language Learning, EMNLP-
+CoNLL.
+ACL, 2012, pp. 995–1005.
