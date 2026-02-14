@@ -122,7 +122,7 @@ def run_generation(provider_name, client, models, generate_fn):
                     break
 
                 except Exception as e:
-                    if hasattr(client, 'rotate') and ("429" in str(e) or "ResourceExhausted" in str(e)):
+                    if hasattr(client, 'rotate') and ("429" in str(e) or "ResourceExhausted" in str(e) or '400' in str(e)):
                         client.rotate()
 
                     pbar.set_postfix(status=f"error {attempt}/{MAX_RETRIES}")

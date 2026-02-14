@@ -88,8 +88,8 @@ MODELS_GROQ = {
 }
 
 MODELS_GEMINI = {
-    #"gemini-2.5-flash": "gemini-2.5-flash",
-    "gemini-3-flash-preview": "gemini-3-flash-preview",
+    "gemini-2.5-flash": "gemini-2.5-flash",
+    #"gemini-3-flash-preview": "gemini-3-flash-preview",
 }
 
 MODELS_OLLAMA = {
