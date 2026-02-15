@@ -70,7 +70,7 @@ def plot_(epoch, loss_train,loss_eval):
 
 
 tokeniser = AutoTokenizer.from_pretrained(model_name)
-dataloader_train,dataloader_eval,fe_test,la_test,vocab,inv_vocab=data(file_name,tokeniser,300,batch_size=32)
+dataloader_train,dataloader_eval,_,_,vocab,inv_vocab=data(file_name,tokeniser,300,batch_size=32)
 
 epoch= 10
 model= initialisation(vocab,inv_vocab,model_name)

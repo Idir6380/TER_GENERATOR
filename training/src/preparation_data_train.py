@@ -172,6 +172,7 @@ def split_train_eval_test(feature,label):
 
 def data(file_name,tokenizer,max_len,batch_size=32):
     datas_train,datas_eval,datas_test= read_file_train(file_name)
+    print("total corpus:",len(datas_train)+len(datas_test)+len(datas_eval) )
     fe_train,la_train = read_all(datas_train)
     fe_eval,la_eval=read_all( datas_eval)
     fe_test,la_test= read_all(datas_test)
