@@ -62,8 +62,8 @@ def preformance(model,tokeniser,data):
 
 
 
-data_train,datas_eval,datas_test= read_file_train("/Users/vanessaguerrier/Downloads/M2_TER/data/all_articles.json")
-fichier_model= "/Users/vanessaguerrier/Downloads/M2_TER/model.pt"
+data_train,datas_eval,datas_test= read_file_train("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/all_articles.json")
+fichier_model= "/Users/vanessaguerrier/Downloads/projet_TER_M2/model.pt"
 all_model = torch.load(fichier_model)
 print("CONTENU DU FICHIER MODEL :", all_model.keys())
 
