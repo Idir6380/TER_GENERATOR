@@ -51,19 +51,30 @@ def recontruction_per_article(model,tokeniser,fe,inv_vocab):
     return new_la
 
 def preformance(model,tokeniser,data):
-    precision ,recall= [],[]
+    true_label,pred_label=[],[]
     for i in range(len(data)):
-        fe ,la = decomposition_and_labelisation(data,i)
+        fe ,la,_ = decomposition_and_labelisation(data,i)
         la_pred= recontruction_per_article(model,tokeniser,fe,inv_vocab)
-        p,r= precision_recall_perArticle(la,la_pred)
-        precision.append(p)
-        recall.append(r)
-    return np.array(precision) ,np.array(recall)
+        true_label+= la
+        pred_label+=la_pred
+    p,r,f1= precision_recall_f1(true_label,pred_label)
+    precision= p
+    recall=r
+    f1_score=f1
+    return precision ,recall,f1_score
 
 
+def performance_per_entite(model,tokeniser,data):
+    true_label, pred_label= [],[]
+    for i in range(len(data)):
+        fe ,la,_ = decomposition_and_labelisation(data,i)
+        la_pred= recontruction_per_article(model,tokeniser,fe,inv_vocab)
+        true_label+= la
+        pred_label+=la_pred
+    affichage(true_label, pred_label)
 
 data_train,datas_eval,datas_test= read_file_train("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/all_articles.json")
-fichier_model= "/Users/vanessaguerrier/Downloads/projet_TER_M2/model.pt"
+fichier_model= "/Users/vanessaguerrier/Downloads/projet_TER_M2/model1.pt"
 all_model = torch.load(fichier_model)
 print("CONTENU DU FICHIER MODEL :", all_model.keys())
 
@@ -81,8 +92,8 @@ model = AutoModelForTokenClassification.from_pretrained(model_name,num_labels=le
 
 model.load_state_dict(all_model["model"])  
 model.eval()
-precision_test ,recall_test= preformance(model,tokeniser,datas_test)
-precision_ev ,recall_ev= preformance(model,tokeniser,datas_eval)
+precision_test ,recall_test,f1_test= preformance(model,tokeniser,datas_test)
+precision_ev ,recall_ev,f1_ev= preformance(model,tokeniser,datas_eval)
 
 
 print(f"train: {len(data_train)} ,test: {len(datas_test)}, eval : {len(datas_eval)}")
@@ -90,7 +101,13 @@ print("total corpus:",len(data_train)+len(datas_test)+len(datas_eval) )
 print("------------test---------------")
 print(f"mean_preci : {np.mean(precision_test):2f} ")
 print(f",mean_rapell : {np.mean(recall_test):2f}")
-
+print(f",mean_f1-Score : {np.mean(f1_test):2f}")
+print()
+performance_per_entite(model,tokeniser,datas_test)
+print()
 print("------------eval---------------")
 print(f"mean_preci : {np.mean(precision_ev):2f} ")
 print(f",mean_rapell : {np.mean(recall_ev):2f}")
+print(f",mean_f1-Score : {np.mean(f1_ev):2f}")
+print()
+performance_per_entite(model,tokeniser,datas_eval)

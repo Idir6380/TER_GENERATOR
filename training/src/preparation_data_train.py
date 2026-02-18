@@ -5,7 +5,7 @@ from PyPDF2 import PdfReader
 from collections import Counter
 import json
 from tokenizer import *
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import  DataLoader
 from transformers import  DataCollatorForTokenClassification
 from sklearn.model_selection import train_test_split
 
@@ -19,12 +19,13 @@ def decomposition_en_phrase(text):
     return phrases
 
 
-def decomposition_en_list_mot(text):  # sourcery skip: for-append-to-extend, inline-immediately-returned-variable, list-comprehension
+def decomposition_en_list_mot(text,idx):  # sourcery skip: for-append-to-extend, inline-immediately-returned-variable, list-comprehension
     phrases=decomposition_en_phrase(text)
     list_mot=[]
     for phrase in phrases:
         list_mot.append(phrase.split())
-    return list_mot
+    id_paragraphe= [idx]*len(list_mot)
+    return list_mot,id_paragraphe
 
 def extraire_nom_balise(tag):
     return re.sub(r'[</>]', '', tag)
@@ -85,18 +86,22 @@ def read_file_train(namefile):
             j+=1
     return datas_train,datas_eval,datas_test
 
-def decomposition_and_labelisation(data,id):
-    text= data[id]["article"]
-    text= decomposition_en_list_mot(text)
+def decomposition_and_labelisation(data,id_article):
+    text= data[id_article]["article"]
+    id_paragraphe= data[id_article]["metadata"]["article_number"]
+    text,id_para= decomposition_en_list_mot(text,id_paragraphe)
     features, labels= labeliser(text)
-    return features, labels
+    return features, labels,id_para
+
+
 def read_all(datas):
-    fe,la= [],[]
+    fe,la,doc_id= [],[],[]
     for article in range (len(datas)):
-        features, labels=decomposition_and_labelisation(datas,article)
+        features, labels,idx=decomposition_and_labelisation(datas,article)
         fe+=features
         la+= labels
-    return fe,la
+        doc_id+= idx
+    return fe,la,doc_id
 
 def read_pdf_from_url(url):
     headers = {
@@ -160,8 +165,8 @@ def create_vocab(labels):
     return vocab,inv_vocab
 
 
-def dataloader(feature,labels,tokenizer,max_len,batch_size=32):
-    dataset = NERDataset(feature, labels, tokenizer, max_len=max_len)
+def dataloader(feature,labels,doc_id,tokenizer,batch_size=32,train=True):
+    dataset = NERDataset(feature, labels,doc_id, tokenizer,train=train)
     data_collator = DataCollatorForTokenClassification(tokenizer)
     return DataLoader(dataset, batch_size=batch_size, collate_fn=data_collator)   
 
@@ -170,16 +175,15 @@ def split_train_eval_test(feature,label):
     fe_eval, fe_test, la_eval, la_test = train_test_split(fe_test,la_test,test_size=0.4,random_state=42)
     return fe_train,fe_eval,fe_test,la_train,la_eval,la_eval
 
-def data(file_name,tokenizer,max_len,batch_size=32):
+def data(file_name,tokenizer,batch_size=32):
     datas_train,datas_eval,datas_test= read_file_train(file_name)
     print("total corpus:",len(datas_train)+len(datas_test)+len(datas_eval) )
-    fe_train,la_train = read_all(datas_train)
-    fe_eval,la_eval=read_all( datas_eval)
-    fe_test,la_test= read_all(datas_test)
+    fe_train,la_train,doc_ids = read_all(datas_train)
+    fe_eval,la_eval,doc_id_ev=read_all( datas_eval)
     vocab,inv_vocab= create_vocab(la_train)
     labels_ids = [[vocab[l] for l in sent] for sent in la_train]
     labels_ids_e = [[vocab[l] for l in sent] for sent in la_eval]
-    dataloader_train= dataloader(fe_train,labels_ids,tokenizer,max_len,batch_size=batch_size)
-    dataloader_eval= dataloader(fe_eval,labels_ids_e,tokenizer,max_len,batch_size=10)
-    return dataloader_train,dataloader_eval,fe_test,la_test,vocab,inv_vocab
-    
+    dataloader_train= dataloader(fe_train,labels_ids,doc_ids,tokenizer,batch_size=batch_size)
+    dataloader_eval= dataloader(fe_eval,labels_ids_e,doc_id_ev,tokenizer,batch_size=10,train=False)
+    return dataloader_train,dataloader_eval,vocab,inv_vocab
+
