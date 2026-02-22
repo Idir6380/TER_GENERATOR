@@ -70,20 +70,20 @@ def plot_(epoch, loss_train,loss_eval):
     plt.savefig("fig.png")
     plt.close()
 
+if __name__ == "__main__":
+    tokeniser = AutoTokenizer.from_pretrained(model_name)
+    dataloader_train,dataloader_eval,vocab,inv_vocab=data(file_name,tokeniser,batch_size=32)
 
-tokeniser = AutoTokenizer.from_pretrained(model_name)
-dataloader_train,dataloader_eval,vocab,inv_vocab=data(file_name,tokeniser,batch_size=32)
+    epoch= 10
+    model= initialisation(vocab,inv_vocab,model_name)
+    debut= time()
 
-epoch= 10
-model= initialisation(vocab,inv_vocab,model_name)
-debut= time()
-
-losses_train,losses_eval= fit(model,dataloader_train,dataloader_eval,epoch)
-print(f"fin d'entrainement {(time()-debut)/60} minutes")
+    losses_train,losses_eval= fit(model,dataloader_train,dataloader_eval,epoch)
+    print(f"fin d'entrainement {(time()-debut)/60} minutes")
 
 
-all_model= {"model":model.state_dict(),"inv_vocab_t":inv_vocab, "vocab_t":vocab,"epoch":epoch,"model_name":model_name,"tokeniser":tokeniser} 
-torch.save(all_model,"model1.pt")
+    all_model= {"model":model.state_dict(),"inv_vocab_t":inv_vocab, "vocab_t":vocab,"epoch":epoch,"model_name":model_name,"tokeniser":tokeniser} 
+    torch.save(all_model,"model1.pt")
 
-plot_(epoch,losses_train,losses_eval)
+    plot_(epoch,losses_train,losses_eval)
 

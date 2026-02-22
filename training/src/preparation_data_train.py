@@ -19,7 +19,7 @@ def decomposition_en_phrase(text):
     return phrases
 
 
-def decomposition_en_list_mot(text,idx):  # sourcery skip: for-append-to-extend, inline-immediately-returned-variable, list-comprehension
+def decomposition_en_list_mot(text,idx=0):  # sourcery skip: for-append-to-extend, inline-immediately-returned-variable, list-comprehension
     phrases=decomposition_en_phrase(text)
     list_mot=[]
     for phrase in phrases:
@@ -86,7 +86,7 @@ def read_file_train(namefile):
             j+=1
     return datas_train,datas_eval,datas_test
 
-def decomposition_and_labelisation(data,id_article):
+def decomposition_and_labelisation(data,id_article=0):
     text= data[id_article]["article"]
     id_paragraphe= data[id_article]["metadata"]["article_number"]
     text,id_para= decomposition_en_list_mot(text,id_paragraphe)
@@ -125,13 +125,13 @@ def read_pdf_from_url(url):
 def remove_references(text):
     # sourcery skip: inline-immediately-returned-variable
     # Cherche le début après 'Abstract'
-    abstract_keywords = ["Abstract", "ABSTRACT"]
+    # abstract_keywords = ["Abstract", "ABSTRACT"]
     start_idx = 0
-    for kw in abstract_keywords:
-        idx = text.find(kw)
-        if idx != -1:
-            start_idx = idx + len(kw)
-            break 
+    # for kw in abstract_keywords:
+    #     idx = text.find(kw)
+    #     if idx != -1:
+    #         start_idx = idx + len(kw)
+    #         break 
     # Cherche la fin avant 'References' ou 'Bibliography'
     reference_keywords = ["References", "REFERENCES", "Bibliography", "BIBLIOGRAPHY"]
     end_idx = len(text)
@@ -143,17 +143,13 @@ def remove_references(text):
     main_text = text[start_idx:end_idx].strip()
     return main_text
 
-def read_file_test(url):
-    fe= []
-    text = read_pdf_from_url(url)
+def create_feature_test(text):
     text = remove_references(text)
-    text= decomposition_en_list_mot(text)
-    fe+= text
+    fe,_= decomposition_en_list_mot(text)
     return fe
 
 
 def create_vocab(labels):
-    list_global= []
     i= 0
     vocab={}
     for li in labels:
