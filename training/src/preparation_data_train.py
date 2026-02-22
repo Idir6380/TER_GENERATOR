@@ -125,13 +125,13 @@ def read_pdf_from_url(url):
 def remove_references(text):
     # sourcery skip: inline-immediately-returned-variable
     # Cherche le début après 'Abstract'
-    # abstract_keywords = ["Abstract", "ABSTRACT"]
+    abstract_keywords = ["Abstract", "ABSTRACT"]
     start_idx = 0
-    # for kw in abstract_keywords:
-    #     idx = text.find(kw)
-    #     if idx != -1:
-    #         start_idx = idx + len(kw)
-    #         break 
+    for kw in abstract_keywords:
+        idx = text.find(kw)
+        if idx != -1:
+            start_idx = idx + len(kw)
+            break 
     # Cherche la fin avant 'References' ou 'Bibliography'
     reference_keywords = ["References", "REFERENCES", "Bibliography", "BIBLIOGRAPHY"]
     end_idx = len(text)

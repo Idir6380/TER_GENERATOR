@@ -76,7 +76,7 @@ def performance_per_entite(model,tokeniser,data,inv_vocab):
     
     
 def initialisation_for_test(global_path):
-    fichier_model= f"{global_path}model1.pt"
+    fichier_model= f"{global_path}model.pt"
     all_model = torch.load(fichier_model)
     print("CONTENU DU FICHIER MODEL :", all_model.keys())
     inv_vocab= all_model["inv_vocab_t"]
