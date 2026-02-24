@@ -3,7 +3,7 @@ from pred import *
 import json
 
 def create_path(global_path,i):
-    return f"{global_path}data/GreenMIR/texts/article_{i + 1}.txt"
+    return f"{global_path}data/GreenMIR/text_nettoyer/article{i + 1}.txt"
 
 
 def lire_et_nettoyage_file(file_name):
@@ -25,8 +25,6 @@ def create_dic(feature, labels, id):
             "year": []
         }
     }
-
-    # mapping entre syn et clé du dictionnaire
     mapping = {
         "model": "model_name",
         "params": "parameter_count",
@@ -36,14 +34,11 @@ def create_dic(feature, labels, id):
         "country": "country",
         "year": "year"
     }
-
     current_entity = ""
     current_key = None
-
     for j, sentence in enumerate(labels):
         for i in range(len(sentence)):
             tag = sentence[i]
-
             if tag == "O":
                 # Si on termine une entité, on l'ajoute
                 if current_entity and current_key:
@@ -51,26 +46,18 @@ def create_dic(feature, labels, id):
                     current_entity = ""
                     current_key = None
                 continue
-
             pref, syn = tag.split("-", 1)
             value = feature[j][i]
-
             key = mapping.get(syn)
             if not key:
                 continue
-
             if pref == "B":
-                # Sauvegarde l'entité précédente
                 if current_entity and current_key:
                     dic["information"][current_key].append(current_entity.strip())
-
                 current_entity = value
                 current_key = key
-
             elif pref == "I" and current_key == key:
                 current_entity += " " + value
-
-        # Fin de phrase → sauvegarde si nécessaire
         if current_entity and current_key:
             dic["information"][current_key].append(current_entity.strip())
             current_entity = ""
@@ -82,7 +69,6 @@ def deduplicate_information(dic):
         "article_id": dic["article_id"],
         "information": {}
     }
-
     for key, values in dic["information"].items():
         seen = set()
         unique_values = []

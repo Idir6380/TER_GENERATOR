@@ -1,0 +1,739 @@
+In this work, we provide a broad comparative analysis of
+strategies for pre-training audio understanding models for
+several tasks in the music domain, including labelling of
+genre, era, origin, mood, instrumentation, key, pitch, vo-
+cal characteristics, tempo and sonority. Specifically, we
+explore how the domain of pre-training datasets (music or
+generic audio) and the pre-training methodology (super-
+vised or unsupervised) affects the adequacy of the resulting
+audio embeddings for downstream tasks.
+We show that models trained via supervised learning on
+large-scale expert-annotated music datasets achieve state-
+of-the-art performance in a wide range of music labelling
+tasks, each with novel content and vocabularies. This can
+be done in an efficient manner with models containing less
+than 100 million parameters that require no fine-tuning or
+reparameterization for downstream tasks, making this ap-
+proach practical for industry-scale audio catalogs.
+Within the class of unsupervised learning strategies,
+we show that the domain of the training dataset can
+significantly impact the performance of representations
+learned by the model.
+We find that restricting the do-
+main of the pre-training dataset to music allows for training
+with smaller batch sizes while achieving state-of-the-art
+in unsupervised learningÐand in some cases, supervised
+learningÐfor music understanding.
+We also corroborate that, while achieving state-of-the-
+art performance on many tasks, supervised learning can
+cause models to specialize to the supervised information
+provided, somewhat compromising a model’s generality.
+1. INTRODUCTION
+In this work, we consider a broad array of classification and
+labelling tasks under the umbrella of music understanding.
+Such tasks include the labelling of genre, origin, mood,
+musical key, instruments, era, emotion and pitch present
+in music. These tasks have many applications in industry,
+© Matthew C. McCallum, Filip Korzeniowski, Sergio Ora-
+mas, Fabien Gouyon, Andreas F. Ehmann. Licensed under a Creative
+Commons Attribution 4.0 International License (CC BY 4.0). Attribu-
+tion:
+Matthew C. McCallum, Filip Korzeniowski, Sergio Oramas, Fa-
+bien Gouyon, Andreas F. Ehmann, ªSupervised and Unsupervised Learn-
+ing of Audio Representations for Music Understandingº, in Proc. of the
+23rd Int. Society for Music Information Retrieval Conf., Bengaluru, India,
+particularly in music streaming and recommendation ser-
+vices where automated understanding of audio can assist
+in a range of tasks such as organizing, filtering and person-
+alizing content to a listener’s taste and context.
+Recent research in automated audio understanding has
+focused on training convolutional [1±12] and / or atten-
+tion based [13±21] networks on moderately large collec-
+tions of frequency-domain audio [2,5±8,12±14,18,20,21],
+time-domain audio [3, 10, 11, 19] or multi-format / multi-
+modal [4,9,21,22] data. Such models are often trained on
+tags encompassing some of the musical labels listed above,
+achieving promising results [1,3,6,11,13±15,22]. More re-
+cent works propose unsupervised strategies for music un-
+derstanding such as contrastive learning [2, 4, 5, 8±10, 21]
+or predictive / generative approaches [7,20,21,23]. Unsu-
+pervised strategies are appealing because they require no
+annotated data and generalize well to new tasks [2, 21],
+but lag the performance of supervised learning at a simi-
+lar scale [2,10]. Generative learning strategies [7,23] have
+been shown to achieve competitive, and sometimes state-
+of-the-art (SOTA), performance in several music under-
+standing tasks [24], although, currently there is no evalua-
+tion demonstrating the effectiveness of this approach to any
+of the aforementioned approaches, at comparable scale.
+Modern music streaming services have very large mu-
+sic catalogs that amount to many petabytes of audio data
+if uncompressed. Due to the scale of this data it is de-
+sirable to build models that are efficiently scalable, and
+understand audio in a general enough way that, as needs
+or requirements change, they may be used to solve novel
+problems without reprocessing such data. Models in the
+order of 10M or 100M parameters are currently relatively
+cost-effective to both train and apply inference to industry-
+scale catalogs, whilst models consisting of billions of pa-
+rameters, e.g. that evaluated in [24], are typically imprac-
+tical, or very expensive, for both training and inference.
+More recently, research has adopted approaches pro-
+ducing generalized audio embeddings [2, 4±10, 12, 18, 19,
+25] in a supervised or unsupervised way, by training mod-
+els on large amounts of labelled or unlabelled audio. When
+such models are applied to novel audio, the internal state of
+the models has been found to contain much of the informa-
+tion necessary for previously unseen tasks. This is demon-
+strated by training shallow classifiers (probes) on embed-
+dings consisting of the activations of a given model layer,
+that map these values to a downstream task. Such an ap-
+proach achieves competitive results using either unsuper-
+
+vised [25] or supervised [6] learning. Most importantly,
+the embeddings on which the probes are trained are many
+orders of magnitude smaller than the audio itself and only
+need to be computed once per audio file. Such embeddings
+can be stored efficiently, and downstream classifiers can be
+trained with significantly less resources. The excellent per-
+formance, generality, and scalability of this approach are
+crucial factors for its utility in industry.
+This approach to audio understanding has been high-
+lighted in recent benchmarks such as HARES [2] and
+HEAR [26], where embeddings are evaluated across a
+number of audio understanding tasks pertaining to a range
+of content types.
+Any score aggregation across these
+benchmarks to determine a "best" embedding is difficult
+due to the disparate range of metrics employed and further-
+more, may obfuscate the strengths and weakness of any
+given approach. However, evaluating across a common
+range of tasks can be useful in comparing such strengths
+and weaknesses. We find that the current tasks evaluated in
+the HEAR and HARES benchmarks are lacking in evalua-
+tion on music content. Wrt. polyphonic music, the HARES
+benchmark includes only the Magnatagatune dataset, and
+the HEAR benchmark includes only GTZAN genre and
+music / speech datasets. While other public music datasets
+exist, such benchmarks are somewhat limited by the re-
+quirement to provide access to the audio of all datasets.
+Here, we do not intend to establish a new open bench-
+mark, but investigate the effectiveness of supervised and
+unsupervised learning for audio embeddings employed
+specifically for music understanding, across as broad an
+array of tasks as is available within time and resource
+constraints. For supervised learning we train models on
+large scale datasets of annotated magnitude log-mel spec-
+trograms both in the music domain and in the general au-
+dio domain. For unsupervised learning we train contrastive
+models using SimCLR loss [27, 28] on the same sets of
+magnitude log-mel spectrograms, excluding annotations.
+The contributions of this work are as follows:
+we
+provide a broad analysis of supervised and unsupervised
+learning strategies for pre-training audio models for mu-
+sic understanding; we show that for multilabel / multiclass
+classification of music, large-scale supervised learning on
+music data achieves SOTA performance, in many cases
+outperforming both prior SOTA and unsupervised learn-
+ing by significant margins; we show that supervised learn-
+ing on labelled music data does not generalize as well as
+unsupervised learning to novel tasks not covered in those
+labels; finally, we show that the domain of pre-training au-
+dio datasets has a significant impact on the performance of
+embeddings, particularly for unsupervised learning.
+2. PRE-TRAINING METHODOLOGY
+To achieve the objectives outlined in Section 1, we fol-
+low a familiar transfer learning paradigm (Figure 1) where
+models are pre-trained using supervised or unsupervised
+learning. Thereafter, the frozen activations from a layer of
+that model, forming embeddings, z, are mapped to a down-
+stream task using a simple network p(z).
+CNN
+CNN
+PROJECT
+PROJECT
+PROBE
+SUPERVISED
+PRETRAINING
+UNSUPERVISED
+PRETRAINING
+EVALUATION
+FEATURE 
+SAMPLING
+Figure 1. System diagram of both pre-training approaches
+employed in this paper, and evaluation.
+2.1 Supervised and Unsupervised Training
+In the supervised setting we learn a function f(X) ⇒ˆy
+mapping features X (log-mel spectrograms) to binary la-
+bels, y, by applying Adam optimization [29] to the binary
+cross-entropy loss function,
+Ls(y, ˆy) = −1
+NK
+N−1
+X
+i=0
+yi log(ˆyi) + (1 −yi) log(1 −ˆyi),
+where batch size N = 512, and K is the number of labels.
+In the unsupervised setting, we employ the SimCLR ob-
+jective [27,28], which has been shown to provide promis-
+ing results for both music and audio understanding [2,10].
+The SimCLR objective employs correlated (positive) pairs
+of samples by mapping each feature to an embedding
+space, f(X) ⇒z ∈Rm, with embedding dimensional-
+ity m = 1728. A projector, then maps the embedding
+space to a loss space h(z) ⇒v ∈Rn, with dimen-
+sionality n = 1024.
+Here, each element is then com-
+pared to all other elements in a batch via distance function,
+d(vi, vj) = vi · vj/∥vi∥∥vj∥. The loss is then computed
+as the normalized temperature-scaled cross entropy,
+Lu(vi, vj) = −log
+exp (d(vi, vj)/τ)
+P2N−1
+k=0
+1[k̸=i] exp (d(vi, vk)/τ)
+,
+which is summed across 2N examples in N = 1920 posi-
+tive pairs, where i = j, for all values of both i ∈[0, N −1]
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+and j ∈[0, N −1]. Here, 1[k̸=i] is an indicator func-
+tion evaluating to 1 for k = i, otherwise evaluating to 0.
+τ = 0.1 denotes a temperature hyper-parameter.
+SimCLR loss can be interpreted as a one hot classifi-
+cation problemÐfor each example, identifying its positive
+pair amongst all other (negative) examples in the batch.
+Because the batch-size determines the number of negative
+examples in the batch, and hence, the likelihood of non-
+trivial negatives, a large batch size of N pairs is crucial
+to this learning strategy, with larger batch sizes resulting
+in notable performance improvements [9]. However, batch
+sizes are limited to the memory of the available compute
+resources (e.g., of GPUs / TPUs). Hence, when consider-
+ing compute costs, it is desirable to reduce batch size.
+The primary objective of this work is to provide a com-
+parative analysis of the utility of supervised and unsuper-
+vised learning strategies for a range of music understand-
+ing tasks under different data sources.
+As such we do
+not propose to investigate or innovate on the model ar-
+chitecture defining f(X) itself, and employ the Short-Fast
+Normalizer-Free Net F0 (SF-NFNet-F0) of [2]. This archi-
+tecture was chosen due to its demonstrated excellent per-
+formance in audio understanding, its design intent specif-
+ically for audio, and its use of efficient operations such as
+grouped convolutions. Furthermore, this architecture does
+not employ batch-normalization, improving training time
+and resource requirements, particularly when using Sim-
+CLR loss, by removing the need to globally synchronize
+data between GPU devices at each batch-normalization
+layer. Our intent was to reproduce this model as accu-
+rately as possible. However, due to the information avail-
+able to us at the time of publication, there may be some
+discrepancies between our implementation and that in [2].
+To ensure reproducibility, we release a Tensorflow imple-
+mentation of the model used in this paper with SCOOCH
+configurations 1 for each of the models trained 2 . Our SF-
+NFNet-F0 implementation contains 62.4M parameters.
+In both supervised and unsupervised settings we em-
+ploy mixup [30] directly on the sampled log-mel spectro-
+grams in real-time during training for data augmentation.
+We acknowledge that additively combined audio sources
+do not result in additively combined magnitude spectro-
+grams due to both constructive and destructive interfer-
+ence. However, such an augmentation is an efficient oper-
+ation to perform in real-time data sampling pipelines, mit-
+igating data bandwidth bottlenecks that may be caused by
+more complex operations. We employ mixup by shuffling
+features within each batch and additively combining the
+shuffled features (and labels for supervised learning) to the
+original batch. Mixup gains are sampled from a beta dis-
+tribution with parameters α = 5.0 and β = 2.0, for each
+feature in a batch.
+In all pre-training contexts, we use an Adam optimizer
+with a learning rate following a warm-up cosine decay
+schedule, first increasing to 0.0002 over 5k steps, then
+decreasing to 0.0 over 195k steps. While dense projec-
+1 https://github.com/PandoraMedia/scooch
+2 https://github.com/PandoraMedia/music-audio-representations
+tors, h(z) are an inherent part of the unsupervised SimCLR
+learning approach, we find projectors to also be useful in
+the supervised setting, adding a non-linear transformation
+between the learned embeddings, z, and the supervised la-
+bels, ˆy = h(f(X)). We notice such an approach has also
+been useful in computer vision [31]. Hence, in all contexts
+we employ a projector consisting of 3 × 4096 node hid-
+den layers with ReLU activation. Supervised models were
+trained on 8 v100 GPUs taking approximately 30 hours,
+while unsupervised models were trained on 16 A100 GPUs
+taking approximately 80 hours.
+2.2 Datasets
+Pre-training datasets can have a significant impact on su-
+pervised and unsupervised model performance. In the su-
+pervised context, there has been evidence that models are
+less generalizable to unseen tasks [2], perhaps due to the
+information present in the supervised labels. In the un-
+supervised context, less investigation has been conducted
+into the effect of the content of pre-training datasets. In this
+context, the problem of sampling positive and non-trivial
+negative examples within a dataset is closely tied to the di-
+versity of content in that dataset. Furthermore, when em-
+ploying mixup as a data augmentation strategy, the content
+of the pre-training dataset also defines the additive noise
+that is applied to features during training.
+We compare pre-training on two large datasets, namely
+Musicset and a version of Audioset [32]. The Audioset
+training set contains ≈1.7M distinct labelled content
+pieces, and Musicset ≈1.8M. Audioset consists of 10 sec-
+ond snippets of various audio sources: music, speech and
+environmental audio (4,791 hours, ≈602 GB of audio fea-
+ture data). Musicset, in contrast, focuses solely on music;
+it consists only of labelled complete songs, each up to sev-
+eral minutes in length (117,497 hours, ≈14.7 TB of audio
+feature data). Musicset is, to our knowledge, the largest
+dataset of expert-annotated audio ever trained on. While
+it is not publicly available, we believe it valuable to report
+the results of models trained on this dataset to communi-
+cate the effectiveness of supervised learning at this scale.
+For supervised learning, in addition to the features
+themselves, the labels differ. Each dataset’s vocabulary
+is distinct but similar in size (527 labels for Audioset and
+500 labels for Musicset), however, Figure 2 shows the label
+density and distribution of both datasets differs.
+2.3 Feature Sampling
+The features, X, are log-magnitude log-mel spectrograms
+produced from waveforms sampled at 16 kHz. We use 96
+HTK-log-mel spaced, power normalized, frequency bins
+with center frequences from 0 Hz to 8 kHz, analyzed with
+a window size of 25 ms, a Fourier transform size of 2048
+bins and a hop size of 10 ms. We sample 3 s snippets of
+each content piece in real-time (during training) across the
+pre-training dataset, forming features, X ∈R96×300. Sam-
+pling features in real-time from full-length tracks has the
+benefit of a high ratio of distinct features per static dataset
+size by reducing redundant (overlapping) data storage. For
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+Figure 2. Label density distributions for Musicset and Au-
+dioset. (a), (b) plots the sorted Musicset label counts on a
+linear (in millions) and logarithmic scale, respectively. (c),
+(d) plots the same data for Audioset, respectively.
+example, a 183 second song (6.8MB) results in 18k distinct
+features (each 112kB) with the above parameters.
+To build a batch from a dataset, we first select a uniform
+random sample of tracks (with replacement); then, from
+each selected track, we choose a random 3-second spectro-
+gram snippet, without padding. In the unsupervised con-
+text, we need to select positive and negative pairs for each
+selected snippet. Positive pairs are sampled from the same
+10 second "track" for Audioset; for Musicset, positive ex-
+amples are also sampled from the same track, although we
+require positive pairs to be centered on frames less than
+5 seconds apart in the track’s timeline. As negative exam-
+ples, the SimCLR objective implicitly uses all other sam-
+ples in a batch. We also tried forcing examples from the
+same track, but further away from the anchor than the pos-
+itive, into every batch as hard negatives. Such an approach
+has shown promising results in music segmentation [33],
+however, we found that for music labelling at the averaged
+track-level this did not change our results significantly. As
+such, we omit this approach from our evaluation.
+3. EVALUATION
+To evaluate embedding performance, we take the global
+average pooled activations of the final convolutional layer
+in the SF-NFNet-F0 architecture for 3 second feature snip-
+pets sampled along the length of each audio timeline at a
+frequency of 0.5 Hz, then average these sampled embed-
+dings along the length of the timeline (with the exception
+of NSynth datasets as described later in this section). We
+found similar results training probes on both the timeline-
+averaged embeddings, and individual embeddings sampled
+directly from track timelines, with slight improvements
+when using timeline-averaged embeddings in some cases.
+Each of the embeddings derived from pre-trained mod-
+els have different levels of predictive power and will under-
+fit / overfit with different parameters for each downstream-
+dataset / pre-trained model combination. To demonstrate
+the potential of embeddings, and to investigate whether
+a given embedding can achieve SOTA performance on a
+given dataset, it is important to optimize the probe param-
+eters for each dataset. However, in cases where such a
+transfer learning methodology is SOTA, it is important to
+constrain the probe to the limitations imposed in previous
+works so that it is the quality of embeddings that are evalu-
+ated, and not that of the probes. With these considerations,
+we adopt a hybrid strategy based on the prior SOTA for
+each dataset. We optimize the parameters of probes in all
+cases except where the prior SOTA adopts a similar trans-
+fer learning methodology, in which case, we constrain the
+probes to the parameter ranges investigated in those prior
+works. Regardless of prior works, we restrict all probes
+to simple multi-layer perceptron (MLP) classifiers which
+can be trained on a single 32 core CPU in less than 1 hour
+to maintain the aforementioned benefits of efficiency and
+scalability that such a transfer learning approach provides.
+In all cases, we train probes using Adam optimization
+with a cosine learning rate schedule with 1,000 steps of
+warmup followed by a decay to zero over the remainder of
+the steps. We optimize the learning rate, number of train-
+ing steps, and l2-regularization of each probe to achieve
+best performance / prevent overfitting.
+In total we evaluate the performance over annotations
+of 7 distinct collections of audio, comprising 15 distinct
+datasets in total. An overview of datasets is shown in Ta-
+ble 1, and probe configurations in Table 2. We also publish
+more detailed SCOOCH configurations for probes, tag-
+level results, and model weights for the Musicset-ULarge
+model as a baseline for future research. 3 The remainder
+of this section covers specific notes on each dataset.
+Dataset
+Task
+#Items
+#Labels
+Avg. secs
+Hours
+MSDS
+tagging
+MSD50
+tagging
+tagging
+tagging
+AMM
+mood
+MuMu
+genre
+MTT
+tagging
+NSynthP
+pitch
+NSynthI
+instrument
+GTZAN
+genre
+Emo
+emotion
+N/A
+GSKey
+key
+Jam-50
+tagging
+Jam-All
+tagging
+Jam-MT
+mood/theme
+Table 1. Overview of evaluation datasets. The sizes for
+MSD50 and MSD500 disagree with [22]. The published
+MSD50 splits include 35,745 IDs, and we exclude any
+tracks in MSD500 without any tags in the vocabulary.
+Magnatagatune: Magnatagatune (MTT) [34] annota-
+tions include genre, instrumentation / vocal, mood, per-
+ceptual tempo, origin and sonority features. We adopt the
+common approach using the published splits and top 50
+tags 4 . Some research removes tracks without tags in the
+most common 50 tags. To make results comparable to the
+3 https://github.com/PandoraMedia/music-audio-representations
+4 https://github.com/jongpillee/music_dataset_split
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+Dataset
+Layers
+Dropout
+Batch (N)
+Constraint
+MSDS
+None
+MSD50
+None
+None
+None
+AMM
+None
+MuMu
+linear
+None
+MTT
+NSynthP
+linear
+[2]
+NSynthI
+linear
+[2]
+GTZAN
+linear
+None
+Emo
+None
+GSKey
+None
+Jam-50
+None
+Jam-All
+None
+Jam-MT
+None
+Table 2. Probe parameters
+most recent SOTA on this dataset [24], we keep items with-
+out tags in both training and evalution sets.
+GTZAN: This dataset addresses the problem of genre
+classification in a single-label context [35]. We employ the
+fault-filtered version of this dataset 4 .
+NSynth:
+Here we evaluate detecting the pitch
+(NSynthP) and instrument (NSynthI) of individual musi-
+cal notes. Following [2], in the case of NSynthP we ana-
+lyze the average of embeddings from four non-overlapping
+consecutive snippets of 1 second feature windows, and for
+NSynthI we analyze a single embedding for each note pro-
+duced using a 4 second feature window.
+Million Song Dataset:
+The Million Song Dataset
+(MSD) contains labels pertaining to era, instrumentation,
+sonority, genre, mood, origin and activity.
+Because of
+the size of this dataset and variation in label quality
+throughout we adopt several different splits and vocabu-
+laries for the dataset. For comparability with the previ-
+ous SOTA, we adopt the vocabulary of the 50 most com-
+mon labels, and the splits employed in [15] 4 , namely
+MSDS. We also take advantage of the several cleaned and
+artist-separated datasets available for this collection [22]Ð
+MSD50, MSD100 and MSD500, for which the splits and
+vocabularies are available publicly 5 .
+All Music Moods:
+The All Music Moods dataset
+(AMM) [36], focuses on mood prediction for the MSD au-
+dio data. Because the mood labels are heavily correlated
+with the artists in the dataset, we find it important to adopt
+the artist-seperated split 6 . With no previously published
+result on this split, we additionally provide results for em-
+beddings produced by the MusiCNN model [37].
+Jamendo: This dataset contains genre, instrument and
+mood / theme tags for audio from Jamendo [38]. We eval-
+uate on all tags (Jam-All) and the 50 most common (Jam-
+50). Because very few of the mood / theme tags are in
+Jam-50, we also evaluate the mood / theme category (Jam-
+MT). We use the official splits 7 and full-length audio.
+GiantSteps Key: This dataset (GSKey) concerns ma-
+jor/minor key classification in electronic musicÐa 24-way
+classification problem. It combines two datasets: the first,
+5 https://github.com/minzwon/tag-based-music-retrieval
+6 https://github.com/fdlm/listening-moods
+7 https://github.com/MTG/mtg-jamendo-dataset
+604 2-minute samples of electronic music tracks collected
+from beatport.com [39]; the second 8 , consists of 1486
+tracks from the same source.
+Consistent with previous
+work [23, 40], we use the former 604 samples for test-
+ing, and the latter for training / validation, selecting high-
+confidence annotations partitioned into train and valida-
+tion sets according to [23]. For evaluation we compute a
+weighted accuracy score common in key classification 9 .
+EmoMusic:
+This dataset (Emo) concerns emotion
+recognition [41], and provides continuous annotations for
+valence and arousal. Following [23], we consider the static
+version of this dataset, where target values are averaged for
+each clip, and use the artist-based train / test partitioning
+provided in their work. This poses a regression problemÐ
+we use the coefficient of determination as the evaluation
+metric for both valence (EmoV) and arousal (EmoA).
+MuMu: The Multimodal Music dataset (MuMu) [42],
+focuses on multilabel genre predictions for the MSD au-
+dio data, with genre annotations from the Amazon Reviews
+dataset. We evaluate using the official splits 10 .
+4. RESULTS
+In order to derive conclusions on the potential performance
+of supervised models trained using binary labels on music
+data, we train a supervised model on the complete Music-
+set dataset, namely Musicset-Sup. To compare these re-
+sults to supervised learning on a large-scale public dataset
+covering music, environmental, and speech audio, we pro-
+vide results for a model trained on ≈1.7M items from Au-
+dioset, namely Audioset-Sup. To compare supervised and
+unsupervised learning at a similar scale, we provide results
+for a model trained using the unsupervised methodology
+discussed in Section 2 on the same Musicset dataset audio
+data and the Audioset audio data, namely Musicset-ULarge
+and Audioset-ULarge using a batch size of 1920 pairs.
+In addition, we train two further unsupervised mod-
+els using a batch-size of 256. One trained on Audioset
+(Audioset-USmall), and one on ≈1.8M randomly sampled
+10 second snippets from Musicset, one per content piece
+(Musicset-USmall). The reasoning for this is two-foldÐ
+firstly by sampling short snippets from Musicset we mit-
+igate the confounding variable of dataset size when com-
+paring the two, secondly this allows us to investigate the
+effect of batch size in the unsupervised learning paradigm.
+For convenience, we also include results for the recent
+evaluations in [2, 24], and those for any other previous
+SOTA, excluding these two evaluations. The results for
+each of these models is shown in Table 3 for all datasets ex-
+cluding annotations of MSD, which are shown in Table 4.
+There, we note that for all multilabel music tagging tasks,
+the Musicset-Sup model achieves SOTA performance by
+significant margins. This is encouraging given that the Mu-
+sicset training dataset was created naively, and the super-
+vised information therein opens the door to improvements
+such as label-balanced sampling which has been shown to
+8 https://github.com/GiantSteps/giantsteps-mtg-key-dataset
+9 https://www.music-ir.org/mirex/wiki/2021:Audio_Key_Detection
+10 https://zenodo.org/record/1236906#.YoPIAhNBx0s
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+Model
+MTT
+GTZAN
+NSynthP
+NSnythI
+EmoV
+EmoA
+GSKey
+Jam-50
+Jam-All
+mAP
+ROC
+Acc
+Acc
+Acc
+r2
+r2
+W. Acc
+mAP
+ROC
+mAP
+ROC
+Musicset-Sup
+Audioset-Sup
+Musicset-ULarge
+Audioset-ULarge
+Musicset-USmall
+Audioset-USmall
+Jukebox [23]
+-
+-
+-
+-
+-
+-
+Prev. SF-NFNet-F0 [2]
+-
+-
+-
+-
+-
+-
+-
+-
+-
+SOTA Excl. [2,23]
+-
+-
+-
+-
+-
+-
+Table 3. Results for models on all datasets, excluding MSD annotations and Jam-MT. Models within 0.01 of SOTA are
+bold. *The SOTA for GSKey has no publicly available implementation details and is specialized for this dataset, e.g., [48].
+Model
+MSDS
+MSD50
+MuMu
+AMM
+Jam-MT
+mAP
+ROC
+mAP
+ROC
+mAP
+ROC
+mAP
+ROC
+mAP
+ROC
+mAP
+ROC
+mAP
+ROC
+Musicset-Sup
+Audioset-Sup
+Musicset-ULarge
+Audioset-ULarge
+Musicset-USmall
+Audioset-USmall
+SOTA
+-
+-
+-
+-
+-
+-
+-
+-
+Table 4. Results for all models on MSD annotations and Jam-MTT. Models within 0.01 of SOTA are bold. *The previ-
+ous SOTA for MuMu evaluated artist-level predictions rather than track-level. †The SOTA for Jam-MT is trained on an
+expanded within-taxonomy set (≈16k tracks), here we restrict probe training to Jamendo tracks (≈10k).
+realize further performance gains [6]. We leave this inves-
+tigation for future work.
+It is also encouraging to see that unsupervised learning
+on music audio (Musicset-ULarge) achieves SOTA perfor-
+mance compared to previous unsupervised models, in ad-
+dition to some supervised models (specifically, for models
+trained on Jam-50 and all MSD datasets).
+Comparing to recent transfer learning approaches [2,
+24], we see that in all cases either Musicset-Sup or
+Musicset-ULarge outperform or are on par with these, with
+the exception of NSynthI. This is a promising result es-
+pousing the value of music only audio datasets consider-
+ing that previously reported results for unsupervised learn-
+ing on Audioset [2] used more than double the batch size
+of those in this paper. Wrt. the Jukebox model, models
+trained for this paper use approximately 1% of the param-
+eters and take less than 1% of the GPU flop hours to train.
+We see that the supervised models evaluated demon-
+strate shortcomings in performance on pitch (NSynthP) and
+key (GSKey) tasks. This corroborates the findings in [24]
+that models trained on tags do not perform well in this task,
+and the findings in [2] that supervised pre-trained models
+do not generalize as well to novel tasks. We note that there
+are no pitch or key labels in the Musicset dataset, and in
+fact, many of the labels employed (e.g., genre, mood, etc.)
+require the model to be somewhat agnostic to such infor-
+mation. It is yet to be seen whether including such infor-
+mation in the labels of a pre-training dataset would im-
+prove the generalizability of such models, though this is
+outside of the scope of the current work. Interestingly, we
+see that unsupervised models trained specifically on music
+data show significant improvements in key estimation.
+When comparing the domain of the pre-training dataset
+features in the models of Musicset-USmall and Audioset-
+USmall we see that in all cases, in-domain data (music)
+results in a better performing model. We conjecture that
+this may be due to (a) increasing the chances of non-trivial
+negative examples within each batch relative to each pos-
+itive pair, due to the homogeneity of the dataset, and (b)
+music is more spectrally dense and correlated than other
+common noise sources employed in mixup augmentation,
+such as speech or various environmental noises.
+5. CONCLUSIONS
+In this work we investigated both unsupervised and super-
+vised learning strategies, to produce compact audio rep-
+resentations that may be deployed across industry-scale
+audio catalogs for a range of downstream use cases. We
+observed that supervised training on large scale expert-
+annotated music data achieves SOTA results in music tag-
+ging. We see that unsupervised learning on datasets of the
+same scale also achieves excellent performance, across a
+wider range of tasks than supervised learning, particularly
+on those that involve information not represented in the
+supervised dataset. Finally, we see that for unsupervised
+learning, restricting the domain of the pre-training dataset
+to music results in improvements in model performance.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+6. ACKNOWLEDGEMENTS
+The authors would like to thank the Pandora music ana-
+lyst team for their years of dedicated and careful work that
+enables us to investigate supervised machine learning sys-
+tems at modern levels of quality and scale.
+7.

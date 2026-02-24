@@ -1,0 +1,643 @@
+Score-based generative models and diffusion probabilis-
+tic models have been successful at generating high-quality
+samples in a variety of continuous domains. However, due
+to their Langevin-inspired sampling mechanisms, their ap-
+plication to discrete symbolic music data has been lim-
+ited.
+In this work, we present a technique for training
+diffusion models on symbolic music data by parameteriz-
+ing the discrete domain in the continuous latent space of
+a pre-trained variational autoencoder. Our method is non-
+autoregressive and learns to generate sequences of latent
+embeddings through the reverse process and offers parallel
+generation with a constant number of iterative reﬁnement
+steps. We show strong unconditional generation and post-
+hoc conditional inﬁlling results compared to autoregressive
+language models operating over the same continuous em-
+beddings.
+1. INTRODUCTION
+Denoising diffusion probabilistic models (DDPMs) [1, 2]
+are a promising new class of generative models that can
+synthesize comparably high-quality samples by learning
+to invert a diffusion process from data to Gaussian noise.
+Unlike many existing deep generative models, DDPMs
+sample through an iterative reﬁnement process inspired by
+Langevin dynamics [3], which enables post-hoc condition-
+ing of models trained unconditionally [4–7] for creative ap-
+plications.
+Despite these exciting advances, DDPMs have not yet
+been applied to symbolic music generation because their it-
+erative reﬁnement sampling process is conﬁned to continu-
+ous domains such as images [2] and audio [8,9]. Similarly,
+DDPMs cannot take advantage of the recent advances in
+modeling long-term structure [10–12] that use a two-stage
+process of modeling discrete tokens extracted by a separate
+low-level autoencoder.
+In this paper, we demonstrate that it is possible to over-
+come these limitations by training DDPMs on the contin-
+uous latents of a low-level variational autoencoder (VAE)
+⋆Work completed during an internship at Google Brain.
+© G. Mittal, J. Engel, C. Hawthorne, and I. Simon. Li-
+censed under a Creative Commons Attribution 4.0 International License
+(CC BY 4.0). Attribution:
+G. Mittal, J. Engel, C. Hawthorne, and I.
+Simon, “Symbolic Music Generation with Diffusion Models”, in Proc.
+of the 22nd Int. Society for Music Information Retrieval Conf., Online,
+to generate long-form discrete symbolic music. Our key
+ﬁndings include:
+• High-quality unconditional sampling of discrete
+melodice sequences (1024 tokens) with DDPMs
+through iterative reﬁnement of lower-level VAE la-
+tents.
+• DDPMs outperforming strong autoregressive base-
+lines (TransformerMDN) in hierarchical modeling
+of continuous latents, partly due to a lack of teacher
+forcing and exposure bias during training.
+• Post-hoc conditional inﬁlling of melodic sequences
+for creative applications.
+2. BACKGROUND
+2.1 Denoising Diffusion Probabilistic Models
+DDPMs [1, 2] are a class of generative models that deﬁne
+latents x1, ..., xN of the same dimensionality as the data
+x0 ∼q(x0). Diffusion models are comprised of a for-
+ward process and a reverse process. The forward pro-
+cess starts from the data x0 and iteratively adds Gaussian
+noise according to a ﬁxed noise schedule for N diffusion
+steps:
+q(xt|xt−1) = N(xt;
+p
+1 −βtxt−1, βtI)
+(1)
+q(x1:N|x0) =
+N
+Y
+t=1
+q(xt|xt−1)
+(2)
+where β1, β2, ..., βN is a noise schedule that converts the
+data distribution x0 into latent xN. The choice of noise
+schedule has been shown to have important effects on sam-
+pling efﬁciency and quality [2,8].
+The reverse process is deﬁned by a Markov chain pa-
+rameterized by θ that iteratively reﬁnes latent point xN ∼
+N(0, I) into data point x0. The learned transition proba-
+bilities are deﬁned as,
+pθ(xt−1|xt) = N(xt−1; µθ(xt, t), σθ(xt, t))
+(3)
+pθ(x0:N) = p(xN)
+N
+Y
+t=1
+pθ(xt−1|xt)
+(4)
+where the objective is to gradually denoise samples at each
+reverse diffusion step t. In practice, σθ is set to an un-
+trained time-dependent constant based on the noise sched-
+ule, and [2] found σθ(xt, t) = σt =
+1−¯αt−1
+1−¯αt βt to have
+reasonable practical results, where αt = 1 −βt, and
+¯αt = Qt
+i=1 αi.
+
+Figure 1. A diagram of our proposed framework. We use the pre-trained 2-bar melody MusicVAE [13] to embed discrete
+musical phrases (64 bars, 1024 tokens) into a sequence of continuous latent codes (32 latents, 512 dimensions each).
+These embeddings are used to train a diffusion model that iteratively adds noise such that after N diffusion steps the input
+embeddings are distributed N(0, I). To sample from this model, we initialize Gaussian noise and use the reverse process to
+iteratively reﬁne the noise samples into a sequence of embeddings from the data distribution. These generated embeddings
+are fed through the MusicVAE decoder to produce the ﬁnal MIDI sequence.
+The training objective is to maximize the log likelihood
+of pθ(x0) =
+R
+pθ(x0, ..., xN)dx1:N, but the intractabil-
+ity of this marginalization leads to the following evidence
+lower bound (ELBO):
+E [log pθ(x0)] ≥Eq
+
+log pθ(x0:N)
+q(x1:N|x0)
+
+= Eq
+
+log p(xN) +
+X
+t≥1
+log pθ(xt−1|xt)
+q(xt|xt−1)
+
+
+(5)
+Additionally, [2] observed that the forward process can
+be computed for any step t such that q(xt|x0)
+=
+N(xt; √¯αtx0, (1 −¯αt)I), which can be viewed as a
+stochastic encoder.
+To simplify the above variational
+bound, [2] propose training on pairs of (xt, x0) to learn
+to parameterize this process with a simple squared L2 loss.
+The following objective is simpler to train, resembles de-
+noising score matching [5, 14] and was found to yield
+higher-quality samples:
+L(θ) = Ex0,ϵ,t
+h
+
+ϵ −ϵθ(√¯αtx0 +
+√
+1 −¯αtϵ, t)
+
+
+2i
+(6)
+where t is sampled uniformly between 1 and N, ϵ ∼
+N(0, I), and ϵθ is the learned diffusion model. [8] found
+that instead of conditioning on a discrete diffusion step
+t, it was beneﬁcial to sample a continuous noise level
+√¯α ∼U(√¯αt−1, √¯αt) where t ∼U({1, ..., N}) and
+¯α0 = 1.
+We refer readers to Algorithms 2 and 3 based on [8]
+in our supplementary material 1 for the full training and
+sampling procedure.
+1 Supplementary material including additional implementation de-
+tails, audio, and tables is available at https://goo.gl/magenta/
+symbolic-music-diffusion-examples
+2.2 Variational Autoencoders
+Variational autoencoders [15] are generative models that
+deﬁne p(y, z) = p(y|z)p(z) where z is a learned latent
+code for data point y. Additionally, the latent code is con-
+strained such that z is distributed according to prior p(z)
+where the prior is usually an isotropic Gaussian. The VAE
+is comprised of an encoder qγ(z|y) which models the ap-
+proximate posterior p(z|y) and a decoder pθ(y|z) which
+models the conditional distribution of data y given latent
+code z.
+The training objective is to maximize the log likelihood
+of pθ(x) =
+R
+pθ(y|z)p(z)dz, but this marginalization is in-
+tractable, and we use the following variational bound max-
+imized with qγ(z|y) as the approximate posterior:
+E [log pθ(y|z)] −KL(qγ(z|y)||p(z)) ≤log p(y)
+(7)
+The ﬂexible implementation of variational autoencoders
+allows them to learn representations over a wide variety
+of domains.
+Of particular interest to us are sequential
+autoencoders [13, 16] which use long short-term memory
+cells [17] to model temporal context in sequential data dis-
+tributions.
+In practice, there is a trade-off between the quality of
+reconstructions and the distance between the approximate
+posterior qγ(z|y) and the Gaussian prior p(z). This makes
+sampling more difﬁcult for VAEs with better reconstruc-
+tions due to latent “holes" in the approximate posterior and
+is one of the primary shortcomings of these models.
+3. MODEL
+A diagram and description of our multi-stage diffusion
+model is shown in Figure 1. We refer readers to the sup-
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+
+plement for full implementation details.
+3.1 Architecture
+Our model learns to generate discrete sequences of notes
+(known as MIDI) by ﬁrst training a VAE with parameters
+γ on the sequences and then training a diffusion model
+to capture the temporal relationships among the k VAE
+latents. Sequence VAEs such as MusicVAE are difﬁcult
+to train on long sequences [13], which we overcome by
+pairing the short 2-bar MusicVAE model with a diffusion
+model capable of modeling dependencies between k = 32
+latents, thus modeling 64 bars in total.
+MusicVAE embeddings:
+Each musical phrase is a
+sequence of one-hot vectors with 16 quantized steps per
+measure and the vocabulary contains 90 possible tokens (1
+note on + 1 note off + 88 pitches). We then parameter-
+ize each 2-bar phrase using the pre-trained 2-bar melody
+MusicVAE [13] and generate a sequence of continuous
+latent embeddings z1, ..., zk to parameterize an entire se-
+quence. The MusicVAE model employs bidirectional re-
+current neural networks as an encoder and autoregressive
+decoding as shown in Figure 4 in the supplement.
+As
+we use the pretrained model from the original work, full
+model details can be found in [13]. After encoding each
+2-measure phrase into a latent z embedding, we perform
+linear feature scaling such that the domain of each em-
+bedding is [−1, 1]. This ensures consistently scaled inputs
+starting from the isotropic Gaussian latent xN for the dif-
+fusion model.
+Transformer
+diffusion
+model:
+Our
+network
+ϵθ(xt, √¯α) : Rk×42 × R →Rk×42 is a transformer [18]
+where k = 32 is the length of each sequence of 42-
+dimensional preprocessed
+latent embeddings.
+The
+unperturbed data distribution used to train the diffusion
+model is x0 = [z1, ..., zk]. The network contains an initial
+fully-connected layer that projects the embeddings into
+a 128-dimensional space, followed by L = 6 encoder
+layers each with H
+=
+8 self-attention heads and a
+residual fully-connected layer.
+All self-attention and
+fully-connected layers use layer normalization [19]. The
+output of the encoder is fed to K = 2 noise-conditioned
+residual fully-connected layers which generate the reverse
+process output. Each fully-connected layer contains 2048
+neurons. We use a 128-dimensional sinusoidal positional
+encoding similar to [18] where j is the position index of a
+latent input embedding:
+ω =
+h
+63 j, ..., 10
+j
+i
+ej = [sin(ω), cos(ω)] (8)
+This positional encoding e1, e2, ..., ek is added to inputs
+xt before being fed through the transformer encoder layers
+allowing the model to capture the temporal context of the
+continuous inputs.
+Noise schedule and conditioning: As described in
+both the original diffusion model framework [2] and in [8],
+we use an additional sinusoidal encoding to condition the
+diffusion model on a continuous noise level during training
+and sampling. This noise encoding is identical to the posi-
+tional encoding described above but with the frequency of
+each sinusoid scaled by 5000 to account for the updated
+domain. We use feature-wise linear modulation [20] to
+generate γ (scale) and ξ (shift) parameters given a noise
+encoding and apply the transformation γφ+ξ to the output
+φ of each layer normalization block in each residual layer,
+allowing for effective conditioning of the diffusion model.
+Our model uses a linear noise schedule with N = 1000
+steps and β1 = 10−6 and βN = 0.01.
+3.2 Unconditional Generation
+In the unconditional generation task, the goal is to pro-
+duce samples that exhibit long-term structure. Because of
+our multi-stage approach, this works even in the scenario
+where the KL divergence between the marginal posterior
+qγ(z) and the Gaussian prior is quite large because the dif-
+fusion model accurately captures the structure of the la-
+tent space therefore improving the sample quality. Addi-
+tionally, we extend the underlying VAE to samples longer
+than what it was trained to model by using the diffusion
+model to predict sequences of latent embeddings and at-
+tempt to generate unconditional samples with coherent pat-
+terns across a large number of measures.
+3.3 Inﬁlling
+One of the beneﬁts of using a sampling process that iter-
+atively reﬁnes noise into data samples is that the trajec-
+tory of the reverse process can be steered and arbitrarily
+conditioned without the need for retraining the diffusion
+model. In creative domains, this post-hoc conditioning is
+especially useful for artists without the computational re-
+sources to modify or re-train deep models for new tasks.
+We demonstrate the power of diffusion modeling applied
+to music with conditional inﬁlling of latent embeddings us-
+ing an unconditionally trained diffusion model.
+The inﬁlling procedure extends the sampling procedure
+described in Algorithm 3 by incorporating information
+from a partially occluded sample s. At each step of sam-
+pling, we diffuse the ﬁxed regions of s with the forward
+process q(st|s) = N(st; √¯αts, (1 −¯αt)I) and use a mask
+m to add the diffused ﬁxed regions to the updated sample
+xt−1. The ﬁnal output x0 will be a version of s with the
+occluded regions inpainted by the reverse process.
+We refer readers to Algorithm 1 for the modiﬁed sam-
+pling procedure that allows for post-hoc conditional inﬁll-
+ing.
+Algorithm 1 Inﬁlling
+Input: mask m, sample s, N steps, β1, ..., βN
+xN ∼N(0, I)
+for t = N, ..., 1 do
+ϵ1, ϵ2 ∼N(0, I) if t > 1, else ϵ1 = ϵ2 = 0
+y = √¯αts + √1 −¯αtϵ1 if t > 1, else s
+xt−1 =
+√αt
+
+xt −
+1−αt
+√1−¯αt ϵθ(xt, √¯αt)
+
++ σtϵ2
+xt−1 = xt−1 ⊙(1 −m) + y ⊙m
+end for
+return x0
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+
+4. METHODS
+4.1 Data
+We use the Lakh MIDI Dataset (LMD) [21] for all experi-
+ments. The dataset contains over 170,000 MIDI ﬁles with
+99% of those ﬁles used for training and the remaining used
+for validation. We extracted 988,893 64-bar monophonic
+sequences for training and 11,295 for validation from the
+provided MIDI ﬁles. Each sequence was encoded into 32
+continuous latent embeddings using MusicVAE. We set the
+softmax temperature for MusicVAE to 0.001 for decoding
+generated embeddings in all experiments. A diagram of
+the MusicVAE architecture used is shown in the supple-
+mentary material.
+4.2 Autoregressive Baseline
+We compare our model to an autoregressive transformer
+with a mixture density output layer [22] and train on the
+same dataset as the diffusion model.
+To ensure a fair
+comparison, we use the same architecture as our diffusion
+model with L = 6, H = 8, and K = 2 with 2048 neu-
+rons for each fully-connected layer. The mixture density
+layer outputs a mixture of 100 Gaussians to ensure sufﬁ-
+cient mode coverage. In total, our baseline model has 38M
+trainable parameters. While the model is the same as the
+diffusion model (25.58M trainable parameters) up until the
+output layer, the autoregressive model has more parameters
+due to the much larger output layer. We refer to this model
+as TransformerMDN.
+4.3 Training
+All models were trained using Adam [23] with default pa-
+rameters. We trained our diffusion model for 500K steps
+on a single NVIDIA Tesla V100 GPU for 6.5 hours using
+a learning rate of 10−3 annealed with a decay rate of 0.98
+every 4000 steps and batch size 64. Unlike the diffusion
+model, which is non-autoregressive, we train Transformer-
+MDN with teacher forcing. We use a batch size of 128,
+learning rate 3×10−4, and train for 250K steps on a single
+NVIDIA Tesla V100 GPU for 6.5 hours.
+We used the open-source implementation of MusicVAE
+written in TensorFlow [24] and the publicly available 2-bar
+melody checkpoints trained on LMD. We trained our dif-
+fusion and baseline models 2 with JAX [25] and Flax [26].
+4.4 Framewise Self-similarity Metric
+To evaluate the statistical similarity between our model’s
+qualitative output and the original training sequences, we
+present a metric that captures local self-similarity patterns
+across generated melodic sequences. Inspired by the sta-
+tistical similarity evaluation described in [27], we evaluate
+our models with a modiﬁed framewise Overlapping Area
+(OA) metric.
+We use a sliding 4-measure window with 2-measure
+hop size to capture local pitch and duration statistics across
+2 Our implementation is available at https://github.com/
+magenta/symbolic-music-diffusion
+the piece. Within each 4-measure frame, we compute the
+mean and variance of both pitch, which captures melodic
+similarity, and duration, which captures rhythmic similar-
+ity. These statistics specify a Gaussian PDF for pitch and
+duration for each frame (pP (k), pD(k)). We compute the
+Overlapping Area (OA) [27] of adjacent frames (k, k + 1)
+where each frame’s statistics are modeled as N(µ1, σ2
+1)
+and N(µ2, σ2
+2), respectively:
+OA(k, k + 1) = 1 −erf
+c −µ1
+√
+
++ erf
+c −µ2
+√
+
+(9)
+for both pitch (OAP ) and duration (OAD), where erf is
+the Gauss error function and c is the point of intersection
+between Gaussian PDFs with µ1 < µ2. For a set of MIDI
+samples, we infer the Consistency and Variance from the
+mean (µOA) and variance (σ2
+OA) respectively of OA ag-
+gregated over all adjacent frames. We then use these ag-
+gregate values to compute the normalized relative similar-
+ity of pitch and duration consistency and variance to the
+training set (GT):
+Consistency = max(0, 1 −|µOA −µGT |
+µGT
+)
+V ariance = max(0, 1 −|σ2
+OA −σ2
+GT |
+σ2
+GT
+)
+We clip Consistency and Variance such that samples with
+µOA or σ2
+OA with greater than 100% percent error from the
+ground truth are considered to have zero relative similarity.
+4.5 Latent Space Evaluation
+We evaluate the similarity of latent embeddings generated
+by each of our models using the Fréchet distance (FD) [28]
+and Maximum Mean Discrepancy (MMD) [29] with a
+polynomial kernel, which are popular evaluation metrics in
+the generative modeling literature. These metrics measure
+the distance between the models’ continuous output distri-
+butions and the original data distribution in latent space.
+It is important to note that this metric does not measure
+long-term temporal consistency or quality of produced se-
+quences and only measures the quality of the intermediate
+continuous representation before the ﬁnal sequence is gen-
+erated using the MusicVAE decoder.
+5. RESULTS
+5.1 Unconditional Generation
+To evaluate unconditional sample quality, we compare
+batches of 1000 samples (32 latents each) generated by
+our proposed diffusion model with random draws from the
+training and test sets. We compare against a set of baseline
+generators including TransformerMDN, the independent
+N(0, I) MusicVAE prior, and spherical interpolation [30]
+between two MusicVAE embeddings at the start and end
+of an example from the test set.
+As seen in Table 1, the diffusion model quantitatively
+produces samples most similar to the training data accord-
+ing to the relative framewise overlapping area metrics for
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+
+Example A
+Example B
+Original
+DDPM
+Interpolation
+Prior
+Figure 2. Example piano rolls of inﬁlling experiments. For each example (A, B) the ﬁrst and last 256 melody tokens are
+held constant, and the interior 512 tokens are ﬁlled in by the model (dashed red box). Even qualitatively, it is visually
+apparent that the diffusion model (second row) produces notes with a consistency and variance similar to the original data
+(ﬁrst row), while the latent interpolation (third row) is too repetitive, and sampling independently from the prior (last row)
+produces outputs with too much variety and lack of local coherence.
+Setting
+Unconditional
+Inﬁlling
+Quantity
+Pitch
+Duration
+Pitch
+Duration
+Metric
+C
+Var
+C
+Var
+C
+Var
+C
+Var
+Train Data
+Test Data
+Diffusion
+Autoregression
+-
+-
+-
+-
+Interpolation
+N(0, I) Prior
+Table 1. Framewise self-similarity of consistency (C) and
+variance (Var), as deﬁned in Equation 10, for note pitch
+and duration. For both unconditional sampling and inﬁll-
+ing tasks, the diffusion model produces samples most sim-
+ilar to the real data. For diffusion samples, we use N =
+1000 sampling steps with β1 = 10−6 and βN = 0.01. For
+the TransformerMDN baseline we sample with a tempera-
+ture of 1.0, meaning we sampled directly from the logits of
+mixture density layer. Absolute values of overlap area can
+be found in Table 2 in our supplementary material.
+note pitch and duration. The diffusion model outperforms
+TransformerMDN, which is challenged by modelling the
+relatively high-dimensional continuous latents autoregres-
+sively, even with a mixture of Gaussians output. The au-
+toregressive models are also trained with teacher forcing
+that results in exposure bias, leading to divergence from the
+data distribution during sampling. This is reﬂected in the
+lower pitch and duration consistency and higher variance
+in the absolute overlapping area numbers seen in Supple-
+mental Table 2. Additionally, the diffusion model is able
+to capture the joint dependencies of the sequences better
+because it learns to model all latents simultaneously as op-
+posed to autoregressively. Note that the Gaussian prior also
+suffers from low consistency and high variance, due to lack
+of temporal dependencies, while the interpolated samples
+conversely suffer from low variance and too much consis-
+tency due to high repetition.
+Table 3 in our supplement presents latent space evalu-
+ations of our generated samples. The TransformerMDN
+outperformed all other models, likely due to the Gaus-
+sian mixture prior on its output layer whereas the diffusion
+model must learn the output distribution from scratch. Fur-
+thermore, the latent space metrics are limited by assump-
+tions about the latent manifold distribution and are unable
+to fully capture the detail of the entire space, further high-
+lighting the necessity of our quantitative framewise self-
+similarity metrics and qualitative evaluations.
+Figure 3 helps us to further understand the iterative re-
+ﬁnement process by showing the improvement in sample
+quality as a function of iterative reﬁnement time for both
+latent space and framewise self-similarity metrics. Inter-
+estingly, latent metrics improve steadily, while consistency
+similarity starts fairly high, and variance similarity only
+emerges at the end of reﬁnement. We refer the reader to
+the supplementary material for extended visual and audio
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+
+FD
+MMD
+Pitch
+ Consistency
+Pitch
+ Variance
+Duration
+ Consistency
+Timestep
+Duration
+ Variance
+Figure 3. Sample quality improvement during iterative re-
+ﬁnement. Latent space and framewise metrics evaluated
+at different stages of unconditional sampling. The metrics
+improve as the iterative reﬁnement process progresses. We
+plot the means and standard deviations for 1000 samples.
+samples of the generated sequences from each model 3 .
+5.2 Inﬁlling
+To probe the diffusion model’s ability to perform post-hoc
+conditional generation, we remove the middle 32 measures
+(16 embeddings) and generate new embeddings following
+Algorithm 1 by conditioning on the ﬁrst and last 8 em-
+beddings. As in the unconditional setting, we compare to
+interpolation and independent samples from the prior.
+Figure 2 visualizes the task by plotting the resulting
+note sequences for two different examples.
+Even qual-
+itatively, it is visually apparent that the diffusion model
+produces notes with a consistency and variance similar to
+the original data. Latent interpolation is very consistent
+but unrealistically repetitive, and sampling independently
+from the prior produces a sequence with extremely large
+variance that is inconsistent in both pitch and duration.
+The quantitative evaluations in Table 1 back up these
+observations. Similar to the unconditional generation task,
+the diffusion model outperforms the baselines in both con-
+sistency and variance similarity. We do not include the au-
+3 https://goo.gl/magenta/symbolic-music-
+diffusion-examples
+toregressive baseline because it is unable to condition on
+the ﬁnal 8 embeddings.
+6. RELATED WORK
+Multi-stage learning: Several models have achieved long-
+term structure by ﬁrst modeling some intermediate repre-
+sentation and then using that to guide the ﬁnal generative
+process. Wave2Midi2Wave [31] uses a transformer to gen-
+erate MIDI-like symbolic data and then a WaveNet [32] to
+synthesize that symbolic data into audio. Jukebox [11] and
+DALL-E [12] use similar approaches for text-conditioned
+generative music audio and image models.
+There has
+also been work investigating the extension of a single-
+measure VAE to multiple measures by using an autore-
+gressive LSTM with a mixture density output layer [33],
+similar to TransformerMDN.
+Iterative reﬁnement: [34] use an orderless NADE with
+blocked Gibbs sampling to iteratively rewrite musical har-
+monies based on surrounding context. [35] use a gradient-
+based sampler combined with a restricted Boltzmann ma-
+chine to generate polyphonic piano music. Similarly, [36]
+investigated the use of a score-based generative model [5]
+to generate Bach chorales with annealed Langevin dynam-
+ics. A key distinction between our method and prior work
+is the use of a VAE to parameterize the discrete space of
+musical notes for improved generation with a DDPM while
+previous methods have performed iterative reﬁnement in
+the discrete space directly.
+Conditional sampling from unconditional models:
+We build on top of the breadth of material that investigate
+steering generation in the latent space of an uncondition-
+ally trained generative model [37–40]. Most similar to our
+work is [4,37,41] which train an additional model on top of
+a pre-trained variational autoencoder to steer generation in
+the latent space of that autoencoder. Our approach builds
+on top of this by not only improving sampling and gen-
+eration of the underlying autoencoder but also extending
+generation to sequences much longer than those used to
+train the VAE. We also use a diffusion model to reﬁne gen-
+eration and provide conditional inﬁlling while the works
+mentioned primarily used conditional GANs and VAEs to
+extend the underlying autoencoder for a single latent em-
+bedding as opposed to a sequence of latent embeddings.
+7. CONCLUSION
+We have proposed and demonstrated a multi-stage gener-
+ative model comprised of a low-level variational autoen-
+coder with continuous latents modeled by a higher-level
+diffusion model. This approach enables using diffusion
+models on discrete data, and as priors for modeling long-
+term structure in multi-stage systems. We demonstrate that
+this model is useful for symbolic music generation, both
+in unconditional generation and conditional inﬁlling. Fu-
+ture work will include extending this approach to other dis-
+crete data such as text, and exploring a greater array of
+approaches for post-hoc conditioning in creative applica-
+tions.
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+
+8. ACKNOWLEDGEMENTS
+We thank Anna Huang, Carrie Cai, Sander Dieleman,
+Doug Eck and the rest of the Magenta team for helpful
+discussions, feedback, and encouragement.
+9.

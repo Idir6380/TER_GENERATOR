@@ -122,9 +122,19 @@ def read_pdf_from_url(url):
     return text
 
 
+def lire_et_nettoyage_file_():
+    for i in range(113):
+        file_name= f"/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/texts/article_{i+1}.txt"
+        with open(file_name,"r",encoding="utf-8")as f:
+            contenu = f.read()
+        f.close()
+        text= remove_references(contenu)
+        with open( f"/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/text_nettoyer/article{i+1}.txt", 'w', encoding='utf-8') as f:
+            f.write(text)
+        f.close()
+
+
 def remove_references(text):
-    # sourcery skip: inline-immediately-returned-variable
-    # Cherche le début après 'Abstract'
     abstract_keywords = ["Abstract", "ABSTRACT"]
     start_idx = 0
     for kw in abstract_keywords:
@@ -132,7 +142,7 @@ def remove_references(text):
         if idx != -1:
             start_idx = idx + len(kw)
             break 
-    # Cherche la fin avant 'References' ou 'Bibliography'
+
     reference_keywords = ["References", "REFERENCES", "Bibliography", "BIBLIOGRAPHY"]
     end_idx = len(text)
     for kw in reference_keywords:
@@ -140,8 +150,17 @@ def remove_references(text):
         if idx != -1:
             end_idx = idx
             break
-    main_text = text[start_idx:end_idx].strip()
-    return main_text
+    main_text = text[start_idx:end_idx]
+    # main_text = re.sub(r'(Figure|Fig\.?|TABLE|Table)\s*\d+.*?(\n\n|\Z)', 
+    #                 '', main_text, flags=re.IGNORECASE | re.DOTALL)
+    lines = main_text.split("\n")
+    cleaned_lines = []
+    for line in lines:
+        digit_ratio = sum(c.isdigit() for c in line) / (len(line) + 1)
+        if digit_ratio < 0.4:
+            cleaned_lines.append(line)
+    main_text = "\n".join(cleaned_lines)
+    return main_text.strip()
 
 def create_feature_test(text):
     text = remove_references(text)

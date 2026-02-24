@@ -1,0 +1,1064 @@
+We present a novel task of ªplaying level conversionº:
+generating a music arrangement in a target difficulty level,
+given another arrangement of the same musical piece in a
+different level. For this task, we create a parallel dataset
+of piano arrangements in two strictly well-defined play-
+ing levels, annotated at individual phrase resolution, taken
+from the song catalog of a piano learning app. In a series
+of experiments, we train models that successfully modify
+the playing level while preserving the musical ‘essence’.
+We further show, via an ablation study, the contributions of
+specific data representation and augmentation techniques
+to the model’s performance.
+In order to evaluate the performance of our models, we
+conduct a human evaluation study with expert musicians.
+The evaluation shows that our best model creates arrange-
+ments that are almost as good as ground truth examples.
+Additionally, we propose MuTE, an automated evaluation
+metric for music translation tasks, and show that it corre-
+lates with human ratings. Demos are available online. 1
+1. INTRODUCTION
+In this paper we tackle the task of generating piano ar-
+rangements for specific playing difficulty levels, condi-
+tioned on piano arrangements of the same music in a dif-
+ferent playing level. The purpose driving this work is to
+significantly accelerate our rate of content creation for our
+piano learning app, Simply Piano. 2 In Simply Piano, we
+have a library of songs for beginner piano learners to prac-
+tice. Our library contains arrangements in various playing
+levels, to match the skills acquired by our learners over
+their piano journey. Arrangements are prepared by expert
+musicians based on a pre-defined set of piano pedagogy
+guidelines. These guidelines are strict and are designed to
+maintain a uniform playing method and skill level in or-
+der to help learners familiarize themselves with the piano
+in a systematic way. Our aim is to be able to automati-
+cally generate multiple arrangements, spanning our range
+1 https://www.matangover.com/music-translation/
+2 https://www.hellosimply.com/simply-piano
+© M. Gover and O. Zewi. Licensed under a Creative Com-
+mons Attribution 4.0 International License (CC BY 4.0). Attribution:
+M. Gover and O. Zewi, ªMusic Translation: Generating Piano Arrange-
+ments in Different Playing Levelsº, in Proc. of the 23rd Int. Society for
+Music Information Retrieval Conf., Bengaluru, India, 2022.
+of playing levels, from a single human-generated arrange-
+ment at a given level.
+Our contributions are two-fold. First, we introduce the
+task of playing level conversion.
+We share our dataset
+preparation method and discuss various experiments re-
+garding choice of music representation and data augmenta-
+tion methods. Second, we develop and share an automated
+evaluation metric that can be used for music translation or
+generation tasks where a reference is available. This auto-
+mated evaluation metric provides a fast, low-effort estima-
+tion of human ratings.
+2. RELATED WORK
+The symbolic music generation field has advanced consid-
+erably in recent years. Specifically, the community has
+been fast in adopting and adapting capable sequence-to-
+sequence models, such as Transformer [1], which were
+originally developed for natural language processing tasks
+such as machine translation.
+Some works focus on unconditional music generation,
+that is, generating music from scratch [2±4]. Many recent
+ones are based on Transformer and its variants [2, 4±10].
+Other works tackle music generation conditioned on spe-
+cific inputs: emotions [11], structure [12], theme [13], or
+musical attributes such as note density [14]. In [2, 15], an
+accompaniment is generated conditioned on a melody or
+chord progression.
+While most papers work in the performance domain
+(training on MIDI performances), some work in the score
+domain as we do. Some use custom tokenized score repre-
+sentations [16,17] while others operate on text-based nota-
+tion formats like ABC [18,19].
+Works that are most closely related to this paper are
+those concerning symbolic music style transfer: generat-
+ing a musical piece in a target style given the same piece in
+another style. Musical ‘style’ can refer to various attributes
+[20]: symbolic abstractions (score), expressive timing and
+dynamics (performance), and acoustic details (sound). Of
+relevance to us is only the first of the three.
+Due to the lack of datasets with parallel examples in
+different domains, most works use unsupervised methods
+for learning style features. In [9], a Transformer with an
+encoder bottleneck is used to learn a global style repre-
+sentation. This style representation is then combined with
+melody representations and fed into a decoder to generate
+the same melody in a different style. [21] also learns a style
+
+representation in an unsupervised manner using an autoen-
+coder bottleneck together with a style classifier. [22] uses
+inductive biases in the encoder to disentangle chord and
+texture factors. In [23, 24], CycleGAN is used to transfer
+music between genres. Difficulty level classifiers such as
+[25±27] could also be used for generating weakly-labeled
+non-parallel training data for level translation.
+In [28], style translation is performed with supervised
+learning using synthetic parallel data. To our knowledge,
+our work is the first to perform supervised domain transfer
+for symbolic music with real-world parallel data.
+3. DATA PREPARATION AND REPRESENTATION
+Our proprietary dataset of piano arrangements is taken
+from the song library of Simply Piano. For each song in
+the library, expert musicians have created arrangements in
+up to three levels: Essentials (easy), Intermediate, and Pre-
+Advanced (more difficult but still aimed at learners). Strict
+arrangement guidelines have been developed by our musi-
+cians to create an approachable and engaging learning path
+for users. We use a pedagogy system based on hand posi-
+tions, where the aim is to initially minimize the player’s
+need to shift their hands, and then gradually introduce new
+hand positions and musical concepts as users progress.
+Figure 1 illustrates the different difficulty levels. In this
+paper, we focus on two levels only: Essentials and Interme-
+diate. Specifically, we tackle the task of translating from
+Intermediate to Essentials. The main difference between
+the two levels are in hand positions, rhythmic complexity,
+and harmonic complexity (amount of simultaneous notes).
+In Essentials, we only allow a small number of positions
+and keep position shifts to a minimum. We keep the num-
+ber of chords small and emphasize the melody. We also
+limit the range of allowed pitches and rhythms: in Essen-
+tials we generally do not use tied notes or sixteenth notes.
+In both Essentials and Intermediate, we do not use tuplets
+and multiple indepdendent voices on the same staff.
+When approaching the task of song level translation,
+initial experiments showed that translating entire songs at
+once is a difficult task: models we trained did not learn a
+meaningful mapping between levels. The reason is prob-
+ably that song structure can vary greatly between levels in
+our dataset. That is, some levels of the same song omit
+certain phrases, while other levels include extra phrases, or
+change the phrase order. It seems that for full-song map-
+ping, a larger (or cleaner) dataset is needed.
+For this reason, we focus our work on translating indi-
+vidual musical phrases. Fortunately, we could make use
+of existing annotations for this purpose. Each of our ar-
+rangements is divided by musicians into phrases, based on
+the song structure. For example, a song could have the
+following phrases: Intro, Verse 1, Verse 2, Chorus, Verse
+1, Ending. Phrase names stay consistent between different
+levels of the same song, allowing for minor variations such
+as ‘Phrase 1’ ⇔‘Phrase 1a’.
+We use the phrase boundary annotations to derive a
+dataset of parallel phrases from our library of arrange-
+ments. This is illustrated in Figure 2. We start from two
+Essentials
+Intermediate
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Pre-Advanced
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Figure 1. Comparison of three difficulty levels. From bot-
+tom to top: Pre-Advanced is fully harmonized with rhyth-
+mic bass in the left hand and chords in the right hand. Inter-
+mediate is transposed to the easier key of C major and con-
+tains a simplified accompaniment. The right hand chords
+are omitted, and the melody is split differently between the
+hands to accomodate for less hand shifts. In Essentials, the
+accompaniment is reduced to a minimum, and a tied note
+in the melody is removed to simplify the rhythm.
+parallel arrangements of the same song in the source and
+target levels. We discard arrangements where the target
+and source have different time signatures. We then trans-
+pose the source arrangement to the same key as the target
+arrangement (see details below).
+Following that, we match phrases from the source and
+target levels using heuristics that take into account phrase
+order, names, and durations. These heuristics were crucial
+for obtaining a dataset of sufficient size. To account for
+added or removed phrases, we compute a diff between the
+source and target phrase names. Phrases with exact name
+(and order) matches are then considered to be parallel if
+their duration difference is 2 measures or less. For phrases
+with no exact name matches, we diff the phrase durations
+instead, and consider phrases as parallel if their durations
+match and their names are sufficiently similar.
+In some songs, different levels were written in differ-
+ent keys (e.g., Essentials in C major and Intermediate in D
+major), to fit the arrangement to the desired playing level.
+For our task, it was important that source and target phrases
+maintain the same key, so that the model could learn a con-
+sistent mapping. Since we didn’t have key annotations for
+the dataset, we implemented a heuristic method for trans-
+position estimation.
+We initially tried existing methods for key estimation
+[29] for each of the phrases, however these weren’t accu-
+rate enough. Since we only need to estimate the transposi-
+tion (and not the actual key), we came up with a dedicated
+heuristic: convert each of the arrangements (source s and
+target t) into a ªpitch-class piano-rollº, a boolean matrix
+(Ps and Pt) with time and pitch-class dimensions, in which
+1 signifies the given pitch-class is active at the given time.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+Phrase 3
+Essentials
+Intermediate
+a) Matched pair of 
+arrangements
+b) Transpose to      
+    same key
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Phrase 2
+Phrase 1
+
+
+
+
+c) Match phrases using  
+    names and durations
+Phrase 1a: 4 measures 
+Phrase 2a: 4 measures 
+Phrase 1b: 4 measures 
+Phrase 2b: 4 measures
+Phrase 1: 4 measures 
+Phrase 2: 4 measures 
+Phrase 3: 6 measures 
+Phrase 1: 4 measures 
+Phrase 2 + Ending: 4 measures
+Extract matching phrase pairs
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Phrase 2a
+Phrase 1a
+Phrase 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Phrase 2
+Phrase 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Phrase 1
+…
+Source
+Target
+Figure 2. Data preparation: we start with two arrange-
+ments of the same song in different levels, transpose them
+to the same key, and extract matching phrase pairs.
+We then compute the pitch-class overlap ( P Ps ∩Pt ) be-
+tween the piano-rolls for each possible transposition (out
+of 12 possibilities) and take the one that gives the maxi-
+mum overlap. We use this value to transpose the source
+level’s phrases to match the target level’s key.
+While the transposition might slightly affect the source
+phrases’ difficulty, the target’s difficulty is kept intact. We
+found that including these examples improves the gener-
+ated results, since it allows us to increase the dataset size
+considerably.
+3.1 Music Representations
+Sequence-to-sequence models such as Transformer oper-
+ate on a stream of tokens. In order to use these models we
+must represent music as a sequence, even if it is polyphonic
+or consists of multiple tracks. Since symbolic music is
+multi-dimensional in nature, various ways to turn music
+into a token sequence have been proposed. MidiTok [30]
+gives a good summary of various representations.
+It is crucial to choose a representation that fits the given
+task. We experimented with three representations for piano
+music: MIDI-like, Notes, and Notes+Hands. The MIDI-
+like representation uses note on and note off tokens, along
+with time shift tokens to signify the passing of time [2,31].
+MIDI-like representations are commonly used, perhaps be-
+cause it is easy to derive them directly from MIDI files. For
+our use case, the MIDI-like representation has two limita-
+tions: it forces the model to meticulously track active notes
+in order to later output corresponding note off tokens (po-
+tentially leading to syntax errors), and it does not encode
+the metrical structure of music, potentially leading to com-
+pound alignment errors if a single time-shift is wrong.
+To counter these problems we employ the Notes repre-
+sentation, which uses three tokens for each note: offset,
+pitch, and duration. The offset token signifies the note’s
+time offset from the beginning of the measure. A ‘bar’ to-
+ken is output at the beginning of each measure. This is
+similar to REMI [6] (but without velocity tokens), in that
+it (partially) encodes the metrical structure of music.
+Since our output is sheet music, we must output two
+separate staves for the right and left hands.
+Since the
+MIDI-like and Notes representations do not encode track
+information, we use a heuristic by which all notes on or
+above middle C are assigned to the right hand, and any note
+lower than middle C is given to the left hand. Chords (notes
+with identical onset and offset times) are always grouped
+to one hand. This heuristic generally matches our dataset’s
+specific characteristics, but is quite coarse and leads to
+hand assignment errors.
+To solve this, we test an additional representation,
+Notes+Hands, which is identical to the Notes representa-
+tion but adds a ‘hand’ token to each note. As stated in [15],
+such a representation emphasizes the harmonic (‘vertical’)
+aspect of music. In the case of piano music, sorting notes
+by time (and only then by track) emphasizes the overall co-
+herence of the two piano hands over the melodic coherence
+of each hand separately.
+3.2 Data Augmentation
+Since our dataset is small, even small models quickly over-
+fit it, limiting our ability to scale model size, consequently
+limiting the amount of information the model can learn.
+Previous work has shown that data augmentation can turn
+an overfitting problem into an underfitting problem, allow-
+ing us to iteratively increase model size [32]. We followed
+this protocol by gradually adding data augmentation meth-
+ods and increasing model size to improve the final results.
+To match our translation task, we needed augmentations
+that meaningfully alter both source and target phrases,
+without corrupting the relationship between them. We im-
+plemented the following augmentation methods: adding
+empty measures at random locations; randomly cutting the
+beginning or end of phrases; removing some measures ran-
+domly; and rhythm augmentation (doubling the duration of
+each note) in some measures.
+We purposefully do not include transposition in the list
+of augmentations, even though it is commonly used in
+other works. As described above, the arrangement style
+in our dataset is not transposition-invariant: many features
+depend on absolute pitch such as hand positions, fingering,
+key signatures, range limits and hand allocation.
+We release our data augmentation code, 3 built on top of
+the muspy library [33]. We believe that these augmentation
+methods could be useful for other symbolic music genera-
+tion tasks, especially when working with small datasets.
+4. MODEL
+We use a classic Transformer model [1], specifically the
+BART [34] encoder-decoder implementation from the hug-
+3 https://github.com/matangover/muspy-augment
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+gingface transformers library [35]. The specifics of
+this implementation (compared to classic Transformer) are
+that it uses learned position embeddings (we saw slightly
+better results with these compared to sinusoidal embed-
+dings) and GeLU rather than ReLU as the activation func-
+tion (this did not seem to make a difference in our exper-
+iments). As in the original Transformer, we use a shared
+weight matrix for the encoder, decoder, and output embed-
+ding layers.
+We experimented with various model configurations:
+model dimension, number of layers, number of attention
+heads. We found that larger models (dmodel > 64) quickly
+overfit our training dataset and do not achieve good per-
+formance on the validation dataset. The optimal model
+dimension was found to be 32±64 (with the feed-forward
+layer dimension always set to 4 · dmodel as in the original
+Transformer). The optimal number of layers was 3 to 5, de-
+pending on the amount of data augmentation. As discussed
+in Section 3.2, use of more data augmentation enables us
+to increase model size without overfitting the data.
+We trained using the Adam optimizer [36] with β1 =
+0.9, β2 = 0.999, ϵ = 10−8, a learning rate of 0.003 and
+1,000 warmup steps.
+Our dataset contains a total of 5,543 phrase pairs taken
+from 1,191 songs.
+We split the data into train (5,241
+phrases), validation (244 phrases), and test (58 phrases)
+splits. We split phrases by song (never including phrases
+from the same song in different splits) to avoid data leakage
+between splits. The validation set was used to stop model
+training after validation loss stopped decreasing. The test
+set was used for final evaluation (see Section 7).
+During prediction, the model outputs a probability dis-
+tribution for the next output token given all the input tokens
+and the previous output tokens. However, if at each de-
+coding step we simply pick the most likely output (greedy
+decoding), we might end up with a non-optimal sequence
+[37]. We experimented with two decoding methods: beam
+search and sampling. We found that sampling produces
+more diverse results (due to its random nature) but beam
+search produces overall superior results for our task.
+5. INTERFACE FOR INTERACTIVE USE
+While our model can be used unattended to create arrange-
+ments in the target level, in practice we found that it is ben-
+eficial to keep musicians ªin the loopº by allowing them to
+use the model interactively rather than in a ‘fire and forget’
+fashion. We created an interface in which a musician can
+load a source arrangement, translate it phrase-by-phrase to
+the target level, and review the results side by side.
+Furthermore, the auto-regressive nature of the model
+enables interesting use cases: a musician could manually
+modify some notes and ask the model to re-generate the
+subsequent music accordingly. Additionally, if we use ran-
+dom sampling decoding (see Section 4) we could gener-
+ate multiple alternatives for each measure using different
+random seeds and offer the musician a choice. We could
+also offer knobs that control sampling parameters such as
+temperature (for controlling the output diversity vs. qual-
+ity trade-off) or top-k/top-p thresholds (ways of eliminat-
+ing unlikely outputs to increase the probability of choosing
+more likely predictions).
+In this way, our model becomes part of the creative pro-
+cess, rather than replacing it. It becomes a tool that assists
+musicians in their job.
+6. EVALUATION METRIC
+Evaluation is often difficult for music generation due to the
+absence of pre-defined criteria and because output quality
+is subjective [38]. Standard practices are reporting per-
+plexity (the likelihood of the ground truth test data given
+the trained model) and conducting human evaluation stud-
+ies [2,4,9,15,31]. Some works also calculate scores based
+on distributions of certain musical features, either compar-
+ing generated data to ground truth distributions [9, 15, 39]
+or using self-similarity in the generated data itself [3].
+In machine translation (of text), evaluation metrics such
+as the popular BLEU metric [40] have been developed
+to measure the correspondence between generated transla-
+tions and ground truth references. BLEU has been shown
+to correlate with human ratings. We are not aware of a
+similar metric for music generation tasks. To this end, we
+propose MuTE (Music Translation Evaluation), an auto-
+mated evaluation metric for symbolic music translation or
+generation tasks where a reference is available.
+MuTE is a score between 0 and 1.
+Like BLEU
+and similar metrics, it is designed to reflect the corre-
+spondence between a machine-generated example and a
+human-generated reference. BLEU measures word n-gram
+precision (the portion of correct predictions out of all pre-
+dictions) and deliberately omits recall because of the de-
+sire to allow for multiple reference translations of the same
+phrase. In our case, we only have a single reference for
+each phrase, hence we can easily use both precision and
+recall, and combine them using the harmonic mean to give
+the commonly used F1 score [41].
+MuTE works by treating the model as a multi-label clas-
+sifier that predicts at every time step what pitches are ac-
+tive. To compute the MuTE score, we convert the reference
+and target music to piano-rolls (where the time unit is set to
+a certain small metrical unit ± in our case, a sixteenth note),
+and calculate the F1 score over pitches. We do not com-
+pute a global score for the entire piece, since that would
+mean disregarding note order and timing. Instead, we treat
+each time-slice of the piano-rolls as an individual sample,
+compute an F1 score for each time-slice, and average those
+scores. For time-slices where both the reference and target
+are silent (and hence precision and recall calculation would
+result in division by zero), we set the score to 1.
+We also need to account for cases in which the target
+differs from the reference in its duration ± if, for example,
+the model ‘skips’ some measures of the input. We design a
+procedure that is intended to match the way a human would
+judge such cases, by detecting skipped or added measures
+and adjusting the comparison accordingly.
+For this, we precede the scoring step with a measure-
+level alignment procedure. We perform the alignment us-
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+ing dynamic time warping [42]. The feature vectors for the
+alignment are each measure’s pitch-class piano-roll (see
+Section 3).
+We found that using pitch-class piano-rolls
+gives a more robust alignment compared to regular piano-
+rolls. The distance between each two feature vectors is
+computed using the Hamming distance (the proportion of
+elements that disagree between the two vectors). We use
+the computed alignment path to align the reference and tar-
+get’s (regular) piano-rolls. The aligned piano-rolls are used
+to compute the F1 score, while masking out the misaligned
+segments to assign them a score of 0, thus penalizing the
+model for any alignment errors.
+One additional element of MuTE that pertains to our use
+case is the desire to reflect the separation between the two
+hands: we would like to penalize wrong hand allocation
+of notes. For this reason, we use ‘track-specific’ MuTE:
+we calculate a separate MuTE score for each hand and av-
+erage them to get the final score. We found the mean-of-
+hands metric to correlate better with human ratings than the
+vanilla MuTE score calculated over both tracks combined.
+We note that the measure-based alignment method is
+specifically suitable for our use case because we use a
+measure-based representation for our models, and we no-
+ticed that models sometimes omit or repeat some measures.
+For other use cases, the alignment could be computed over
+individual time steps or beats, or skipped altogether.
+Figure 3 illustrates the calculation of the MuTE score.
+In Section 7 below, we show that the MuTE score cor-
+relates with human ratings. While simple and effective,
+the MuTE score has caveats. First, it does not differenti-
+ate between sustained and repeated notes. For example, a
+half note is considered identical to two consecutive quar-
+ter notes of the same pitch. Second, it does not allow for
+minor variations that might be acceptable to a human rater,
+such as octave changes and rhythmic variations. Third, the
+hand-specific version does not account for notes that are
+missing in one hand but present in the other hand. We plan
+to address these shortcomings in a future version.
+We release a Python library for computing the MuTE
+score 4 and we welcome researchers to adopt it or adapt it
+for their use cases as needed.
+7. RESULTS
+We report the results of our experiments on converting In-
+termediate level arrangements to Essentials, and compare
+our models’ outputs to matching reference arrangements
+created by expert musicians. For evaluation we conduct a
+human evaluation study, calculate MuTE scores (see Sec-
+tion 6) and report the correlation between human ratings
+and MuTE scores. Furthermore, we run several ablation
+studies to study the effect of our data augmentation tech-
+niques and the choice of music representation.
+7.1 Human Evaluation Study
+For this study we selected 11 songs from the test set (none
+of these songs’ phrases appeared at training). From each
+4 https://github.com/matangover/mute
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Reference
+Target
+MuTE Score Calculation
+Right hand
+Left hand
+Figure 3. Illustration of the MuTE score calculation. The
+target score has an added measure (marked in red) with
+regard to the reference. The misaligned region is masked
+(in white) on the piano-rolls. The per-hand sample-wise
+pitch F1 score is calculated from the aligned piano-rolls,
+and scores are averaged to get the final MuTE score.
+Human rating (total)
+Total Ratings
+level
+music
+hands
+syntax
+alignment
+Human rating
+Average Ratings by Criterion
+Model variant
+MIDI
+Notes
+Notes+Hands
+Augment
+Human
+Figure 4. Scores for each model version, as rated by hu-
+man experts. Our best model (Augment) achieves ratings
+almost as high as human generated examples (Human).
+song we extracted a single phrase and translated it from In-
+termediate level to Essentials, using 4 variants of the model
+that differ in representation and augmentation. We also ex-
+tracted the matching phrases from the ground truth Essen-
+tials arrangement for comparison.
+The first 3 model variants differ only in the music rep-
+resentation they use: MIDI-like, Notes, and Notes+Hands
+(see details in Section 3.1). The fourth model variant uses
+the Notes+Hands representation and adds data augmenta-
+tion (see Section 3.2) with randomly varying parameters to
+about half of the training examples.
+This resulted in 55 examples, which were then rated
+by 6 expert musicians who are familiar with the Essentials
+level guidelines. The examples were randomly ordered and
+all identifiers of model version and ground truth were re-
+moved. Musicians were told all 5 examples are different
+model versions and were not aware of the details of the ver-
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+a)
+MIDI =>
+Notes
+b)
+Notes =>
+Notes+Hands
+c)
+Notes+Hands =>
+Augment
+d)
+Augment =>
+Human
+Difference in average rating
+criterion
+Level
+Music
+Hands
+Syntax
+Figure 5. Difference in average rating, per criterion, be-
+tween model variants. a) Moving from MIDI to Notes im-
+proved across all criteria, mostly Level. b) Adding hand
+information improved hand assignment. c) Augmentation
+improved preserving musical content. d) No particular cri-
+terion stands out in the difference from our best model to
+the human-generated ground truth.
+MIDI
+Notes
+Notes+Hands
+Augment
+Model variant
+MuTE score
+Figure 6. Evaluation of our model variants on the test set
+using the MuTE score.
+sions or of the presence of human-generated ground truth.
+Ratings between 1±5 were collected in 5 criteria:
+1. Meeting Essentials level guidelines (Level)
+2. Preserving musical content (Music)
+3. Correctly assigning hands according to allowed
+hand positions (Hands)
+4. Avoiding syntactic style errors such as crossover
+voices (Syntax)
+5. Maintaining structure: avoiding missing or extra
+bars (Alignment)
+The maximum possible total score is 25. Figure 4 shows
+the distributions of scores for each model variant and for
+the ground truth. These results show that the changes be-
+tween model variants improved overall output quality. The
+best model (Augment) achieves ratings almost as high as
+the ground truth (Human).
+In Figure 5 we show the gains in each criterion from
+the changes in each model variant. Some differences are
+easily explainable, for example, adding hand information
+improved the correct assignment of hands. Interestingly,
+Human rating
+MuTE score
+Figure 7. A scatter-plot showing the relationship between
+human ratings and MuTE scores. The black line shows a
+linear regression model fit and the shaded area shows the
+95% confidence interval for the regression estimate.
+the difference between our best model to the ground truth
+cannot be attributed to any specific criterion. We left out
+the Alignment criterion from the figure, as ratings under 5
+were very rare. The few ratings below 5 were given almost
+only to the MIDI model variant, which is more prone to
+alignment errors due to the lack of bar tokens.
+7.2 Automated evaluation
+We calculate MuTE scores (see Section 6) for the entire
+test set (58 phrases from 12 songs). The results are shown
+in Figure 6, and confirm the human evaluation results. Ad-
+ditionally, for the 55 examples rated by human musicians,
+we compare the MuTE scores to the human ratings (the
+MuTE score of the ground truth compared to itself is al-
+ways 1). As shown in Figure 7, we find that MuTE scores
+are correlated with human ratings with a Pearson correla-
+tion coefficient of 0.56 (p = 4 · 10−29). While the correla-
+tion is not perfect, it shows that MuTE can be used as an es-
+timator for human ratings. Furthermore, MuTE correlates
+better with the total human rating than with any of the in-
+dividual criteria’s ratings: the correlation coefficients with
+the indvidiual criteria are 0.27 (Alignment), 0.37 (Hands),
+0.47 (Level), 0.37 (Music), and 0.29 (Syntax). The simi-
+larity of figures 6 and 4 further shows that MuTE scores
+can be used to rank models with similar results to human
+rankings, while being cheaper and faster to compute.
+8. CONCLUSION
+We presented the task of playing level conversion: con-
+verting piano arrangements from one difficulty level to an-
+other. We ran several experiments focused on simplifying
+arrangements to an easier level, and showed the impor-
+tance of data representation and augmentation. Our best
+model creates arrangements that achieve human ratings al-
+most as high as reference arrangements composed by ex-
+pert musicians. We designed the MuTE evaluation metric
+and showed that it correlates with human ratings. For the
+benefit of the community, we share our data augmentation
+and evaluation code.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+9. ACKNOWLEDGEMENTS
+Thanks to the musicians at Simply for creating the arrange-
+ments used to train our models, and for helping perform the
+evaluation. Thanks to Eran Aharonson for valuable discus-
+sions and feedback.
