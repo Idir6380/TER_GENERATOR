@@ -1,0 +1,742 @@
+This paper proposes a new music source separation (MSS)
+model based on an architecture with MLP-Mixer that lever-
+ages multilayer perceptrons (MLPs). Most of the recent
+MSS techniques are based on architectures with CNNs,
+RNNs, and attention-based transformers that take wave-
+forms or complex spectrograms or both as inputs.
+For
+the growth of the research ﬁeld, we believe it is impor-
+tant to study not only the current established methodolo-
+gies but also diverse perspectives.
+Therefore, since the
+MLP-Mixer-based architecture has been reported to per-
+form as well as or better than architectures with CNNs
+and transformers in the computer vision ﬁeld despite the
+MLP’s simple computation, we report a way to effec-
+tively apply such an architecture to MSS as a reusable in-
+sight. In this paper we propose a model called TFC-MLP,
+which is a variant of the MLP-Mixer architecture that pre-
+serves time-frequency positional relationships and mixes
+time, frequency, and channel dimensions separately, us-
+ing complex spectrograms as input. The TFC-MLP was
+evaluated with source-to-distortion ratio (SDR) using the
+MUSDB18-HQ dataset. Experimental results showed that
+the proposed model can achieve competitive SDRs when
+compared with state-of-the-art MSS models.
+1. INTRODUCTION
+Music source separation (MSS) is the task of obtaining
+individual source signals — such as vocals, drums, and
+bass — from real music acoustic signals. This is an es-
+sential technique for various applications, including music
+information retrieval and music listening interfaces, where
+the characteristics of individual sound sources are ana-
+lyzed and utilized. MSS has actually been used to add
+effects to individual source (instrument) sounds for mu-
+sic appreciation [1] and adjust their volume [1–4], to im-
+prove the cochlear implant user’s musical experience by
+adjusting the volume of preferred instruments [5], to syn-
+thesize singing voices [6], to acquire feature expressions of
+singing voices [7], to identify singers [8], to achieve audio-
+to-lyrics alignment [9,10], to create music mashups [11], to
+© T. Nakano and M. Goto. Licensed under a Creative Com-
+mons Attribution 4.0 International License (CC BY 4.0). Attribution:
+T. Nakano and M. Goto, “Music source separation with MLP mixing of
+time, frequency, and channel”, in Proc. of the 24th Int. Society for Music
+Information Retrieval Conf., Milan, Italy, 2023.
+separate sources for music education [12], and to estimate
+compatibility between vocals and accompaniment [13].
+Currently, the mainstream approaches for MSS use
+deep neural networks [14, 15], and their performance is
+improving year by year. For their performance compar-
+ison to measure the improvement, MUSDB18 [16] had
+been used as the common standard data set for the four
+target sound sources (Vocals, Drums, Bass, and Other).
+Then MUSDB18-HQ [17], an extended frequency band-
+width version of MUSDB18, was released and has been
+used for recent evaluations.
+As for the current state-of-the-art MSS models, the top-
+ranked models [18, 19] in the Music Demixing (MDX)
+Challenge 2021 [20] and the two models presented in
+two arXiv papers in 2022 [21, 22] have an average SDR
+(source-to-distortion ratio) over 7 dB for the four sources
+when using MUSDB18-HQ as training, validation, and test
+data. These models are explained in the next section.
+Such deep MSS models can be classiﬁed in terms of the
+type of input and output used for separation and the type
+of architecture. The input and output of the models are se-
+lected from waveforms, amplitude spectrograms, complex
+spectrograms, phase spectrograms, etc. The architecture
+of the models is mainly selected from ResNet, DenseNet,
+U-Net, and Transformer and is used with layers of Con-
+volutional Neural Networks (CNNs) or Recurrent Neural
+Networks (RNNs). Simpler architectures based on multi-
+layer perceptrons (MLPs), however, have not been used in
+state-of-the-art MSS models.
+Meanwhile, in the ﬁeld of computer vision, high-
+performance architectures based on MLPs have recently
+been proposed and reported to perform as well as or bet-
+ter than architectures using CNNs or transformers [23,24].
+In addition, those simpler MLP-centric architectures have
+also been applied in audio-related research, with cases of
+singing voice synthesis [25] and speech enhancement [26].
+However, such MLP-centric architectures have not been
+applied in the MSS domain, though fully connected layers
+and MLPs have been used for linear transformation such
+as embedding and expansion. Since we believe that new
+perspectives, in addition to the development of established
+methodologies, are important for the advancement of the
+research ﬁeld, this paper investigates how MLP-based ar-
+chitectures can be effectively leveraged for MSS.
+As such a modern MLP-centric high-performance ar-
+chitecture, Tolstikhin et al. proposed the MLP-Mixer [23]
+that applies MLPs to a Tp × Cp matrix to estimate the
+
+Table 1. SDRs in MUSDB18-HQ for the state-of-the-art models and our proposed TFC-MLP. The “Avg.” column means
+the average of the SDR results for the four sources. The “Per-source” column means that the per-source adjustment/tuning
+has been implemented. The “Extra” column indicates the number of songs added as extra training data, and † means that
+only mixed sounds were added. Models with “*” are evaluated in MUSDB18 [16], and SDRs for models with “**” are
+recalculated in MUSDB18-HQ using the pretrained model. A bold font indicates the maximum value at each source.
+Model
+Test SDR in dB
+Name
+Per-source
+Extra
+Avg.
+Vocals
+Drums
+Bass
+Other
+KUIELab-MDX-Net (w/o Demucs) [18]*
+✓
+TFC-MLP (ours)
+KUIELab-MDX-Net [18]**
+✓
+Hybrid Transformer Demucs [22]
+Hybrid Demucs [19]
+Band-Split RNN [21]
+✓
+TFC-MLP (ours)
+Hybrid Demucs [19]
+Hybrid Transformer Demucs [22]
+Hybrid Transformer Demucs [22]
+Band-Split RNN [21]
+✓
+Hybrid Transformer Demucs [22]
+✓
+Sparse HT Demucs [22]
+✓
+class of an image. The matrix is obtained by dividing the
+image into patches and embedding each patch into a Tp-
+dimensional vector, which is called a token, and the num-
+ber of tokens is the channel dimension Cp. Here, a token-
+mixing MLP, a full connection within an individual token,
+and a channel-mixing MLP, a full connection between to-
+kens (i.e., channel direction), are applied alternately. Given
+sufﬁcient training data, MLP-Mixer was shown to perform
+as well as or better than CNNs or transformers.
+By extending this MLP-Mixer, for the image recon-
+struction task, Mansour et al. proposed the Image-to-Image
+Mixer [24] that performs better when trained with fewer
+images than the original MLP-Mixer. The Image-to-Image
+Mixer transforms images as a 3D tensor (W × H × C)
+instead of the 2D matrix (Tp × Cp) and preserves the rel-
+ative positions of patches to induce a bias towards natu-
+ral images. In other words, the token-mixing MLP and
+the channel-mixing MLP are split into three processes
+of width-mixing MLP, height-mixing MLP and channel-
+mixing MLP. This also keeps the total number of trainable
+parameters low, since the size of each dimension of the 2D
+matrix (i.e., Tp and Cp) obtained by transformation from
+the 3D tensor is relatively large.
+In investigating such MLP-based architectures in the
+MSS domain, we decided to use a complex spectrogram,
+which is a reasonable representation for MSS, as the input.
+Since the size of its complex time-frequency representation
+is larger than the size of typical images in the computer
+vision domain, we apply the memory-efﬁcient Image-to-
+Image Mixer to MSS and report its experimental results.
+2. RELATED WORK
+As described in Section 1, the state-of-the-art models [18,
+19, 21, 22] in the MSS study show that the average SDR
+score for the four source separations exceeds 7 dB in the
+evaluation using MUSDB18-HQ. The SDRs for each of the
+four sources based on these models are shown in Table 1.
+KUIELab-MDX-Net was proposed by Kim et al. [18].
+It is an architecture that combines an extended version
+of TFC-TDF-U-Net [27], which separates in the time-
+frequency domain (i.e., complex spectrogram), and De-
+mucs [28], which separates in the time domain (i.e., wave-
+form).
+Each source signal i separated by those sub-
+networks is mixed using source-dependent weights wi.
+Speciﬁcally, wi was set to 0.5, 0.5, 0.7, and 0.9 for bass,
+drums, other, and vocals in MDX Challenge 2021 [20] 1 .
+In KUIELab-MDX-Net, to improve performance, a mech-
+anism called Mixer was used to remix the music acoustic
+signal with the separated signal by using the 1x1 convo-
+lution, and different FFT frame sizes were used for each
+sound source by applying a frequency cut-off trick [20].
+TFC-TDF-U-Net used in the KUIELab-MDX-Net is
+a variant of U-Net architecture that combines the time-
+frequency convolutions (TFC) block with the time-
+distributed fully-connected networks (TDF) block. Here,
+TFC is a dense block of 2D CNNs, and TDF is a block that
+extracts nonlocal features along the frequency axis, such as
+correlations between harmonics, by fully connecting the
+entire frequency range of a single frame of the spectro-
+gram. TDF was inspired by the Frequency Transformation
+Block (FTB) proposed by Yin et al. [29] and was intro-
+duced speciﬁcally to help separate singing voices [27]. As
+the other component of KUIELab-MDX-Net, Demucs [28]
+is a U-Net encoder/decoder structure with waveforms as
+input and BiLSTM applied to the innermost layer between
+the encoder and decoder to provide long-range context.
+Hybrid Demucs was proposed by Défossez et al. [19].
+It is a bi-U-Net encoder-decoder model that combines 1D
+convolution in the time domain and along the frequency
+1 https://github.com/kuielab/mdx-net/blob/
+Leaderboard_A/README_SUBMISSION.md
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+
+axis in the complex time-frequency domain. BiLSTM and
+local attention were used in the innermost layer, and resid-
+ual branches, group normalization [30] and GELU were
+introduced. In addition, better generalization and stability
+were achieved by penalizing the largest singular value in
+each layer [31], and overall performance was improved by
+bagging multiple models.
+Band-Split RNN was proposed by Luo et al. [21]. It is
+a state-of-the-art spectrogram-based model that uses com-
+plex spectrograms as input and output. By splitting the
+complex spectrogram input into subbands speciﬁcally de-
+signed for each sound source, the intrinsic properties and
+patterns of each source signal are utilized. For a 3D ten-
+sor representing the time dimension, frequency dimension,
+and subband dimension, similar to the Dual-path RNN
+[32], a sequence-level RNN is ﬁrst applied across the time
+dimension, then a band-level RNN is applied across the
+band dimension. In fact, for Vocals, results showed that the
+modiﬁed utterance-level SDR can be improved by more
+than 2 dB by setting the bandwidth appropriately. In ad-
+dition, semi-supervised ﬁne tuning was performed by us-
+ing pseudo-targets separated from the mixtures using a pre-
+training model in order to make effective use of songs with
+only mixtures (1750 songs). The Band-Split RNN cur-
+rently achieves a state-of-the-art SDR of 8.24 dB in the
+evaluation using only MUSDB18-HQ as training data.
+Hybrid Transformer Demucs was proposed by Rouard
+et al. [22].
+The innermost layer, called the bottleneck,
+of the Hybrid Demucs [19] is replaced by a cross-domain
+transformer encoder (i.e., time domain and time-frequency
+domain) that uses self-attention within each domain and
+cross-attention across domains.
+Compared to the Hy-
+brid Demucs, the performance is lower when trained with
+MUSDB18-HQ only, but the SDR was 0.46 dB better
+when 800 additional training songs were used. Sparse HT
+Demucs [22], which extended the receptive ﬁeld using a
+sparse attention kernel, achieved a state-of-the-art result of
+9.27 dB SDR by ﬁne-tuning for each source.
+As described above, the MLP-centric architecture has
+never been applied in state-of-the-art MSS models where
+the average SDR exceeds 7 dB on MUSDB18-HQ.
+3. TFC-MLP
+This paper proposes Time-Frequency-Channel-MLP (TFC-
+MLP), which is a model that leverages the Image-to-Image
+Mixer architecture [24] to separate music sources using a
+complex spectrogram as input. This is realized by replac-
+ing the height, width, and color (RGB) in the image with
+the time, frequency, and channel in the complex spectro-
+gram, respectively. In other words, TFC-MLP has a struc-
+ture that alternates mixing in the time, frequency, and chan-
+nel dimensions. In this way, we expect to be able to take
+into account the nonlocal structure. Especially with respect
+to the frequency dimension, we expect to extract nonlocal
+relationships along the frequency axis, such as harmonic
+structures, by connecting the entire frequency range of the
+spectrogram, as in the FTB [29] and the TDF [27].
+The process of the TFC-MLP model is shown in Fig-
+ure 1. The complex spectrogram XSTFT ∈CF0×T0×2 of
+a 2-channel (stereo) mixture signal is ﬁrst converted to a
+4-channel 3D tensor XCaC ∈RF0×T0×4 with the real and
+imaginary parts represented as channels, a.k.a. complex-
+as-channels (CaC) [27]. Here T0 is a ﬁxed length. Then, as
+with the MLP-Mixer and Image-to-Image Mixer as well as
+the Vision Transformer (ViT) [33], the patch embedding is
+ﬁrst performed using C linear weights of size PT ×PF ×4
+(Figure 2). This reduces the frequency dimension F0 to
+F0/PF and the time dimension T0 to T0/PT , which re-
+duces the matrix size and memory consumption in the fol-
+lowing frequency-mixing MLP and time-mixing MLP. To
+compensate for the information loss due to decreasing the
+resolution in the time-frequency plane and the loss of con-
+tinuity in the time-frequency direction, we increase the di-
+mension in the channel direction.
+The embedded tensor then passes through N MLP-
+Mixer layers.
+As shown in Figure 3, each MLP-Mixer
+layer mixes the tensor with the frequency dimension, then
+the time dimension, and ﬁnally the channel dimension.
+Such mixing is passed through an MLP consisting of a lin-
+ear layer, a GELU nonlinearity, and another linear layer,
+and output without changing the tensor size. The dimen-
+sion of the tensor at the input/output layer of the MLP is
+kept constant, and the dimension at the hidden layer is ad-
+justed by multiplying it by a factor f depending on the
+input dimension. Skip connections and channel layer nor-
+malization have also been added to help with the optimiza-
+tion. Here, following the implementation of the Image-to-
+Image Mixer [24], skip connections are placed before and
+after the two mixing steps of frequency and time (“Type
+A”). In addition to that, a version with skip connection and
+layer normalization added before time-mixing MLP was
+also implemented (“Type B”). After mixing the time, fre-
+quency, and channel dimensions, patch expansion is used
+to restore the number of time and frequency dimensions for
+inverse transformation into waveforms and also to match
+the channel dimension to the number of separated sources.
+4. EVALUATION
+The
+proposed
+TFC-MLP
+was
+evaluated
+using
+the
+MUSDB18-HQ dataset [17]. 86 songs were used as train-
+ing data, 14 songs as validation data, and 50 songs as test
+data. The music acoustic signals were stereo with a sam-
+pling frequency of 44.1 kHz, and four sound sources –
+“Vocals,” “Drums,” “Bass,” and “Other” – were used for
+separation. Separation performance was evaluated by cal-
+culating SDR using the museval Python package 2 . As in
+most previous studies ( [19, 21], etc.), the SDR of each
+source was calculated by taking the median values over all
+1-second segments of each song to obtain the SDR of the
+track and then taking the median of all tracks.
+4.1 Experimental setting
+The proposed model was optimized using Adam [34] for
+the L1 loss between its separated signals and the ground-
+2 https://github.com/sigsep/sigsep-mus-eval
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+
+4 ch
+Stereo signal
+CaC spectrogram
+TFC-MLP
+Separated source signals
+Drums
+Bass
+Other
+Vocals
+Patch
+embedding
+Patch
+expansion
+N x (Mixer layer)
+T  frames
+F
+bins
+Figure 1. Overview of the TFC-MLP model.
+T  frames
+T
+F
+C
+F
+bins
+4 ch
+4 ch
+C linear weights
+Patch embedding
+P
+PT
+F
+Input
+Output
+...
+Figure 2. Patch embedding. After dividing the CaC tensor
+of size F0 × T0 × 4 into patches of size PF × PT × 4, each
+patch was linearly transformed into 1 × 1 × C to obtain a
+3D tensor of size F0/PF × T0/PT × C (i.e., F × T × C).
+This can be implemented as a nonoverlapping CNN.
+truth source signals. The Adam parameters were set as
+no weight decay, learning rate 0.0003, β1 = 0.9, and
+β2 = 0.999. The waveform for calculating the CaC spec-
+trogram to be input to the model was normalized so that
+the mean amplitude of the music acoustic signal was 0 and
+the standard deviation was 1. The training was distributed
+across multiple GPUs, with a batch size of 4 on each GPU.
+In training, we used data augmentation techniques [19], in-
+cluding pitch shift and tempo stretch, randomly swapping
+channels, random sign ﬂip, random scaling of amplitude,
+and remixing of stems within one batch.
+4.2 Base hyperparameters
+Due to the many hyperparameters required for the building
+of the proposed TFC-MLP model, hyperparameters related
+to the short-time Fourier transform (STFT) were ﬁrst deter-
+mined through preliminary experiments. To obtain XCaC,
+the STFT frame size (i.e., FFT size) was chosen as 4096,
+which had the highest SDR when compared among 512,
+As Kim et al. [18] also stated,
+the performance tended to increase with larger FFT size.
+Therefore the frequency dimension F0 is 2048. Related to
+the FFT size, the STFT hop size was investigated among
+128, 256, 512, and 1024, and 1024 was selected. Also re-
+lated to the FFT size and STFT hop size, the number of
+time frames T0 in the complex spectrogram was selected
+The number of time frames T0 of 128 based on an FFT
+size of 4096 and an STFT hop size of 1024 is input to the
+model, thus the waveform size required for this is equal
+to Tw = 1024 × 128 −1 (about 3 seconds). Therefore,
+it is necessary to train the model while cutting out an ap-
+Mixer layer (Type B)
+Mixing MLPs
+Frequency-mixing MLP
+Time-mixing MLP
+Channel-mixing MLP
+Input dim.
+Hidden dim.
+Output dim.
+skip connections
+skip connections
+skip connections
+skip connections
+skip connections
+Layer
+norm
+Freq.
+mixing
+Time
+mixing
+Layer
+norm
+Channel
+mixing
+Layer
+norm
+Layer
+norm
+Layer
+norm
+Freq.
+mixing
+Time
+mixing
+Channel
+mixing
+Mixer layer (Type A)
+F
+F
+f F
+T
+T
+f T
+C
+C
+f C
+Fully
+connected
+Fully
+connected
+GELU
+Figure 3. The Mixer layer contains one frequency-mixing
+MLP, one time-mixing MLP, and one channel-mixing
+MLP. Before each MLP, a transposition is performed to
+apply the MLP to the frequency dimension F, the time di-
+mension T, and the channel dimension C. Transposition
+is also performed before every layer normalization to nor-
+malize along the channel dimension C.
+proximately 3-second segment of the waveform, and the
+shift size of 16384 (about 0.37 seconds) was used. Luo
+et al. [21] found that the shorter the shift, the better the
+modiﬁed utterance-level SDR, and they used 0.5 seconds.
+The above 16384 is short enough compared to 0.5 seconds
+and can be considered sufﬁcient in this study.
+As hyperparameters regarding the model, the dimen-
+sions C of the patch embedding were investigated by us.
+Speciﬁcally, 128 and 256 were investigated and 256 was
+selected. As hyperparameters related to the Mixer layer, 8
+and 16 were investigated as the number of layers N and 16
+was selected, and the parameter f for adjusting the num-
+ber of dimensions of the hidden layer of each MLP was
+selected as 4 from 1, 2, and 4. Dropout in the MLP [25]
+and skip connections before and after the Mixer layer were
+also investigated, but they have not yielded better results.
+4.3 Experiment
+Using the set of hyperparameters determined in Section 4.2
+as a basis, we report the SDR scores obtained under the fol-
+lowing various conditions for the other hyperparameters.
+• Investigation of the results of complex spectrogram
+loss [21].
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+
+Table 2. SDRs for different hyperparameters of the proposed model. The “Seed” column indicates random seeds. In the
+“Loss” column, “W” indicates that only waveform loss was used, and “W+S” indicates that complex spectral loss was
+added. The “Epoch” column indicates the number of epochs with the smallest validation loss and the speciﬁed number
+of epochs, where “*” means that validation loss was not considered. Note that “†” means the cases where the number of
+epochs with the smallest validation loss did not change when training beyond 200 epochs (i.e., the same model was used
+for the evaluation). A bold font indicates the maximum value at each source, both without and with extra training songs.
+TFC-MLP
+Test SDR in dB
+Type
+Seed
+(PF , PT )
+Loss
+Epoch
+Extra
+Avg.
+Vocals
+Drums
+Bass
+Other
+A
+seed 1
+(4, 4)
+W
+A
+seed 2
+(4, 4)
+W
+A
+seed 3
+(4, 4)
+W
+A
+seed 3
+(4, 4)
+W
+B
+seed 1
+(4, 4)
+W
+B
+seed 2
+(4, 4)
+W
+B
+seed 3
+(4, 4)
+W
+A
+seed 1
+(2, 2)
+W
+A
+seed 1
+(1, 1)
+W
+A
+seed 1
+(4, 4)
+W+S
+A
+seed 1
+(4, 4)
+W+S
+A
+seed 1
+(4, 4)
+W
+A
+seed 1
+(4, 4)
+W
+Table 3. The number of model parameters and the average
+Real Time Factor (RTF) value. The Hybrid Transformer
+Demucs is denoted as “HT Demucs”.
+Column “GPU”
+shows the RTF with a single GPU, and column “CPU”
+shows the RTF under the condition without a GPU.
+Model
+GPU
+CPU
+Params.
+Hybrid Demucs
+HT Demucs
+TFC-MLP
+• Investigation of patch size (PF , PT ) between (4, 4),
+(2, 2), and (1, 1), using (4, 4) as the basis, halving
+the FFT size and time dimension T for (2, 2), and
+halving it further for (1, 1). For (1, 1), the STFT hop
+size was set to 512 since the FFT size is 1024.
+• The number of epochs for training was set to 200
+or 300, and models with the smallest validation loss
+within each epoch-condition were evaluated.
+• The results of adding 120 full-length songs (sung in
+English) to the training data were evaluated.
+• For the basic parameter condition, we trained three
+times with different random seeds.
+In the test phase, the model with the smallest validation
+loss was used for evaluation in each training condition. The
+signal separated by the proposed model was divided into
+segments of ﬁxed length Tw with shift width Tw/4, which
+were weighted overlap-added to obtain the ﬁnal signal. In
+addition, the shift trick [28] was performed 10 times.
+4.4 Results and discussions
+In
+addition
+to
+the
+evaluation
+of
+SDRs
+using
+the
+MUSDB18-HQ test set, the number of parameters and the
+Real Time Factor (RTF) will also be discussed, as ﬁle size
+and the time required for separation may be important in
+some situations depending on how the MSS model is used.
+4.4.1 SDRs
+The experimental results are shown in Table 2. The high-
+est SDR score, up to 7.30 dB, was obtained for the Type
+A model using the patch size of (4, 4) and waveform L1
+loss in addition to the base hyperparameters. This was not
+signiﬁcantly higher than the state-of-the-art values shown
+in Table 1, but close performance was achieved.
+Focusing on the results for each source with respect to
+our TFC-MLP, as shown in Table 1, the SDRs for Vocals
+and Other were 8.91 dB and 6.14 dB, respectively, which
+were higher than the 8.35 dB and 5.65 dB SDRs for the
+Hybrid Demucs and the 7.93 dB and 5.72 dB SDRs for
+the Hybrid Transformer Demucs. This model’s SDR score
+for Other also exceeded the one obtained using KUIELab-
+MDX-Net, 5.90. Here, in comparison to the KUIELab-
+MDX-Net results without waveform information (i.e., ex-
+cluding processing by Demucs), it is possible that similar
+or better performance was obtained for Drums and Vocals,
+although an exact comparison cannot be made because the
+test data is different (i.e., MUSDB18 was used). In com-
+parison to the Band-Split RNN results, TFC-MLP could
+not yield a higher SDR for all sound sources. However,
+the current TFC-MLP does not include a source-speciﬁc
+framework, so addressing this issue is a future challenge.
+As for the patch size, the FFT size and other condi-
+tions were different due to memory capacity. Therefore, al-
+though exact comparisons are not possible, the best results
+were obtained for (4, 4) in the current results. However, ad-
+ditional study is needed for (2, 2), since it gave results sim-
+ilar to those given by (4, 4). As for complex spectrogram
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+
+loss, its SDR was slightly lower than that of all conditions
+using only waveform loss. Not only comparisons using the
+real and imaginary parts of the complex numbers, but also
+losses based on amplitude and phase could be considered.
+We also showed that the performance of the models was
+further improved by using additional training data.
+As
+shown in Table 1, compared to the current world’s best
+model Sparse HT Demucs with 800 songs added as the
+training data, we obtained competitive results with an SDR
+of 9.68 dB for the Vocals and 6.46 dB for the Others.
+4.4.2 RTF and the number of parameters
+As comparison, models were trained for each of the Hy-
+brid Demucs and Hybrid Transformer Demucs.
+Based
+on the published source codes, a model parameter setting
+“80a68df8” 3 was used for Hybrid Demucs, and the default
+parameter setting was used for Hybrid Transformer De-
+mucs. The same implementation for audio synthesis was
+used for all TFC-MLP, Hybrid Demucs, and Hybrid Trans-
+former Demucs. We used the 50 songs in the MUSDB18-
+HQ test set to obtain the average of their RTFs.
+Table 3 shows the results. The RTF values of TFC-MLP
+were slower than the other two models. TFC-MLP had an
+RTF lower than 1.0 (faster than real time) when a GPU
+was used, but the computation time was long without GPU.
+This could be due to the large size of the time-frequency
+spectrogram.
+As for the number of model parameters,
+TFC-MLP had more parameters than Hybrid Transformer
+Demucs, but fewer parameters than Hybrid Demucs.
+4.4.3 Comparison with the state-of-the-art models
+The proposed TFC-MLP model has some similarities to
+the state-of-the-art MSS models, which potentially have
+led to the competitive performance achieved.
+• The frequency-mixing MLP is similar to the full
+connection of frequency dimensions in TDF [27]
+and the band-level RNN applied across band dimen-
+sions in Band-Split RNN [21].
+• The time-mixing MLP is similar to the sequence-
+level RNNs applied across time dimensions in Band-
+Split RNN [21].
+• Increasing the number of the channel dimensions
+through patch embedding and increasing the number
+of hidden layer dimensions in MLP are techniques
+that are usually used regardless of MSS. For MSS,
+the improvement is potentially related to the increase
+in channel dimensionality in the encoder part, such
+as Hybrid Transformer Demucs [22].
+• The extra training data improved performance in the
+state-of-the-art models, and we conﬁrmed the per-
+formance improvement with extra training data in
+TFC-MLP as well.
+On the other hand, the following are included in the
+existing state-of-the-art MSS models but not currently in-
+cluded in our TFC-MLP. They have the potential to im-
+prove performance when applied in the future.
+3 https://github.com/facebookresearch/demucs/
+blob/main/docs/training.md
+• As presented by Défossez et al. [19] and Kim
+et al. [18], a hybrid approach that also considers
+waveforms could improve performance.
+• As Kim et al. [18], Luo et al. [21], and Rouard
+et al. [22] have shown, the introduction of source-
+speciﬁc techniques, such as band splitting, could im-
+prove separation performance.
+• Deep learning techniques such as model selection
+methods (e.g., exponential moving average), train-
+ing stabilization (e.g., singular value decomposition
+and sparsiﬁcation), and the introduction of a learning
+rate scheduler could further improve performance.
+Finally, to the best of our knowledge, there are no stud-
+ies that mix the channel dimension with the time and fre-
+quency dimensions as in TFC-MLP. Such a mixer layer
+used in the TFC-MLP architecture has the advantage of re-
+ducing the overall memory usage compared to the original
+MLP-Mixer, just as the Image-to-Image Mixer reduced the
+memory usage. This reusable insight of mixing the chan-
+nel dimension separately could be useful for other studies
+that have dealt with the time and frequency dimensions so
+far, but could be extended to the channel dimension.
+4.4.4 Future directions
+As future work, we plan to improve the performance of
+TFC-MLP by incorporating the ideas discussed above and
+further exploring more optimal hyperparameters. For ex-
+ample, increasing the FFT window size by utilizing fre-
+quency cut-off trick [20] is expected to improve the perfor-
+mance. Automatic optimization of hyperparameters could
+also be incorporated.
+Future work will also include the visualization of the
+inside of TFC-MLP for analysis. We could visualize the
+linear weights used in the patch embedding by converting
+them back to complex numbers and then calculating their
+amplitudes. The visualized results could allow us to ana-
+lyze what local patterns the model is focusing on. How-
+ever, when we tried it, it was difﬁcult to understand the
+behavior of the mixer layer due to the mixing of real and
+imaginary parts during the patch embedding. We are there-
+fore interested in using the amplitude and phase (group de-
+lay) instead of the real and imaginary parts so that we can
+analyze the model in a more comprehensive way.
+5. CONCLUSION
+This paper has described a new MSS architecture called
+TFC-MLP that uses complex spectrograms as input. Our
+contributions are summarized as follows:
+(1) We proposed a simpler MLP-centric MSS architecture
+that achieves competitive performance compared to
+state-of-the-art models.
+(2) We reported on some hyperparameter searches that
+will be useful for other researchers exploring this
+type of architecture.
+(3) We discussed the similarities and differences between
+the state-of-the-art models and TFC-MLP, and sug-
+gested directions for future research.
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+
+6. ACKNOWLEDGMENTS
+This work was supported in part by JST CREST Grant
+Number JPMJCR20D4 and JSPS KAKENHI Grant Num-
+ber JP21H04917, Japan.
+7.

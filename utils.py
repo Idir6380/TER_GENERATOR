@@ -4,10 +4,10 @@ import os
 import re 
 import random
 from datetime import datetime 
-import google.generativeai as genai
+#import google.generativeai as genai
 import pandas as pd
 import requests
-import fitz
+#import fitz
 from config import (
     OUTPUT_DIR_IMPROVED,
     TEXT_DIR,

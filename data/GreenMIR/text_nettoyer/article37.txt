@@ -1,0 +1,1108 @@
+BERT has proven to be a powerful language model in
+natural language processing and established an effective
+pre-training & ﬁne-tuning methodology. We see that mu-
+sic, as a special form of language, can beneﬁt from such
+methodology if we carefully handle its highly-structured
+and polyphonic properties. To this end, we propose Muse-
+BERT and show that: 1) MuseBERT has detailed spec-
+iﬁcation of note attributes and explicit encoding of mu-
+sic relations, without presuming any pre-deﬁned sequential
+event order, 2) the pre-trained MuseBERT is not merely a
+language model, but also a controllable music generator,
+and 3) MuseBERT gives birth to various downstream mu-
+sic generation and analysis tasks with practical value. Ex-
+periment shows that the pre-trained model outperforms the
+baselines in terms of reconstruction likelihood and genera-
+tion quality. We also demonstrate downstream applications
+including chord analysis, chord-conditioned texture gener-
+ation, and accompaniment reﬁnement.
+1. INTRODUCTION
+BERT [1] has proven to be one of the leading language
+models in natural language processing, which learns nat-
+ural language representation in an unsupervised manner
+and achieved state-of-the-art results in many downstream
+language understanding tasks. The methods involved in
+BERT are not unfamiliar in the music domain. For ex-
+ample, the “masked language model” (MLM) objective
+in BERT is similar to the Bach chorale inpainting stud-
+ies [2–4], where the grids in a four-part piano-roll are ran-
+domly masked and the model is trained to reconstruct them
+from context. The Transformer architecture has also been
+applied to different styles of music generation [5,6].
+We aim to develop a pre-trained music-domain BERT
+for better music understanding and generation. A straight-
+forward approach is to use existing music representations
+used in existing Transformer-based models, such as MIDI-
+like representations [5,7], REMI [6], or CP [8], and simply
+train the original BERT model. However, we argue that
+© Z. Wang, and G. Xia. Licensed under a Creative Com-
+mons Attribution 4.0 International License (CC BY 4.0). Attribution:
+Z. Wang, and G. Xia, “MuseBERT: Pre-training of Music Representation
+for Music Understanding and Controllable Generation”, in Proc. of the
+22nd Int. Society for Music Information Retrieval Conf., Online, 2021.
+such approach overlooks major distinctions between mu-
+sic and natural language. Firstly, unlike natural language,
+music (especially polyphony) does not follow a unique se-
+quential order; abruptly ﬂatten music into a 1-d sequence
+imposes extra protocol and often undermines the local
+structure of music, adding extra burden to the model. Sec-
+ondly, music involves rich relations and contexts. A single
+music event is barely meaningful, and common music con-
+cepts such as rhythmic patterns and harmonies are estab-
+lished upon relative positions of notes. However, current
+sequential models, in particular Transformer-based mod-
+els, still struggle to capture these relations [9].
+To overcome the limits above, we propose MuseBERT,
+a Transformer-based pre-trained model with tailored han-
+dling of music positional information and music rela-
+tions. 1 Since the innate music positions are expressed in
+the time-frequency space, we use onset and pitch infor-
+mation as the absolute positional encoding, which can be
+masked at the input and then reconstructed at the out-
+put. Moreover, multiple musical relations are represented
+via the design of generalized relative positional encoding
+(RPE) modiﬁed from the original RPE design [10].
+In
+our implementation, we ﬁnd the traditional sequential po-
+sitional encoding unnecessary, and thus our model does not
+rely on any pre-deﬁned sequential assumptions.
+Under such tailored design, we show the pre-trained
+MuseBERT is not merely a language model but also a
+controllable music generator.
+In the ﬁne-tuning stage,
+the model naturally empowers a wide spectrum of ﬁne-
+tuning tasks, involving both music analysis and genera-
+tion. Speciﬁcally, we showcase that MuseBERT can per-
+form polyphonic music generation controlled by chord and
+texture, chord extraction, and accompaniment reﬁnement.
+In summary, the contributions of this paper are:
+• We demonstrate the possibility and importance of
+training a Transformer-based music language model
+in an unordered approach.
+• We develop generalized RPE for BERT-like models,
+which not only reveals music relations from multiple
+perspectives but also has a potential to be adopted to
+other domains.
+• We show MuseBERT, as a controllable music gener-
+ator, giving the ﬁne-tuning procedure practical mu-
+sic meanings.
+1 Code and demos can be accessed via https://github.com/
+ZZWaang/musebert.
+
+2. DATA REPRESENTATION
+Unlike natural language processing, there is not a common
+way to tokenize symbolic music. A music piece is gen-
+erally considered as a combination of note events, where
+each note event is a tuple of attributes. Note-based to-
+kenization is commonly seen in music-tailored packages
+[11,12], softwares [13–15], and researches [8,16,17]. On
+other occasions, mainly for the ease of neural network
+modeling, music is also simpliﬁed as a sequence of con-
+trols with pre-deﬁned order, such as MIDI-like event rep-
+resentation [5,7] (including its follow-up methods [6]), and
+frame-wise piano-roll representations [2,18–20].
+In MuseBERT, we consider note-based tokenization
+without presumption of any sequential order. Speciﬁcally,
+we invent two note-based music representations for Muse-
+BERT: basic data representation and factorized data rep-
+resentation, denoted by Rbase and Rfac respectively. A mu-
+sic input is ﬁrst encoded as Rbase, and then converted into
+Rfac, serving as the input format to MuseBERT.
+In this paper, we primarily consider 2-bar music seg-
+ments in 4/4 time signature. Longer music and richer time
+signatures can be generalized and we leave it for future
+study.
+2.1 Rbase and Rfac
+Rbase represents a music segment X as an unordered set
+of note events {xi}N
+i=1, and a note event xi ∈X consists
+of three attributes: onset (o), pitch (p), and duration (d),
+where o ∈[0..31] and d ∈[0..32] are counted by semi-
+quavers, and p ∈[0..127] is the MIDI note number. 2 We
+denote the attribute set of Rbase by Abase := {o, p, d} and
+use xi.a, a ∈Abase to indicate the attribute a of a note
+event xi.
+Rbase is not the MuseBERT input data format because
+the representation is ambiguous for BERT-like models to
+reconstruct well. Consider, for example, two simultaneous
+quarter notes in a music segment that are unordered (by
+deﬁnition of Rbase) and whose attributes except p are the
+same. When their pitch attributes are masked at the input,
+the two tokens have completely the same encoding and are
+unable to be distinguished by BERT, in which case BERT
+will yield the same output distributions.
+We therefore invent Rfac which is unambiguous for
+MuseBERT (proved in section 4). Rfac also represents a
+music segment as an unordered set of note events, but it
+uses a more detailed attribute set Afac (discussed in sec-
+tion 2.2), and contains a stack of relation matrices storing
+pairwise note relations (discussed in section 2.3).
+2.2 Factorized Attributes
+In Rfac, onset, pitch, and duration, due to their hierarchical
+nature [21,22], are regarded as meta-attributes to be factor-
+ized. The factorization operation we will introduce is anal-
+ogous to storing a number by its digits (e.g., 49 7→[4, 9]),
+2 We use [a..b] to denote the integer interval {x|a ≤x ≤b, x ∈Z}
+including both endpoints.
+so that we can mask partial information at certain hierar-
+chy (e.g., [4, MASK]) and the remaining information is still
+retained. In music, musicians sometimes prefer to interpret
+49 as 50 −1 rather than 40 + 9, depending on the context.
+Such subtlety is welcomed by our design.
+2.2.1 Onset and Duration Factorization
+We factorize onset (o) into beat position (o_bt ∈[0..8])
+and subdivision (o_sub ∈[0..4]), and duration d into half
+note counts (d_hlf ∈[0..4]) and the remainder semiqua-
+ver counts (d_sqv ∈[0..7]), satisfying
+o = (4 × o_bt + o_sub),
+(1)
+d = (8 × d_hlf + d_sqv).
+(2)
+We allow o_sub to take both positive and negative values,
+since a subdivision can be interpreted as an “off-beat” of
+the current downbeat, or an “upbeat” preceding the next
+downbeat. Consequently, the o attribute can be mapped to
+multiple {o_bt, o_sub) pairs, e.g., {o:1} maps to {o_bt:
+0, o_sub:1} or {o_bt:1, o_sub:−3}.
+In our implementation, we non-deterministically sam-
+ple one of the factorizations. In the future, a posterior dis-
+tribution of p(o_bt, o_sub|o, X) can be explored in ﬁner
+detail.
+2.2.2 Pitch Factorization
+We factorize pitch in a similar fashion into three attributes:
+1) pitch highness (p_hig ∈[0..6]): voice types (e.g.,
+SATB), 2) pitch register (p_reg ∈[0..2]): the relative oc-
+tave given p_hig, and 3) pitch degree (p_deg ∈[0..11]),
+satisfying:
+p =
+
+
+
+
+
+
+
+24 + 12 × (p_hig + p_reg)
++p_deg,
+0 ≤p_hig ≤4
+12 × p_reg + p_deg,
+p_hig = 5
+108 + 12 × p_reg + p_deg,
+p_hig = 6.
+(3)
+Here, 0 ≤p_hig ≤4 corresponds to the pitch range of a
+standard piano (MIDI pitch 24-107), and p_hig = 5 and
+p_hig = 6 handles the extra-low or extra-high regions,
+respectively. Similar to onset, pitch factorization is also
+handled non-deterministically, since a pitch can be inter-
+preted as a lower voice type having a high register, or a
+higher voice type having a low register.
+To summarize, Rfac uses the attribute set:
+Afac := {o_bt, o_sub, p_hig, p_reg,
+p_deg, d_hlf, d_sqv}.
+(4)
+2.3 Note Event Relations
+Music is rich in relations and we explicitly represent the
+most fundamental relations in Rfac. We consider less-than,
+equal-to, and greater-than relations on a subset of attributes
+S := {o, o_bt, p, p_hig}. Speciﬁcally, ∀a ∈S, we de-
+ﬁne a mapping γa from an input note event pair (xi, xj) to
+their relation symbol: 3
+3 When a = o, xi.o is a shorthand notation interpreted as the return
+value of Eqn (1). A similar case holds when a = p.
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+
+ℛ!"#
+∗
+𝑋∗
+𝑅𝒮
+∗
+𝑥!
+𝑥"
+?
+?
+?
+?
+𝑥#
+𝑥$
+-1
+𝑥%
+𝑥&
+?
+?
+?
+?
+𝑥'
+o_sub
+o_bt
+p_hig p_reg p_deg d_hlf d_sqv
+𝑥!
+𝑥"
+𝑥#
+𝑥$
+𝑥%
+𝑥&
+𝑥'
+≡
+?
+<
+<
+<
+<
+<
+≡
+≡
+<
+<
+<
+<
+<
+>
+>
+≡
+<
+<
+<
+<
+>
+>
+>
+≡
+≡
+<
+<
+>
+>
+>
+≡
+≡
+<
+<
+>
+>
+>
+>
+>
+≡
+?
+>
+>
+>
+>
+>
+≡
+≡
+≡
+≡
+<
+<
+<
+<
+<
+≡
+≡
+<
+<
+<
+<
+<
+>
+>
+≡
+<
+<
+<
+<
+>
+>
+>
+≡
+<
+<
+<
+>
+>
+>
+>
+≡
+<
+<
+>
+>
+>
+>
+>
+≡
+?
+>
+>
+>
+>
+>
+≡
+≡
+≡
+≡
+≡
+≡
+≡
+?
+<
+>
+≡
+>
+>
+>
+>
+≡
+≡
+<
+≡
+≡
+≡
+≡
+<
+≡
+<
+≡
+≡
+≡
+≡
+<
+≡
+<
+≡
+≡
+≡
+≡
+<
+≡
+<
+≡
+≡
+≡
+≡
+<
+>
+≡
+>
+>
+>
+>
+≡
+𝑥! ≡
+>
+<
+≡
+≡
+?
+<
+𝑥" <
+≡
+<
+<
+<
+?
+<
+𝑥# >
+>
+≡
+>
+>
+>
+<
+𝑥$ ≡
+>
+<
+≡
+≡
+>
+<
+𝑥% ≡
+>
+<
+≡
+≡
+?
+<
+𝑥&
+?
+?
+<
+<
+?
+≡
+?
+𝑥' >
+>
+>
+>
+>
+?
+≡
+𝑥!
+𝑥"
+𝑥#
+𝑥$
+-1
+𝑥%
+𝑥&
+𝑥'
+o_sub
+o_bt
+p_hig p_reg p_deg d_hlf d_sqv
+𝑥!
+𝑥"
+𝑥#
+𝑥$
+𝑥%
+𝑥&
+𝑥'
+≡
+≡
+<
+<
+<
+<
+<
+≡
+≡
+<
+<
+<
+<
+<
+>
+>
+≡
+<
+<
+<
+<
+>
+>
+>
+≡
+≡
+<
+<
+>
+>
+>
+≡
+≡
+<
+<
+>
+>
+>
+>
+>
+≡
+≡
+>
+>
+>
+>
+>
+≡
+≡
+≡
+≡
+<
+<
+<
+<
+<
+≡
+≡
+<
+<
+<
+<
+<
+>
+>
+≡
+<
+<
+<
+<
+>
+>
+>
+≡
+<
+<
+<
+>
+>
+>
+>
+≡
+<
+<
+>
+>
+>
+>
+>
+≡
+≡
+>
+>
+>
+>
+>
+≡
+≡
+≡
+<
+≡
+≡
+≡
+≡
+<
+>
+≡
+>
+>
+>
+>
+≡
+≡
+<
+≡
+≡
+≡
+≡
+<
+≡
+<
+≡
+≡
+≡
+≡
+<
+≡
+<
+≡
+≡
+≡
+≡
+<
+≡
+<
+≡
+≡
+≡
+≡
+<
+>
+≡
+>
+>
+>
+>
+≡
+𝑥! ≡
+<
+<
+≡
+≡
+>
+<
+𝑥" >
+≡
+>
+>
+>
+>
+>
+𝑥# >
+<
+≡
+>
+>
+>
+<
+𝑥$ ≡
+<
+<
+≡
+≡
+>
+<
+𝑥% ≡
+<
+<
+≡
+≡
+>
+<
+𝑥& <
+<
+<
+<
+<
+≡
+<
+𝑥' >
+<
+>
+>
+>
+>
+≡
+ℛ!"#
+𝑋!"#
+𝑥!
+𝑥"
+𝑥#
+𝑥$
+𝑥%
+𝑥&
+𝑥'
+o
+p
+d
+ℛ$"%&
+𝑋$"%&
+𝑅𝒮
+Basic Data Representation
+Factorized Data Representation
+Corrupted Factorized Data
+MuseBERT
+Music Observation
+①Stochastic mapping
+④Deterministic Mapping
+②Data Corruption
+③Reconstruction
+Read
+Write
+Figure 1. The workﬂow of MuseBERT pre-training.
+γa(xi, xj) =
+
+
+
+
+
+<a,
+xi.a < xj.a
+≡a,
+xi.a ≡xj.a
+>a,
+xi.a > xj.a.
+(5)
+The relation symbols are stored using a stack of N × N
+relation matrices, denoted by RS := {Ra|a ∈S}, where
+Ra = {ra
+ij} and ra
+ij = γa(xi, xj).
+3. PRE-TRAINING MUSEBERT
+Figure 1 shows the overall pre-training stage. A music data
+is ﬁrst read as Rbase format as Xbase, and then stochasti-
+cally converted to Rfac consisting of unordered note events
+Xfac and relation matrices RS.
+Similar to BERT, the
+pre-training stage uses “masked language model” (MLM)
+training objective, where Xfac and RS will be corrupted
+before fed into MuseBERT, which is trained to reconstruct
+the original music segment.
+3.1 Data Corruption
+The original BERT randomly selects a part of the input
+tokens to be corrupted. In MuseBERT, data corruption has
+ﬁner controls: 1) it operates on individual attributes of a
+note event rather than an entire token, and 2) it corrupts
+relation matrices as well.
+For note events Xfac, the corrupter randomly selects
+15% of the note events C ⊂X, and corrupts their at-
+tributes {xi.a|xi ∈C, a ∈Afac} in one of the three ways:
+1) masked with [MASK]a 80% of the time, 2) replaced with
+a random token 10% of the time, and 3) kept unchanged
+10% of the time. Each attribute is corrupted independently
+of the choice of the other attributes. For relation matrices
+RS, each matrix entry will be masked 30% of the time in-
+dependently. Before corruption, a re-computation of the
+matrix may be required so as to maintain matrix symmetry
+and align with the attributes that are replaced with other
+values.
+We denote the representation after corruption as R∗
+fac,
+and the resulting note events and relation matrices as X∗
+and R∗
+S, respectively.
+3.2 Overall Model Architecture
+The model adopts the bi-directional Transformer encoder
+architecture based on the original Transformer implemen-
+tation described in [23].
+The input to the model is the
+embedding of a corrupted music segment X∗= {x∗
+i }N
+i=1.
+The embedding is computed as the sum of all attribute em-
+beddings:
+Emb(x∗
+i ) =
+X
+a∈Afac
+Emba(x∗
+i .a).
+(6)
+Here Emba(·) are linear embedding layers and the de-
+fault absolute positional encoding is not applied due to un-
+orderedness. R∗
+S is fed into the model as generalized rel-
+ative positional encoding to be discussed in detail in sec-
+tion 3.3.
+The output is a distribution of reconstructed note events
+in Rfac, denoted by ˆX = {ˆxi}N
+i=1. Speciﬁcally, let h1:N
+be the last hidden vector of the Transformer encoder, each
+note attribute is reconstructed by a separate linear transfor-
+mation normalized with a softmax layer:
+pmodel(ˆxi.a|X∗, R∗
+S) = softmax(FFNa(hi)).
+(7)
+The training loss is the mean of the negative log-likelihood
+on corrupted attributes {xi.a|xi ∈C, a ∈Afac} only:
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+
+L( ˆX|X∗, R∗
+S) =
+−1
+|C|
+X
+{i|x∗
+i ∈C}
+ X
+a∈Afac
+log pmodel(xfac
+i .a|X∗, R∗
+S)
+
+,
+(8)
+From the denoising autoencoder perspective [24], we
+deﬁne the reconstruction distribution precon( ˆX|X∗, R∗
+S) in-
+duced from Eqn (7) for later analysis purposes:
+precon( ˆX|X∗, R∗
+S) :=
+N
+Y
+i=1
+precon(ˆxi|X∗, R∗
+S), where
+precon(ˆxi|X∗, R∗
+S) :=
+Y
+a∈Afac
+precon(ˆxi.a|X∗, R∗
+S) and
+precon(ˆxi.a|X∗, R∗
+S) :=
+(
+pmodel(ˆxi.a|X∗, R∗
+S), xi ∈C
+1{ˆxi.a≡x∗
+i .a}, otherwise.
+(9)
+In other words, during inference, we sample from pmodel
+for corrupted tokens while simply keeping the uncorrupted
+tokens.
+3.3 Generalized Relative Positional Encoding
+Let h1:N be the hidden vectors at any Transformer layer.
+We add additional key-relation embeddings EmbK
+S (·) of
+the relations in the query-value product term by
+eij =
+hiW Q
+hjW K + P
+a∈S EmbK
+a (ra
+ij)
+T
+√dz
+,
+where dz is the hidden vector size of attention heads,
+W Q, W K are query and key transformations, and eij is
+used to compute attention weights.
+Similarly,
+we also add value-relation embeddings
+EmbV
+S (·) in the attention weight application:
+zi =
+N
+X
+j=1
+αij
+
+hjW V +
+X
+a∈S
+EmbV
+a (ra
+ij)
+
+,
+where αij = softmaxj(eij), W V is the value transforma-
+tion, and zi is fed into the position-wise feed-forward sub-
+layer to compute the next layer’s hi.
+In our implementation, both key-relation embeddings
+and value-relation embeddings are linear transforms. In
+addition, for different attention layers and attention heads,
+we train different embeddings.
+We call the above operation generalized relative po-
+sitional encoding (RPE) because the summation of key-
+relation and value-relation embeddings allows us to hint
+the MuseBERT from multiple musical perspectives (at-
+tribute relations), which is not considered in the original
+RPE implementation [10].
+4. THEORETICAL ANALYSIS
+In this section, we ﬁrst show that Rfac and generalized rel-
+ative positional encoding are theoretical necessities for a
+BERT model to handle unordered data. We further show
+that MuseBERT is a powerful controllable music genera-
+tor, giving birth to various ﬁne-tuning tasks with musical
+merits.
+4.1 Well-deﬁnedness of MuseBERT
+The fundamental assumption made in MuseBERT is the
+refusal of traditional sequential positional encoding. In
+return, the mathematical property of MuseBERT we gain
+is permutation invariance, i.e., the input order will not
+change the model output. On the other hand, a natural
+downside of a permutation invariant model is ambiguity:
+without extra efforts, masked tokens will have the same
+output distributions and hence not distinguishable.
+The problem is solved by factorized data representa-
+tion and generalized RPE because the former allows us
+to specify music in more detail. We summarize the dis-
+cussion with the well-deﬁnedness theorem of MuseBERT.
+Part one of the theorem is maintained by the property of
+Transformer [25], and part two is self-evident from the dis-
+cussion so far.
+Theorem 1 (Well-deﬁnedness) Pre-training MuseBERT
+is well-deﬁned: Let (X∗, R∗
+S) be a corrupted music seg-
+ment in Rfac:
+1) (Permutation invariance) Let σ(·) be an arbitrary per-
+mutation. The reconstruction distribution is unchanged af-
+ter permutation:
+precon( ˆX|X∗, R∗
+S) ≡precon(σ( ˆX)|σ(X∗),σ(R∗
+S))
+2) (Unambiguity) For arbitrary pair of xi, xj ∈X∗, whose
+attributes are corrupted but their note relations are not,
+the reconstruction distributions of the two tokens are not
+always the same, i.e., there exists a set of model parameters
+such that
+precon(ˆxi|X∗, R∗
+S) ̸= precon(ˆxj|X∗, R∗
+S).
+4.2 MuseBERT as a Music Generator
+The operations of MuseBERT can be regarded as a sin-
+gle round of a Markov chain transition which alternatively
+adds noise and denoises (as shown in Figure 1), consisting
+of four steps: 1) stochastic data conversion to Rfac, 2) data
+corruption, 3) MuseBERT reconstruction, and 4) determin-
+istic data conversion to Rbase.
+Benjio et al. [26] showed such transition induced from
+denoising autoencoder is a special type of Generative
+Stochastic Network and proved that under mild condition,
+the transition operations form a Markov Chain whose sta-
+tionary distribution is the true data distribution. Hence, we
+conclude the pre-training MuseBERT can be used as the
+MCMC transition operator, and generates music via itera-
+tive sampling.
+4.3 Controllability of MuseBERT
+Moreover, we show that MuseBERT is a Constraint Op-
+timization Problem (COP) solver [27] by regarding uncor-
+rupted attributes or relations as unary or binary constraints,
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+
+respectively. The COP has the form:
+max
+ˆ
+X
+precon( ˆX|X∗)
+s.t.
+ˆxi.a = x∗
+i .a,
+∀x∗
+i /∈C, a ∈Afac
+γa(xi, xj) = γa(x∗
+i , x∗
+j),
+∀a ∈S
+if γa(x∗
+i , x∗
+j) uncorrupted.
+Apparently, music continuation and in-painting can be
+formalized as a special COP problem, and monophony,
+melodic directions, rhythmic patterns, texture, etc. are all
+expressible concepts by MuseBERT constraints. Hence,
+MuseBERT, as a music generator, is also controllable,
+which can be ﬁne-tuned to solve problem-speciﬁc gener-
+ation tasks and controls.
+5. FINE-TUNING MUSEBERT
+By deﬁning problem-speciﬁc data corrupters, we can ﬁne-
+tune the model for a wide spectrum of conditioned music
+generation tasks, such as music continuation, inpainting,
+rhythm or texture-conditioned music generation. In this
+section, we in turn show two less obvious applications by
+ﬁne-tuning, in which we extend the vocabulary of Rfac to
+represent chord and vocal tracks, and apply MuseBERT for
+both generation and analysis.
+5.1 Case 1: Texture Generation and Chord Analysis
+MuseBERT can be ﬁne-tuned for chord and texture con-
+trols, which are commonly-studied controlling factors in
+automatic music generation [28, 29]. The ﬁne-tuning task
+is set by slight modiﬁcation from the pre-training stage
+in two steps: 1) We represent chord progression as Rfac
+events and prepend it to the music segment. Speciﬁcally,
+we deﬁne p_hig = 7 for chord event, with p_reg =
+0, p_reg = 1, p_reg = 2 for chord root, chroma, and
+bass, respectively. 2) We apply an additional “in-chord”
+inter-relation to indicate whether a note event is a chord-
+tone or not. The conditioned generation can be trained by
+masking all the attributes from the music segment while
+keeping the chord attributes and all relations.
+Figure 2
+shows an example of music generation conditioned on the
+texture in Figure 2(a) and the chord F major. The gener-
+ated segment keeps the textural property and deals with
+inner voices smoothly (shown by the red boxes).
+Similarly, by corrupting the chord events and “in-
+chord” relation, while maintaining the music segment and
+the other relations, the model can learn to extract chord
+progressions from a given piece. The ﬁne-tuning result
+on POP909 [30] shows the model has a 99.35% accuracy
+on token-wise (MIDI) chord extraction (99.37% for root,
+99.05% for chroma and 99.35% for bass).
+5.2 Case 2: Accompaniment Reﬁnement
+In the accompaniment reﬁnement task, we want to reﬁne
+an imperfect accompaniment according to a given lead
+melody.
+To achieve this, we represent the melody and
+the accompaniment both as Rfac and concatenate them
+Figure 2. An example of controlled generation by speci-
+fying chord and texture.
+together.
+We then randomly corrupt some accompani-
+ment attributes while keeping the melody and relations
+unchanged during training.
+Figure 3 shows an example
+of accompaniment reﬁnement from a corrupted sample
+Figure 3(a). In (a), the red note heads mark the note being
+replaced and the masked notes are replaced by rests. The
+result shows that the generated piece is more consistent
+with the melody while keeps the original musical content.
+Figure 3. An example of accompaniment reﬁnement con-
+ditioned on melody.
+6. EXPERIMENTAL RESULT
+6.1 Dataset and Training
+We collect around 5K classical and popular piano pieces
+from Musicalion 4 and the POP909 dataset [30]. We only
+keep the pieces with 2/4 and 4/4 meters and cut them into
+8-beat music segments. In all, we have 19.8K samples. We
+randomly split the dataset (at song-level) into training set
+(90%) and test set (10%). All training samples are further
+augmented by transposing to all 12 keys.
+We pre-train our MuseBERT using 12 Transformer lay-
+ers with 8 attention heads, 0.1 dropout rate, and GELU ac-
+4 Musicalion: https://www.musicalion.com.
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+
+tivation [31]. The hidden dimensions of self-attention and
+position-wise feed-forward layers are dmodel = 256 and
+dff = 512. We train with a batch size of 128 and Adam op-
+timizer with learning rate of 5e-4 and linear learning rate
+decay to 5e-6 after 15K warmup steps. The pre-training
+takes 20 epochs to converge.
+In ﬁne-tuning tasks, we kept the same hyperparameters
+except the initial learning rate is 2e-4 without warmup. The
+epochs to ﬁne-tune the model are task-speciﬁc, approxi-
+mately 4 epochs on average.
+6.2 Objective Evaluation
+Given that Rfac and data corruption are stochastic, we eval-
+uate the expectation of reconstruction likelihood in terms
+of token-wise onset, pitch and duration, similar to the algo-
+rithm in [4]. We compare among 1) the pre-trained Muse-
+BERT, 2) the ﬁne-tuned models using attribute-speciﬁc
+data corrupters, and three baseline models ablating the use
+of factorized attributes Afac and binary relations. Table 1
+summarizes the results where we see our pre-trained model
+outperforms the baselines on all three criteria and the ﬁne-
+tuned model can perform even better. The use of Afac and
+binary relations not only makes the model well-deﬁned,
+but also are crucial for high-quality reconstruction.
+Models
+Onset
+Pitch
+Duration
+Afac w/ rel (ours)
+Afac w/o rel∗
+Abase w/ rel
+Abase w/o rel∗
+Afac w/ rel (ﬁne-tuned)
+Table 1. Objective evaluation of the expectation of recon-
+struction likelihood. Here, “w/ rel” and “w/o rel” indicates
+whether generalized RPE is applied, and “∗” indicates the
+ill-deﬁned models.
+6.3 Self-attention Visualization
+We observe that different attention heads of multiple lay-
+ers in the pre-trained MuseBERT captures high-level mu-
+sic knowledge. As shown in Figure 4, metrical structure
+is revealed in (a) & (b), and voice-leading can be seen in
+(c) & (d). We show the attention matrices on a piano-roll
+for better interpretability, where an arrow xi →xj shows
+the (j, i) entry and the brightness indicates the attention
+strength.
+6.4 Subjective Evaluation of Music Generation
+We invite people to subjectively rate the generation qual-
+ity of the pre-trained model through a double-blind on-
+line survey.
+During the survey, the subjects listen to 8
+groups of samples, each containing 4 generated segments
+together with a ground-truth human composition. The gen-
+erated segments come from the four models (the same as
+in Table 1 excluding the ﬁne-tuned model) with the same
+initial corruption state (60% of the total tokens) from the
+original piece. Both the order of groups and the sample
+order within each group are randomized. After listening
+Figure 4. Visualization of attention matrices on selected
+self-attention layers in pre-trained MuseBERT.
+Figure 5.
+Subjective evaluation results on pre-trained
+MuseBERT.
+to each sample, the subjects rate them based on a 5-point
+scale from 1 (very low) to 5 (very high) according to three
+criteria: creativity, naturalness and musicality.
+A total of 37 subjects (15 females and 22 males) with
+different musical backgrounds have completed the survey.
+The aggregated result (as shown in Figure 5) shows that
+the pre-trained models considering music relations (the
+well-deﬁned models) are signiﬁcantly better than the mod-
+els without relations (the ill-deﬁned models) (with p-value
+< 0.005), and are marginal to the human composition
+(with p-value > 0.05).
+7. CONCLUSION
+In conclusion, we contributed MuseBERT, a full treatment
+of BERT in the music domain as a powerful music un-
+derstanding and generation model. The main novelty lies
+in the proposed generalized relative positional encoding,
+which successfully reveals the non-sequential, polyphonic
+structure of music and at the same time turns the masked
+language model objective into a well-deﬁned controllable
+generative framework. Also, with the music-tailored fac-
+torized data representation, the controls are ﬁne-grained.
+Furthermore, by ﬁne-tuning MuseBERT, we demonstrate
+that the model is general purpose, capable of various
+downstream tasks such as chord analysis, accompaniment
+generation and reﬁnement etc. as long as the constraints
+can be expressed via binary relations of different music at-
+tributes.
+Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021
+
+8.

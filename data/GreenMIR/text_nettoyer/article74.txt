@@ -1,0 +1,1036 @@
+This paper presents a statistical method that estimates a se-
+quence of musical notes from a vocal F0 trajectory. Since
+the onset times and F0s of sung notes are considerably de-
+viated from the discrete tatums and pitches indicated in a
+musical score, a score model is crucial for improving time-
+frequency quantization of the F0s. We thus propose a hier-
+archical hidden semi-Markov model (HHSMM) that com-
+bines a score model representing the rhythms and pitches
+of musical notes with musical scales with an F0 model rep-
+resenting time-frequency deviations from a note sequence
+speciﬁed by a score. In the score model, musical scales
+are generated stochastically. Note pitches are then gener-
+ated according to the scales and note onsets are generated
+according to a Markov process deﬁned on the tatum grid.
+In the F0 model, onset deviations, smooth note-to-note F0
+transitions, and F0 deviations are generated stochastically
+and added to the note sequence. Given an F0 trajectory,
+our method estimates the most likely sequence of musical
+notes while giving more importance on the score model
+than the F0 model. Experimental results showed that the
+proposed method outperformed an HMM-based method
+having no models of scales and rhythms.
+1. INTRODUCTION
+Singing voice analysis is important for music information
+retrieval because a singing voice usually forms a large part
+of the melody line of popular music, and provides much in-
+formation about music. Singing voice analysis techniques
+such as vocal F0 estimation [1,3,7,9,14] and singing voice
+separation [8, 12] have actively been studied and applied
+to singer identiﬁcation [10, 22], karaoke generation [19],
+query-by-humming [8], and active music listening [6]. To
+leverage musical information conveyed by singing voices,
+it is helpful to convert a vocal F0 trajectory to a musical
+score containing only discrete symbols.
+c⃝Ryo Nishikimi, Eita Nakamura, Masataka Goto, Kat-
+sutoshi Itoyama, Kazuyoshi Yoshii.
+Licensed under a Creative Com-
+mons Attribution 4.0 International License (CC BY 4.0). Attribution:
+Ryo Nishikimi, Eita Nakamura, Masataka Goto, Katsutoshi Itoyama,
+Kazuyoshi Yoshii. “Scale- and Rhythm-Aware Musical Note Estimation
+for Vocal F0 Trajectories Based on a Semi-Tatum-Synchronous Hierar-
+chical Hidden Semi-Markov Model”, 18th International Society for Mu-
+sic Information Retrieval Conference, Suzhou, China, 2017.
+
+
+
+
+
+	
+
+
+	
+
+	
+
+
+
+
+	
+
+		
+	
+
+ 	
+
+	
+	
+
+	
+Figure 1: The generative process of a vocal F0 trajectory
+based on a hierarchical hidden semi-Markov model involv-
+ing a score model and an F0 model.
+In this study, we tackle musical note estimation for vo-
+cal F0 trajectories that tend to have large deviations from
+original musical scores. The pitches and onset times of
+musical notes in a musical score can take only discrete val-
+ues, whereas an F0 trajectory is a continuous signal that
+can dynamically and smoothly vary over time. F0 trajecto-
+ries are modulated by vibrato and changes smoothly from
+one note to another by a portamento. Naive time-frequency
+quantization of an F0 trajectory therefore outputs a note se-
+quence that often includes statistically-rare chromatic note
+progressions with unlikely rhythms.
+To solve this problem, we propose a statistical method
+of scale- and rhythm-aware musical note estimation based
+on integration of a score model describing the process of
+generating a note sequence and an F0 model describing the
+process of generating an F0 trajectory from the note se-
+quence (Fig. 1). In the score model, a sequence of musical
+scales (local keys) is determined by a Markov process and
+the semitone-level pitch of each note is then determined ac-
+cording to both a scale of the note position and the pitch of
+a previous note. The onset position of each note on a tatum
+grid is determined according to that of a previous note
+to make rhythmic structures. In the F0 model, the time-
+frequency deviations are added to a step-function-shaped
+F0 trajectory corresponding to a musical score given by
+the score model. The integrated model is thus formulated
+as a hierarchical hidden semi-Markov model (HHSMM).
+Given a vocal F0 trajectory with a tatum grid, the scales,
+musical notes, and F0 deviations, which are all latent vari-
+ables of the proposed model, are jointly estimated by us-
+
+ing a Markov chain Monte Carlo algorithm. A key feature
+of our method is that musical scales and rhythms work as
+self-organizing constraints on time-frequency quantization
+of vocal F0 trajectories.
+2. RELATED WORK
+In this section, we introduce related work on the analysis
+of singing voices.
+2.1 Vocal F0 Estimation for Music Audio Signals
+Estimation of vocal F0 trajectories for music audio signals
+has actively been studied [1, 3, 7, 9, 14], and the outputs
+of these methods can be used as inputs of our method.
+One of the most basic method is subharmonic summation
+(SHS) [7] that calculates the sum of the harmonic compo-
+nents of each candidate F0. Ikemiya et al. [9] improved
+F0 estimation based on SHS and singing voice separation
+based on robust principle component analysis (RPCA) [8]
+by using the mutual dependency of those two tasks. Sala-
+mon et al. [21] estimated contours of the melody F0 can-
+didates by calculating a salience function and then recur-
+sively removed contours which do not form a melody line
+by using the characteristics of each contour. Durrieu et
+al. [3] extracted a main melody by representing accompa-
+niments with a model inspired by non-negative matrix fac-
+torization (NMF) and leading voices with a source-ﬁlter
+model. Mauch et al. [14] modiﬁed the YIN [1] in a prob-
+abilistic way so that the modiﬁed system could determine
+multiple candidate fundamental frequencies and then se-
+lect one at each frame by using an HMM.
+2.2 Musical Note Estimation for Singing Voices
+Estimation of musical notes from sung melody has been
+a hot research topic [6, 11, 13, 15, 17, 18, 20, 23]. A naive
+method is to take the majority of vocal F0s in each interval
+of a regular grid [6]. Paiva et al. [17] proposed a cascad-
+ing method based on multipitch detection, multipitch tra-
+jectory construction, segmentation of multipitch trajectory,
+elimination of irrelevant notes, and extraction of notes that
+form a main melody. Raphael [18] proposed an HMM-
+based method that estimates pitches, rhythms, and tempos
+when the number of notes is given. The rhythm and on-
+set deviation models used in [18] are similar to those used
+in our method. Laaksonen et al. [11] divided audio data
+into segments corresponding to scales and notes by focus-
+ing on the boundaries of chords given as input, and inde-
+pendently estimated the notes based on a score function.
+Ryyn¨anen et al. [20] proposed a method based on a hierar-
+chical HMM in order to capture the different kinds of vocal
+ﬂuctuations (e.g., vibrato and portamento) within one note.
+In this model, the transition between pitches is represented
+in the upper-level HMM and the transition between the
+vocal ﬂuctuations is represented in the lower-level HMM.
+Molina et al. [15] focused on the hysteresis characteris-
+tics of vocal F0s. Nishikimi et al. [16] proposed a method
+based on an HHM that represents the generative process of
+a vocal F0 trajectory considering the time and frequency
+deviations. Yang et al. [23] proposed a method based on
+a hierarchical HMM that represents the generative process
+of the f0-∆f0 plane. Mauch et al. [13] developed a soft-
+ware tool called Tony for extracting pitches. In this tool, a
+vocal F0 trajectory is estimated by PYIN [14], and musical
+notes are estimated by a modiﬁed version of Ryyn¨anen’s
+method [20].
+3. PROPOSED METHOD
+This section explains the proposed method of estimating a
+sequence of musical notes from a vocal F0 trajectory. The
+method is based on an HHSMM (Fig. 1) that stochastically
+generates the F0 trajectory with time-frequency deviations
+from a sequence of musical notes depending on musical
+scales. The upper part of the proposed model is an HMM
+that stochastically generates a sequence of musical notes
+according to the scales that are assigned to bars. The lower
+part is an HSMM that represents the musical notes and
+temporal deviations as latent variables and the frequency
+deviations as F0 emission probabilities.
+3.1 Problem Speciﬁcation
+The problem we tackle is deﬁned as follows:
+Input: A vocal F0 trajectory X= {xt}T
+t=1 and 16th-note-
+level tatums Y = {(un, vn)}N
+n=0,
+Output: A sequence of notes Z= {zj=(pj, lj)}J
+j=0,
+where T is the number of frames in a vocal F0 trajectory, xt
+is a log frequency at time t, and N is the number of 16th-
+note-level tatums. un ∈{1, . . ., T+1} is the time of tatum
+n and the beginning and end of music are represented as
+u0 = 1 and uN = T+1, respectively. vn ∈{0, . . ., 15} is
+the relative position of tatum n in a bar. J is the number of
+musical notes estimated by proposed methods, and the j-th
+note zj is represented as a pair consisting of an pitch pj ∈
+{1, . . . , K} and a note length lj ∈{1, . . . , L} in the unit of
+tatums, where K is the number of kinds of semitone-level
+pitches, and pj indicates any one in {µ1, . . . , µK}, which
+is a set of log frequencies corresponding to semitone-level
+pitches. For convenience we introduce the initial note z0
+that does not appear in the actual score.
+3.2 Probabilistic Modeling of Musical Scores
+This section describes the score model constructed with an
+HMM that represents rhythms and pitches of musical notes
+under musical scales.
+3.2.1 Modeling Scale Transitions
+Scales are represented as S = {sm}M
+m=0, where M de-
+notes the number of bars in the musical piece and sm de-
+notes the scale at the m-th bar. For convenience, we intro-
+duce the initial bar s0 to which the initial note z0 belongs.
+Instead of ﬁxing one scale for the whole piece, the scale
+is allowed to change at bar lines. Each scale sm takes one
+of the 24 values of {C, C#, · · · , B} × {major, minor}. The
+latent variables S are described by a Markov chain as
+p(s0|π) = πs0,
+(1)
+p(sm|sm−1, ξsm−1) = ξsm−1sm,
+(2)
+where π∈R24
+≥0 is a set of initial probabilities and ξs∈R24
+≥0
+is a set of transition probabilities.
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+    
+
+
+
+
+	
+
+
+ 
+
+	
+	
+
+	
+	
+					
+	
+
+
+Figure 2: Overview of the score model.
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(a) Temporal deviations
+
+	
+
+
+
+
+
+
+(b) Frequency deviations
+Figure 3: Deviations in a vocal F0 trajectory.
+3.2.2 Modeling Pitch Transitions
+The sequence of pitches P is generated by a Markov chain
+depending on scales S as follows (Fig. 2):
+p(p0|s0, ϕs0) = ϕs0p0,
+(3)
+p(pj|pj−1, sm, ψsmpj−1) = ψsmpj−1pj,
+(4)
+where ϕs∈RK
+≥0 is a set of initial probabilities, ψsp∈RK
+≥0
+is a set of transition probabilities, and m is the index of
+a bar to which the note zj belongs. Moreover, ϕs0p0 and
+ψsmpj−1pj are deﬁned as
+ϕs0p0 =
+ˆϕˆs0deg(p0;s0)
+∑K
+p=1 ˆϕˆs0deg(p;s0)
+,
+(5)
+ψsmpj−1pj =
+ˆψˆsmdeg(pj−1;sm)deg(pj;sm)
+∑K
+p=1 ˆψˆsmdeg(pj−1;sm)deg(p;sm)
+,
+(6)
+where ˆs∈{major,minor} is the mode of scale s and deg(p;s)
+∈{0, . . . , 11} is the degree of pitch p in scale s (deﬁned as
+the relative pitch class of p from the tonic of scale s). ˆϕ∗
+and ˆψ∗are the initial and transition probabilities of pitch
+classes, given the scales.
+3.2.3 Modeling Onset Transitions
+Considering the transition between onset positions of adja-
+cent notes, the model makes Z have the plausible rhythm.
+Let rj−1∈{vn}N
+n=1 be the onset position of the j-th note
+zj. The transition probability is given by
+p(rj|rj−1, ζrj−1) = ζrj−1rj,
+(7)
+where the distance between rj−1 and rj indicates the note
+value lj of note zj. We assume that r0 = v0 and rJ = vN.
+3.3 Probabilistic Modeling of F0 Trajectories
+The section describes the F0 model based on an HSMM
+that represents the generative process of a vocal F0 trajec-
+tory. In our model, the pitches, onsets, and temporal devia-
+tions are represented as latent variables, and the frequency
+deviations are represented as emission probabilities.
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+
+
+Figure 4: The black bold line represents a sequence of the
+location parameters of the Cauchy distributions.
+3.3.1 Modeling Temporal Deviations
+We assume that vocal F0 trajectories include the following
+two types of temporal deviations (Fig. 3a):
+Onset deviation: the gap between the vocal onset time
+and the note onset time.
+F0 transitional duration: the time it takes for singing
+voices to ﬁnish transitioning from one pitch to the next.
+The onset deviations G = {gj}J
+j=0 accompanying with
+Z are represented as discrete latent variables. Each gj can
+take an integer value between −G and G. As with the onset
+position model, gj−1 denotes the onset deviation of note
+zj. We assume that each gj is independently generated by
+p(gj|ρ) = ρgj,
+(8)
+where ρ ∈R2G+1
+≥0
+is a set of onset deviation probabilities.
+We assume that there are no deviations for the onset of the
+ﬁrst note and the offset of the last note, i.e., g0 = gJ = 0.
+The F0 transitional durations D = {dj}J
+j=1 accompa-
+nying with Z are also represented as discrete latent vari-
+ables. Each dj can take a value from 1 to D. The con-
+tinuous transition of vocal F0s between notes zj−1 and zj
+is represented by a slanted line spanning dj frames. We
+assume that each dj is independently generated as follows:
+p(dj|η) = ηdj,
+(9)
+where η ∈RD
+≥0 is a set of duration probabilities.
+3.3.2 Modeling Frequency Deviations
+The vocal F0 trajectory X = {xt}T
+t=1 is generated by im-
+parting probabilistic frequency deviations to the sequence
+of notes to which probabilistic temporal deviations have
+already been imparted (Fig. 3b). Assuming that xt is inde-
+pendently generated at each frame, the emission probabil-
+ity of the j-th note zj is given by
+p(xτj−1:τj−1|pj−1, pj, lj, gj−1, gj, dj, ˆµt, λ)
+=
+τj−1
+∏
+t=τj−1
+{δxt,voicedCauchy(xt|ˆµt, λ) + δxt,unvoiced}
+= epj−1pjljgj−1gjdj,
+where xτ ′:τ−1 indicates xτ ′, . . . , xτ−1, λ is a scale param-
+eter that represents the scale of the frequency deviations, δ
+is Kronecker’s delta, and ˆµt (Fig. 4) is a location parameter
+given by
+ˆµt=
+{µpj −µpj−1
+dj
+(t−τj−1)+µpj−1 (τj−1≤t<τj+dj)
+µpj
+(τj−1+dj≤t<τj)
+. (11)
+When the onset of note zj+1 is located at the n-th tatum,
+τj = un + gj and τj−1 = un−lj + gj−1.
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+
+
+
+
+
+
+
+
+
+
+	
+
+ 
+
+
+
+	
+
+
+Figure 5: The conﬁguration of the hyperemarameter a
+ˆϕ
+ˆs .
+3.4 Prior Distributions
+We put conjugate Dirichlet priors on categorical model pa-
+rameters π, ξ, ˆϕ, ˆψ, ζ, ρ, and η as follows:
+π ∼Dirichlet
+(
+aπ)
+, ξs ∼Dirichlet
+(
+aξ
+s
+)
+,
+ˆϕˆs ∼Dirichlet
+(
+a
+ˆϕ
+ˆs
+)
+,
+ˆψˆsdeg(p;s)∼Dirichlet
+(
+a
+ˆ
+ψ
+ˆsdeg(p;s)
+)
+,
+ζr ∼Dirichlet
+(
+aζ
+r
+)
+,
+ρ
+∼Dirichlet
+(
+aρ)
+, η ∼Dirichlet
+(
+aη)
+,
+where aπ∈R26
++ , aξ
+s∈R26
++ , a
+ˆϕ
+ˆs ∈R12
++ , a
+ˆ
+ψ
+ˆsdeg(p;s)∈R12
++ , aζ
+r∈R16
++ ,
+aρ∈R2G+1
++
+, and aη∈RD
++ are hyperparameters. The prob-
+ability distribution over the 12 pitch classes under a scale
+is estimated using the priors on the initial and transitional
+probabilities of those classes. As illustrated in Fig. 5, we
+set the hyperparameters a
+ˆϕ
+ˆs and a
+ˆ
+ψ
+ˆsdeg(p;s) so that the prob-
+ability distributions represent the diatonic scales, respec-
+tively. Since the Cauchy distribution does not have a con-
+jugate prior, we put a Gamma prior on λ as
+λ ∼Gamma
+(
+aλ
+0, aλ
+)
+,
+where aλ
+0 and aλ
+1 are shape and rate hyperparameters.
+3.5 Bayesian Inference
+Given an F0 trajectory X, we aim to calculate the posterior
+distribution p(Q, S, Θ|X), where Q = {P , L, G, D}
+(latent variables) and Θ = {π, ξ, ˆϕ, ˆψ, ζ, ρ, η} (model
+parameters). Since this calculation is analytically intractab-
+le, we use Markov chain Monte Carlo (MCMC) methods.
+To get samples of the latent variables S and Q, forward
+ﬁltering-backward sampling algorithms are used. To get
+samples of Θ except for λ, a set of parameters with con-
+jugate priors, a Gibbs sampling algorithm is used. Since
+there is no conjugate prior for the parameter λ, we use
+the Metropolis-Hastings (MH) algorithm. Since S and Q
+share the sequence of notes Z and are mutually dependent,
+each variable is updated as follows:
+1. Initialize notes Z with a majority-vote method.
+2. Update the sequence of scales S based on given Z.
+3. Update Q based on given S.
+4. Update the model parameters Θ.
+5. Return to 2.
+3.5.1 Inferring Latent Variables S
+Given the sequence of notes Z, each sm is sampled in ac-
+cordance with the probability given by
+βS
+sm = p(sm|sm+1:M, Z),
+where sm+1:M represents sm+1, . . . , sM. The calculation
+of Eq. (14) and sampling of scales S are performed by the
+forward ﬁltering-backward sampling method.
+In forward ﬁltering, we recursively calculate the proba-
+bility αS
+sm as follows:
+αS
+s0 = p(p0, s0) = p(p0|s0)p(s0) = ϕs0p0πs0,
+αS
+sm = p(p0:jm+1−1, sm)
+=
+jm+1−1
+∏
+j=jm
+ψsmpj−1pj
+∑
+sm−1
+ξsm−1smαS
+sm−1,
+where jm is the index of the ﬁrst note whose onset belongs
+to the m-th bar. jm can be calculated from given note val-
+ues L.
+In backward sampling, Eq. (14) is calculated by using
+the values calculated in forward ﬁltering, and scales are
+sampled recursively as follows:
+βS
+sM = p(sM|Z) ∝αS
+sM ,
+βS
+sm = p(sm|sm+1:M, Z) ∝αS
+smξsmsm+1.
+3.5.2 Inferring Latent Variables Q
+The latent variables Q can be estimated in a way similar
+to that in which the latent variables S are inferred.
+In
+forward ﬁltering, we recursively calculate the probability
+αQ
+pnln,gndn as follows:
+αQ
+p0l0g0d0 = p(p0|S) = ϕy0p0,
+αQ
+pnlngndn= p(x1:τn−1, pn, ln, gn, dn|S)
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(ln>n)
+ρgnηdnζr0rn
+· ∑
+p0 ψs1p0pnep0pnln0gndnαQ
+p0l0g0d0 (ln=n)
+∑
+pn′,gn′
+min(n′,L)
+∑
+ln′
+∑
+dn′
+ρgnηdnζrn′rnψsm(n′)pn′pn
+· epn′pnlngn′gndnαQ
+pn′ln′gn′dn′
+(ln<n)
+, (20)
+where τn = un + gn, n′ = n −ln, and m(n′) is the index
+of the bar that the n′-th tatum belongs to. pn, ln, gn, and
+dn are the variables of forward messages that correspond
+to the note whose offset position is at the n-th tatum un.
+Note that these variables are different from j-indexed vari-
+ables pj, lj, gj, and dj. Since the onset and offset times
+of the note zn = (pn, ln) are respectively the (n−ln)-th
+tatum and the n-th tatum, the probability p(ln) which ap-
+pears in the recursive calculation of Eq. (20) is replaced by
+p(rn|rn−ln).
+In backward sampling, the posterior distribution of the
+latent variables is calculated by using the values calculated
+in forward ﬁltering, and notes and temporal deviations are
+sampled recursively as follows:
+βpNlNgNdN = p(pN, lN, gN, dN|X, S) ∝αQ
+pNlNgNdN ,
+βpn′ln′gn′dn′
+= p(pn′, ln′, gn′, dn′|pn:N, ln:N, gn:N, dn:N, X)
+∝
+
+
+
+
+
+(ln>n)
+epn′pnlngn′gndnψsm(n′)pn′pn
+· ζrn′rnρgnηdnαQ
+pn′ln′gn′dn′
+(ln ≤n)
+.
+3.5.3 Learning Model Parameters Θ
+The posterior distributions of the model parameters with
+the prior distributions are calculated using S and Q ob-
+tained in the backward sampling steps, and these parame-
+ters are sampled according to the posterior distributions as
+follows:
+π∼Dirichlet
+(
+aπ+bπ)
+, ξs∼Dirichlet
+(
+aξ
+s+bξ
+s
+)
+,
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+
+ˆϕˆs∼Dirichlet
+(
+a
+ˆϕ
+ˆs +b
+ˆϕ
+ˆs
+)
+,
+ˆψˆsdeg(p;s)∼Dirichlet
+(
+a
+ˆ
+ψ
+ˆsdeg(p;s)+b
+ˆ
+ψ
+ˆsdeg(p;s)
+)
+,
+ζr ∼Dirichlet
+(
+aζ
+r+bζ
+r
+)
+,
+ρ ∼Dirichlet
+(
+aρ+bρ)
+, η∼Dirichlet
+(
+aη+bη)
+,
+where bπ∈R26
+≥0 is a unit vector whose s0-th element is 1.
+bξ
+s∈R26
+≥0 is a vector whose s′-th element indicates the num-
+ber of transitions between adjacent scales s and s′ in the se-
+quence of latent variables Y . bρ∈R2G+1
+≥0
+is a vector whose
+g-th element indicates the number of vocal onset devia-
+tions of g in sampled Q, and bη∈RD
+≥0 is a vector whose
+d-th element represents the number of F0 transitional du-
+rations of d in sampled Q. bζ
+r∈R16
+≥0 is a vector whose r′-th
+element represents the number of transitions between ad-
+jacent note onset positions r and r′ in R= {rj}J
+j=0 that
+can be calculated from the note values L sampled in back-
+ward sampling. Regarding the vector b
+ˆϕ
+ˆs ∈R12
+>0, when the
+scale of the initial bar and the pitch of the initial note are
+s0 = s and p0 = p, the value of the element b
+ˆϕ
+ˆsdeg(p;s)
+is 1, and the other elements are 0. Regarding the vector
+b
+ˆ
+ψ
+ˆsdeg(p;s)∈R12
+≥0, the value of b
+ˆ
+ψ
+ˆsdeg(p;s)deg(p′;s) is increased
+by one when there is a transition from a pitch p to a pitch
+p′ under a scale s in the sampled latent variables.
+To apply the MH sampling to the parameter λ, we deﬁne
+a random-walk proposal distribution as follows:
+q(λ∗|λ) = Gamma(γλ, γ),
+where λ∗is a proposal, λ is the current sample, and γ is
+a hyperparameter. The proposal λ∗is accepted as the next
+sample according to the probability given by
+A(λ∗, λ) = min
+{L(λ∗)q(λ|λ∗)
+L(λ)q(λ∗|λ)
+}
+,
+where L(λ) is the complete joint likelihood of λ given by
+L(λ) = Gamma
+(
+λ|aλ
+0, aλ
+)
+J
+∏
+j=1
+epj−1pjljgj−1gjdj,
+{pj, lj, gj, dj}J
+j=0 are the values sampled in the backward
+sampling. The value of λ is updated by λ∗only when the
+value of A(λ∗, λ) is larger than a random number sampled
+from the uniform distribution U(0, 1).
+3.6 Viterbi Decoding
+The sequence of latent variables S and Q are estimated
+with the Viterbi algorithm with the model parameters that
+maximize the joint distribution p(X, Q, S, Θ|Φ) in the
+learning process. As in the inference of latent variables, we
+initialize Z by the majority-vote method, S is estimated
+based on Z, and then Q is estimated depending on the S
+estimated in the previous step.
+In the Viterbi decoding on scales S, the value ωS
+s is
+recursively calculated as follows:
+ωS
+s0= ln ϕs0k0+ ln πs0,
+ωS
+sm=
+jm+1−1
+∑
+j=jm
+ln ψsmpj−1pj+max
+sm−1
+{
+ln ξsm−1sm+ωS
+sm−1
+}
+.(31)
+In the recursive calculation of ωS
+s , the previous state sm−1
+that maximizes the value of ωS
+sm is memorized as cS
+sm, and
+the scales S are recursively estimated as follows:
+sM = arg max
+sM
+αS
+sM ,
+sm−1 = cS
+sm.
+In the Viterbi decoding on variables Q, the value ωQ
+plgd
+is recursively calculated as follows:
+ωQ
+p0l0g0d0 = wϕ ln ϕs0p0,
+ωQ
+pnlngndn
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+−inf
+(ln>n)
+wρ ln ρgn+wη ln ηdn+wζ ln ζrnr0
++ maxp0
+{
+wψ ln ψs1p0pn
++ we ln ep0pnln0gndn + ωQ
+}
+(ln=n)
+wρ ln ρgn+wη ln ηdn+wζ ln ζrnrn′
++ max(pn′,ln′,gn′,dn′)
+{
+wψ ln ψsm(n′)pn′pn
++ we ln epn′pnlngn′gndn
++ ωQ
+pn′ln′gn′dn′
+}
+(ln<n)
+,
+where wϕ, wψ, wρ, wη, wζ, and we are the weight pa-
+rameters that control the balance between probabilities. In
+the recursive calculation of ωQ
+plgd, the previous states pn′,
+ln′, gn′, and dn′ which maximize the value of ωQ
+pnlngndn
+are memorized as cQ
+pnlngndn, and the variables Q are recur-
+sively estimated as follows:
+(pN, lN, gN, dN) =
+arg max
+pN,lN,gN,dN
+αQ
+pNlNgNdN ,
+(pn′, ln′, gn′, dn′) = cQ
+pnlngndn.
+4. EVALUATION
+We report comparative experiments conducted to evaluate
+the performance of the proposed method in musical note
+estimation from vocal F0 trajectories.
+4.1 Experimental Conditions
+Among the 100 pieces of popular music in the RWC mu-
+sic database [5], we used 63 pieces that do not include
+32nd notes, triplets, harmonizing parts, and overlaps of ad-
+jacent notes, which the proposed method cannot deal with.
+The input F0 trajectories were obtained from the annota-
+tion data [4] or automatically estimated by using the state-
+of-the-art melody extraction method proposed in [9]. The
+annotation data contain unvoiced regions and the estima-
+tion data do not. The tatum times and onset positions were
+obtained from the annotation data.
+The Bayesian inference and Viterbi decoding were in-
+dependently conducted for each song. The onset transi-
+tion probabilities were learned in advance from a corpus
+of rock music [2] without Bayesian learning. The hyper-
+parameters were aπ=1, aξ
+s=1, aζ
+r=1, aρ = aη = aλ
+0 =
+aλ
+1 = γ =1, where 1 and 1 respectively represent the ma-
+trix and vector whose elements are all ones. The elements
+of a
+ˆϕ
+ˆs and a
+ˆ
+ψ
+ˆsdeg(p;s) corresponding to musical notes on the
+scale of ˆs were 10 and the others were 1. The weight pa-
+rameters of the Viterbi algorithm were empirically set as
+wϕ = wψ = 29.4, wρ = 2.4, wη = 2.9, wζ = 48.5, and
+we = 3.8. To obtain musically-consistent sequences of
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+
+Model
+Input F0s
+Tatum level Note level
+Proposed
+Ground-truth 72.4 ± 1.7 28.1 ± 2.1
+method
+Estimated
+With
+Ground-truth 71.5 ± 1.6
+only rhythms
+Estimated
+With
+Ground-truth 67.8 ± 1.6
+only scales
+Estimated
+Without scales Ground-truth 67.2 ± 1.5
+& rhythms
+Estimated
+Majority vote
+Ground-truth 54.1 ± 1.5
+Estimated
+HMM [16]
+Estimated
+Table 1: Average matching rates [%] and their standard
+errors in tatum and note levels.
+musical notes, we put more emphasis on the score model
+than the F0 model.
+For comparison, we tested the majority-vote method as
+a baseline and the latest conventional method based on
+a semi-beat-synchronous HMM [16]. Since the conven-
+tional method cannot deal with unvoiced regions in a vocal
+F0 trajectory given as input, we only tested the method
+for the estimation data. To evaluate the effectiveness of
+the score model, we tested four versions of the proposed
+method; a method that does not consider scales (scale tran-
+sition probabilities) and rhythms (onset transition proba-
+bilities), a method considering only scales, a method con-
+sidering only rhythms, the full method considering both
+scales and rhythms. To accelerate the inference, the search
+range of pitches was limited around the pitches estimated
+by the majority-vote method.
+To evaluate the performance of each method, we cal-
+culated tatum-level and note-level matching rates by com-
+paring the estimated sequences of musical notes with the
+ground-truth data. The tatum-level matching rate is the rate
+of the number of tatum units whose pitches were estimated
+correctly to the total number of tatum units whose pitches
+exist in the ground-truth scores.
+The note-level match-
+ing rate is the rate of the number of musical notes whose
+pitches, onsets, and offsets were estimated correctly to the
+total number of musical notes in the ground-truth scores.
+If adjacent notes in the ground-truth scores have the same
+pitch or are connected by a tie, those notes were regarded
+as a single note. Since the compared method [16] outputs
+a pitch in a 16th-note-wise manner, a sequence of the same
+pitches was regarded as a single note.
+4.2 Experimental Results
+The experimental results are shown in Table 11 . The pro-
+posed method outperformed the majority-vote method and
+the conventional method in terms of both measures. Com-
+paring the tatum-level matching rates obtained by the four
+versions of the proposed method, we conﬁrmed that the
+score model improved the performance of musical note
+estimation. The use of the onset transition probabilities
+1 The results of music note estimation by the proposed method are
+available online: http://sap.ist.i.kyoto-u.ac.jp/members/nishikimi/demo/
+ismir2017/
+
+	
+
+
+	
+
+
+
+
+Figure 6: Musical scores estimated from a ground-truth F0
+trajectory by the proposed method and its variant without
+scale and rhythm constraints.
+(rhythm constraints) was found to be more effective than
+that of the scale transition probabilities (scale constraints).
+Although the tatum-level matching rate obtained the pro-
+posed method (68.7%) was close to that obtained by the
+conventional method (68.0%), the note-level matching rate
+obtained the proposed method (30.7%) was better than that
+obtained by the conventional method (14.8%), This is a re-
+markable advantage of the proposed HHSMM that can di-
+rectly represent both the pitches and durations (onsets and
+offsets) of musical notes on symbolic musical scores, not
+on continuous-time piano rolls.
+Examples of estimated musical scores are illustrated in
+Fig. 6. The proposed method yielded the almost accurate
+musical score except that some notes were merged. To cor-
+rectly recognize two adjacent notes with the same pitch, it
+is necessary to refer to original singing voices or music au-
+dio signals. The score estimated without considering the
+score model, on the other hand, included a lot of wrong
+notes that were inconsistent with music theory. This result
+also shows the effectiveness of using the score model as
+musical constraints on musical note estimation.
+5. CONCLUSION
+This paper presented a statistical method for musical note
+estimation from a vocal F0 trajectory. Our method is based
+on an HHSMM that combines a score model (HMM) rep-
+resenting the generative process of a musical score from
+musical scales with an F0 model (HSMM) representing
+the generative process of a vocal F0 trajectory with time-
+frequency deviation from the musical score. We conﬁrmed
+that the proposed method can yield more musically-consistent
+sequences of musical notes.
+One of the most interesting directions of this research is
+to use the proposed model as a musically-meaningful prior
+distribution on a vocal F0 trajectory in vocal F0 estimation
+for music audio signals. We plan to integrate the proposed
+“language” model that generates an F0 trajectory from a
+musical score with an acoustic model that generates a spec-
+trogram from the F0 trajectory in a hierarchical Bayesian
+manner. This enables us to jointly learn the vocal F0 tra-
+jectory and musical score from music audio signals. Joint
+estimation of beat times and F0s is worth investigating to
+overcome the problem of estimation-error accumulation in
+the cascaded estimation approach.
+Acknowledgement: This study was partially supported by JSPS
+and JST ACCEL No. JPMJAC1602.
+Proceedings of the 18th ISMIR Conference, Suzhou, China, October 23-27, 2017
+
+6.

@@ -1,0 +1,682 @@
+While neural network models are making signiﬁcant
+progress in piano transcription, they are becoming more
+resource-consuming due to requiring larger model size and
+more computing power. In this paper, we attempt to ap-
+ply more prior about piano to reduce model size and im-
+prove the transcription performance. The sound of a pi-
+ano note contains various overtones, and the pitch of a key
+does not change over time. To make full use of such la-
+tent information, we propose HPPNet that using the Har-
+monic Dilated Convolution to capture the harmonic struc-
+tures and the Frequency Grouped Recurrent Neural Net-
+work to model the pitch-invariance over time. Experimen-
+tal results on the MAESTRO dataset show that our piano
+transcription system achieves state-of-the-art performance
+both in frame and note scores (frame F1 93.15%, note F1
+97.18%). Moreover, the model size is much smaller than
+the previous state-of-the-art deep learning models.
+1. INTRODUCTION
+Automatic music transcription (AMT) is a crucial task in
+Music Information Retrieval (MIR). This task converts the
+music in audio format to musical notation formats such as
+MIDI and sheet music. Transcribing from wave format is a
+process of message compression that reduces the message
+from universe form (wave) to abstract form (sheet music)
+that will help with music understanding.
+Piano transcription is a popular subtask of AMT. Pre-
+dicting a set of concurrent pitches present in the same
+frame is a challenging problem. Over the past decades,
+plenty of methods have been applied to the piano tran-
+scription task, e.g., using Factorization-based models
+(Smaragdis et al. [1]), using sparsity coding and unsuper-
+vised analysis (Abdallah et al. [2]), adaptive estimation
+of harmonic spectra (Vincent et al. [3]), and using SVM-
+HMM structure (Nam et al. [4] ). Some methods are mo-
+© Weixing Wei, Peilin Li, Yi Yu, and Wei Li. Licensed un-
+der a Creative Commons Attribution 4.0 International License (CC BY
+4.0). Attribution: Weixing Wei, Peilin Li, Yi Yu, and Wei Li, “HPPNet:
+Modeling the Harmonic Structure and Pitch Invariance in Piano Tran-
+scription”, in Proc. of the 23rd Int. Society for Music Information Re-
+trieval Conf., Bengaluru, India, 2022.
+LSTM
+Time
+Frequency
+Harmonic Dilated
+Convolution
+Frequency Grouped RNN
+f0
+CQT
+...
+...
+...
+...
+Figure 1. Harmonic Dilated Convolution and Freqency
+Grouped RNN. The former captures possible harmonic se-
+ries information for all frequency groups by dilated con-
+volution. The latter feeds each single frequency group to
+the same LSTM layer to detect whether there is a harmonic
+series in the frequency group.
+tivated by the piano’s acoustics features, such as the at-
+tack/decay [5] model.
+In recent years, with the development of deep learning
+and the existence of large scale labeled datasets, neural
+networks have become a popular method, such as using
+RNNs [6] and using methods based on CNNs [7]. With the
+release of the MAESTRO [8] dataset in the ﬁeld of piano
+transcription, the Onsets & Frames transcription system [9]
+made signiﬁcant progress. Hawthorne et al. focus on on-
+sets and offsets together to predict frame labels. Trans-
+former is a revolutionary architecture in other ﬁelds, and
+Hawthorne et al. [10] explore Transformers potential on
+piano transcription. Generative Adversarial Networks [11]
+also show its potential in improving performance. Kong
+et al. [12] proposed a high-resolution AMT system trained
+by regressing precise onset and offset times of piano notes,
+which achieved state-of-the-art performance in note pre-
+diction.
+However, previous SOTA models are becoming more
+and more resource-consuming. The spectrograms of the
+solo piano are highly structured. Each tone has a harmonic
+series, and the pitch of a key does not change over time.
+In view of this prior, we attempt to model such harmonic
+structure and pitch-invariance over time to improve model
+interpretability and algorithm efﬁciency.
+
+We propose the Harmonic Dilated Convolution (HD-
+Conv) to capture harmonic series information and the Fre-
+quency Grouped Long Short-Term Memory (FG-LSTM)
+to detect if there is an active pitch accounting for high
+energy in a speciﬁc frequency band. We apply HD-Conv
+and FG-LSTM to model the harmonic structure and pitch-
+invariance prior over time in a model called HPPNet. The
+model achieves state-of-the-art piano transcription perfor-
+mance. Remarkably, it is an approach that uses much fewer
+parameters of only 1.2 million while other models like the
+Transformer [10] use 54 million ones. The reduction of
+parameters is attributed to the use of FG-LSTM, which ap-
+plies LSTM in a single frequency group, and the shared
+acoustic model. The primary contribution of this work is
+an tiny model that achieves state-of-the-art performance
+using much fewer parameters.
+The rest of this paper is organised as follows: Section
+2 describes the proposed model component’s details: har-
+monic dilated convolution and the frequency grouped re-
+current neural networks. Section 3 illustrates the experi-
+mental setup, with results analysed in Section 4. Conclu-
+sions are discussed in Section 5.
+2. ARCHITECTURE
+The two critical components of our model are the harmonic
+dilated convolution and the frequency grouped recurrent
+neural networks. The former is used to model harmonics
+structure, and the latter is designed based on the invariance
+of piano pitches over time as demonstrated in Figure 1.
+2.1 CQT input
+We use the Constant-Q Transform (CQT) [13] as our in-
+put feature. Unlike the log-mel spectrogram which is par-
+tially log-scaled, all the frequency bins of the CQT are ge-
+ometrically spaced. As shown in Eq. (1), the spacing be-
+tween fundamental frequency and overtones does not vary
+with the change of the fundamental frequency. Such prop-
+erty makes it suitable for dilated convolution, as described
+in [14].
+dk = log21/Q(k · f0) −log21/Q(f0)
+= Q · log2(k),
+(1)
+where k is the serial number of the harmonic series, dk
+denotes the distance between fundamental frequency and
+the k-th overtone on a log frequency scale, Q indicates the
+number of frequency bins per octave, and f0 is the funda-
+mental frequency.
+2.2 Harmonic Dilated Convolution
+In recent years, some methods are proposed to model-
+ing harmonic structure in neural networks.
+The Har-
+monic constant-Q transform (HCQT) [15] captures the har-
+monic relationships by a 3-dimensional CQT array for
+pitch tracking in polyphonic music. Harmonic convolu-
+tion is applied in [16] to denoise speech audios. Dilated
+convolution [17] and sparse convolution [18] are used in
+Wang’s works but they are still not perfect ways to capture
+Model
+Onsets & Frames
+HPPNet
+Acoustic
+LSTM
+Acoustic
+FG-LSTM
+inputs
+outputs
+T×1
+units
+-
+-
+parameters
+Table 1. The parameters of different layers in Onsets &
+Frames and HPPNet. Acoustic denotes the acoustic mod-
+els, T denotes the number of frames in a training sample.
+harmonic structure. Our model captures harmonic infor-
+mation in a simple but effective way. As shown in our
+acoustic model (Figure 2), we feed the CQT into multi-
+ple dilated convolution [19] layers with different dilation
+rates and sum the outputs for the following layers. The
+dilation rates are the distance between fundamental fre-
+quency and overtones on a log frequency scale as in Eq.
+(1). We call such dilated convolutions applied on the log-
+frequency dimension and with dilation rates of spaces be-
+tween harmonic series the Harmonic Dilated Convolution
+(HD-Conv).
+2.3 Frequency Grouped LSTM
+In the feature map output by the harmonic acoustic model,
+each frequency unit with multiple channels contains corre-
+sponding possible harmonic information to detect if there
+is an active pitch accounting for high energy in a speciﬁc
+frequency band. However, detecting multiple pitches in
+polyphonic music is challenging since harmonic series in-
+terfere with each other.
+Time-domain correlation is re-
+quired to obtain smooth pitch contours. Previous works
+[9] [12] applied bidirectional Recurrent Neural Network
+(biRNN) [20] to model the temporal relationship of frames.
+They ﬂatten the channel dimension and frequency dimen-
+sion of the feature map output by the acoustic model to
+a long hidden dimension as the input of RNN. There are
+some problems with such processing. One is that the long
+hidden dimension led to an unnecessarily large amount of
+model parameters. This leads to large amount of parame-
+ters both in acoustic model and Long Short-Term Memory
+(LSTM) [21], as described in Table 1.
+The sub-band and multi-band techniques are widely ap-
+plied in speech and music processing [22–24]. The com-
+mon practice is splitting the full-band spectral represen-
+tation into multiple sub-bands and processing them sepa-
+rately, then concatenating the outputs of each sub-band for
+subsequent processing. Speciﬁcally, some methods based
+on splitting sub-bands (frequency-LSTM [25]) or gener-
+ating sub-bands (multi-band MelGAN [26]) show impres-
+sive performance with lightweight models. The splitting of
+sub-bands reduces the size of network input, and different
+sub-bands sharing the same sub-network further reduces
+the model size.
+Similar to the multi-bands techniques, we segment the
+output of harmonic dilated convolution to 88 frequency
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+groups. Since the piano is a ﬁxed-pitch keyboard instru-
+ment, the fundamental frequency of each key does not vary
+as time changes. This enables the model process each fre-
+quency group independently. Based on this assumption,
+we feed each frequency group to the same LSTM layer in-
+dividually to model the temporal relationship. We term this
+the Frequency Grouped LSTM (FG-LSTM) illustrated in
+Figure 1. Feeding a single frequency group to the LSTM
+makes inputs and units size of FG-LSTM smaller. This
+method signiﬁcantly reduces the amount of parameters in
+our model.
+Conv2d
+Relu
+InstanceNorm
+CQT 
+(T x 352)
+x 3
+Conv2d
+Conv2d
+Conv2d
+...
+MaxPool
+Conv2d
+Relu
+(T x 88 x C)
+InstanceNorm
+x 4
+Harmonic Dilated 
+Convolution
+Dilated Conv Block
+d=(1,48)
+d=(1,76)
+d=(1,12)
+Conv Block
+Figure 2. Acoustic model of HPPNet. It is composed
+of three identical regular convolution layers, a harmonic
+dilated convolution layer, a max pooling layer, and four
+identical dilated Conv blocks. Different dilated convolu-
+tion layers have different dilation rates denote by d. The
+output is a feature map with size T × 88 × C, where T is
+the frame numbers, 88 denotes the numbers of piano keys,
+C is the channel size.
+2.4 Model Details
+Raw audios are clipped to 20-second pieces and resampled
+to 16 kHz. Then, the CQT is computed by nnAudio [27]
+with hop length 320 (20 millisecond), an FFT window of
+2048, bins per octave of 48, fmin of 27.5 Hz, frequency
+bins number of 352, and log amplitude. The model takes
+the CQT feature with size T × 352 as input, where T is the
+frame number of each audio clip. The time resolution and
+frequency resolution of inputs are limited by the compu-
+tational resource, higher input resolution may have better
+performance.
+The model is composed of a convolutional acoustic
+model and multiple FG-LSTM heads. The former struc-
+ture captures the harmonic representations of a tone, and
+the latter establishes connections over temporal series. In
+the acoustic model shown in Figure 2, the ﬁrst three con-
+volution layers extract local information with kernel size
+7 × 7, a ReLu activation, and instance normalization.
+Then followed by eight dilated convolution layers par-
+allel with different dilations of 48, 76, 96, 111, 124, 135,
+144, and 152 in the frequency dimension. These dilation
+rates are calculated by Eq. (1) with Q = 48 and rounded
+to integers. All the outputs of these layers integrate the
+harmonic information for each frequency unit.
+The max-pooling layer downsamples the frequency bins
+from 352 to 88 with pooling size of 4, four bins per semi-
+tone to one bin per semitone. Then four identical dilated
+convolution blocks make the network deeper to achieve
+higher learning capacity. Each block contains one convo-
+lution layer with kernel size of 5×3, and dilation of 1×12.
+FG-LSTM
+FG-LSTM
+FG-LSTM
+FG-LSTM
+(Tx88)
+onset
+frame
+offset
+velocity
+(T x 88 x C)
+Acoustic
+Model
+CQT
+Figure 3. HPPNet-base. Onset, frame, offset, and velocity
+tasks share the same acoustic model.
+Finally, four FG-LSTM heads are used to predict
+frames, onsets, offsets, and velocities separately as shown
+in Figure 3. These outputs are then decoding to note events
+with the same way as the Onsets & Frames [8] model. Note
+that the offset head is just used for training and not directly
+used during decoding. Each head uses a linear layer with
+a sigmoid activation function to output the prediction. All
+the outputs are matrices of size T × 88, where T denotes
+frame number and 88 represents the 88 piano keys. The
+LSTM is bidirectional, and both forward and backward di-
+rections have 64 units. The hyperparameters of the net-
+work are summarized in Table 2. We denote this model the
+HPPNet-base.
+Layer
+repeat kernel
+ﬁlters
+dilation
+Conv
+-
+HD-Conv
+Dilated Conv
+Table 2. Hyperparameters of convolution layers.
+All the FG-LSTM heads in HPPNet-base share the same
+acoustic model, making it simple and efﬁcient. But in our
+experiments, we try multiple acoustic models and ﬁnd that
+if a stand-alone acoustic model is used to predict the onset,
+the model will perform better in onset detection. Since the
+onset F-measure is the metric that correlates best with hu-
+man judgment [28], we use an individual acoustic model
+for onset. Frame, offset, and velocity share another acous-
+tic model. The HPPNet-sp is shown in Figure 4. The out-
+put representations of the onset acoustic model are con-
+catenated with outputs of the other acoustic model to pre-
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+Acoustic
+Model
+FG-LSTM
+Acoustic
+Model
+FG-LSTM
+FG-LSTM
+FG-LSTM
+detach
+CQT
+CQT
+onset
+frame
+offset
+velocity
+concat
+Figure 4. HPPNet-sp. Onset and other tasks use separate
+acoustic models.
+dict frame, offset, and velocity (detach to avoid backward
+propagation).
+3. EXPERIMENTS
+In this section we ﬁrst introduce the datasets we used. And
+then, we describe the details of the experiment and the
+training loss for our model.
+3.1 Datasets
+MAESTRO [8] (MIDI and Audio Edited for Synchronous
+Tracks and Organization): It includes about 200 hours of
+paired audio and MIDI recordings from ten years of Inter-
+national Piano-e-Competition. Audio and MIDI ﬁles are
+aligned with 3 ms accuracy and sliced to individual mu-
+sical pieces annotated with composer, title, and year of
+performance. The MIDI have been collected by Yamaha
+Disklaviers which have a high-precision MIDI capture sys-
+tem.
+MAPS [29] (MIDI Aligned Piano Sounds): It includes
+about 31 GB of CD-quality recordings and correspond-
+ing annotations of isolated notes, chords, and complete pi-
+ano pieces. The records contain both synthesized audio
+and real audio by Virtual Piano software and a Yamaha
+Disklavier respectively.
+3.2 Experimental setup
+We use PyTorch 1 to implement our model. The training
+is performed by Adam [30] optimizer with mini-batch size
+4, and a learning rate of 0.0006 for 200k to 500k steps with
+early stopping. The training time on an NVIDIA GeForce
+3060 GPU with 12 GB VRAM is about 48 hours. The
+note and frame scores are calculated by the mir_eval li-
+brary [31]. The evaluation uses a 50 ms tolerance for note
+onset and an offset ratio of 0.2 as the default conﬁguration
+in mir_eval. The onset and frame thresholds are both set to
+0.4 on the sigmoid output in our model. All the hyperpa-
+rameters are selected by the performance on the validation
+split of MAESTRO.
+The losses we use for training are similar to the Onsets
+& Frames model. The losses of onset, frame, and offset
+are binary cross-entropy losses. The weighted frame loss
+1 www.pytorch.org
+is not used in our training. The loss of velocity is the mean
+squared error loss. All losses are summed together as the
+ﬁnal loss. All the losses are as follows:
+lbce (y , ˆy) = −wy log(ˆy) −(1 −y) log(1 −ˆy),
+(2)
+Lonset =
+∑
+p=1
+T
+∑
+t=1
+lbce (np,t , ˆnp,t) ,
+(3)
+Lframe =
+∑
+p=1
+T
+∑
+t=1
+lbce
+(
+fp,t , ˆfp,t
+)
+,
+(4)
+Loffset =
+∑
+p=1
+T
+∑
+t=1
+lbce (op,t , ˆop,t) ,
+(5)
+Lvelocity =
+∑
+p=1
+T
+∑
+t=1
+np,t (vp,t −ˆvp,t)2 ,
+(6)
+L = Lonset + Lframe + Loffset + Lvelocity.
+(7)
+where lbce denotes the binary cross entropy loss, p is the
+piano note index range from 1 to 88, T is the frame num-
+ber in a sample, w denotes the positive weight (w = 2 for
+onset, w = 1 for frame and offset), y denotes ground true
+and ˆy denotes predicted values range from 0 to 1, np,t,
+fp,t, op,t, and vp,t are the ground true of onset, frame, off-
+set, and velocity seperately.
+3.3 Baselines
+Our model is compared with ﬁve typical models, includ-
+ing High-Resolution piano transcription [12], Onsets &
+Frames [9], Adversarial onsets & frames [11], Semi-CRFs
+[32] and the sequence-to-sequence Transformer [10]. The
+results are shown in Table 3. High-Resolution and On-
+sets & Frames are convolution-based models composed
+of convolution layers and LSMT layers. Especially, the
+High-Resolution is the best model in note F1 score which
+is 96.72%. Adversarial onsets & frames is an adversar-
+ial training scheme that operates on the Mel-spectrogram.
+Semi-CRFs is a Semi-Markov Conditional Random Fields
+(semi-CRF) based model, which treats note intervals as
+holistic events. Sequence-to-sequence Transformer uses a
+generic Transformer architecture with standard decoding
+methods.
+4. RESULTS
+We compare our model with some existing state-of-the-
+art methods using the MAESTRO dataset and the MAPS
+dataset. Then, ablation studies are done to demonstrate the
+affects of FG-LSTM, and HD-Conv. We also examine the
+model performance on small datasets.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+Model
+Params
+FRAME
+NOTE
+NOTE W/OFFSET
+NOTE W/OFFSET & VEL.
+P (%)
+R (%)
+F1(%)
+P (%)
+R (%)
+F1(%)
+P (%)
+R (%)
+F1(%)
+P (%)
+R (%)
+F1(%)
+MAESTRO v1
+Onsets & Frames [8]
+Adversarial onsets & frames [11]
+MAESTRO v2
+High-Resolution [12]
+Semi-CRFs [32]
+9M
+HPPNet-sp
+MAESTRO v3
+Onsets & Frames [reproduced]
+Transformer [10]
+-
+-
+-
+-
+-
+-
+-
+-
+-
+Semi-CRFs [32]
+9M
+HPPNet-tiny
+HPPNet-base
+HPPNet-sp
+Table 3. Transcription result evaluated on the MAESTRO dataset. Train split of MAESTRO v3 is used for training and
+test splits of different versions are used for evaluation.
+Model
+Params
+FRAME
+NOTE
+NOTE W/OFFSET
+NOTE W/OFFSET & VEL.
+P (%)
+R (%)
+F1(%)
+P (%)
+R (%)
+F1(%)
+P (%)
+R (%)
+F1(%)
+P (%)
+R (%)
+F1(%)
+Onsets & Frames
+-
+-
+-
+-
+-
+-
+-
+-
+Onsets & Frames*
+HPPNet-sp
+Table 4. The transcription evaluation result on MAPS test split, which training was done on the MAESTRO v3 train
+split. Onsets & Frames* means Onsets & Frames with audio augmentation. The training of HPPNet is without audio
+augmentation.
+4.1 Comparison with baselines
+Along with the HPPNet-base and HPPNet-sp, we also
+evaluate the HPPNet-tiny, which has a similar structure as
+HPPNet-base but reduces the maximum convolution chan-
+nel size and units in LSTM from 128 to 48.
+Evaluation on the MAESTRO dataset is shown in Table
+3. The HPPNet-sp achieves state-of-the-art in both frame
+F1 score and note F1 score, which improved 3.24 percent-
+age points and 0.49 percentage points, reaching 92.86%
+and 97.21% in MAESTRO v2 respectively. In the last two
+columns, under the condition of note with offset, it still
+outperforms other models except the event-based Semi-
+CRFs method. Even slight structure of HPPNet-base still
+achieves 92.51% and 96.25% on frame F1 score and note
+F1 score, respectively.
+Moreover, another signiﬁcant advantage is that our
+model has much fewer parameters, around 820 thousand
+HPPNet-base and 1.2 million HPPNet-sp. The lightweight
+structure HPPNet-tiny with 151 thousand parameters still
+outperforms the baseline Onsets & Frames, that the frame
+F1 score and the note F1 score reaching 92.06% and
+95.82%. This proves the effectiveness of HPPNet in both
+improving performance and reducing model size.
+Empirical results in Table 3 show that among all com-
+pared frame-level models, our model performs best in all
+scores. It is interesting to note that HPPNet achieves im-
+proved recall while not or only slightly loosing precision.
+But the event-based Semi-CRFs has better prediction on
+offsets, for it predicts note intervals directly rather than in-
+dividual frames. Maybe future works that combining the
+frame-level and event-level can take advantage of the both
+sides.
+To further explore the generalization of the HPPNet in
+different datasets, we train the model on the MAESTRO
+dataset and evaluate it on the MAPS dataset. The result is
+shown in Table 4. we can ﬁnd that the HPPNet-sp’s note
+F1 still reaches 87.56%. This result is better than Onsets &
+Frames of 83.04%, even outperforming Onsets & Frames
+with audio augmentation of 86.44%. The result conﬁrms
+that the HPPNet has better generalization ability on piano
+transcription task.
+4.2 Ablation study
+We further analyze the role of the HD-Conv layer and
+FG-LSTM in the HPPNet.
+In addition to the HPPNet,
+we evaluate three types of models, the F1 in frame-wise
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+Steps
+F1
+Frame F1 of validation set
+HD-Conv + FG-LSTM (Proposed) 
+HD-Conv + LSTM
+w/o FG-LSTM ((fully CNN))
+w/o HD-Conv (dilation rate =24)
+Steps
+Note F1 of validation set
+1k
+2k
+3k
+F1
+Note F1 of validation set (local)
+Figure 5. F1 in frame-wise and note-wise of MAESTRO
+v3 validation set.
+and note-wise during training per epoch shown in Figure 5:
+• To verify the effect of FG-LSTM: change FG-LSTM
+to normal LSTM with frequency ﬂattening.
+• To verify the effect of LSTM: remove time-series
+layers, which change them to linear layers.
+• To verify the effect of harmonic dilated convolution:
+replace the harmonic dilated convolution with ﬁxed
+dilated convolution (dilation rate of 24).
+These results suggest that the the HPPNet outperforms
+the other three ablated models. The F1 of normal LSTM
+decreases about three percentage points and one percent-
+age point on frame-wise and note-wise, respectively. Usual
+LSTM starts later than the HPPNet in note-wise F1 at the
+beginning of training, and it starts to increase after about 1k
+steps. The HD-Conv + vanilla LSTM is better than chang-
+ing time-series layers to linear layers. Model without RNN
+converges slowly and ﬂuctuates drastically. A large recep-
+tive ﬁeld helps model get global information. Using the
+ﬁxed dilation rate has a similar receptive ﬁeld to HD-Conv.
+But the result shows it does not capture useful information
+for the detection of frames and onsets, leading to poor per-
+formance.
+4.3 Performance on small datasets
+The HPPNet trained on big dataset such as compete MAE-
+STRO shows promising results, and it also shows better
+generalization when inference on MAPS. To evaluate the
+Model
+Data
+FRAME
+NOTE
+P (%)
+R (%)
+F1(%)
+P (%)
+R (%)
+F1(%)
+Onsets&
+Frames
+HPPNet-sp
+Table 5. The transcription evaluation result on MAESTRO
+v3 test split, which training was done on the 100%, 30%,
+and 10% of MAESTRO v3 training split respectively. Con-
+sidering the annotation accuracy, we use subsets of MAE-
+STRO rather than the MAPS for evaluation.
+performance of the HPPNet on smaller dataset, we also
+train the model with 30% and 10% of MAESTRO train-
+ing split. All the samples are randomly selected and with-
+out data augmentations. The results are displayed in Ta-
+ble 5. When the training set size decreases to 10%, the
+HPPNet-sp drops less than Onsets & Frames on frame F1
+and note F1 scores with 88.31% and 93.52% respectively,
+while the Onsets & Frames approach only yields 80.36%
+and 90.62%. This demonstrates that the HPPNet relies less
+on data thanks to the small amount of parameters and pri-
+ors contained in HD-Conv and FG-LSTM.
+5. CONCLUSION
+In this paper, we design a model that carries piano in-
+ductive biases to capture piano priors.
+The HPPNet is
+proposed to model the harmonic structure and the pitch-
+invariance over time in piano transcription. Experimental
+results show that the model achieves state-of-the-art per-
+formance on the MAESTRO dataset, with frame F1 of
+93.15% and note F1 of 97.18%. The success stems from
+two aspects: (i) the harmonic dilated convolution exploited
+to capture harmonics structure; and (ii) the frequency
+grouped LSTM designed based on the pitch-invariance of
+piano key over time. Furthermore, the model parameters
+are much fewer than the previous state-of-the-art models.
+The results of the model on piano transcription are en-
+couraging. And it may also be suitable for other instru-
+ments with similar pitch characteristics. But some chal-
+lenges remain, such as improving performance in offset de-
+tection and modifying the model to other polyphonic tran-
+scriptions involving vocals and instruments with a less sta-
+ble pitch. The harmonic dilated convolution implemented
+by multiple parallel dilated convolutions is computational
+consuming and needs to be optimized in the future.
+6. ACKNOLEDGEMENT
+This work was supported by National Key R&D Program
+of China(2019YFC1711800), NSFC(62171138). Wei Li
+and Yi Yu are corresponding authors of this paper.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+7.

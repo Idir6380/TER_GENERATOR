@@ -1,0 +1,696 @@
+In this paper, we address the problem of pitch estimation
+using Self Supervised Learning (SSL). The SSL paradigm
+we use is equivariance to pitch transposition, which en-
+ables our model to accurately perform pitch estimation on
+monophonic audio after being trained only on a small un-
+labeled dataset. We use a lightweight (< 30k parameters)
+Siamese neural network that takes as inputs two differ-
+ent pitch-shifted versions of the same audio represented
+by its Constant-Q Transform. To prevent the model from
+collapsing in an encoder-only setting, we propose a novel
+class-based transposition-equivariant objective which cap-
+tures pitch information. Furthermore, we design the archi-
+tecture of our network to be transposition-preserving by
+introducing learnable Toeplitz matrices.
+We evaluate our model for the two tasks of singing voice
+and musical instrument pitch estimation and show that our
+model is able to generalize across tasks and datasets while
+being lightweight, hence remaining compatible with low-
+resource devices and suitable for real-time applications. In
+particular, our results surpass self-supervised baselines and
+narrow the performance gap between self-supervised and
+supervised methods for pitch estimation.
+1. INTRODUCTION
+Pitch estimation is a fundamental task in audio analysis,
+with numerous applications, e.g. in Music Information Re-
+trieval (MIR) and speech processing. It involves estimat-
+ing the fundamental frequency of a sound, which allows to
+estimate its perceived pitch. Over the years, various tech-
+niques have been developed for pitch estimation, ranging
+from classical methods (based on signal processing) [1–4]
+to machine learning approaches [5,6].
+In recent years, deep learning has emerged as a pow-
+erful tool for a wide range of applications, outperforming
+classical methods in many domains. This is notably true in
+© A. Riou, S. Lattner, G. Hadjeres and G. Peeters.
+Li-
+censed under a Creative Commons Attribution 4.0 International License
+(CC BY 4.0). Attribution:
+A. Riou, S. Lattner, G. Hadjeres and G.
+Peeters, “PESTO: Pitch Estimation with Self-supervised Transposition-
+equivariant Objective”, in Proc. of the 24th Int. Society for Music Infor-
+mation Retrieval Conf., Milan, Italy, 2023.
+MIR, where deep learning has led to signiﬁcant advances
+in tasks such as music transcription [7–9], genre classiﬁ-
+cation [10–12], and instrument recognition [13–15]. Pitch
+estimation has also beneﬁted greatly from deep learning
+techniques [16, 17]. However, these deep learning mod-
+els often require a large amount of labelled data to be
+trained, and can be computationally expensive, hindering
+their practical applications in devices with limited com-
+puting power and memory capabilities. Additionally, these
+models are often task-speciﬁc and may not generalize well
+to different datasets or tasks [18]. Therefore, there is a need
+for a lightweight and generic model that does not require
+labelled data to be trained. We address this here.
+We take inspiration from the equivariant pitch estima-
+tion [19] and the equivariant tempo estimation [20] algo-
+rithms which we describe in part 2. As those, we use a SSL
+paradigm based on Siamese networks and equivariance to
+pitch transpositions (comparing two versions of the same
+sound that have been transposed by a random but known
+pitch shift). We introduce a new equivariance loss that en-
+forces the model to capture pitch information speciﬁcally.
+This work has the following contributions:
+• we formulate pitch estimation as a multi-class prob-
+lem (part 3.1); while [19,20] model pitch/tempo es-
+timation as a regression problem,
+• we propose a novel class-based equivariance loss
+(part 3.1) which prevents collapse; while [19] neces-
+sitates a decoder,
+• the architecture of our model is lightweight and
+transposition-equivariant by design. For this, we in-
+troduce Toeplitz fully-connected layers (part 3.4).
+We evaluate our method on several datasets and show that
+it outperforms self-supervised baselines on single pitch es-
+timation (part 4.4.1). We demonstrate the robustness of our
+method to domain-shift and background music, highlight-
+ing its potential for real-world applications (part 4.4.2).
+Our proposed method requires minimal computation re-
+sources and is thus accessible to a wide range of users for
+both research and musical applications. In consideration
+of accessibility and reproducibility, we make our code and
+pretrained models publicly available 1 .
+1 https://github.com/SonyCSLParis/pesto
+
+2. RELATED WORKS
+2.1 SSL to learn invariant representations.
+Siamese networks.
+Most common techniques for SSL
+representation involve Siamese networks [21]. The under-
+lying idea is to generate two views of an input, feed them to
+a neural network, and train the network by applying a cri-
+terion between the output embeddings. Various techniques
+have been developed for generating views 2 .
+Collapse. However, a major issue with these methods
+is “collapse”, when all inputs are mapped to the same em-
+bedding. To address this, various techniques have been
+proposed. One of the most common is SimCLR [22] which
+also uses negative samples to ensure that embeddings are
+far apart through a contrastive loss. Additionally, several
+regularization techniques have been developed that mini-
+mize a loss over the whole batch. Barlow Twins [23] force
+the cross-correlation between embeddings to be identity,
+while VICReg [24] add loss terms on the statistics of a
+batch to ensure that dimensions of the embeddings have
+high enough variance while remaining independent of each
+other. On the other hand, [25] explicitly minimize a loss
+over the hypersphere to distribute embeddings uniformly.
+Furthermore, incorporating asymmetry between inputs has
+been shown to improve performance. [26, 27] uses a mo-
+mentum encoder, while [28] and [29] add a projection
+head and a stop-gradient operator on top of the network,
+with [28] also using a teacher network. Finally, [30] in-
+corporates asymmetry to contrastive- and clustering-based
+representation learning.
+Application to audio. While originally proposed for
+computer vision, these methods have been successfully
+adapted to audio and music as well. For example, [31],
+[32], and [33] respectively adapted [22], [23], and [28] to
+the audio domain. By training their large models on Au-
+dioSet [34], they aim at learning general audio represen-
+tations that are suited for many downstream tasks. More
+speciﬁcally, [35] successfully adapts contrastive learning
+to the task of music tagging by proposing more musically-
+relevant data augmentations.
+2.2 SSL to learn equivariant representations.
+The purpose of the methods described above is to learn a
+mapping f : X →Y that is invariant to a set of transforms
+TX , i.e. so that for any input x ∈X and transform t ∈TX
+f(t(x)) ≈f(x)
+(1)
+However, recent approaches [36–38] try instead to learn
+a mapping f that is equivariant to TX , i.e. that satisﬁes
+f(t(x)) ≈t′(f(x))
+(2)
+where t′ ∈TY with TY a set of transforms that acts on the
+output space Y. In other words, if the input is transformed,
+the output should be transformed accordingly. Representa-
+tion collapse is hence prevented by design.
+2 The most common technique involves randomly applying data aug-
+mentations to inputs to create pairs of inputs that share semantic content.
+Equivariant representation learning has mostly been ap-
+plied to computer vision and usually combines an invari-
+ance and an equivariance criterion. E-SSL [36] trains two
+projection heads on top of an encoder, one to return pro-
+jections invariant to data augmentations while the other
+predicts the parameters of the applied data augmentations.
+[37] predicts separately a semantic representation and a ro-
+tation angle of a given input and optimizes the network
+with a reconstruction loss applied to the decoded content
+representation rotated by the predicted angle. Finally, SIE
+[38] creates a pair of inputs by augmenting an input and
+learns equivariant representations by training a hypernet-
+work conditioned on the parameters of the augmentation
+to predict one embedding of the pair from the other.
+Application to audio. Finally, a few successful exam-
+ples of equivariant learning for solving MIR tasks recently
+emerged [19,20]. In particular, [20] introduces a simple yet
+effective equivariance criterion for tempo estimation while
+preventing collapse without any decoder or regularization:
+pairs are created by time-stretching an input with two dif-
+ferent ratios, then the output embeddings are linearly pro-
+jected onto scalars and the network is optimized to make
+the ratio of the scalar projections match the time-stretching
+ratio within a pair.
+2.3 Pitch estimation.
+Monophonic pitch estimation has been a subject of inter-
+est for over ﬁfty years [39]. The earlier methods typically
+obtain a pitch curve by processing a candidate-generating
+function such as cepstrum [39], autocorrelation function
+(ACF) [40], and average magnitude difference function
+(AMDF) [41]. Other functions, such as the normalized
+cross-correlation function (NCCF) [1, 2] and the cumula-
+tive mean normalized difference function [3,42], have also
+been proposed. On the other hand, [4] performs pitch es-
+timation by predicting the pitch of the sawtooth waveform
+whose spectrum best matches the one of the input signal.
+Recently, methods involving machine learning tech-
+niques have been proposed [5, 6].
+In particular,
+CREPE [16] is a deep convolutional network trained on
+a large corpus to predict pitch from raw audio waveforms.
+SPICE [19] is a self-supervised method that takes as inputs
+individual Constant-Q Transform (CQT) frames of pitch-
+shifted inputs and learns the transposition between these
+inputs. It achieves quite decent results thanks to a decoder
+that takes as input the predicted pitch and tries to recon-
+struct the original CQT frame from it.
+Finally, some works [43, 44] aim at disentangling the
+pitch and timbre of an input audio, thus predicting pitch
+as a side effect. In particular, DDSP-inv [45] is a DDSP-
+based approach [46] that relies on inverse synthesis to infer
+pitch in a self-supervised way.
+3. SELF-SUPERVISED PITCH ESTIMATION
+3.1 Transposition-equivariant objective
+We focus on the problem of monophonic pitch estimation
+and model it as a classiﬁcation task. Our model is com-
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+
+Figure 1. Example of k-transpositions. Visually, y and
+y′ are just translated versions of each other. The sign of
+k and its absolute value respectively indicate the direction
+and the distance of the translation.
+posed of a neural network fθ that takes as input an audio
+signal x and returns a vector y = (y0, . . . , yi, . . . , yd−1) ∈
+[0, 1]d, which represents the probability distribution of
+each pitch i. yi represents the probability that i is the pitch
+of x. We propose here to train fθ in a SSL way. For this,
+similarly to [22,24,26,28,29], we use data augmentations
+and Siamese networks.
+Given x, we ﬁrst generate x(k) by pitch-shifting x by
+a known number k of semitones. Then, both x and x(k)
+are fed to fθ which is trained to minimize a loss function
+between y=fθ(x) and y(k) =fθ(x(k)).
+Deﬁnition. For two vectors y, y′ ∈Rd and 0 ≤k < d, y′
+is a k-transposition of y if and only if for all 0 ≤i < d
+
+
+
+
+
+y′
+i+k = yi
+when 0 ≤i < d −k
+y′
+i = 0
+when i < k
+yi = 0
+when i ≥d −k −1
+(3)
+Similarly, for −d < k ≤0, y′ is a k-transposition of y if
+and only if y is a −k-transposition of y′.
+The concept of k-transposition is illustrated in Figure 1.
+Note also that for a vector y ∈Rd, exists at most one
+vector y′ ∈Rd that is a k-transposition of y. We can
+therefore refer to y′ as the k-transposition of this vector y.
+Equivariance loss. We then design our criterion based
+on the following assumption: the probability of x to have
+pitch i is equal to the probability of x(k) to have pitch i+k,
+i.e. yi should be equal to y(k)
+i+k
+3 . In other words, if x(k) is a
+pitch-shifted version of x, their respective pitch probability
+distributions should be shifted accordingly, i.e. y(k) should
+be the k-transposition of y.
+We take inspiration from [20] to design our equivari-
+ance loss. However, in our case, the output of our network
+fθ is not a generic representation but a probability distri-
+bution. We therefore adapt our criterion by replacing the
+learnable linear projection head from [20] by the following
+deterministic linear form:
+φ
+:
+Rd
+→
+R
+y
+7→
+(α, α2, . . . , αd)y
+(4)
+where α is a ﬁxed hyperparameter 4 .
+3 For example, if k = 2 semitones, the probability of x to be C4 is
+exactly the probability of x(k) to be a D4, and the same holds for any
+pitch independently of the actual pitch of x.
+4 We found α = 21/36 to work well in practice.
+Indeed, with this formulation, for any k if y′ is a k-
+transposition of y then φ(y′) = αkφ(y). Hence we deﬁne
+our loss as
+Lequiv(y, y(k), k) = hτ
+φ(y(k))
+φ(y)
+−αk
+
+(5)
+where hτ is the Huber loss function [47], deﬁned by
+hτ(x) =
+(
+x2
+if |x| ≤τ
+τ 2
+2 + τ(|x| −τ) otherwise
+(6)
+Regularization loss.
+Note that if y(k) is the k-
+transposition of y then Lequiv(y, y(k), k) is minimal. How-
+ever, the converse is not always true.
+In order to ac-
+tually enforce pitch-shifted pairs of inputs to lead to k-
+transpositions, we further add a regularization term which
+is simply the shifted cross-entropy (SCE) between y and
+y(k), i.e. the cross-entropy between the k-transposition of
+y and y(k):
+LSCE(y, y(k), k) =
+d−1
+X
+i=0
+yi log
+
+y(k)
+i+k
+
+(7)
+with the out-of-bounds indices replaced by 0. The respec-
+tive contribution of Lequiv and LSCE is studied in part 4.4.3.
+Invariance loss. Lequiv and LSCE allow our model to
+learn relative transpositions between different inputs and
+learn to output probability distributions y and y(k) that sat-
+isfy the equivariance constraints. However, these distribu-
+tions may still depend on the timbre of the signal. This
+is because our model actually never observed at the same
+time two different samples with the same pitch.
+To circumvent this, we rely on a set T of data augmen-
+tations that preserve pitch (such as gain or additive white
+noise). We create augmented views ˜x = t(x) of our inputs
+x by applying random transforms t ∼T .
+Similarly to [35], we then train our model to be invari-
+ant to those transforms by minimizing the cross-entropy
+between y = fθ(x) and ˜y = fθ(˜x).
+Linv(y, ˜y) = CrossEntropy(y, ˜y)
+(8)
+Combining the losses. For a given input sample x and
+a given set of augmentations T ,
+• we ﬁrst compute x(k) by pitch-shifting x by a random
+number of bins k (the precise procedure is described
+in section 3.2);
+• we then generate two augmented views ˜x = t1(x) and
+˜x(k) = t2(x(k)), where t1, t2 ∼T ;
+• we compute y=fθ(x), ˜y=fθ(˜x) and ˜y(k) =fθ(˜x(k)).
+Our ﬁnal objective loss is then:
+L(y, ˜y, ˜y(k), k) = λinv Linv(y, ˜y)
++ λequiv Lequiv(˜y, ˜y(k), k)
++ λSCE LSCE(˜y, ˜y(k), k)
+(9)
+We illustrate this in Figure 2. To set the weights λ∗we
+use the gradient-based method proposed by [48–50].
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+
+Pitch-Shift
+Augmentation
+Prediction
+Loss computation
+Figure 2. Overview of the PESTO method. The input CQT frame (log-frequencies) is ﬁrst cropped to produce a pair of
+pitch-shifted inputs (x, x(k)). Then we compute ˜x and ˜x(k) by randomly applying pitch-preserving transforms to the pair.
+We ﬁnally pass x, ˜x and ˜x(k) through the network fθ and optimize the loss between the predicted probability distributions.
+3.2 Audio-frontend
+The inputs x are the individual frames of the CQT. We
+have chosen the CQT as input since its logarithmic fre-
+quency scale, in which bins of the CQT exactly correspond
+to a ﬁxed fraction b of pitch semitones, naturally leads to
+pitch-shifting by translation. CQT is also a common choice
+made for pitch estimation [17,19,51].
+To compute the CQT, we use the implementation pro-
+vided in the nnAudio library [52] since it supports parallel
+GPU computation. We choose fmin = 27.5 Hz, which is
+the frequency of A0 the lowest key of the piano and select
+a resolution of b = 3 bins per semitone. Our CQT has in
+total K = 99b log-frequency bins, which corresponds to
+the maximal number of bins for a 16kHz signal.
+3.3 Simulating translations.
+To avoid any boundary effects, we perform pitch-shift by
+cropping shifted slices of the original CQT input frame as
+in [19] 5 . From a computational point of view, it is indeed
+signiﬁcantly faster than applying classical pitch shift algo-
+rithms based on phase vocoder and resampling.
+3.4 Transpostion-preserving architecture
+The architecture of fθ is illustrated in Figure 3. It is in-
+spired by [17]. Each input CQT frame is processed inde-
+pendently: ﬁrst layer-normed [53] then preprocessed by
+two 1D-Conv (convolution in the log-frequency dimen-
+sion) with skip-connections [54], followed by four 1D-
+Conv layers.
+As in [17], we apply a non-linear leaky-
+ReLU (slope 0.3) [55] and dropout (rate 0.2) [56] between
+each convolutional layer. Importantly, the kernel size and
+padding of each of these layers are chosen so that the fre-
+quency resolution is never reduced. We found in practice
+that it helps the model to distinguish close but different
+5 Speciﬁcally, we sample an integer k uniformly from the range
+{−kmax, . . . , kmax}, then generate two CQT outputs, denoted as x
+and x(k), where x is obtained by cropping the input CQT at indices
+[kmax, K −kmax −1], and x(k) is obtained by cropping the input CQT
+at indices [kmax −k, K −kmax + k −1], with K the total number of
+bins of the original CQT frame and kmax = 16 in practice (see Figure 2).
+Toeplitz fc
+Figure 3. Architecture of our network fθ. The number of
+channels varies between the intermediate layers, however
+the frequency resolution remains unchanged until the ﬁnal
+Toeplitz fully-connected layer.
+pitches. The output is then ﬂattened, fed to a ﬁnal fully-
+connected layer and normalized by a softmax layer to be-
+come a probability distribution of the desired shape.
+Note that all layers (convolutions 6 , elementwise non-
+linearities, layer-norm and softmax), except the last ﬁnal
+fully-connected layer, preserve transpositions. To make the
+ﬁnal fully-connected layer also transposition-equivariant,
+we propose to use Toeplitz fully-connected layers.
+It
+simply consists of a standard linear layer without bias but
+whose weights matrix A is a Toeplitz matrix, i.e. each of
+its diagonals is constant.
+A =
+
+
+
+
+
+
+
+
+
+a0
+a−1
+a−2
+· · ·
+a−n+2
+a−n+1
+a1
+a0
+a−1
+...
+...
+a−n+2
+a2
+a1
+...
+...
+...
+...
+...
+...
+...
+...
+...
+...
+am−1
+· · ·
+· · ·
+· · ·
+· · ·
+am−n
+
+
+
+
+
+
+
+
+
+Contrary to arbitrary fully-connected layers, Toeplitz ma-
+trices are transposition-preserving operations and only
+have m + n −1 parameters instead of mn. Furthermore,
+they are mathematically equivalent to convolutions, mak-
+ing them straightforward to implement.
+6 Convolutions roughly preserve transpositions since the kernels are
+applied locally, meaning that if two transposed inputs are convolved by
+the same kernel, then the output results will be almost transpositions of
+each other as well
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+
+Raw Pitch Accuracy
+Model
+# params
+Trained on
+MIR-1K
+MDB-stem-synth
+SPICE [19]
+private data
+DDSP-inv [45]
+-
+MIR-1K / MDB-stem-synth
+PESTO (ours)
+MIR-1K
+PESTO (ours)
+MDB-stem-synth
+CREPE [16]
+many (supervised)
+Table 1. Evaluation results of PESTO compared to supervised and self-supervised baselines. CREPE has been trained in
+a supervised way on a huge dataset containing in particular MIR-1K and MDB-stem-synth. It is grayed out as a reference.
+For DDSP-inv, we report the results when training and evaluating on the same dataset.
+3.5 Absolute pitch inference from y
+Our encoder fθ returns a probability distribution over
+(quantized) pitches. From an input CQT frame x, we ﬁrst
+compute the probability distribution fθ(x), then we infer
+the absolute pitch ˆp by applying the afﬁne mapping:
+ˆp(x) = 1
+b (arg max fθ(x) + p0)
+where b = 3 is the number of bins per semitones in the
+CQT and p0 is a ﬁxed integer shift that only depends on
+fθ. As in [19], we set the integer shift p0 by relying on a
+set of synthetic data 7 with known pitch.
+4. EXPERIMENTS
+4.1 Datasets
+To evaluate the performance of our approach, we consider
+the two following datasets:
+1. MIR-1K [57] contains 1000 tracks (about two hours)
+of people singing Chinese pop songs, with separate
+vocal and background music tracks provided.
+2. MDB-stem-synth
+contains
+re-synthesized
+monophonic music played by various instruments.
+The pitch range of the MDB-stem-synth dataset is wider
+than the one of MIR-1K. The two datasets have different
+sampling rates and granularity for the annotations.
+We conduct separate model training and evaluation on
+both datasets to measure overﬁtting and generalization per-
+formance. In fact, given that our model is lightweight and
+does not require labelled data, overﬁtting performance is
+particularly relevant for real-world scenarios, as it is easy
+for someone to train on their own dataset, e.g. their own
+voice. However, we also examine generalization perfor-
+mance through cross-evaluation to ensure that the model
+truly captures the underlying concept of pitch and does not
+merely memorize the training data.
+4.2 Training details
+From an input CQT (see part 3.2), we ﬁrst compute the
+pitch-shifted CQT (see part 3.3). Then two random data
+augmentations t1, t2 ∼T are applied with a probability
+of 0.7. We used white noise with a random standard de-
+viation between 0.1 and 2, and gain with a random value
+7 synthetic harmonic signals with random amplitudes and pitch
+picked uniformly between -6 and 3 dB. The overall archi-
+tecture of fθ (see part 3.4) is implemented in PyTorch [59].
+For training, we use a batch size of 256 and the Adam opti-
+mizer [60] with a learning rate of 10−4 and default param-
+eters. The model is trained for 50 epochs using a cosine an-
+nealing learning rate scheduler. Our architecture being ex-
+tremely lightweight, training requires only 545MB of GPU
+memory and can be performed on a single GTX 1080Ti.
+4.3 Performance metrics
+We measure the performances using the following metrics.
+1. Raw Pitch Accuracy (RPA): corresponds to the per-
+centage of voiced frames whose pitch error 8 is less
+than 0.5 semitone [61].
+2. Raw Chroma Accuracy (RCA): same as RPA but
+considering the mapping to Chroma (hence allowing
+octave errors) [61].
+RCA is only used in our ablation studies.
+4.4 Results and discussions
+4.4.1 Clean signals
+We compare our results with three baselines: CREPE [16],
+SPICE [19] and DDSP-inv [45].
+CREPE is fully-
+supervised while SPICE and DDSP-inv are two SSL ap-
+proaches. To measure the inﬂuence of the training set, we
+train PESTO on the two datasets (MIR-1K and MDB-stem-
+synth) and also evaluate on the two. This allows to test
+model generalization.
+We indicate the results in Table 1. We see that PESTO
+signiﬁcantly outperforms the two SSL baselines (SPICE
+and DDSP-inv) even in the cross-dataset scenario (93.5%
+and 94.6%). Moreover, it is competitive with CREPE (-
+1.7% and -1.2%) which has 750 times more parameters
+and is trained in a supervised way on the same datasets.
+4.4.2 Robustness to background music
+Background noise and music can severely impact pitch es-
+timation algorithms, making it imperative to develop ro-
+bust methods that can handle real-world scenarios where
+background noise is often unavoidable.
+We therefore test the robustness of PESTO to back-
+ground music.
+For this, we use the MIR-1K dataset,
+which contains separated vocals and background tracks
+8 i.e. distance between the predicted pitch and the actual one
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+
+Raw Pitch Accuracy (MIR-1K)
+Model
+clean
+20 dB
+10 dB
+0 dB
+SPICE [19]
+PESTO
+β = 0
+β = 1
+β ∼U(0, 1)
+β ∼N(0, 1)
+β ∼N(0, 1
+2)
+CREPE [16]
+Table 2.
+Robustness of PESTO and other baselines to
+background music with various Signal-to-Noise ratios.
+Adding background music to training samples signiﬁcantly
+improves the robustness of PESTO (see section 4.4.2).
+and allows testing various signal-to-noise (here vocal-to-
+background) ratios (SNRs).
+We indicate the results in Table 2. As foreseen, the per-
+formance of PESTO when trained on clean vocals (row
+β = 0) and applied to vocal-with-background consider-
+ably drop: from 94.8% (clean) to 50.0% (SNR = 0 dB) 9 .
+To improve the robustness to background music, we
+slightly modify our method to train our model on mixed
+sources. Instead of using gain and white noise as data aug-
+mentations, we create an augmented view of our original
+vocals signal xvocals by mixing it (in the complex-CQT do-
+main) with its corresponding background track xbackground:
+x = xvocals + βxbackground
+Then, thanks to Linv, the model is trained to ignore the
+background music for making its predictions.
+The background level β is randomly sampled for each
+CQT frame. The inﬂuence of the distribution we sample
+β from is depicted in Table 2. This method signiﬁcantly
+limits the drop in performances observed previously and
+also makes PESTO outperform SPICE in noisy conditions.
+4.4.3 Ablation study
+Table 3 depicts the inﬂuence of our different design
+choices. First, we observe that the equivariance loss Lequiv
+and the ﬁnal Toeplitz fully-connected layer (eq.(10)) are
+absolutely essential for our model not to collapse. More-
+over, data augmentations seem to have a negligible inﬂu-
+ence on out-of-domain RPA (-0.2%) but slightly help when
+training and evaluating on the same dataset (+1.2%).
+On the other hand, it appears that both Linv and LSCE do
+not improve in-domain performances but help the model to
+generalize better. This is especially true for LSCE, whose
+addition enables to improve RPA from 86.9% to 94.6% on
+MDB-stem-synth.
+Finally, according to the drop of performances in RPA
+and RCA when removing Linv, it seems that the invariance
+loss prevents octave errors on the out-of-domain dataset.
+9 It should be noted that the difference between the 96.1% of Table 1
+and the 94.8% of Table 2 is due to the fact that we do not apply any data
+augmentation (gain or additive white noise) when β = 0.
+MIR-1K
+MDB
+RPA
+RCA
+RPA
+RCA
+PESTO baseline
+Loss ablations
+w/o Lequiv
+w/o Linv
+w/o LSCE
+Miscellaneous
+no augmentations
+non-Toeplitz fc
+Table 3. Respective contribution of various design choices
+of PESTO for a model trained on MIR-1K.
+5. CONCLUSION
+In this paper, we presented a novel self-supervised learning
+method for pitch estimation that leverages equivariance to
+musical transpositions. We propose a class-based equiv-
+ariant objective that enables Siamese networks to capture
+pitch information from pairs of transposed inputs accu-
+rately. We also introduce a Toeplitz fully-connected layer
+to the architecture of our model to facilitate the optimiza-
+tion of this objective. Our method is evaluated on two stan-
+dard benchmarks, and the results show that it outperforms
+self-supervised baselines and is robust to background mu-
+sic and domain shift.
+From a musical perspective, our lightweight model
+is well-suited for real-world scenarios, as it can run on
+resource-limited devices without sacriﬁcing performance.
+Moreover, its SSL training procedure makes it convenient
+to ﬁne-tune on a small unlabeled dataset, such as a spe-
+ciﬁc voice or instrument. Additionally, the resolution of
+the model is a sixth of a tone but could eventually be in-
+creased by changing the resolution of the CQT. Moreover,
+despite modelling pitch estimation as a classiﬁcation prob-
+lem, we make no assumption about scale or temperament.
+These features make our method still a viable solution,
+e.g. for instruments that use quartertones and/or for which
+no annotated dataset exists.
+We therefore believe that
+it has many applications even beyond the limitations of
+Western music.
+Overall, the idea of using equivariance to solve a clas-
+siﬁcation problem is a novel and promising approach that
+enables the direct return of a probability distribution over
+the classes with a single, potentially synthetic, labelled el-
+ement. While our paper applies this approach to pitch es-
+timation, there are other applications where this technique
+could be useful, such as tempo estimation.
+Moreover, modelling a regression task as a classiﬁca-
+tion problem can offer greater interpretability as the output
+of the network is not a single scalar but a whole probability
+distribution. Finally, it can generalize better to multi-label
+scenarios.
+Our proposed method hence demonstrates the potential
+of using equivariance to solve problems that are beyond the
+scope of our current work. In particular, it paves the way
+towards self-supervised multi-pitch estimation.
+Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023
+
+6. ACKNOWLEDGEMENTS
+This work has been funded by the ANRT CIFRE conven-
+tion n°2021/1537 and Sony France. This work was granted
+access to the HPC/AI resources of IDRIS under the alloca-
+tion 2022-AD011013842 made by GENCI. We would like
+to thank the reviewers and meta-reviewer for their valuable
+and insightful comments.
+7.

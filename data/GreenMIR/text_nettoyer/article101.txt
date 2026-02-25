@@ -1,0 +1,764 @@
+Rhythm quantisation is an essential part of converting
+performance MIDI recordings into musical scores. Pre-
+vious works on rhythm quantisation are limited to the
+use of probabilistic or statistical methods. In this paper,
+we propose a MIDI-to-score quantisation method using
+a convolutional-recurrent neural network (CRNN) trained
+on MIDI note sequences to predict whether notes are on
+beats. Then, we expand the CRNN model to predict the
+quantised times for all beat and non-beat notes. Further-
+more, we enable the model to predict the key signatures,
+time signatures, and hand parts of all notes.
+Our pro-
+posed performance MIDI-to-score system achieves signif-
+icantly better performance compared to commercial soft-
+ware evaluated on the MV2H metric. We release the tool-
+box for converting performance MIDI into MIDI scores at:
+https://github.com/cheriell/PM2S.
+1. INTRODUCTION
+Performance MIDI-to-Score (PM2S) conversion aims to
+convert a performance MIDI, usually recorded by elec-
+tronic MIDI keyboards, into musical scores in computer-
+readable score format such as MIDI, MusicXML [1] and
+Lilypond [2]. PM2S covers a list of subtasks including
+rhythm quantisation, note value prediction, key estimation,
+voice separation, and possibly score typesetting such as
+beaming and playing techniques annotation. PM2S can be
+used in various scenarios such as music improvisation [3],
+complete music transcription [4±7] in combination with
+multi-pitch detection, music alignment [8], music educa-
+tion, music performance analysis [9], and building music
+archives.
+Although research on the various subtasks on PM2S
+dates back to earlier decades [10±13], the first academic
+paper that fully formulated this task was published in 2016
+[14]. The paper works on converting a performance MIDI
+recording into a LilyPond score. The authors firstly fixed
+* The author conducted this work as an intern at ByteDance.
+© L. Liu, Q. Kong, V. Morfi, and E. Benetos. Licensed un-
+der a Creative Commons Attribution 4.0 International License (CC BY
+4.0). Attribution:
+L. Liu, Q. Kong, V. Morfi, and E. Benetos, ªPer-
+formance MIDI-to-score conversion by neural beat trackingº, in Proc. of
+the 23rd Int. Society for Music Information Retrieval Conf., Bengaluru,
+India, 2022.
+spurious overlapping notes according to a defined note
+overlapping ratio, then applied a probabilistic model using
+Hidden Markov Models (HMMs) based on a tactus-root
+combination concept [15] for meter, harmony, and stream
+estimation. After that, the note onsets and offsets are quan-
+tised to beat subdivisions. Note spellings and staves are
+determined from the predicted harmony and streams.
+Following the use of conventional methods for solv-
+ing subtasks such as rhythm quantisation, recent years
+have seen some advances on statistical methods [5,16±19].
+Nakamura et al. [16] proposed an improvement for rhythm
+transcription using a merged-output HMM to solve the
+problem introduced by multiple voices. A note value pre-
+diction method using Markov random fields was proposed
+in [17]. The two methods were further improved for au-
+tomatic music transcription by combining multi-pitch de-
+tection [5, 19]. Mcleod and Steedman [18] proposed an
+HMM-based meter detection method for aligning MIDI
+performances.
+Over the past two years, researchers have published pa-
+pers using deep learning methods on PM2S. Hiramatsu
+et al. [20] proposed to use a recurrent neural network for
+joint estimation of note values and voices from note pitches
+and onset times, which in combination with multi-pitch
+detection and rhythm quantisation, outperformed previous
+methods [14, 19] for automatic music transcription. The
+Score Transformer [21] provided a solution to generating
+human-readable scores from quantised MIDI files.
+From previous works, we observe that the problem of
+PM2S is usually solved through a combination of differ-
+ent methods for subtasks. Moreover, although there are
+attempts on applying deep learning methods for the task,
+they do not cover the rhythm quantisation step.
+To address the limitations mentioned above, we propose
+to use a deep learning method for PM2S. We develop a
+CRNN model that directly converts a performance MIDI
+into a MIDI score. We pay special attention to the rhythm
+quantisation step, and propose to solve the problem by
+tracking beats on a MIDI note sequence. We then expand
+the CRNN model to predict a compact output for gener-
+ating a quantised MIDI score, including quantised onset
+times and note values, time signatures, key signatures and
+hand parts. To better capture our method’s ability in mod-
+elling expressive performances, we train and evaluate our
+proposed model on a set of classical piano music datasets
+[22, 23]. In a comparison with two commercial software
+
+products MuseScore [24] and Finale [25], our proposed
+method achieved significantly better performance based on
+the MV2H metric [26].
+2. METHODOLOGY
+2.1 Problem definition
+Our proposed method aims to predict a MIDI score from a
+performance MIDI using a deep learning model. Assume
+a performance MIDI note sequence X where notes are or-
+dered firstly by time and secondly by pitch. Each note in
+the sequence is represented by a tuple:
+X = {(pn, on, dn, vn)}N
+n=1
+(1)
+where pn, on, dn, vn are the MIDI pitch number, onset and
+duration in seconds, and velocity for the n-th note, N is the
+number of notes. We aim to predict the transcribed MIDI
+score annotations including
+Yn = {(mon, nvn, hn)}N
+n=1
+(2)
+Yt = {(ti, tni, tdi)}T
+i=1
+(3)
+Yk = {(ti, ki)}K
+i=1
+(4)
+Y = (Yn, Yt, Yk)
+(5)
+where Yn covers the musical onset time mon, note value
+nvn and hand part hn for all notes; Yt and Yk are the time
+signature and key signature changes, where ti is the time
+and tni, tdi and ki are the time signature numerator, time
+signature denominator, and key signature respectively. T
+and K are the numbers of time signature changes and key
+signature changes. A MIDI score can be obtained by com-
+bining information from X and Y.
+2.2 From beat tracking to rhythm quantisation
+Considering rhythm quantisation as a fine-grained tracking
+of beats and beat subdivisions, we propose to do rhythm
+quantisation by combining beat tracking and the prediction
+of musical note onset times in subdivisions within a beat.
+We use a deep learning model for both beat tracking and
+musical onset time prediction. Adding the beat tracking
+component allows the two components to learn from each
+other. It also allows us to use training data such as [23] that
+has beat-level annotations, but do not provide fine-grained
+alignment in subdivision level.
+We define mon in Eq. (2) as a ratio of:
+mon = sn/S
+(6)
+where sn is the musical note onset time in subdivisions
+within a beat, and S is the number of subdivisions per beat
+in rhythm quantisation.
+Note sequence
+kernel size & channel
+(9, in_features), 128
+Convolutional
+Batch normalisation
+Exponential linear unit
+Dropout (0.15)
+To next convolutional layer
+Bi-directional GRU (512)
+Bi-directional GRU (512)
+Linear (512)
+ConvBlock
+GRUBlock
+Linear (1)
+In-note beat probabilities
+Figure 1. Model architecture for in-note beat prediction.
+2.3 Neural beat tracking on note sequences
+2.3.1 In-note and out-of-note beats
+To match the model input data in note sequence format, we
+separate beats into two groups:
+• In-note: beats concurrent with at least one note onset;
+• Out-of-note: beats not concurrent with any note onset.
+In our proposed approach, we first train a deep learn-
+ing model to predict in-note beats in a binary classification
+task, and then use dynamic programming to infer out-of-
+note beats from the in-note ones.
+2.3.2 In-note beat prediction
+Let the ground truth in-note beat labels for each note in the
+note sequence be Bn ∈{0, 1}. We define a binary classifi-
+cation model that predicts the in-note beat probabilities for
+each note given the note sequence X, that is:
+Pn = P(Bn|X)
+(7)
+The model is trained to find the minimum binary cross-
+entropy loss defined as:
+L = −1
+N
+N
+X
+n=1
+(Bn ∗log(Pn) + (1 −Bn) ∗log(1 −Pn))
+(8)
+In order to acquire the beat and downbeat predictions,
+we use a CRNN with 3 convolutional layers and 2 bi-
+directional gated recurrent unit (GRU) layers. Figure 1
+shows the model architecture. The predicted in-note beat
+probabilities are then converted to binary labels by dy-
+namic thresholding. The dynamic threshold depends on
+the maximum predicted probability in a fixed segment
+length in seconds.
+2.3.3 Out-of-note beat prediction
+We assume there are in total N i in-note beats and out-of-
+note beats are at subdivisions of their neighbouring in-note
+beats bi
+n and bi
+n+1 where bi
+n means the n-th in-note beat
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+Algorithm 1 Out-of-note beat prediction
+Input: List of in-note beats Bi
+Output: List of all beats B after adding out-of-note beats
+1: n ←1
+2: for K = 0, 1, 2, 3 do
+3:
+Initialise objective function OK ←0
+4:
+Initialise beat sequence BK ←{b1}
+5: end for
+6: for n = 1, 2, . . . , N i −2 do
+7:
+for Kcur = 0, 1, 2, 3 do
+8:
+Get out-of-note beats for current step by Eq.
+(9)
+9:
+if Tempo is beyond tempo range limits then
+Go to next Kcur
+end if
+for Kprev = 0, 1, 2, 3 do
+Update objective function by Eq. (11)
+end for
+Select the minimum objective among all Kprev
+values
+Add out-of-beats for current step to the beat
+sequence mapped to the selected Kprev
+end for
+for Kcur = 0, 1, 2, 3 do
+Update OK, BK mapped with Kcur
+end for
+21: end for
+22: Return the beat sequence in BK with the minimum ob-
+jective function OK
+and n ∈{1, 2, . . . , N i}. We insert out-of-note beats bo
+from candidates in:
+bo
+n,K = {bi
+n +
+k
+K + 1(bi
+n+1 −bi
+n)}K
+k=1
+(9)
+where K ∈{0, 1, 2, 3} is the number of out-of-note beats
+to insert for the current interval. We try to find a way that
+minimises the tempo change after adding out-of-note beats
+to the beat sequence. To describe the level of tempo change
+for a list of beats, we define an objective function as fol-
+lows:
+O1 =
+N−2
+X
+n=1
+log
+ bn+2 −bn+1
+bn+1 −bn
+
+where N is the number of beats in the final beat sequence
+and bn is the n-th beat. However, this function does not
+take into account adding too many out-of-note beats. We
+thus add a penalty associated with the number of out-of-
+note beats to the objective function, resulting in:
+O = O1 + λ × N o
+where λ is the penalty coefficient applied to avoid adding
+too many out-of-note beats which is tuned based on exper-
+iments and N o is the number of out-of-note beats added.
+In this way, we obtain an objective function O to be min-
+imised in the out-of-note beat prediction process that en-
+courages both a low level of tempo change and adds fewer
+out-of-note beats.
+Note sequence
+ConvBlock
+GRUBlock
+GRUBlock
+GRUBlock
+Linear (200)
+Linear (1)
+Linear (1)
+tempo
+downbeats
+beats
+ConvBlock
+GRUBlock
+Linear (24)
+musical onsets
+ConvBlock
+GRUBlock
+Linear (96)
+note values
+ConvBlock
+GRUBlock
+Linear (5)
+time signature numerators
+Linear (4)
+time signature denominators
+ConvBlock
+GRUBlock
+Linear (12)
+key signatures
+ConvBlock
+GRUBlock
+Linear (1)
+hand parts
+concatenate
+disable back propagation during training
+Figure 2. Model architecture for performance MIDI-to-
+score conversion.
+We use a dynamic programming algorithm (defined in
+Algorithm 1) to find the optimal out-of-note beats while
+minimizing O.
+2.4 Performance MIDI-to-Score
+Based on the problem definition in Section 2.1, we make
+some modifications to the prediction of time signature and
+key signature changes. In our proposed model, we define
+Yt and Yk in a way that the time signature and key signa-
+ture values are mapped with each note by the note onsets.
+We also add beat bn, downbeat dbn, and tempo temn pre-
+diction in note level. Beat probabilities are defined as in
+Eq. (7); similar definitions are used for downbeats. As a
+result, we define our model as X →Y′ where:
+Y′ = {(mon, nvn, hn, tnn, tdn, kn, bn, dbn, temn)}N
+n=1
+We then define a CRNN-based model that maps the in-
+put note sequence X with Y′. Among the output elements,
+hand part hn, beats bn and downbeats dbn are defined as
+binary classification tasks; the others are defined as multi-
+class classification tasks, where
+• Musical onset mon is defined as in Eq. (6), whose
+value is quantised by beat subdivisions;
+• Note values nvn are quantised by beat subdivisions;
+• Time signature is defined to be tnn ∈{0, 2, 3, 4, 6}
+and tdn ∈{0, 2, 4, 8}, 0s indicate other values;
+• Key signature kn is defined to be in {C, Db, D, Eb, E,
+F, Gb, G, Ab, A, Bb, B};
+• Tempo is quantised following a minimum inter-beat-
+interval of 0.01s.
+Our proposed model structure is shown in Figure 2.
+The Convolutional blocks (ConvBlock) and GRU blocks
+(GRUBlock) have similar structure to the ones in Figure 1.
+Links between branches allow the output elements to learn
+from each other. The model is trained jointly using binary
+cross-entropy loss for binary classification output elements
+and negative log-likelihood loss for multi-task classifica-
+tion output elements.
+A MIDI score can then be generated by combining the
+information given in the performance MIDI and the output
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+Statistics
+Train
+Valid
+Test
+Total
+Distinct pieces
+Performances
+Duration (hour)
+Notes (103)
+Table 1. Dataset Statistics. Performances from the MAPS
+dataset and the CPM database for the same piece are not
+counted as different performances, since MAPS pieces are
+originally obtained from the CPM database.
+predictions from our proposed model.
+3. EXPERIMENTS
+3.1 Data
+3.1.1 Datasets
+To better demonstrate the ability of our proposed method
+on quantising expressive performance, we use a collection
+of classical piano music pieces from 1) The MAPS dataset
+[22] and corresponding metrical annotations from the A-
+MAPS dataset [27]; 2) The Classical Piano-Midi (CPM)
+database [28]; and 3) The ASAP dataset [23].
+In order to avoid piece overlaps between train, valida-
+tion and test splits, we use the distinct music piece labels
+for all piano performances given in the ACPAS dataset
+[29]. We use a real recording subset in MAPS (the EN-
+STDkCl subset) as the test set as in [5, 20]. Other music
+pieces not included in the test set are randomly split into
+training and validation based on their distinct music piece
+labels. In this way, we get a train/validation/test setup with
+no overlapping music pieces among splits. Table 1 shows
+the dataset statistics.
+3.1.2 Annotation
+Annotations are provided in different formats in the
+datasets we use.
+The A-MAPS dataset and the CPM
+database provide fully annotated MIDI scores with tempo
+and metrical information. Thus, we extract the annota-
+tions we need from the MIDI scores directly. Performances
+from the ASAP dataset come with two sets of annotations,
+MIDI scores and annotations in .tsv files. However, the
+MIDI scores were written by non-professionals and are
+not a good source of ground truth. Thus, we follow the
+authors’ suggestion to use the provided annotations in the
+.tsv files, in which beat, downbeat, time signature and key
+signature annotations are provided. Due to the fact that the
+.tsv annotations do not cover precise fine-grained metrical
+and hand part annotations, we mask the ASAP data on mu-
+sical onset time, note value, and hand part prediction dur-
+ing training. Moreover, when matching note onset times
+to beats or non-beats in our proposed model, we set a tol-
+erance of ±50ms to beat matching to comprise short-time
+variances introduced by human performance.
+3.1.3 Data augmentation
+Given the note sequence information defined in Section 2,
+we consider the following data augmentation methods:
+• Pitch shift:
+Shift MIDI pitch values up or down
+for the whole music performance. The shifted pitch
+is defined as:
+ps
+=
+p0 + pshift where p0 is
+the original pitch value and pitch shift pshift
+∈
+{0, ±1, ±2, ..., ±12}.
+• Tempo change: Change the tempo to a ratio of the
+original tempo. The new tempo temc = rt ∗tem0
+where tem0 is the original tempo and rt ∈[0.8, 1.2]
+is the ratio.
+• Note removal: For polyphonic music, there should be
+little influence to the metrical structure of the music
+piece when removing some concurrent notes. Thus,
+for each group of M concurrent notes, we randomly
+remove 0 to M-1 of them from the MIDI performance.
+• Note introduction: Contrary to note removal, we ran-
+domly select 0-100% of notes from the MIDI perfor-
+mance, and add new notes that are concurrent with the
+selected ones. We keep the velocity and duration the
+same, so as to preserve the original music structure
+as much as possible. The new note pitches are ±12
+semitones apart from the original note pitches.
+3.2 Evaluation metrics
+3.2.1 Beat tracking evaluation
+We define a note-level F-measure for evaluating in-note
+beat tracking, and a beat-level F-measure which follows
+the benchmark F-measure for beat and downbeat tracking
+[30] with a time tolerance of ±70ms. In both cases, a true
+positive means a predicted beat is in the ground truth; a
+false positive means a predicted beat is not in the ground
+truth; and a false negative means a ground truth beat is
+missing in prediction.
+For both F-measures, we report the precision p, recall r
+and F-score f. Similar definitions are used for downbeats.
+3.2.2 Performance MIDI-to-Score evaluation
+We use the MV2H metric [26] to evaluate the system per-
+formance on PM2S conversion.
+The metric covers five
+sub-metrics including multi-pitch detection (Fp), voice
+separation (Fvo), metrical alignment (Fme), note value de-
+tection (Fva), and harmonic analysis (Fha). The final ac-
+curacy F is the average of all the sub-metrics.
+3.3 Comparative experiments
+Among the subtasks in PM2S, rhythm quantisation is a
+crucial and difficult part. It is also highly related to the es-
+timation of time signatures, musical onsets, and note val-
+ues. In our proposed rhythm quantisation method which
+combines neural beat tracking and musical onset time esti-
+mation, we consider beat tracking as a more important step
+since it works on drawing the skeleton of the metrical grid.
+Thus, for the first part of our experiments, we investi-
+gate different input data configurations and data augmen-
+tation methods for the beat tracking part of our proposed
+method. To get rid of influences from out-of-note beat pre-
+diction, we use the note-level F-measure in our compari-
+son. After that, we validate our beat tracking method on
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+beat-level F-measure combining out-of-note beat predic-
+tion in comparison with a baseline beat tracking model.
+3.3.1 Input data encoding
+Given the input data in note sequences, we consider the
+following ways of encoding the input elements:
+• Pitches:
+± M: 128-dimensional one-hot vectors in MIDI
+pitch numbers;
+± C: 12-dimensional one-hot vectors in octave val-
+ues.
+• Onset times:
+± AR: the raw value in seconds;
+± AO: one-hot vectors quantised by 10ms resolu-
+tion;
+± SR: onset time shift in seconds compared to the
+previous note onset (oshift
+i
+= oi −oi−1 for i >
+0, oshift
+= 0);
+± SO: one-hot onset time-shift quantised by 10ms
+resolution (with a maximum onset time shift of
+4s, larger values are trimmed to 4s).
+• Durations:
+± R: the raw values in seconds;
+± O: one-hot vectors quantised by 10ms resolution
+(similar to onset shift, large values are trimmed
+to 4s).
+• Velocities are always normalised to 0-1.
+For all possible input encoding combinations, we train
+and evaluate the in-note beat prediction part of our pro-
+posed model (excluding downbeat). The model learning
+rate is set to be 0.001. Since different input encodings can
+cause changes in the model convergence speed, we do not
+add learning rate decay in this comparison. The model is
+trained using a batch size of 32 over 4 GPUs with a dropout
+rate of 0.15. For each combination, we take the best model
+checkpoint on the validation set during training, and eval-
+uate it over the test set. The performances of the model on
+all different input data encoding combinations are reported
+in Table 2.
+From the results, we can see that in terms of pitch en-
+coding, using the MIDI pitches tends to outperform using
+the chroma groups most of the time. For onsets, onset shift
+leads to better results than absolute onset across all encod-
+ing combinations. Using one-hot encoding for onset is bet-
+ter than using the raw values for most cases. 6 out of 8
+encoding combinations result in better model performance
+with onsets encoded in one-hot format. However, an oppo-
+site preference is discovered for duration encoding, where
+duration in raw values ends up with better results for more
+cases.
+Among all the 16 input data encoding combinations
+tested, the one with MIDI pitch, one-hot onset shift, and
+duration in raw value shows the best model performance.
+We use this input data encoding combination in our subse-
+quent experiments.
+Input encodings
+Note-level F-measure
+Pitch
+Onset
+Duration
+p
+r
+f
+M
+AR
+R
+M
+AR
+O
+M
+AO
+R
+M
+AO
+O
+M
+SR
+R
+M
+SR
+O
+M
+SO
+R
+M
+SO
+O
+C
+AR
+R
+C
+AR
+O
+C
+AO
+R
+C
+AO
+O
+C
+SR
+R
+C
+SR
+O
+C
+SO
+R
+C
+SO
+O
+Table 2. Model performance on different input data en-
+coding combinations.
+Input feature omitted
+p
+r
+f
+Pitch
+Onset
+Duration
+Velocity
+Use all features
+Augmentation method omitted
+p
+r
+f
+Pitch shift
+Tempo change
+Note removal
+Extra note
+Use all methods
+No data augmentation
+Table 3. Note-level F-measure results on the ablation stud-
+ies.
+3.3.2 Ablation studies
+Using the best input encoding combination observed in the
+previous comparison, we run an ablation study on the input
+features and different data augmentation techniques. We
+use all four input features when exploring different data
+augmentation methods.
+Table 3 shows the ablation study results. From the table,
+we see that all four input features are helpful in beat track-
+ing, among which the onset feature is the most beneficial
+one. This is consistent with the fact that onsets can be the
+feature to carry most metrical information in music perfor-
+mances. People can usually infer beat times from drum
+beats without knowing other information such as pitch or
+duration. Pitch and velocity are less important but still
+make a difference. That may be because pitch carries some
+harmony information that helps beat prediction. Velocity
+can provide useful information as well since beats are more
+probable to be concurrent with heavy notes. Finally, du-
+ration is of certain importance, suggesting it carries more
+metrical information than pitch and velocity.
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+Models (output data)
+fb
+fdb
+Baseline (b, db)
+Proposed (b, db)
+Proposed (d, db, t)
+Table 4. Beat-level F-measure results on the baseline and
+proposed models. b: beat, db: downbeat, t: tempo.
+Methods
+Fp
+Fvo
+Fme
+Fva
+Fha
+F
+Finale
+MuseScore
+Proposed
+Table 5. MV2H evaluation on performance MIDI-to-score
+conversion.
+Results on different data augmentation methods suggest
+that all four proposed data augmentation methods improve
+performance, among which tempo change is the most ben-
+eficial one. Not performing data augmentation does not re-
+sult in the lowest note-level F-score. However, its low pre-
+cision rate indicates a limitation on predicting more false
+positives, which is discouraged since we will be adding
+out-of-note beats based on the predicted in-note beats. It is
+possible that we can add the false negatives back when pre-
+dicting out-of-note beats, but we cannot remove the false
+positives.
+3.3.3 Proposed model vs. baseline model
+Using the best configurations in previous experiment re-
+sults, we combine the out-of-note beat prediction step and
+evaluate our proposed model performance on beat track-
+ing using beat-level F-measure. We compare our method
+with a baseline model that is similar to a state-of-the-art
+audio beat tracking model [31]. We retrain the baseline
+model using a pianoroll input replacing the original audio
+spectrogram input, where the pianoroll is calculated from
+the performance MIDI, and let the model predict beat and
+downbeat probabilities. The probabilities are then passed
+to a dynamic Bayesian network [32, 33] to get beats and
+downbeats in seconds.
+Table 4 shows the comparative results between the base-
+line and our proposed model. Results suggest our pro-
+posed model largely outperforms the baseline when jointly
+trained with beats and downbeats.
+This is possibly be-
+cause that the baseline model is a general purpose sys-
+tem designed to operate on richer content than piano mu-
+sic alone, and that our proposed model can better handle
+tempo changes. By adding tempo to the output data, the
+performance of our proposed model can be further im-
+proved, which suggests a benefit of joint learning.
+3.4 System performance evaluation
+Using the best configurations found in the comparative
+experiments, we train and evaluate our proposed CRNN
+model defined in Section 2.4 on PM2S conversion. We
+report the model performance on the MV2H metric de-
+scribed in Section 3.2.2.
+When looking for other methods for comparison, we re-
+alise that there are some difficulties in comparing our sys-
+tem with existing academic works. Cogliati et al. [14] eval-
+uated their method in a subjective way by inviting five mu-
+sic theory students to rate the transcribed musical scores.
+Works such as [5, 19, 34] do provide a combination of
+methods to achieve PM2S conversion, however, the system
+performance was reported on audio-to-score transcription.
+Thus, we compared our proposed method with two com-
+mercial software products Finale v27 [25] and MuseScore
+v3 [24] that can do PM2S conversion.
+Results in Table 5 suggest that our proposed model out-
+performs MuseScore and Finale across all MV2H sub-
+metrics.
+A significantly better performance can be ob-
+served in the metrical alignment sub-metric Fme which is
+highly related to the rhythm quantisation step. By check-
+ing outputs generated from MuseScore, we found that its
+low performance on Fp is caused by time shifts introduced
+when quantising notes according to a constant tempo esti-
+mated over the whole music piece. Constant tempo esti-
+mation also caused its low performance reported on Fme.
+A similar limitation can be found in output scores from Fi-
+nale. On the contrary, our proposed method tracked tempo
+changes during rhythm quantisation and preserved the ex-
+pressiveness of music performance as much as possible.
+This not only benefits metrical alignment, but also results
+in high accuracies on Fp and Fva. Still, the rhythm quan-
+tisation performance (Fme) is far from satisfactory. Some
+typical errors include double/half tempo error and errors
+introduced by missing/extra beat predictions.
+To provide a better understanding of the performance
+of our proposed method, we provide some example out-
+puts from our model together with their performance MIDI
+recordings 1 .
+4. CONCLUSION
+We described our proposed method for rhythm quantisa-
+tion by using a CRNN beat tracking model that predicts
+whether notes are at a beat position or not. We explored
+different input data encoding and data augmentation meth-
+ods on the beat tracking model. We found that note onset
+time is the most important input feature in beat prediction
+and it is best to encode it into a one-hot onset-shift vec-
+tor. Tempo change benefits most among the data augmen-
+tation methods explored. We validated our model’s beat
+tracking ability in comparison with a pianoroll-input base-
+line model. In the end, we report the performance of our
+proposed system on PM2S conversion in comparison with
+MuseScore and Finale.
+Possible next steps include investigating more power-
+ful model architectures such as the Transformer [35], ex-
+panding the output data to generate a machine-readable
+score [21], probing our system’s ability in dealing with
+more genre and instrumentation [19,36,37], and exploring
+our method’s potential in automatic music transcription by
+combining multi-pitch detection [38,39].
+1 Example
+outputs:
+https://cheriell.github.io/
+research/PM2S
+Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022
+
+5. ACKNOWLEDGEMENTS
+L. Liu is a research student at the UKRI Centre for Doc-
+toral Training in Artificial Intelligence and Music, sup-
+ported jointly by the China Scholarship Council and Queen
+Mary University of London. The work of L. Liu is sup-
+ported by The Alan Turing Institute through an Enrichment
+Scheme.
+We would like to thank Huan Zhang, Changhong Wang
+and the reviewers for their valuable feedback to improve
+our work.
+6.
