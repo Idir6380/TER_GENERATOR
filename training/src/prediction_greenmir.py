@@ -3,7 +3,7 @@ from pred import *
 import json
 
 def create_path(global_path,i):
-    return f"{global_path}data/GreenMIR/texts/article_{i}.txt"
+    return f"{global_path}data/GreenMIR/text_xml_nettoyer/article_{i+1}.txt"
 
 
 def lire_et_nettoyage_file(file_name):
@@ -14,7 +14,7 @@ def lire_et_nettoyage_file(file_name):
 
 def create_dic(feature, labels, id):
     dic = {
-        "article_id": id,
+        "article_id": id+1,
         "information": {
             "model_name": [],
             "parameter_count": [],
@@ -40,7 +40,6 @@ def create_dic(feature, labels, id):
         for i in range(len(sentence)):
             tag = sentence[i]
             if tag == "O":
-                # Si on termine une entité, on l'ajoute
                 if current_entity and current_key:
                     dic["information"][current_key].append(current_entity.strip())
                     current_entity = ""
@@ -84,10 +83,10 @@ def predict_label_greenmir(global_path):
     model, tokeniser,inv_vocab= initialisation_for_test(global_path)
     model.eval()
     for i in range(113):
-        file=create_path(global_path,i+1)
+        file=create_path(global_path,i)
         features= lire_et_nettoyage_file(file)
         labels_pred= recontruction(model,tokeniser,features,inv_vocab)
-        dic= create_dic(features, labels_pred, i+1)
+        dic= create_dic(features, labels_pred, i)
         list_valeur_predict.append(deduplicate_information(dic))
     return list_valeur_predict
         
