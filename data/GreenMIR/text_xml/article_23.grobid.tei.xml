@@ -1,0 +1,1235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">DDX7: DIFFERENTIABLE FM SYNTHESIS OF MUSICAL INSTRUMENT SOUNDS</title>
+				<funder>
+					<orgName type="full">Royal Academy of Engineering</orgName>
+				</funder>
+				<funder ref="#_yuN3eE9">
+					<orgName type="full">UK Research and Innovation</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Franco</forename><surname>Caspe</surname></persName>
+							<email>f.s.caspe@qmul.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Centre for Digital Music</orgName>
+								<orgName type="institution" key="instit2">Queen Mary University of London</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Andrew</forename><surname>Mcpherson</surname></persName>
+							<email>a.mcpherson@qmul.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Centre for Digital Music</orgName>
+								<orgName type="institution" key="instit2">Queen Mary University of London</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Mark</forename><surname>Sandler</surname></persName>
+							<email>mark.sandler@qmul.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Centre for Digital Music</orgName>
+								<orgName type="institution" key="instit2">Queen Mary University of London</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">DDX7: DIFFERENTIABLE FM SYNTHESIS OF MUSICAL INSTRUMENT SOUNDS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">59C997F2D2DFAE2D804CB48C7FE7B116</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>FM Synthesis is a well-known algorithm used to generate complex timbre from a compact set of design primitives. Typically featuring a MIDI interface, it is usually impractical to control it from an audio source. On the other hand, Differentiable Digital Signal Processing (DDSP) has enabled nuanced audio rendering by Deep Neural Networks (DNNs) that learn to control differentiable synthesis layers from arbitrary sound inputs. The training process involves a corpus of audio for supervision, and spectral reconstruction loss functions. Such functions, while being great to match spectral amplitudes, present a lack of pitch direction which can hinder the joint optimization of the parameters of FM synthesizers. In this paper, we take steps towards enabling continuous control of a well-established FM synthesis architecture from an audio input. Firstly, we discuss a set of design constraints that ease spectral optimization of a differentiable FM synthesizer via a standard reconstruction loss. Next, we present Differentiable DX7 (DDX7), a lightweight architecture for neural FM resynthesis of musical instrument sounds in terms of a compact set of parameters. We train the model on instrument samples extracted from the URMP dataset, and quantitatively demonstrate its comparable audio quality against selected benchmarks.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Sound generation and transformation tools are ubiquitous in music composition and production. The electronic synthesizer has enabled musicians to access forms of timbre beyond the capabilities of acoustic or amplified instruments. Chowning's FM Synthesis <ref type="bibr" target="#b1">[1]</ref> is a widely used technique that is flexible to create complex, harmonic and inharmonic spectra from a reduced set of controls. Its longstanding presence in the audio industry has shaped traditional and contemporary sound design techniques [2±4] across musicians and producers, with a wide number of current commercial synthesizer keyboards, modules and software plugins featuring it.</p><p>For most of its history, the digital synthesizer has been inextricably associated with the MIDI keyboard. Several historical technical and social factors contributed to making the keyboard the de-facto control interface for the synthesizer <ref type="bibr" target="#b5">[5]</ref>. The legacy of this association continues to steer synth design, favouring triggers and envelope generators over continuous control strategies.</p><p>Developing alternative interfaces for controlling digital synthesis remains an active area of research <ref type="bibr" target="#b6">[6]</ref>. Many such digital musical instruments (DMIs) are based on mappings between sensor data and synthesis parameters <ref type="bibr" target="#b7">[7,</ref><ref type="bibr">8]</ref>. An alternative approach uses features extracted from the audio signal of an acoustic instrument to control a digital synthesis process. In that context, previous works employed audio signals from musical instrument as oscillators <ref type="bibr" target="#b9">[9]</ref>, in a configuration that can be seen as a special application of Adaptive Digital Audio Effects <ref type="bibr" target="#b10">[10,</ref><ref type="bibr" target="#b11">11]</ref>.</p><p>More recently, Neural Audio Synthesis (NAS) algorithms have employed Deep Neural Networks (DNNs) to map audio features to synthesizer parameters, in tasks such as realistic audio synthesis from a compact set of control signals <ref type="bibr">[12±14]</ref>, timbre transfer from one instrument to another <ref type="bibr" target="#b15">[15,</ref><ref type="bibr" target="#b16">16]</ref> and enhancement of symbolic musical expression <ref type="bibr" target="#b17">[17]</ref>. While the results are impressive, we observe that the employed synthesis architectures are overly complex, featuring dozens of time-evolving parameters that hinder intervention, with users defaulting to indirect methods to intervene with the synthesis process, such as network bending <ref type="bibr" target="#b18">[18]</ref>.</p><p>We are interested in an audio-based, continuous control technique for a well-established synthesis architecture, that can potentially offer musicians similar sound design primitives and outcomes available to keyboard players. Furthermore, we want the model to be compatible with live use, therefore it should be able to work in real-time.</p><p>In this work, we take steps towards enabling interpretable sound design controls for NAS algorithms, and present Differentiable DX7 (DDX7), a causal and lightweight DNN architecture that maps continuous audio features to the synthesis parameters of a well-known FM synthesizer. We train DDX7 in single instrument datasets and evaluate its resynthesis performance against selected benchmarks. We provide full source code, and an online supplement <ref type="foot" target="#foot_1">1</ref> with audio examples and a preliminary analysis of the model's real-time execution capabilities.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">BACKGROUND</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Linear FM Synthesis</head><p>Linear FM modulation for audio signals, originally described by Chowning <ref type="bibr" target="#b1">[1]</ref> in the early 1970s, is a wellknown sound design technique that powered the first massively available and commercially successful digital synthesizer, the Yamaha DX7, defining an era in music production <ref type="bibr" target="#b2">[2]</ref>. Since then, it that has retained a fair amount of attention by the research community <ref type="bibr" target="#b19">[19]</ref>, being present in a variety of topics from timbre semantic analysis <ref type="bibr" target="#b13">[13]</ref>, to empirical <ref type="bibr" target="#b4">[4]</ref> and computer assisted sound design <ref type="bibr" target="#b20">[20]</ref>, and adaptive effects <ref type="bibr" target="#b11">[11]</ref>. Commercially, manufacturers continue to release as of today a sizable number of new instruments based on this technology <ref type="bibr" target="#b21">[21,</ref><ref type="bibr" target="#b22">22]</ref>.</p><p>Linear FM synthesis is actually a phase modulation technique aimed at generating different timbres with few parameters and low computational resources. Expressed in term of sine waves, the instantaneous FM modulated signal can be written as shown in Equation <ref type="formula" target="#formula_0">1</ref>, where f c is the carrier frequency, f m is the modulator frequency and I is the modulation index. In this work, we denote this particular linear phase modulation technique simply as FM Synthesis.</p><formula xml:id="formula_0">y(t) = sin(2πf c t + Isin(2πf m t))<label>(1)</label></formula><p>The side-bands of an FM signal are equally spaced around the carrier frequency, and their separation determined by f m , while the number of harmonics depends on the modulation index and follows a Bessel function of the first order (Equation <ref type="formula" target="#formula_1">2</ref>).</p><formula xml:id="formula_1">y(t) = n=+∞ n=-∞ J n (I)sin(2π(f c + nf m ) • t)<label>(2)</label></formula><p>By controlling the modulation indexes and ratios, users can generate rich and complex timbre with a small set of oscillators modulated in frequency. For instance, the simple modulator-carrier setup can be extended with a new carrier that is modulated by the output of the previous pair. This stacked arrangement spreads the bands of the initial modulator-carrier pair across another carrier, adding a new layer of complexity to the timbre. Furthermore, outputs from many stacks can be mixed in an additive approach. Next, by setting the frequency ratio r in such a way that f c = r • f m , with r ∈ Q, FM generates harmonic spectra.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">The DX7 Synthesizer</head><p>The Yamaha DX7 synthesizer is probably the best-known FM synthesizer, and it features a linear FM synthesis architecture that has been previously used by other synth models as well, making it an excellent candidate for integration to a continuous control strategy.</p><p>The sound of the DX7 is generated by six frequencymodulated sinusoidal oscillators, and it is programmed by means of setting up a patch. For each oscillator, a patch describes their routing (i.e. how the oscillators are interconnected in a stacked or additive fashion), the Attack-Decay-Sustain-Release (ADSR) envelope generator parameters and the frequency ratios with respect to the note that is being played. Fixed frequencies can also be assigned to the oscillators. The ADSR parameters control the output levels of each oscillator; affecting their output volume or modulation index depending on their interconnection. Finally, in the DX7, the oscillators' frequency ratios and routing remain fixed during audio rendering. Sound dynamics are generated mainly by the ADSR envelopes controlling the volume or modulation index of the carriers and modulators respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Sound Matching</head><p>Sound matching is the process of estimating a set of synthesis parameters that approximate a given audio signal as best as possible. The task of matching an audio input to synthesizer controls is not new especially for FM, where evolutionary methods have been used to optimize a patch for a particular given sound <ref type="bibr" target="#b20">[20,</ref><ref type="bibr" target="#b23">23]</ref>.</p><p>More recently, DNNs have been studied for supervised sound matching from an annotated dataset of patches and synthesized audio excerpts. The approaches include classification <ref type="bibr" target="#b24">[24]</ref>, where the network predicts a patch based on an input spectrogram, variational inference <ref type="bibr" target="#b25">[25]</ref>, with the DNN learns an invertible mapping between a dataset of audio and patches, and multi-modal analysis <ref type="bibr" target="#b26">[26]</ref> that employs multiple aggregated audio features for prediction.</p><p>While these methods are effective, they usually process long audio windows on the order of seconds, required to estimate the values of the ADSR envelope generator. Furthermore they can only estimate parameters from audio excerpts at specific pitch values. These approaches are not suitable for continuous control of a synthesizer from an audio signal.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Neural Audio Synthesis</head><p>DNNs can capture complex relations from a dataset. This can be exploited in a generative approach to produce realistic sounding audio. Neural Audio Synthesis (NAS) algorithms employ DNNs as powerful synthesizers that can capture structure and nuances from a corpus of music and produce new audio with similar characteristics during inference. Furthermore, these algorithms can be conditioned at train or inference time, modifying the output on-the-fly.</p><p>Since the introduction of the seminal autoregressive architectures Wavenet <ref type="bibr" target="#b27">[27]</ref> and SampleRNN <ref type="bibr" target="#b28">[28]</ref>, the NAS field has included generation approaches such as Generative Adversarial Neural Networks (GANs) [29±31], probabilistic models <ref type="bibr" target="#b32">[32,</ref><ref type="bibr" target="#b33">33]</ref> and style transfer methods <ref type="bibr" target="#b15">[15,</ref><ref type="bibr" target="#b34">34]</ref>. Furthermore, a branch of the field has focused on controllable music generation, in an effort to bring interaction possibilities to users, with NAS algorithms supporting control inputs such as MIDI <ref type="bibr" target="#b17">[17]</ref>, timbre descriptors <ref type="bibr" target="#b29">[29]</ref> and pitch and loudness signals [12±14].</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5">Differential Digital Signal Processing</head><p>Differential Digital Signal Processing (DDSP) <ref type="bibr" target="#b12">[12]</ref> is one approach for efficient, high quality audio rendering from Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022 a compact set of input controls. It biases a DNN towards generating and processing audio by the insertion of signal processing elements, such as oscillators and filters, in the network structure. These are implemented using differentiable operators from a neural network training framework and therefore can back-propagate gradients during training.</p><p>DDSP methods have been successfully employed in resynthesis and tone transfer <ref type="bibr" target="#b16">[16]</ref> tasks, where they are conditioned on a set of time-evolving inputs, including the fundamental frequency of the target signal, and generate audio on a frame-by-frame basis. Some approaches such as the Neural Source Filter (NSF) <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b35">35]</ref> or the Neural Waveshaper <ref type="bibr" target="#b13">[13]</ref> learn to control a non-linear filter that shapes a harmonic source towards a particular target sound. Other DDSP architectures <ref type="bibr" target="#b12">[12,</ref><ref type="bibr" target="#b17">17]</ref> directly drive a Harmonic plus Noise (HpN) synthesizer <ref type="bibr" target="#b36">[36]</ref>, effectively learning a mapping between the input controls and the synthesizer parameters that generate the output.</p><p>While the previous resynthesis architectures can generate realistic tone transfer, there is little users can do to manipulate the resulting audio other than controlling the pitch and loudness inputs. The DNN controls spectral modelling algorithms, which do not have musically meaningful parameters. In this work, we present a differentiable FM synthesizer module that features a compact set of well-known sound design controls driven by a DNN, enabling a potential user intervention into the synthesis process.</p><p>While the idea of differentiable FM is not new, we have not been able to find published literature with details and evaluations of systems employing it. We highlight two web repositories, one involving a 2-oscillator FM optimization strategy of audio excerpts <ref type="bibr" target="#b37">[37]</ref> and another presenting an extension of the original DDSP project with a Differentiable FM synthesizer <ref type="bibr" target="#b38">[38]</ref>, where the experiments fail to reproduce musical instrument sounds. Our approach imposes a set of constraints on the FM synth that allows a DNN to generate instrument sounds.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.6">Training objective for DDSP resynthesis</head><p>The training process for the DDSP algorithms usually involves a multi-scale spectral (MSS) loss function that includes the L 1 distance of the amplitude spectrograms of a synthesized and a target audio excerpt, in linear and logarithmic form <ref type="bibr" target="#b12">[12]</ref>. This function is used as a reconstruction loss, with the DDSP model aiming to replicate the target spectra during training.</p><p>Despite its widespread use, the MSS loss and more generally, spectral-based distance metrics present pitch-based failure modes that can conspire against the generalization capabilities of NAS algorithms when trained with gradient descent, as demonstrated by Turian et. al. <ref type="bibr" target="#b39">[39]</ref>. The authors show how such functions fail to propagate informative gradients for fine-tuning oscillator frequencies towards a frequency target due to fine grained ripple on the loss surface. Furthermore, they indicate that for the MSS distance, jointly optimizing amplitude and frequency generates misleading gradients for both tasks; this loss function can match spectral amplitudes only when the harmonics of target and prediction are aligned in frequency.</p><p>We argue that the MSS loss works well for DDSP because of two main reasons: Firstly, these models drive highly parameterized spectral modelling synthesizers with fine control on the output, either in the form of filterdistortion DNNs <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b35">35]</ref>, multiple parallel waveshapers <ref type="bibr" target="#b13">[13]</ref>, or the HpN synthesizer <ref type="bibr" target="#b12">[12]</ref>. Secondly, and most importantly, all DDSP resynthesis architectures require as conditioning the fundamental frequency from the target signal, extracted with an estimator <ref type="bibr" target="#b40">[40]</ref>. This ensures a harmonic alignment between the target and the prediction, and effectively avoids the problem of having to optimize pitch using gradient descent and the MSS loss during training.</p><p>A loss function that cannot propagate informative gradients cannot be employed to train a DNN. This is particularly disadvantageous for the case of FM generation, where the synthesis parameters include the modulation index I and the frequency ratios r that determine distance between the side-bands and the carrier. A small mismatch on ratio estimation can generate an unwanted vibrato-like effect, due to small frequency differences between oscillators. A big mismatch can hinder the joint optimization of the harmonics' positions and amplitudes. A DNN that does not learn how to precisely control the ratios could very easily incur either of those problems.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHOD</head><p>In this section, we propose a set of constraints that ease training of a DNN with a differentiable FM synthesizer. Next, we present DDX7, a NAS architecture for FM synthesis controlled by a Temporal Convolutional Network (TCN) <ref type="bibr" target="#b41">[41]</ref>. We train the DDX7 model for FM resynthesis of musical instrument sounds. This effectively results in a DX7 patch that is playable by an arbitrary audio input. A diagram of the architecture is shown in Figure <ref type="figure" target="#fig_0">1</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Differentiable DX7</head><p>Our aim is to provide continuous control possibilities for a well-known FM synthesizer. We choose the Yamaha DX7 for its lasting influence on musical practice.</p><p>Considering the DX7 patch design, we observe that when fixing the frequency ratios and the routing of the oscillators, all the harmonics and overtones that can be generated take a fixed position in the spectrum. This patch constraint can allow the synthesis model to propagate informative gradients from the MSS reconstruction loss, provided the FM partials are pre-aligned with the ones of the target audio by means of pitch conditioning, as in the case of DDSP resynthesis.</p><p>We propose a control scheme for an FM synthesizer where a DNN controls the modulation indices and volume of the oscillators. The oscillator routing and frequency ratios remain fixed. One problem may arise when considering the maximum values that the modulation index I can take. For different ranges of I, the Bessel functions can create local minima during spectral optimization due to  their oscillatory nature. In the DX7, the modulation index envelopes can take values of as much as 4π <ref type="bibr" target="#b42">[42]</ref>, but only for I &lt; 1.83, are the Bessel functions strictly monotonic, with the carrier just exchanging energy with the sidebands, as shown in Figure <ref type="figure" target="#fig_1">2</ref>. We analyze the effect of the maximum ranges through experiments in Section 5.</p><p>We implement the FM modulation algorithm in Pytorch, and adapt it manually for the different FM configurations that are tried in this work. Each configuration defines a fixed oscillator routing and a set of frequency ratios.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">TCN Decoder</head><p>TCNs have been successfully employed a number of sequential modelling tasks, including for audio processing and generation <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b27">27,</ref><ref type="bibr" target="#b43">43]</ref>. These are fully-convolutional networks that employ 1-dimensional convolutions and exponentially growing dilations to efficiently model long sequences within their receptive field <ref type="bibr" target="#b41">[41]</ref>. We choose TCNs for our DDX7 implementation for their fast training capabilities and good sequential modelling performance.</p><p>In our FM resynthesis problem, we aim to map a set of synchronous input sequences of pitch f 01 , ..., f 0T ∈ R and loudness ld 1 , ..., ld T ∈ R to the controls of our constrained synthesizer, i.e. the output levels ol 1 , ..., ol T ∈ R 6 of the six oscillators. We define the parameterized mapping function f θ as shown in Equation <ref type="formula" target="#formula_2">3</ref>, where the conditioning sequence c 1 , ..., c T ∈ R 2 is obtained by concatenating along a new dimension both pitch and loudness sequences, σ(.) is the sigmoid activation function and A max is the maximum output level value that the envelopes can take for that oscillator, as shown in Equation <ref type="formula">4</ref>, where I max is a hyperparameter describing the maximum modulation index range that the system can realize.</p><formula xml:id="formula_2">ôl 1 , ... ô l T = A max • σ(f θ (c 1 , ...c T ))<label>(3)</label></formula><formula xml:id="formula_3">A max = 1 if carrier I max otherwise (4)</formula><p>We implement our mapping function f θ with a simple, causal TCN architecture following <ref type="bibr" target="#b41">[41]</ref>, with 2 input and 6 output channels, processed by 5 TCN residual blocks with skip connections and 128 hidden channels each. Each residual block features two convolutional layers of kernel size 3, and the dilation increases by a factor of 2 in each block. Weight normalization, dropout with probability of 0.5 and ReLU activation functions are used throughout the network, with the exception of the output layer that features a sigmoid layer. This yields a relatively lightweight decoder, with about 400k parameters, and a receptive field T of 125 pitch and loudness frames.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Learnable Reverb</head><p>We employ a differentiable reverb module, similar to the one employed for the DDSP decoder <ref type="bibr" target="#b12">[12]</ref>, featuring learnable mix and decay parameters, and a trainable impulse response of 1 second length. This is used to estimate the room response of the dataset recordings, decoupling it from the FM sound generation block. It is applied directly to the FM synthesizer output and it is jointly optimized with the DNN during training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">TRAINING 4.1 Loss function</head><p>The DDX7 architecture can be trained with a corpus of audio from a musical instrument as supervision, employing stochastic gradient descent on minibatches with a spectral reconstruction objective. We employ the MSS reconstruction loss shown in Equation <ref type="formula" target="#formula_4">5</ref>, where S i and Ŝi are the magnitude spectrograms of the target and synthesized audio respectively, ||.|| 1 denotes the L 1 norm, and i is a particular Fourier transform analysis window on which the spectrogram is computed. We use i ∈ {64, 128, 256, 512, 1024, 2048} with an overlap of 75% between windows.</p><formula xml:id="formula_4">L = i (||S i -Ŝi || 1 + ||logS i -log Ŝi || 1 )<label>(5)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Dataset</head><p>We train our DDX7 models on audio samples of instruments extracted from the University of Rochester Music Performance (URMP) dataset <ref type="bibr" target="#b44">[44]</ref>, an audio-visual dataset that contains classical pieces. We select the separated audio stems for violin, flute and trumpet as our training data, down-sample them to 16 kHz, remove silences and crop the audio files to instances of 4 seconds. We extract the A-weighted loudness <ref type="bibr" target="#b45">[45]</ref> and fundamental frequency employing the CREPE <ref type="bibr" target="#b40">[40]</ref> pitch estimator. We discard all instances that yield a mean pitch confidence smaller than 0.85, with the exception of the flute corpus, for which we relax the requirement down to 0.80 due to its short length. We further normalize pitch and loudness values within a range between 0 and 1. We process each annotation with a hop size of 64 samples, yielding pitch and loudness sequences of 1000 frames for each 4-second instance. The selection of hop size and sample rate results in our TCN model featuring a receptive field of 0.5 s, and dictates the frame rate at which it drives the oscillators, 250 Hz. We linearly interpolate the envelope frames before feeding them into the oscillators. Finally, we separate the dataset into train, validation and test sets with 0.75 / 0.125 / 0.125 splits respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">FM configurations</head><p>For each target instrument, we select a different FM configuration extracted from the original patch set of the Yamaha DX7, which we retrieve from the web. <ref type="foot" target="#foot_3">2</ref> Then, we load the patches in Dexed <ref type="bibr" target="#b46">[46]</ref>, a DX7 emulator, and audit them searching for most similar to the target instruments. We select "STRINGS 1" for violin, "FLUTE 1" for flute and "BRASS 3" for the trumpet. We deploy the oscillator routing with the frequency ratios rounded up to one decimal point (to avoid vibrato-like effects) as differentiable FM modules, as shown in Figure <ref type="figure" target="#fig_2">3</ref>. We do not deploy the oscillator feedback feature of the DX7 in our implementation, as it cannot be computed in parallel and we find it is very slow to render using a standard for loop in Python. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Training process</head><p>Our models are trained for 120k steps, with the Adam optimizer, set with an initial learning rate of 3e-4, decreasing with a factor of 0.98 each 10k steps. We clip gradients to a maximum norm of 2, and employ a batch size of 16.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">EVALUATION</head><p>We evaluate the performance of DDX7 on the resynthesis task, training the model on the flute, trumpet and violin corpus, and evaluate its performance on selected benchmarks with the Fréchet Audio Distance (FAD).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Fréchet audio distance</head><p>The Fréchet Audio Distance (FAD) presented by Kilgour et. al. <ref type="bibr" target="#b47">[47]</ref> serves as a quality metric for audio enhancement, that correlates better with human listeners than SDR (signal-to-distortion ratio) or spectral differences such as the MSS loss. This is in line with other deep neural features used in Computer Vision that are found to outperform heuristic metrics by great margins <ref type="bibr" target="#b48">[48]</ref>. It has been used to assess synthesis quality in previous works <ref type="bibr" target="#b13">[13,</ref><ref type="bibr" target="#b29">29,</ref><ref type="bibr" target="#b31">31]</ref>. The FAD computes the Fréchet distance between multivariate Gaussian distributions inferred from the embeddings of a pre-trained VGGish model <ref type="bibr" target="#b49">[49]</ref>. The compared distributions are generated from the embeddings of a corpus of audio for evaluation and a "background" corpus of high quality audio as reference.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Benchmarks</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.1">Maximum modulation index</head><p>We are interested into knowing which are the best modulation index limits for which our model can successfully render the instrument audio. Taking into account that optimizing for a particular spectra may be difficult for the original maximum modulation index range of the DX7 of 4π, we train our model for each instrument with three different maximum modulation index ranges for the oscillators: I max = {4π, 2π, 2}, including the original DX7 range, a halved one and one limited at two, which includes the global maximum of the first harmonic J 1 (I), but limits the other Bessel functions to a space where they are strictly monotonic. Finally, we load the corresponding configuration for each instrument selected, and we train three versions of DDX7, to account for each of the values of I max .</p><p>Our FM model learns to control the envelopes of 6 oscillators frame-wise. As a baseline, we assess the performance of the common Harmonic plus Noise spectral modelling synthesizer employed for resynthesis tasks. We train a baseline pitch and loudness decoder that controls 121 frame-wise parameters of an HpN synthesizer, similar to the original solo instrument DDSP Decoder <ref type="bibr" target="#b12">[12]</ref>, but implemented in the same training framework as DDX7, to ensure that we use exactly the same dataset, preprocessing and frame rate. The model is roughly 11 times bigger than DDX7, with about 4.5 M parameters. We train it for 120k steps for parity with our model, with a batch size of 16, and an initial learning rate of 1e-4, decreasing to a factor of 0.98 for each 10k steps.</p><p>For evaluation with FAD, we generate background embedding distributions of the complete audio corpus of each instrument. Next, we generate embeddings distributions from the resynthesized excerpts of the test set for each model and instrument. We compute the FAD of these and the original test set against their corresponding background distribution. Results are shown in Table <ref type="table" target="#tab_0">1</ref>. We observe that the HpN baseline outperforms our model in violin and trumpet, but controlling 121 parameters instead of 6, and at a higher computational cost. Surprisingly, DDX7 outperforms the baseline on flute, suggesting that our patch constraint approach can bias a DNN towards a usable FM timbral space. We observe the best DDX7 performance is obtained with I max = 2 for flute and violin and I max = 2π for trumpet. This may be correlated with the different spectra of the instruments, suggesting that the trumpet may require a bigger I max for an improved reconstruction. Finally, for some configurations of I max the models sound unnatural and fail at the estimation of the room response. We leave further analysis of this issue for future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.2">Oscillator ablation test</head><p>We want to assess if our model is effectively optimized to leverage all of the modulators for the reconstruction task. We propose ablated versions of the previous patches with two and four oscillators, as shown in Figure <ref type="figure" target="#fig_3">4</ref>. We train the DDX7 models on the ablated patches using the optimal I max found with the previous benchmark and compare their resynthesis quality with the FAD following the same previous procedure. The results shown in Table <ref type="table" target="#tab_1">2</ref> suggest that the violin and flute model benefit from the extra degrees of freedom present with more oscillators. On the other hand, the trumpet model works best with the smallest configuration, possibly due to an incorrect patch selection that hindered the optimization process. Finally, the 2-oscillator trumpet model outperforms the HpN baseline, suggesting that good results can be achieved with a small number of frequency-modulated oscillators.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSION</head><p>We presented DDX7, an approach for FM resynthesis of musical instrument sounds that yields good reconstructions controlling few parameters, with relatively smaller models. We have shown that FM with a patch constraint can perform comparably well to a more complex baseline with just 6, and even less oscillators; we hope this motivates further research along this line, including for instance sound matching techniques to find suitable configurations. Current resynthesis architectures feature synthesizers that are difficult to intervene in a musically meaningful way. In contrast, DDX7 learns to control an FM synthesizer that is common in the sound design practice. It replaces the ADSR generator of the original DX7 with a TCN that infers the envelopes from continuous control inputs. At runtime, it is possible to manipulate the timbre on-the-fly, either by re-shaping the spectrum with the ratios, altering dynamics on the envelopes, or by re-routing the oscillators. Finally, the small model size and causal temporal dependency make DDX7 an interesting candidate for real-time implementation. We leave an exploration of these affordances and possibilities for future work.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure1. The DDX7 architecture employs a TCN decoder conditioned on a sequence of pitch and loudness frames to drive the envelopes of a few-oscillator differentiable FM synthesizer that features a fixed FM configuration with fixed frequency ratios, effectively mapping continuous controls of pitched musical instruments to a well-known synthesis architecture.</figDesc><graphic coords="4,54.98,68.54,487.60,142.12" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Absolute amplitudes of the first three harmonics generated by FM in function of I.</figDesc><graphic coords="4,54.98,279.17,232.45,144.83" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. FM configurations used for training. Squares indicate sinusoidal oscillators and their frequency ratios.</figDesc><graphic coords="5,310.11,68.54,232.45,146.58" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 .</head><label>4</label><figDesc>Figure 4. Ablated FM configurations.</figDesc><graphic coords="6,54.98,68.54,232.45,128.25" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 .</head><label>1</label><figDesc>FAD of resynthesis results for all models computed against the background embedding distributions for each instrument complete corpus. Best results are in bold and best I max configurations are underlined.</figDesc><table><row><cell></cell><cell></cell><cell cols="4">Fréchet Audio Distance</cell></row><row><cell>Model</cell><cell></cell><cell cols="4">Flute Violin Trumpet</cell></row><row><cell>Test Data</cell><cell></cell><cell cols="2">2.074 0.577</cell><cell cols="2">1.069</cell></row><row><cell cols="2">HpN Baseline</cell><cell cols="2">4.326 0.795</cell><cell cols="2">2.486</cell></row><row><cell cols="2">DDX7 (I max = 2)</cell><cell cols="2">2.731 1.618</cell><cell cols="2">4.941</cell></row><row><cell cols="4">DDX7 (I max = 2π) 3.281 2.148</cell><cell cols="2">3.326</cell></row><row><cell cols="4">DDX7 (I max = 4π) 2.938 1.637</cell><cell cols="2">3.853</cell></row><row><cell>Instrument</cell><cell>6</cell><cell cols="3">FM Configuration 4 "Y" 4x1 2x2</cell><cell>2</cell></row><row><cell>Flute</cell><cell cols="2">2.731 3.246</cell><cell>-</cell><cell>-</cell><cell>3.364</cell></row><row><cell>Violin</cell><cell>1.618</cell><cell>-</cell><cell cols="3">1.877 5.620 8.270</cell></row><row><cell>Trumpet</cell><cell cols="2">3.326 2.943</cell><cell>-</cell><cell>-</cell><cell>1.674</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 .</head><label>2</label><figDesc>FAD for complete and ablated patches on DDX7.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>© F. Caspe, A. McPherson, and M. Sandler. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: F. Caspe, A. McPherson, and M. Sandler, ªDDX7: Differentiable FM Synthesis of Musical Instrument Soundsº, in Proc. of the 23rd Int. Society for Music Information Retrieval Conf., Bengaluru, India, 2022.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>https://fcaspe.github.io/ddx7</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_3"><p>http://bobbyblues.recup.ch/yamaha_dx7/</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="7.">ACKNOWLEDGEMENTS</head><p>We would like to thank the ISMIR reviewers for their valuable feedback. Also, we would like to thank our colleagues <rs type="person">Ben Hayes</rs> and <rs type="person">Rodrigo Diaz</rs> for their advice and many compelling discussions about audio rendering and DNN optimization. This work was supported by <rs type="funder">UK Research and Innovation</rs> [grant number <rs type="grantNumber">EP/S022694/1</rs>]. AM's contributions are supported by the <rs type="funder">Royal Academy of Engineering</rs> under the Research Chairs and Senior Research Fellowships scheme.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_yuN3eE9">
+					<idno type="grant-number">EP/S022694/1</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">ªThe synthesis of complex audio spectra by means of frequency modulation</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">M</forename><surname>Chowning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the Audio Engineering Society</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">7</biblScope>
+			<biblScope unit="page" from="526" to="534" />
+			<date type="published" when="1973">1973</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">ªWhat makes it sound &apos;80s? The Yamaha DX7 electric piano sound</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lavengood</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Popular Music Studies</title>
+		<imprint>
+			<biblScope unit="volume">31</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="73" to="94" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">E</forename><surname>Miranda</surname></persName>
+		</author>
+		<title level="m">Computer Sound Design: Synthesis techniques and programming</title>
+		<imprint>
+			<publisher>Routledge</publisher>
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Teaching Electronic Music: Cultural, Creative, and Analytical Perspectives</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Stevens</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<publisher>Routledge</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">ªThe social construction of the early electronic music synthesizer</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Pinch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Trocco</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ICON</title>
+		<imprint>
+			<biblScope unit="page" from="9" to="31" />
+			<date type="published" when="1998">1998</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">A NIME reader: Fifteen years of New Interfaces for Musical Expression</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">R</forename><surname>Jensenius</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">J</forename><surname>Lyons</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<publisher>Springer</publisher>
+			<biblScope unit="volume">3</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Wanderley, ªMaking mappings: Design criteria for live performance,º New Interfaces for Musical Expression conference (NIME)</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>West</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Caramiaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Huot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">M</forename></persName>
+		</author>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">ªInterpolating audio and haptic control spaces,º in New Interfaces for Musical Expression conference</title>
+		<author>
+			<persName><forename type="first">J</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">M</forename><surname>Wanderley</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<publisher>NIME). PubPub</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Dannenberg, ªAudio Signal Driven Sound Synthesis</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Poepel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">B</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Computer Music Conference</title>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">ªAdaptive digital audio effects (a-dafx): a new class of sound transformations</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Verfaille</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">U</forename><surname>Zolzer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Arfib</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="1817" to="1831" />
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">V</forename><surname>Lazzarini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Timoney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lysaght</surname></persName>
+		</author>
+		<title level="m">ªAdaptive FM Synthesis,º in DAFX-07 the 10th Int. Conference on Digital Audio Effects</title>
+		<imprint>
+			<date type="published" when="2007-09">September 2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">H</forename><surname>Hantrakul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<title level="m">th International Conference on Learning Representations</title>
+		<meeting><address><addrLine>Addis Ababa, Ethiopia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>Differentiable Digital Signal Processing</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ªNeural waveshaping synthesis</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Hayes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Saitis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fazekas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 22th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">ªHierarchical timbrepainting and articulation generation</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Michelashvili</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wolf</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">O</forename><surname>Cifka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ozerov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">U</forename><forename type="middle">Ë</forename><surname>Simë</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+		<title level="m">ªSelf-Supervised VQ-VAE for One-Shot Music Style Transfer,º in ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="96" to="100" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">ªTone transfer: In-browser interactive neural audio synthesis</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Carney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Toh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Joint Proceedings of the ACM IUI 2021 Workshops</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Manilow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Swavely</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kastner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Cooijmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<title level="m">ªMIDI-DDSP: Detailed control of musical performance via hierarchical modeling,º International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Yee-King</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Mccallum</surname></persName>
+		</author>
+		<title level="m">ªStudio report: Sound synthesis with DDSP and network bending techniques,º Proceedings of the 2nd Conference on AI Music Creativity</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">ªPractical linear and exponential frequency modulation for digital music synthesis</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Nielsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd International Conference on Digital Audio Effects (DAFx-20)</title>
+		<meeting>the 23rd International Conference on Digital Audio Effects (DAFx-20)<address><addrLine>Vienna, Austria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-09">September 8±12, 2020-21, 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">ªQuality diversity for synthesizer sound matching</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Masuda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Saito</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd International Conference on Digital Audio Effects</title>
+		<meeting>the 23rd International Conference on Digital Audio Effects</meeting>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+	<note>DAFx20in21</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Korg Opsix</title>
+		<author>
+			<persName><forename type="first">Sound</forename><surname>On</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sound</forename><surname>Magazine</surname></persName>
+		</author>
+		<ptr target="https://www.soundonsound.com/reviews/korg-opsix" />
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Best FM Synth 2022</title>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Kuehn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fidlar</forename><surname>Music</surname></persName>
+		</author>
+		<ptr target="https://fidlarmusic.com/best-fm-synth/" />
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ªMachine tongues XVI: Genetic algorithms and their application to FM matching synthesis,º</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Horner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Beauchamp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Haken</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Music Journal</title>
+		<imprint>
+			<biblScope unit="volume">17</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="17" to="29" />
+			<date type="published" when="1993">1993</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Inverno, ªAutomatic Programming of VST Sound Synthesizers Using Deep Networks and Other Techniques</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">J</forename><surname>Yee-King</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Fedden</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Emerging Topics in Computational Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="150" to="159" />
+			<date type="published" when="2018-04">Apr. 2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">ªImproving synthesizer programming from variational autoencoders latent space</title>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">Le</forename><surname>Vaillant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Dutoit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dekeyser</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd International Conference on Digital Audio Effects</title>
+		<meeting>the 23rd International Conference on Digital Audio Effects</meeting>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+	<note>DAFx20in21</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2205.03043</idno>
+		<title level="m">ªSound2Synth: Interpreting sound via FM synthesizer parameters estimation,º</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">V D</forename><surname>Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Senior</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<title level="m">ªWavenet: A generative model for raw audio,º The 9th ISCA Speech Synthesis Workshop</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mehri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Gulrajani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sotelo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<title level="m">ªSampleRNN: An Unconditional End-to-End Neural Audio Generation Model,º in 5th International Conference on Learning Representations</title>
+		<meeting><address><addrLine>Toulon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">ªDrumGAN: Synthesis of Drum Sounds With Timbral Feature Conditioning Using Generative Adversarial Networks</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nistal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference<address><addrLine>Montréal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-08">Aug. 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">K</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Gulrajani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<title level="m">ªGANSynth: Adversarial Neural Audio Synthesis,º in 7th International Conference on Learning Representations</title>
+		<meeting><address><addrLine>New Orleans, LA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page">17</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Style-based synthesis of drum sounds with extensive controls using generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lavault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roebel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Voiry</surname></persName>
+		</author>
+		<author>
+			<persName><surname>ªstylewavegan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2204.00907</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title/>
+		<author>
+			<persName><forename type="first">P</forename><surname>Esling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Masuda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Bardet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Despres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Chemla-Romeu-Santos</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Synthesizer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Universal Audio Synthesizer Control with Normalizing Flows,º Applied Sciences</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page">302</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">ªRAVE: A variational autoencoder for fast and high-quality neural audio synthesis</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Caillon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Esling</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2111.05011</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Anil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">B</forename><surname>Grosse</surname></persName>
+		</author>
+		<title level="m">Pipeline for Musical Timbre Transfer,º in 7th International Conference on Learning Representations</title>
+		<editor>
+			<persName><forename type="first">(</forename><surname>Wavenet</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">(</forename><surname>Cyclegan</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Cqt</surname></persName>
+		</editor>
+		<meeting><address><addrLine>New Orleans, LA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page">17</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">ªNeural source-filter waveform models for statistical parametric speech synthesis</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Takaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yamagishi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="402" to="415" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Stylianou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Laroche</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Moulines</surname></persName>
+		</author>
+		<title level="m">ªHighquality speech modification based on a harmonic+ noise model,º in Fourth European Conference on Speech Communication and Technology</title>
+		<imprint>
+			<date type="published" when="1995">1995</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jansson</surname></persName>
+		</author>
+		<ptr target="https://github.com/andreasjansson/fmsynth" />
+		<title level="m">ªImplicit neural differentiable FM synthesizer</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Alonso</surname></persName>
+		</author>
+		<ptr target="https://juanalonso.github.io/ddsp_fm/,2021" />
+		<title level="m">ªDDSP-FM: differentiable FM synthesis</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">m Sorry for Your Loss: Spectrally-Based Audio Distances Are Bad at Pitch</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Turian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Henry</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2012.04572</idno>
+		<imprint>
+			<date type="published" when="2020-12">Dec. 2020. 2020</date>
+			<biblScope unit="page" from="Work" to=" shop" />
+		</imprint>
+	</monogr>
+	<note>, I Can&apos;t Believe It&apos;s Not Better! (ICBINB) NeurIPS</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">ICASSP 2018 -Proceedings</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Convolutional Representation for Pitch Estimation,º in 2018 IEEE International Conference on Acoustics, Speech, and Signal Processing</title>
+		<imprint>
+			<publisher>Institute of Electrical and Electronics Engineers Inc</publisher>
+			<date type="published" when="2018-09">Sep. 2018</date>
+			<biblScope unit="page" from="161" to="165" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">ªAn Empirical Evaluation of Generic Convolutional and Recurrent Networks for Sequence Modeling</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">Z</forename><surname>Kolter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Koltun</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1803.01271</idno>
+		<idno>arXiv: 1803.01271</idno>
+		<imprint>
+			<date type="published" when="2018-04">Apr. 2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bristow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chowning</surname></persName>
+		</author>
+		<title level="m">ªFM Theory and Applications: By Musicians for Musicians,º Yamaha Music Foundation</title>
+		<imprint>
+			<date type="published" when="1986">1986</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">ªEfficient neural networks for real-time modeling of analog dynamic range compression,º in 152nd AES Convention</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">J</forename><surname>Steinmetz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Reiss</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">ªCreating a Multitrack Classical Music Performance Dataset for Multimodal Music Analysis: Challenges, Insights, and Applications</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Dinesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Sharma</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Multimedia</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="522" to="535" />
+			<date type="published" when="2019-02">Feb. 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">ªA model for the prediction of thresholds, loudness, and partial loudness</title>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">C</forename><surname>Moore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">R</forename><surname>Glasberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Baer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the Audio Engineering Society</title>
+		<imprint>
+			<biblScope unit="volume">45</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="224" to="240" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Gauthier</surname></persName>
+		</author>
+		<ptr target="https://github.com/asb" />
+		<title level="m">ªDexed -FM Plugin Synth</title>
+		<imprint>
+			<date type="published" when="2022">2m10/dexed, 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">ªFréchet Audio Distance: A Reference-Free Metric for Evaluating Music Enhancement Algorithms,º in Interspeech</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kilgour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zuluaga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Roblek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sharifi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ISCA</title>
+		<imprint>
+			<biblScope unit="page" from="2350" to="2354" />
+			<date type="published" when="2019-09">2019. Sep. 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<author>
+			<persName><forename type="first">R</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Isola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">A</forename><surname>Efros</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Shechtman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Wang</surname></persName>
+		</author>
+		<title level="m">ªThe Unreasonable Effectiveness of Deep Features as a Perceptual Metric,º in 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting><address><addrLine>Salt Lake City, UT</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2018-06">Jun. 2018</date>
+			<biblScope unit="page" from="586" to="595" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">ªCNN architectures for large-scale audio classification</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hershey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chaudhuri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P W</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">F</forename><surname>Gemmeke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">C</forename><surname>Moore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Plakal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Platt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">A</forename><surname>Saurous</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Seybold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Slaney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Wilson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2017 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting><address><addrLine>New Orleans, LA</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2017-03">Mar. 2017</date>
+			<biblScope unit="page" from="131" to="135" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

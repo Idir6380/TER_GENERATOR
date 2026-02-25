@@ -1,0 +1,1274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">JUKEDRUMMER: CONDITIONAL BEAT-AWARE AUDIO-DOMAIN DRUM ACCOMPANIMENT GENERATION VIA TRANSFORMER VQ-VAE</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Yueh-Kao</forename><surname>Wu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">National Cheng</orgName>
+								<orgName type="institution" key="instit2">Kung University</orgName>
+								<address>
+									<settlement>Taiwan AI Labs</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Academia</forename><surname>Sinica</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">National Cheng</orgName>
+								<orgName type="institution" key="instit2">Kung University</orgName>
+								<address>
+									<settlement>Taiwan AI Labs</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ching-Yu</forename><surname>Chiu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">National Cheng</orgName>
+								<orgName type="institution" key="instit2">Kung University</orgName>
+								<address>
+									<settlement>Taiwan AI Labs</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Yi-Hsuan</forename><surname>Yang</surname></persName>
+							<email>yhyang@ailabs.tw</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">National Cheng</orgName>
+								<orgName type="institution" key="instit2">Kung University</orgName>
+								<address>
+									<settlement>Taiwan AI Labs</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">JUKEDRUMMER: CONDITIONAL BEAT-AWARE AUDIO-DOMAIN DRUM ACCOMPANIMENT GENERATION VIA TRANSFORMER VQ-VAE</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">598B6669134E3A1ADCD1ADE2D1571C6D</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>This paper proposes a model that generates a drum track in the audio domain to play along to a user-provided drumfree recording. Specifically, using paired data of drumless tracks and the corresponding human-made drum tracks, we train a Transformer model to improvise the drum part of an unseen drumless recording. We combine two approaches to encode the input audio. First, we train a vectorquantized variational autoencoder (VQ-VAE) to represent the input audio with discrete codes, which can then be readily used in a Transformer. Second, using an audiodomain beat tracking model, we compute beat-related features of the input audio and use them as embeddings in the Transformer. Instead of generating the drum track directly as waveforms, we use a separate VQ-VAE to encode the mel-spectrogram of a drum track into another set of discrete codes, and train the Transformer to predict the sequence of drum-related discrete codes. The output codes are then converted to a mel-spectrogram with a decoder, and then to the waveform with a vocoder. We report both objective and subjective evaluations of variants of the proposed model, demonstrating that the model with beat information generates drum accompaniment that is rhythmically and stylistically consistent with the input audio.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Deep generative models for musical audio generation have witnessed great progress in recent years <ref type="bibr">[1±8]</ref>. While models for generating symbolic music such as MIDI [9±12] or musical scores <ref type="bibr" target="#b13">[13]</ref> focus primarily on the composition of musical content, an audio-domain music generation model deals with sounds and thereby has extra complexities related to timbre and audio quality. For example, while a model for generating symbolic guitar tabs can simply consider a guitar tab as a sequence of notes <ref type="bibr" target="#b11">[11]</ref>, a model that generates audio recordings of guitar needs to determine not only the underlying sequence of notes but also the way to render (synthesize) the notes into sounds. Due to the complexities involved, research on deep generative models for musical audio begins with the simpler task of synthesizing individual musical notes [1±3], dispensing the need to consider the composition of notes. Follow-up research <ref type="bibr">[4±6]</ref> extends the capability to generating musical passages of a single instrument. The Jukebox model <ref type="bibr" target="#b7">[7]</ref> proposed by OpenAI greatly advances the state-of-the-art by being able to, quoting their sentence, ªgenerate high-fidelity and diverse songs with coherence up to multiple minutes.º Being trained on a massive collection of audio recordings with the corresponding lyrics but not the symbolic transcriptions of music, Jukebox generates multi-instrument music as raw waveforms directly without an explicit model of the underlying sequence of notes.</p><p>This work aims to improve upon Jukebox in two aspects. First, the backbone of Jukebox is a hundred-layer Transformer <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b15">15]</ref> with billions of parameters that are trained with 1.2 million songs on hundreds of NVIDIA V100 GPUs for weeks at OpenAI, which is hard to reproduce elsewhere. Inspired by a recent Jukebox-like model for singing voice generation called KaraSinger <ref type="bibr" target="#b8">[8]</ref>, we instead build a light-weight model with only 25 million parameters by working on Mel-spectrograms instead of raw waveforms. Our model is trained with only 457 recordings on a single GeForce GTX 1080 Ti GPU for 2 days.</p><p>Second, and more importantly, instead of a fully autonomous model that makes a song from scratch with various instruments, we aim to build a model that can work cooperatively with human, allowing the human partner to come up with the musical audio of some instruments as input to the model, and generating in return the musical audio of some other instruments to accompany and to complement the user input, completing the song together. Such a model can potentially contribute to human-AI co-creation in songwriting <ref type="bibr" target="#b16">[16]</ref> and enable new applications.</p><p>In technical terms, our work enhances the controllability of the model by allowing its generation to be steered on a user-provided audio track. It can be viewed as an interesting sequence-to-sequence problem where the model creates a ªtarget sequenceº of music that is to be played along to the input ªsource sequence.º Besides requirement on audio quality, the coordination between the source and target sequences in terms of musical aspects such as style, rhythm, and harmony is also of central importance.</p><p>We note that, for controllability and the intelligibility of the generated singing, both Jukebox <ref type="bibr" target="#b7">[7]</ref> and KaraSinger <ref type="bibr" target="#b8">[8]</ref> have a lyrics encoder that allows their generation to be steered on textual lyrics. While being technically similar, our accompaniment generation task (ªaudio-to-audioº) is different from the lyric-conditioned generation task (ªtextto-audioº) in that the latter does not need to deal with the coordination between two audio recordings.</p><p>Specifically, we consider a drum accompaniment generation problem in our implementation, using a ªdrumlessº recording as the input and generating as the output a drum track that involves the use of an entire drum kit. We use this as an example task to investigate the audio-domain accompaniment generation problem out of the following reasons. First, datasets used in musical source separation <ref type="bibr" target="#b17">[17]</ref> usually consist of an isolated drum stem along with stems corresponding to other instruments. We can therefore easily merge the other stems to create paired data of drumless tracks and drum tracks as training data of our model. (In musical terms, drumless, or ªMinus Drumsº songs are recordings where the drum part has been taken out, which corresponds nicely to our scenario.) Second, we suppose a drum accompaniment generation model can easily find applications in songwriting <ref type="bibr" target="#b18">[18]</ref>, as it allows a user (who may not be familiar with drum playing or beat making) to focus on the other non-drum tracks. Third, audio-domain drum accompaniment generation poses interesting challenges as the model needs to determine not only the drum patterns but also the drum sounds that are supposed to be, respectively, rhythmically and stylistically consistent with the input. Moreover, the generated drum track is expected to follow a steady tempo, which is a basic requirement for a human drummer. We call our model the ªJukeDrummer.º As depicted in Figure <ref type="figure" target="#fig_0">1</ref>, the proposed model architecture contains an ªaudio encoderº (instead of the original text encoder <ref type="bibr" target="#b7">[7,</ref><ref type="bibr" target="#b8">8]</ref>) named the drumless VQ encoder that takes a drum-free audio as input. Besides, we experiment with different ways to capitalize an audio-domain beat and downbeat tracking model proposed recently <ref type="bibr" target="#b19">[19]</ref> in a novel beat-aware module that extracts beat-related information from the input audio, so that the language model for generation (i.e., the Transformer) is better informed of the rhythmic properties of the input. The specific model <ref type="bibr" target="#b19">[19]</ref> was trained on drumless recordings as well, befitting our task. We extract features from different levels, including lowlevel tracker embeddings, mid-level activation peaks, and high-level beat/downbeat positions, and investigate which one benefits the generation model the most.</p><p>Our contribution is four-fold. First, to our best knowledge, this work represents the first attempt to drum accompaniment generation of a full drum kit given drum-free mixed audio. Second, we develop a light-weight audio-toaudio Jukebox variant that takes an input audio of up to 24 seconds as conditioning and generates accompanying music in the domain of Mel-spectrograms (Section 3). Third, we experiment with different beat-related conditions in the context of audio generation (Section 4). Finally, we report objective and subjective evaluations demonstrating the effectiveness of the proposed model (Sections 6 &amp; 7). 1 . 1 We share our code and checkpoint at: <ref type="url" target="https://github.com/">https://github.com/</ref> legoodmanner/jukedrummer. Moreover, we provide audio examples at the following demo page: <ref type="url" target="https://legoodmanner">https://legoodmanner</ref>. github.io/jukedrummer-demo/  <ref type="figure" target="#fig_1">2</ref>) that are not used at inference time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">BACKGROUND</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Related Work on Drum Generation</head><p>Conditional drum accompaniment generation has been studied in the literature, but only in the symbolic domain <ref type="bibr" target="#b20">[20,</ref><ref type="bibr" target="#b21">21]</ref>, to the best of our knowledge. Dahale et al. <ref type="bibr" target="#b20">[20]</ref> used a Transformer encoder to generate an accompanying symbolic drum pattern of 12 bars given a four-track, melodic MIDI passage. Makris et al. <ref type="bibr" target="#b21">[21]</ref> adopted instead a sequence-to-sequence architecture with a bi-directional long short-term memory (BLSTM) encoder extracting information from the melodic input and a Transformer decoder generating the drum track for up to 16 bars in MIDI format. While symbolic-domain music generation has its own challenges, it differs greatly from the audio-domain counterpart studied in this paper, for it is not about generating sounds that can be readily listened to by human.</p><p>Related tasks that have been attempted in the literature with deep learning include symbolic-domain generation of a monophonic drum track (i.e., kick drum only) of multiple bars <ref type="bibr" target="#b4">[4]</ref>, symbolic-domain drum pattern generation [22±25], symbolic-domain drum track generation as part of a multi-track MIDI [26±29], audio-domain one-shot drum hit generation [30±34], audio-domain generation of drum sounds of an entire drum kit of a single bar <ref type="bibr" target="#b35">[35]</ref>, and audio-domain drum loop generation <ref type="bibr" target="#b36">[36]</ref>. Jukebox <ref type="bibr" target="#b7">[7]</ref> generates a mixture of sounds that include drums, but not an isolated drum track. By design, Jukebox does not take any input audio as a condition and generate accompaniments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">The Original Jukebox model</head><p>The main architecture of Jukebox <ref type="bibr" target="#b7">[7]</ref> is composed of two components: a multi-scale vector-quantized variational autoencoder (VQ-VAE) [37±41] and an autoregressive Transformer decoder <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b15">15]</ref>. The VQ-VAE is for converting a continuous-valued raw audio waveform into a sequence of so-called discrete VQ codes, while the Transformer establishes a language model (LM) of the VQ codes capable of generating new code sequences. Specifically, VQ-VAE consists of an encoder and a decoder, referred to as the VQ-VAE encoder E and VQ-VAE decoder D below, respectively. Given an audio waveform x ∈ R 1×N , where N denotes the number of audio samples (e.g., N = 1,058,400 for a 24-second audio clip sampled at 44.1 kHz), the VQ-VAE encoder would convert x into a sequence of latent vectors {h t ∈ R D , t = 1, ..., T }, where the sequence length T is proportional to N , and the VQ-VAE decoder would have to reconstruct x from the ªvector-quantizedº version of the latent vectors, denoting as {h ′ t ∈ R D , t = 1, ..., T }, that is obtained by finding the nearest prototype vector h ′ t = e z of each h t in a codebook of prototype vectors {e k ∈ R D , k = 1, ..., K}, where K is the size of the codebook. Each prototype vector can be regarded as a cluster centroid in the latent space as a result of K-means clustering. The VQVAE encoder/decoder and the codebook are jointed learned by minimizing the reconstruction loss ∥x t -D(h ′ t )∥ 2 2 , and the commitment loss of the clustering ∥E(x t )sg(e z )∥ 2  2 , where x t denotes a slice of x, sg(.) the stop-gradient operation, and h t = E(x t ).</p><p>Once the VQ-VAE is trained, the x can be viewed as a sequence of ªIDsº {z t ∈ Z 1:K , t = 1, ..., T }, each corresponding to the index of the element of the codebook that is used to represent each slice of x. The Transformer can then be trained on such sequences of IDs to learn the underlying language, or ªcomposition rules,º of the audio codes. Once trained, the transformer can be used to generate a novel sequence of codes, which can then be converted into an audio waveform by the VQVAE decoder.</p><p>As the waveforms are extremely long, Jukebox actually uses a ªmulti-scaleº VQ-VAE that converts a waveform into three levels of codes, and accordingly three Transformers for building the LM at each level <ref type="bibr" target="#b7">[7]</ref>. KaraSinger works on Mel-spectrograms but also uses multi-scale VQ-VAE <ref type="bibr" target="#b8">[8]</ref>. We simplify their architecture by working on Mel-spectrograms with only one level of codes instead of multiple levels, as introduced below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">PROPOSED METHODS</head><p>In our task, we are given pairs of audio waveforms, namely a drumless stem x m and a drum stem x d . Our goal is to train a model that can generate x d * given an unseen x m * from Mel VQ-VAE &amp; Vocoder. To reduce computational cost, we build VQ-VAEs that take Mel-spectrograms as the input and target output. Specifically, we use the convolutional blocks of UNAGAN <ref type="bibr" target="#b5">[5]</ref> to build a pair of VQ-VAE encoder and VQ-VAE decoder that has symmetric architectures (one downsampling and the other upsampling). We omit the details of UNAGAN due to space limit. Our Transformer accordingly learns the LM for codes of the Mel-spectrograms. Once a novel sequence of (drum) codes is generated by the Transformer, we use our (drum) VQ-VAE decoder to convert the codes into a Mel-spectrogram, and then use a neural vocoder <ref type="bibr" target="#b42">[42]</ref> to convert the Melspectrogram into the corresponding waveform. While the latent vector h t (and accordingly z t ) corresponds to a slice of waveform in the original Jukebox, here the latent vectors h quence {z m t , t = 1, ..., T } corresponding to a drumless audio as the input, and a Transformer decoder to generate the sequence {z d t , t = 1, ..., T } corresponding to the accompanying drum audio as the output, leading to a sequence-to-sequence (seq2seq) architecture. Following Jukebox, we use the attention mechanism of the Scalable Transformer <ref type="bibr" target="#b15">[15]</ref> in our Transformer encoder/decoder. As depicted in Figure <ref type="figure" target="#fig_2">3</ref>, to determine its output z d i at each i, our Transformer decoder uses factorized ªin-chunk,º ªcross-chunkº and ªprevious-chunkº attention layers to attend to the drum codes it generates previously, namely z d &lt;i = {z d t , t = 1, ..., i -1}, to maintain the coherence of its output. A ªchunkº here is a slice of the corresponding sequence. Moreover, the Transformer decoder uses ªencoder/decoder attentionº to attend to the final layer of the Transformer encoder to get contextual information from the drumless code sequence {z m t , t = 1, ..., T }. To better synchronize the input and output, position embeddings are used. We refer readers to <ref type="bibr" target="#b7">[7,</ref><ref type="bibr" target="#b15">15]</ref> for details.</p><p>Beat-Aware Module. Figure <ref type="figure" target="#fig_2">3</ref> also shows that we use a novel ªbeat-aware moduleº (after the position embedding) in both Transformer encoder and decoder. We note that the code z m t is trained to provide essential information needed to reconstruct the drumless audio x m t , so the information carried by z t might be mixed, covering different musical aspects including timbre, style, rhythm, etc. To supply the Transformer with clear rhythm-related information of x m , we might need such a dedicated beat-aware module.</p><p>As depicted in Figure <ref type="figure" target="#fig_3">4</ref>, the beat-aware module consists two sub-modules, the ªbeat information extractorº and the ªbeat conditioner.º The former extracts beat-related information per frame from x m using an existing beat/downbeat tracker <ref type="bibr" target="#b19">[19]</ref>, while the latter incorporates that beat-related information for each t as a beat condition embedding c m t ∈ R dmodel that has the same length d model as the token embedding of the Transformers, and adds together the beat condition embedding and token embedding per t to serve as the input to the subsequent attention layers.</p><p>Despite that deep learning-based beat/downbeat track-ers such as those proposed by Böck et al.</p><p>[43±45] have achieved excellent performance for mainstream pop, rock or dance music, their performance and behaviors are influenced by the sound source composition (i.e., drum/nondrum sounds) of their training data <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b46">46]</ref>. Considering that our input music is drumless, which is quite different from the music that existing common beat/downbeat trackers <ref type="bibr" target="#b44">[44,</ref><ref type="bibr" target="#b45">45]</ref> are trained with and trained for, we use in our beat information extractor the ªnon-drum trackerº developed by Chiu et al. <ref type="bibr" target="#b19">[19]</ref> exclusively for drumless stems. In Section 4, we describe three ways to extract different levels of beat information feature from the non-drum tracker.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">BEAT CONDITION EMBEDDING</head><p>As shown on the left of Figure <ref type="figure" target="#fig_3">4</ref>, following the common design <ref type="bibr" target="#b44">[44]</ref>, the beat/downbeat tracker <ref type="bibr" target="#b19">[19]</ref> uses BLSTM layers to get 50-dimensional ªtracker embeddingsº from x m , and then uses fully-connected (FC) layers to compute 3-dimensional ªactivation functionsº indicating the likelihood of observing a beat, downbeat, or non-beat at each frame. Finally, either a simple peak-picking or a hidden Markov model (HMM)-based algorithm <ref type="bibr" target="#b44">[44]</ref> can be used to finalize the beat and downbeat time positions from the activation functions. We accordingly investigate extracting features from different stages of this processing pipeline.</p><p>Low-level (tracker) embeddings. We simply use the high-dimensional tracker embeddings, resampling it temporally, pooling them every L frames, and converting each of them to the desired length d model with an FC.</p><p>High-level beat/downbeat positions. From the beat and downbeat time positions estimated by HMM, a frame can be labeled as either a beat, downbeat, or non-beat. We learn three d model -dimensional embedding vectors corresponding to each case, and represent every L frames with one of the three vectors according to the frame labels.</p><p>Mid-level activation peaks. As the beat/downbeat positions are sparse over time, we consider a ªdenserº version by simply picking the peak positions of the activation func-tions by scipy.signal.find_peaks <ref type="bibr" target="#b47">[47]</ref> and similarly learning embedding vectors that are assigned to the frames according to whether a frame corresponds to a peak or not. Such a peak might represent a musical onset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">EXPERIMENT SETUP</head><p>Multi-track datasets for research on musical source separation <ref type="bibr" target="#b17">[17]</ref> usually host recordings that each consists of an isolated drum stem along with stems corresponding to other instruments. We can simply take the drum stem as the target drum track, and the summation of the remaining stems as the input drumless track. In our implementation, we used the multi-track recordings from three datasets. MUSDB18 <ref type="bibr" target="#b17">[17]</ref> contains 150 recordings, each of which has four stems corresponding to vocal, drums, bass, and ªothers.º It is commonly used in source separation. Med-leyDB <ref type="bibr" target="#b48">[48]</ref> contains 196 multi-track recordings, each of which includes a drum stem along with many other stems. MixingSecret <ref type="bibr" target="#b49">[49]</ref> has 257 multi-track recordings with various instruments, all including drums. We removed the 46 duplicate recordings between MUSDB18 and MedleyDB and the 100 duplicate recordings between MUSDB18 and MixingSerect, leading to 457 recordings to be used in our work. We randomly split the recordings into 80%, 10%, 10% as the training set, validation set (for parameter tuning), and testing set (for objective and subjective evaluation) at the ªrecording-level,º ensuring that a recording does not appear in different splits.</p><p>All the recordings are sampled at 44.1 kHz and the stems are all monaural. Following Jukebox <ref type="bibr" target="#b7">[7]</ref>, we used 24-second audio clips in our work. We sliced each recording (and accordingly the stems) to 23.8-second audio clips with 50% temporal overlaps (as 2 20 /44100 = 23.8), and discarded the clips that do not contain any drum sounds. We then computed the Mel-spectrograms of each clip with PyTorch v1.7.1 with a Hann window of 1,024 samples for STFT, a hop size of 256 samples and 80 Mel-filter banks.</p><p>To evaluate the performance of the proposed JukeDrummer and validate the effectiveness of model components, we adopted the following variants in our experiments. <ref type="foot" target="#foot_1">2</ref>• seq2seq+beat (low): given a drumless clip x m , we computed the drumless codes {z m t } and the lowlevel beat/downbeat tracker embeddings {c m t } as the model input, to predict the drum codes {z d t } that eventually lead to the generated drum clip x d , using the proposed seq2seq Transformer. • seq2seq+beat (mid): using the beat condition embeddings computed from the mid-level activation peaks (see Section 4) for {c m t } instead. • seq2seq+beat (high): using the beat condition embeddings from the high-level beat/downbeat positions as {c m t } instead.</p><p>• seq2seq w/o beat: to study the usefulness of the beat conditioning, we predicted {z d t } from {z m t }, not using any beat-related conditions at all. • decoder+beat (low): to study the usefulness of the drumless codes {z m t }, we used only the lowlevel beat condition embeddings {c m t } as input to predict {z d t }, via a Transformer decoder-only architecture (i.e., not seq2seq Transformer).</p><p>• decoder w/o beat: this is the baseline drummer that ªplays its own,º generating {z d t } autoregressively via a Transformer decoder without taking any information (neither {z m t } nor {c m t }) from the drumless clip x m it is supposed to play along to. While the Mel-spectrogram for a clip in our case has 4,096 frames, the VQ-VAE encoder downsamples it to a sequence of T = 1,024 latent vectors, namely each corresponding to L = 4 frames. For VQ-VAE, we set the codebook size of drumless sounds K m = 1,024 and that of drums K d = 32 (so K m ≫ K d ), and the dimension of the latent vectors D = 64. The VQ-VAE encoders/decoders for both drumless and drums all have two layers. For those models employing a seq2seq LM, the Transformer encoder has 9 layers and the Transformer decoder has 20 layers. <ref type="foot" target="#foot_2">3</ref>At inference time, we used the drum VQ decoder to convert the drum codes {z d t } to a Mel-spectrogram, which is then turned into the waveform of the drum clip x d by a HiFi-GAN V1 vocoder <ref type="bibr" target="#b42">[42]</ref>. We trained the vocoder from scratch with audio of drum sounds from our dataset for 2.5 days, and then, inspired by <ref type="bibr" target="#b50">[50,</ref><ref type="bibr" target="#b51">51]</ref>, fine-tuned it on the reconstructed Mel-spectrograms of the Drum VQ decoder.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">OBJECTIVE EVALUATION</head><p>As audio-domain drum accompaniment generation is new, we propose customized metrics. Specifically, we use the ªdrum trackerº trained exclusively for drum stems by Chiu et al. <ref type="bibr" target="#b19">[19]</ref>, which follows exactly the same pipeline as the non-drum tracker (cf. Figure <ref type="figure" target="#fig_3">4</ref>), to extract rhythmic features at three different levels for the ground-truth and generated drum sounds for the test split. We then compare the rhythmic features of the ground-truth and the generated in such three levels, using the mean square error for the low-level tracker embeddings (TrackEmb-MSE), cross entropy for the mid-level activation functions (Act-Entropy), and the F-measure for beat/downbeat estimation (B/DB-F1). The last one, computed by mir_eval <ref type="bibr" target="#b52">[52]</ref>, uses the beat positions of the ground-truth drums as the reference and those of the generated drums as the estimated beats. These metrics evaluates only the rhythmic consistency between the generated drums and the drumless audio (using its human-made drum track as a proxy), not other aspects such as stylistic consistency and audio quality, which will be evaluated subjectively in Section 7.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Objective metrics</head><p>Subjective MOS (∈ <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b5">5]</ref>)  Result shown in the middle of Table <ref type="table">1</ref> clearly shows that the models with low-level beat information achieve lower MSE, cross entropy, and higher F1, suggesting the usefulness of the low-level beat information for rhythmic consistency. The mid-level and high-level ones seem less effective (possibly because they are relatively monotonic), so we did not evaluate them further in Section 7. The objective scores also suggest that the Transformer encoder does not contribute much to rhythmic consistency.</p><formula xml:id="formula_0">TrackEmd-MSE↓ Act-Entropy↓ B/DB-F1↑ R m/d S m/d Q d R d O d seq2seq+beat (low</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.">SUBJECTIVE EVALUATION</head><p>With an online study, we solicited 22 anonymous volunteers to rate the result for 3 out of 15 random drumless tracks (each 23.8 seconds) from the test split. Each time, a volunteer listened to a drumless tracks (x m * ) first, and then (in random orders) the mixture (i.e., x m * + x d * ) containing drum samples generated by four different models, plus the real human-made one (to set a high anchor). The volunteer then rated them in the following aspects on a 5-point Likert scale: rhythmic consistency between the drumless input and generated drums; stylistic consistency concerning the timbre and arrangement of the drumless input and generated drums; audio quality and rhythmic stability (whether the drummer follows a steady tempo) of the generated drum; and overall perceptual impression.</p><p>The mean opinion scores (MOS) in Table <ref type="table">1</ref> show that seq2seq+beat (low) consistently outperforms the others, validating the effectiveness of using both the drumless codes and beat conditions. decoder+beat (low) performs consistently the second best, outperforming the two models without beat information significantly in three aspects according to paired t-test (p-value &lt; 0.05), validating again the importance of the beat-aware module. Complementing Section 6, the MOS result suggests that the beat conditions seem more important than the drumless codes, though the best result is obtained with both.</p><p>Figure <ref type="figure" target="#fig_5">5</ref> further demonstrates that, given the same input, our model can generate multiple accompaniments with diversity in both beat and timbre. Diversity is an interesting aspect that is hard to evaluate, but it is desirable as there is no single golden drum accompaniment for a song. This may also explain why the F1 scores in Table <ref type="table">1</ref> seem low. Verbal feedbacks from the subjects confirm that our best model generates drum accompaniment that is rhythmically and stylistically consistent with the input, especially for band music or music with heavy use of bass. However, the model still has limits. At times the model generates total silence, though it can be avoided by sampling the LM again. The model may struggle to change its tempo going through different sections of a song. Moreover, the generation might be out-of-sync with the input in the beginning few seconds, until the model gets sufficient context. Please visit the demo page for various examples.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8.">CONCLUSION</head><p>We have presented JukeDrummer, a novel audio-to-audio extension of OpenAI's JukeBox model capable of adding the drum part of a drumfree recording in the audio domain. To our knowledge, this represents the first attempt to audiodomain generation conditioned on drumless mixed audio. With objective and subjective evaluations, we validated the effectiveness of the customized VQ-VAE plus the seq2seq Transformer design, and the proposed beat-aware module. Among the beat conditions, we found that the low-level embeddings work the best. Future work can be done to further improve the language model (LM), and to extend our work to other audio-to-audio generation tasks.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Diagram of the proposed JukeDrummer model for the inference stage. The training stage involves learning additional Drum VQ Encoder and Drumless VQ Decoder (see Figure 2) that are not used at inference time.</figDesc><graphic coords="2,361.25,68.54,130.15,154.97" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: We use separate VQ-VAEs for the drumless and drum tracks, both operating on the Mel-spectrograms.</figDesc><graphic coords="3,77.06,68.54,188.28,142.21" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Details of our Transformer encoder/decoder.</figDesc><graphic coords="3,328.71,68.53,195.26,248.55" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Details of the proposed beat-aware module that extracts beat condition embeddings from the drumless audio.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Table 1 :</head><label>1</label><figDesc>Results of objective and subjective evaluation of variants of the proposed JukeDrummer model. The metrics are (from left to right): beat/downbeat tracking embedding MSE, beat/downbeat activation entropy, beat/downbeat F1, R m/d (rhythmic consistency), S m/d (stylistic consistency), Q d (audio quality), R d (rhythmic stability), O d (overall). ↓ / ↑: the lower/higher the better; best two results (among the six model variants) per column highlighted in bold.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Two sets of three different generated samples by the same model given the same beat condition embedding.</figDesc><graphic coords="6,332.19,258.43,188.28,159.25" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="4,123.24,68.54,351.07,197.58" type="bitmap" /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>A reviewer suggested that we should have compared our model with other accompaniment generation models that operate in the symbolic domain such as<ref type="bibr" target="#b20">[20]</ref> and<ref type="bibr" target="#b21">[21]</ref>, saying that we can use existing audio samples or drum synthesis models to render their output to audio. However, the problem is that such a symbolic-domain accompaniment generation model also requires its input to be a MIDI file rather than audio.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>We used Adam as our optimizer with a learning rate of 0.0003 for both VQ-VAE and Transformer LM. We trained our LM with a batch size of 16, input feature dimension d model = 512, two heads for multihead attention, and the chunk size for factorized attention being 16. For those employing a decoder-only architecture, the number of layers of the Transformer decoder reduces to 15 because 5 of the layers corresponding to the ªencoder/decoder attentionº are removed.Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_3"><p><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr" target="#b6">[6]</ref><ref type="bibr" target="#b7">[7]</ref><ref type="bibr" target="#b8">[8]</ref> 2022   </p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">ACKNOWLEDGEMENT We are grateful to the anonymous reviewers for their valuable comments. This research is funded by grant</title>
+		<idno>NSTC 109-2628-E-001-002-MY2</idno>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+		</imprint>
+	</monogr>
+	<note>from the National Science and Technology Council of Taiwan</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">ªNeural audio synthesis of musical notes with WaveNet autoencoders</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Resnick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Machine Learning</title>
+		<meeting>Int. Conf. Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">K</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Gulrajani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<title level="m">ªGANSynth: Adversarial neural audio synthesis,º in Proc. Int. Conf. Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">ªAdversarial audio synthesis</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Mcauley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Puckette</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Learning Representations</title>
+		<meeting>Int. Conf. Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">ªHigh-level control of drum track generation using learned patterns of rhythmic interaction</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Grachten</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Work. Applications of Signal Processing to Audio and Acoustics</title>
+		<meeting>IEEE Work. Applications of Signal essing to Audio and Acoustics</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">ªUnconditional audio generation with generative adversarial networks and cycle regularization</title>
+		<author>
+			<persName><forename type="first">J.-Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-C</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. INTER-SPEECH</title>
+		<meeting>INTER-SPEECH</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Hantrakul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<title level="m">Differentiable digital signal processing,º in Int. Conf. Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Payne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2005.00341</idno>
+		<title level="m">ªJukebox: A generative model for music</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">ªKaraSinger: Score-free singing voice synthesis with VQ-VAE using Mel-spectrograms</title>
+		<author>
+			<persName><forename type="first">C.-F</forename><surname>Liao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="s">Proc. IEEE Int. Conf. Acoust. Speech Signal Process</title>
+		<imprint>
+			<biblScope unit="page" from="956" to="960" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">M</forename><surname>Payne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Openai</forename><surname>Blog</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">ªLakhNES: Improving multiinstrumental music generation with cross-domain pretraining</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<meeting>Int. Soc. Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">ªAutomatic composition of guitar tabs by Transformers and groove modeling</title>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-Y</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">º in Proc. Int. Soc. Music Inf. Retr. Conf</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Structured representation learning for polyphonic music</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Vae</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">º in Proc. Int. Soc. Music Inf. Retr. Conf</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Transcribing quantized MIDI into comprehensive musical score</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Suzuki</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Transformer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Inf. Retr. Conf., Late-breaking demo paper</title>
+		<meeting>Int. Soc. Music Inf. Retr. Conf., Late-breaking demo paper</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">ªAttention is all you need</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Advances in Neural Information Processing Systems</title>
+		<meeting>Advances in Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">R</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.10509</idno>
+		<title level="m">ªGenerating long sequences with sparse Transformers,º</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">ªAI song contest: Human-AI co-creation in songwriting</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">V</forename><surname>Koops</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Newton-Rex</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">J</forename><surname>Cai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">º in Proc. Int. Soc. Music Inf. Retr. Conf</title>
+		<imprint>
+			<biblScope unit="page" from="708" to="716" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">ªThe MUSDB18 corpus for music separation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Rafii</surname></persName>
+		</author>
+		<idno type="DOI">10.5281/zenodo.1117372</idno>
+		<ptr target="https://doi.org/10.5281/zenodo.1117372" />
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">ªOn the development and practice of AI technology for contemporary popular music production</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Deruty</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Grachten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nistal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Aouameur</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the International Society for Music Information Retrieval</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="35" to="49" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">ªDrum-aware ensemble architecture for improved joint musical beat and downbeat tracking</title>
+		<author>
+			<persName><forename type="first">C.-Y</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-Y</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="s">IEEE Signal Processing Letters</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="1100" to="1104" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">ªNeural drum accompaniment generation</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dahale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Talwadker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Verma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Rao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Inf. Retr. Conf., Late-breaking demo paper</title>
+		<meeting>Int. Soc. Music Inf. Retr. Conf., Late-breaking demo paper</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ªConditional drums generation using compound word representations</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Makris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Zixun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kaliakatsos-Papakostas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Herremans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Artificial Intelligence in Music, Sound, Art and Design</title>
+		<meeting>Artificial Intelligence in Music, Sound, Art and Design</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="179" to="194" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Bamman, ªLearning to groove with inverse sequence transformations</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gillick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Machine Learning</title>
+		<meeting>Int. Conf. Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ªA minimal template for interactive web-based demonstrations of musical machine learning</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Thio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H.-M</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-C</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Workshop on Intelligent Music Interfaces for Listening and Creation</title>
+		<meeting>Workshop on Intelligent Music Interfaces for Listening and Creation</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">G</forename><surname>Alain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Chevalier-Boisvert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Osterrath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Piche-Taillefer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2008.04391</idno>
+		<title level="m">Generating drum loops using deep learning and a human in the loop,º</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">N</forename><surname>Tokui</surname></persName>
+		</author>
+		<idno>arXiv preprin: 2011.13062</idno>
+		<title level="m">ªCan GAN originate new electronic dance music genres? ± Generating novel rhythm patterns using GAN with genre ambiguity loss</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">ªMuseGAN: Symbolic-domain music generation and accompaniment with multi-track sequential generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">H.-W</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-Y</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L.-C</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. AAAI Conf. Artificial Intelligence</title>
+		<meeting>AAAI Conf. Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1806.00195</idno>
+		<title level="m">ªLearning a latent space of multitrack measures,º</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">ªLead sheet generation and arrangement by conditional generative adversarial network</title>
+		<author>
+			<persName><forename type="first">H.-M</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE. Conf. Machine Learning and Applications</title>
+		<meeting>IEEE. Conf. Machine Learning and Applications</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="722" to="727" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Pop music accompaniment generation</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T.-Y</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACM Multimedia Conf</title>
+		<meeting>ACM Multimedia Conf</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">ªDrumGAN: Synthesis of drum sounds with timbral feature conditioning using generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nistal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">º in Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">ªNeural percussive synthesis parameterised by high-level timbral features</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ramires</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Chandna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Favory</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Gómez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Int. Conf. Acoustics, Speech and Signal Processing</title>
+		<meeting>IEEE Int. Conf. Acoustics, Speech and Signal essing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">C</forename><surname>Aouameur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Esling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.02637</idno>
+		<title level="m">ªNeural drum machine: An interactive system for realtime synthesis of drum sounds,º</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">ªAdversarial synthesis of drum sounds</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Drysdale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tomczak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hockman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Digital Audio Effects</title>
+		<meeting>Int. Conf. Digital Audio Effects</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">ªStyle-based drum synthesis with GAN inversion</title>
+		<author>
+			<persName><surname>Ðð</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Inf. Retr. Conf., Latebreaking demo paper</title>
+		<meeting>Int. Soc. Music Inf. Retr. Conf., Latebreaking demo paper</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">ªDrum synthesis and rhythmic transformation with adversarial autoencoders</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tomczak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hockman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACM Int. Conf. Multimedia, 2020</title>
+		<meeting>ACM Int. Conf. Multimedia, 2020</meeting>
+		<imprint>
+			<biblScope unit="page" from="2427" to="2435" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">ªA benchmarking initiative for audio-domain music generation using the Freesound Loop Dataset</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">º in Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">ªNeural discrete representation learning</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">V D</forename><surname>Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Advances in Neural Information Processing Systems</title>
+		<meeting>Advances in Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">ªFast decoding in sequence models using discrete latent variables</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Kaiser</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Machine Learning</title>
+		<meeting>Int. Conf. Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2390" to="2399" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">ªGenerating diverse high-fidelity images with VQ-VAE-2</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Razavi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Advances in Neural Information Processing Systems</title>
+		<meeting>Advances in Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">ªSpeech resynthesis from discrete disentangled self-supervised representations</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Polyak</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Interspeech</title>
+		<meeting>Interspeech</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3615" to="3619" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Walker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">V D</forename><surname>Oord</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2103.01950</idno>
+		<title level="m">ªPredicting video with VQVAE,º</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">ªHiFi-GAN: Generative adversarial networks for efficient and high fidelity speech synthesis</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bae</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Advances in Neural Information Processing Systems</title>
+		<meeting>Advances in Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">ªmadmom: A new Python audio and music signal processing library</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Korzeniowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schlüter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Krebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proc. ACM Multimed. Conf</title>
+		<imprint>
+			<biblScope unit="page" from="1174" to="1178" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">ªJoint beat and downbeat tracking with recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">º in Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E P</forename><surname>Davies</surname></persName>
+		</author>
+		<title level="m">ªDeconstruct, analyse, reconstruct: How to improve tempo, beat, and downbeat estimation,º in Proc</title>
+		<imprint>
+			<publisher>Int. Soc. Music Inf</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="574" to="582" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">ªSource separation-based data augmentation for improved joint beat and downbeat tracking</title>
+		<author>
+			<persName><forename type="first">C.-Y</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ching</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-Y</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-Y</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Eur. Signal Process. Conf</title>
+		<meeting>Eur. Signal ess. Conf</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">ªSciPy 1.0: Fundamental algorithms for scientific computing in Python</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Virtanen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Nature Methods</title>
+		<imprint>
+			<biblScope unit="volume">17</biblScope>
+			<biblScope unit="page" from="261" to="272" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">ªMedleyDB: A multitrack dataset for annotation-intensive MIR research</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bittner</surname></persName>
+		</author>
+		<ptr target="http://medleydb.weebly.com/" />
+	</analytic>
+	<monogr>
+		<title level="j">º in Proc. Int. Soc. Music Inf. Retr. Conf</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<title level="m" type="main">Mixing Secrets&apos; free multitrack download library</title>
+		<ptr target="https://www.cambridge-mt.com/ms/mtk/" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Realistic voice conversion by assembling modern speech synthesis techniques</title>
+		<author>
+			<persName><forename type="first">K.-W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S.-W</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M.-C</forename><surname>Joe</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Vc</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="s">Proc. IEEE Int. Conf. Acoust. Speech Signal Process</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2205.04421</idno>
+		<title level="m">ªNaturalSpeech: End-to-end text to speech synthesis with human-level quality,º</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">ªmir_eval: A transparent implementation of common MIR metrics</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">º in Proc. Int. Soc. Music Inf. Retr. Conf</title>
+		<imprint>
+			<biblScope unit="page" from="367" to="372" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

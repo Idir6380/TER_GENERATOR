@@ -1,0 +1,822 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">A PREDICTIVE MODEL FOR MUSIC BASED ON LEARNED INTERVAL REPRESENTATIONS</title>
+				<funder ref="#_gqjYxYE">
+					<orgName type="full">EU</orgName>
+				</funder>
+				<funder ref="#_J352sRX">
+					<orgName type="full">FET</orgName>
+				</funder>
+				<funder ref="#_ubV3yGx #_VHFZaVk">
+					<orgName type="full">European Research Council</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Stefan</forename><surname>Lattner</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Computational Perception</orgName>
+								<address>
+									<country>JKU Linz</country>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Sony Computer Science Laboratories (CSL)</orgName>
+								<address>
+									<settlement>Paris</settlement>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Computational Perception</orgName>
+								<address>
+									<country>JKU Linz</country>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Sony Computer Science Laboratories (CSL)</orgName>
+								<address>
+									<settlement>Paris</settlement>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Computational Perception</orgName>
+								<address>
+									<country>JKU Linz</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">A PREDICTIVE MODEL FOR MUSIC BASED ON LEARNED INTERVAL REPRESENTATIONS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">BFA4C9B18188471A0E5B73B68FC0A4B6</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Connectionist sequence models (e.g., RNNs) applied to musical sequences suffer from two known problems: First, they have strictly "absolute pitch perception". Therefore, they fail to generalize over musical concepts which are commonly perceived in terms of relative distances between pitches (e.g., melodies, scale types, modes, cadences, or chord types). Second, they fall short of capturing the concepts of repetition and musical form. In this paper we introduce the recurrent gated autoencoder (RGAE), a recurrent neural network which learns and operates on interval representations of musical sequences. The relative pitch modeling increases generalization and reduces sparsity in the input data. Furthermore, it can learn sequences of copy-and-shift operations (i.e. chromatically transposed copies of musical fragments)-a promising capability for learning musical repetition structure. We show that the RGAE improves the state of the art for general connectionist sequence models in learning to predict monophonic melodies, and that ensembles of relative and absolute music processing models improve the results appreciably. Furthermore, we show that the relative pitch processing of the RGAE naturally facilitates the learning and the generation of sequences of copy-and-shift operations, wherefore the RGAE greatly outperforms a common absolute pitch recurrent neural network on this task.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>The objective of sequence models for music prediction is to predict (the probability of) musical events at the next time step, given some prior musical context. In the (most common) case of predicting note events, this task involves finding relationships between past and future occurrences of absolute pitches. However, many music theoretical constructs that might help to find such relationships are defined in relative terms, such as diatonic scale steps, and cadences. The discrepancy between the relative nature of many regularities in music and the absolute pitch representation is problematic for modeling tasks, because it leads to c Stefan Lattner, Maarten Grachten, Gerhard Widmer. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Stefan Lattner, Maarten Grachten, Gerhard Widmer. "A predictive model for music based on learned interval representations", 19th International Society for Music Information Retrieval Conference, Paris, France, 2018.</p><p>high sparsity in the input data, increased model sizes, and altogether reduced generalization in music modeling.</p><p>To remedy these problems, musical input sequences can be transposed to a common key before training, augmented by random transpositions during training, or, in case of symbolic monophonic music, transformed into interval representations before training. In this work, we propose a sequence model which learns both interval representations from absolute pitch sequences and temporal dependencies between these intervals. By learning not only the intervals between two successive notes, but all intervals within a window of n pitches, the model is more robust to diatonic transposition and can also learn repetition structure. More precisely, a recurrent neural network (RNN) is employed on top of a gated autoencoder (GAE), which we refer to as recurrent gated autoencoder (RGAE). The GAE portion learns the intervals between its input and its target pitches and represents them in its latent space. The RNN portion operates on these interval representations, to learn their temporal dependencies. The implicit transformation to intervals allows this architecture to operate directly on absolute musical textures, without the need for data preprocessing. Besides, relative pitch modeling reduces the sparsity in the data and the representations learned by the GAE are transposition-invariant. Therefore, the RGAE requires less temporal connections than a common RNN while achieving higher prediction accuracy.</p><p>Also, operating on the intervals of input sequences brings added value to sequence modeling. By allowing the model to relate its prediction with events using specific time lags, it can learn copy-and-shift operations. In the space of intervals, such operations are performed by repeatedly applying a constant interval to events occurring a constant time lag in the past. Moreover, the RNN portion of the architecture can learn sequences of such copy-and-shift operations (i.e., "structure schemes"), which can then be realized as musical notes by the GAE.</p><p>This ability is promising for music modeling, where musical form defines the self-similarity within a piece, and repeated sections often occur as a transposed (i.e., shifted in the pitch dimension) version of the initial section. Musical form is challenging to learn with common sequence models, like RNNs. They are specialized in learning the statistics of musical textures and are "blind" towards similarity and (transposed) repetition (i.e., there is no contentindependent "repetition neuron"). As a result, when sampling music using such models, repeated fragments occur either due to chance or as a phenomenon of an entanglement with a learned texture. In contrast, the ability of RGAEs to learn copy-and-shift operations may allow to represent musical form explicitly, and to realize learned schemes as musical textures in music prediction and music generation tasks.</p><p>We show that the RGAE is competitive with state-ofthe-art models in a music sequence learning task. Furthermore, we demonstrate that the RGAE, due to its relative pitch processing, is complementary to absolute pitch models, by combining their predictions to obtain improved accuracy. Lastly, we show that the RGAE is particularly suited for learning sequences of copy-and-shift operations. It can learn to recognize and continue pre-defined "structure schemes", abstracted from the actual texture, with which the scheme is realized.</p><p>In Section 2, we provide an overview of related models and related publications. In Section 3, the GAE and the proposed extensions to the RGAE are described, as well as the baseline RNN used for comparison and combined prediction. General training details concerning the GAE are given in Section 4. The two experiments conducted, including the data used, training details and discussion for each experiment separately, are presented in Section 5. Section 6 concludes the paper and provides further directions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>GAEs are bi-linear models utilizing multiplicative interactions to learn correlations between or within data instances. They were introduced by <ref type="bibr" target="#b15">[15]</ref> as a derivative of the gated Boltzmann machines (GBMs) <ref type="bibr" target="#b17">[17,</ref><ref type="bibr" target="#b18">18]</ref>, as standard learning criteria became applicable through the development of denoising autoencoders <ref type="bibr" target="#b28">[28]</ref>. In music, bi-linear models were applied to learn co-variances within spectrogram data for music similarity estimation <ref type="bibr" target="#b25">[25]</ref>, and for learning musical transformations in the symbolic domain <ref type="bibr" target="#b11">[11]</ref>.</p><p>The GAE was utilized for learning the derivatives of sequences in <ref type="bibr" target="#b16">[16]</ref> (between subsequent frames in movies of rotated 3D objects), and to predict accelerated motion by stacking two layers to learn second-order derivatives <ref type="bibr" target="#b19">[19]</ref>. This method is very similar to the one proposed here, but we use different dimensionalities between input and output, and we do not assume constant transformations but rather learn sequences of transformations using an RNN.</p><p>Probabilistic n-gram models, specialized on learning to predict monophonic pitch sequences include IDyOM <ref type="bibr" target="#b23">[23]</ref>, and <ref type="bibr" target="#b10">[10]</ref>, both employ multiple features of the musical surface. In this paper, we do not compare the RGAE with these models, as they are more specialized on the musical domain, by explicit selection of (computed) features. We compare the RGAE to the currently best performing general connectionist sequence model, the RTDRBM <ref type="bibr" target="#b1">[1]</ref>. Its architecture is similar to the well-known RTRBM proposed in <ref type="bibr" target="#b27">[27]</ref>, but it employs a different cost function.</p><p>For structured sequence generation, Markov chains together with pre-defined repetition structure schemes were employed in <ref type="bibr" target="#b4">[4]</ref>, where specific methods for handling tran-sitions between repeating segments were proposed; in <ref type="bibr" target="#b20">[20]</ref>, where an approach to a controlled creation of variations was introduced; in <ref type="bibr" target="#b5">[5]</ref>, where chords were generated, obeying a pre-defined repetition structure. In <ref type="bibr" target="#b12">[12]</ref>, a convolutional restricted Boltzmann machine was employed, and different structural properties were imposed using differentiable soft-constraints and gradient descent optimization. A constrained variable neighborhood search to generate polyphonic music obeying a tension profile and the repetition structure from a template piece was proposed in <ref type="bibr" target="#b7">[7]</ref>. In <ref type="bibr" target="#b6">[6]</ref>, Markov chains and evolutionary algorithms were used to generate repetition structure for Electronic Dance Music.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">MODELS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Gated Autoencoder</head><p>A GAE learns first-order derivatives between its input and its output. In musical sequences, this amounts to learning pitch intervals, which are represented as distinct codes in its latent space. In reconstruction, it applies learned interval codes to pitches in order to transpose them. Its ability to learn and to perform musical transformations is, however, not limited to single intervals. For example, it was shown in <ref type="bibr" target="#b11">[11]</ref>, that more complex musical transformations like diatonic transposition can be learned by a GAE and can be applied to an unseen material. Intervals are encoded in the latent space of the GAE, denoted as mappings</p><formula xml:id="formula_0">m t+1 = σ q (W m (Qx t t-n • Vx t+1 )),<label>(1)</label></formula><p>where x t+1 is a binary vector encoding active notes at time step t+1 as on-bits, x t t-n contain the concatenated vectors of the last n time steps, Q, V and W m are weight matrices, and σ q is the softplus non-linearity. The operator • (indicated as a triangle in Figure <ref type="figure" target="#fig_0">1</ref>) depicts the Hadamard product of the filter responses Qx t t-n and Vx t+1 , denoted as factors. This operation allows the model to relate its inputs, making it possible to learn interval representations.</p><p>GAEs are often trained by minimizing the symmetric error when reconstructing the output from the input and vice versa. In the proposed RGAE architecture, we use predictive training and just learn to reconstruct the target x t+1 from the input x t t-n and the mapping m t+1 as</p><formula xml:id="formula_1">xt+1 = σ g (V (W m m t+1 • Qx t t-n )),<label>(2)</label></formula><p>where σ g is the sigmoid non-linearity. The GAE portion of the RGAE is pre-trained by minimizing the binary crossentropy loss of the reconstruction as</p><formula xml:id="formula_2">L(x, x) = - 1 N N n=1 x n log 2 xn +(1-x n ) log 2 (1-x n ) .</formula><p>(3)</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Recurrent Gated Autoencoder</head><p>The proposed model is a combination of a gated autoencoder (GAE) and a recurrent neural network (RNN) as depicted in Figure <ref type="figure" target="#fig_0">1</ref>. The GAE learns relative pitch (i.e., interval) representations of the musical surface, and the RNN learns their temporal dependencies. We use gated recurrent units (GRUs) <ref type="bibr" target="#b2">[2]</ref> for the RNN portion of the RGAE. This type of units have been shown to be often as efficient as long short-term memory units (LSTMs, <ref type="bibr" target="#b9">[9]</ref>) while being conceptually simpler <ref type="bibr" target="#b3">[3]</ref>. It is intuitively clear that any RNN variant can be potentially attached on a GAE. The input to the RNN at time t is the GAE's mapping m t , resulting in the following specification:</p><formula xml:id="formula_3">z t = σ g (W z m t + U z h t-1 + b z ),<label>(4)</label></formula><formula xml:id="formula_4">r t = σ g (W r m t + U r h t-1 + b r ),<label>(5)</label></formula><formula xml:id="formula_5">h t = z t •h t-1 +(1-z t )•σ h (W h m t +U h (r t •h t-1 )+b h ),<label>(6)</label></formula><p>where h t is the hidden state at time t, z t is the update gate vector, r t is the reset gate vector, and W, U and b are parameter matrices and vectors. The RNN predicts the next mapping of the GAE as</p><formula xml:id="formula_6">m t+1 = σ q (U o h t ),<label>(7)</label></formula><p>which is used to reconstruct the target configuration at t+1</p><formula xml:id="formula_7">as xt+1 = σ s (V (W m m t+1 • Qx t t-n )) .<label>(8)</label></formula><p>Here, we use the softmax non-linearity σ s , as the data the RGAE is trained on is monophonic. The full architecture is trained with Backpropagation through time (BPTT) to minimize the categorical cross-entropy loss for the reconstructed target as</p><formula xml:id="formula_8">L(x, x) = - 1 N N n=1 x n log 2 xn .<label>(9)</label></formula><p>When the RGAE is applied to polyphonic music, in Equation 8 the sigmoid non-linearity, together with the binary cross-entropy loss (cf. Equation <ref type="formula">3</ref>) has to be used.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Baseline RNN</head><p>As a baseline, we employ an RNN with GRUs to directly operate on the data. Accordingly, Equations 4, 5, and 6 are adapted to take x t instead of m t as input. Consequently, the prediction of the baseline RNN amounts to</p><formula xml:id="formula_9">xt+1 = σ s (U o h t ),<label>(10)</label></formula><p>where the softmax non-linearity is applied, making the categorical cross-entropy loss (cf. Equation <ref type="formula" target="#formula_8">9</ref>) applicable in training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">GATED AUTOENCODER PRE-TRAINING</head><p>Due to the relatively high number of parameters in its GAE portion, the RGAE is prone to overfitting. To circumvent this, and to establish robust interval representations, we pre-train the GAE first, using the cross-entropy of the reconstruction as the cost function (cf. Equation <ref type="formula">3</ref>). In the second training iteration, we train the RNN portion of the GAE to minimize the cross-entropy error of the architecture's prediction (cf. Equation <ref type="formula" target="#formula_8">9</ref>). The datasets may differ between the training iterations as long as the included relations are identical (e.g. "intervals of western tonal music"). Consequently, the GAE parameters trained on one dataset can be used for prediction tasks on several datasets. Finetuning the whole architecture in the last few epochs of predictive training can make up for possible bias.</p><p>In the following, we describe how the GAE is pre-trained in our experiments. Details varying between the experiments are given later in the experiments section (cf. Section 5).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.0.1">Enforcing Transposition-Invariance</head><p>A property of interval representations in music is transposition invariance (i.e., transposing the melody does not change the representation). Although training the GAE as described in Section 3.1 naturally tends to lead to similar mapping codes for input target pairs that have the same interval relationships, the training does not explicitly enforce such similarities and consequently the mappings may not be maximally transposition invariant. Therefore, when pre-training the GAE, we explicitly support the learning of transposition-invariant codes. First, we define a transposition function shift(x, δ), which shifts the bits of a vector x of length M by δ pitches:</p><formula xml:id="formula_10">shift(x, δ) = (x (0+δ) mod M , . . . , x (M -1+δ) mod M ) ,<label>(11)</label></formula><p>where shift(x t t-n , δ) denotes the transposition of each single time step vector before concatenation and linearization.</p><p>The altered training is then as follows: First, the mapping code m t+1 of an input/target pair is inferred as shown in Equation <ref type="formula" target="#formula_0">1</ref>. Then, m t+1 is used to reconstruct a transposed version of the target from an equally transposed input (modifying Equation <ref type="formula" target="#formula_1">2</ref>) as</p><formula xml:id="formula_11">x t+1 = σ g (V (W m m t+1 • Qshift(x t t-n , δ))),<label>(12)</label></formula><p>with δ ∈ [-30, 30]. Finally, we penalize the error between the reconstruction of the transposed target and the actual transposed target (i.e., employing Equation <ref type="formula">3</ref>) as</p><formula xml:id="formula_12">L(shift(x t+1 , δ), x t+1 ).<label>(13)</label></formula><p>The transposition distance δ is randomly chosen for each training batch. This method amounts to both, a form of guided training and data augmentation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.0.2">Pre-training and Architecture</head><p>We use 512 units in the factor layer and 64 units in the mapping layer of the GAE. On the latter, sparsity regularization <ref type="bibr" target="#b14">[14]</ref> is applied. The deviation of the norms of the columns of both weight matrices U and V from their average norm is penalized. Furthermore, we restrict these norms to a maximum value. The learning rate is reduced from 0.001 to 0 during training, and RMSProp <ref type="bibr">[8]</ref> is used.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">EXPERIMENTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Experiment 1: Folk Song Prediction</head><p>We test the RGAE and RNN in a sequence learning task using the data described in Section 5.1.1. In order to make the results comparable, we use the same experiment setup as in <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b22">22]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.1">Data</head><p>The EFSC subset (comprising a total of 54,308 note events) of the Essen Folk Song Collection (EFSC) <ref type="bibr" target="#b24">[24]</ref> constitutes the data for the actual training and evaluation. It consists of 119 Yugoslavian folk songs, 91 Alsatian folk songs, 93 Swiss folk songs, 104 Austrian folk songs, the German subset kinder (213 songs), and 237 songs of the Chinese subset shanxi. The melodies are represented as series of pitches ignoring note durations.</p><p>For pre-training the GAE portion of the RGAE, we use a polyphonic Mozart piano music dataset ( <ref type="bibr" target="#b29">[29]</ref>, comprising 13 piano sonatas with more than 106,000 notes) in pianoroll representation (i.e., using a regular time grid of 1/8th note resolution, and an active note can span several time steps). We pre-train on that data because polyphonic music acts as a better regularizer for learning interval representations than monophonic music.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.2">Training and Architecture</head><p>We use only 16 hidden units in the RNN portion of the RGAE. The look-back window of the GAE is n = 8 pitches, and we apply 50% dropout on the input in pre-training and when training the whole architecture. We pre-train the GAE for 250 epochs on the Mozart piano pieces (cf. Section 5.1.1). Subsequently, the RNN portion is trained for 110 epochs on the interval representations (i.e., mappings provided by the GAE) of the EFSC datasets. In the last 10 epochs the whole architecture is fine-tuned.</p><p>The baseline RNN with 50 hidden units is trained for 70 epochs on the EFSC data. The learning rate scheme is adopted from that described in Section 4.0.2 for all models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.3">Combining Model Predictions</head><p>We hypothesize that the RNN and the RGAE are complementary in how they process musical sequences. For example, the RNN may have better stability in remembering absolute reference pitches, like the tonic of a piece, and is superior in modeling prior probabilities, to keep predictions in a plausible pitch range. In contrast, the RGAE can make use of structural cues indicating repetitions and can generalize better due to relative pitch processing. There are several possibilities to combine the predictions of statistical models. Next to the ad-hoc approach of merely averaging their outputs, we can also use information about the certainty of the models and weight their outputs accordingly. A measure for the certainty of a prediction is given by the Shannon entropy <ref type="bibr" target="#b26">[26]</ref>:</p><formula xml:id="formula_13">H(p) = - a∈A p(a) log 2 p(a),<label>(14)</label></formula><p>where p(a ∈ A) = P (X = a) is a probability mass function over a discrete alphabet A. The method which worked best in our experiments is calculating the entropy-weighted geometric mean of both predictions, as proposed in <ref type="bibr" target="#b21">[21]</ref>:</p><formula xml:id="formula_14">p(t) = 1 R m∈M p m (t) wm ,<label>(15)</label></formula><p>where p m (t) is the predicted distribution of model m at time t, w m = H relative (p m ) -b is the weight of model m, non-linearly scaled using a bias b (set to 0.5 in our experiments), and R is a normalization constant. The relative entropy H relative (p m ) for model m is given by</p><formula xml:id="formula_15">H relative (p m ) = H(p m ) H max (p m ) ,<label>(16)</label></formula><p>where H max (p m ) &gt; 0 is the entropy of the probability mass uniformly distributed over the alphabet (indicating maximal uncertainty of the model).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.4">Evaluation</head><p>Since the datasets are rather small, a fixed training/test set split would lead to a poor estimation of the performance of the models. Therefore, and in accordance with <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b22">22]</ref>, a 10-fold cross validation is performed for each dataset and the categorical cross-entropy loss (cf. Equation <ref type="formula" target="#formula_8">9</ref>) is reported.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.5">Results and Discussion</head><p>The results are shown in Table <ref type="table" target="#tab_0">1</ref>. The current state-ofthe-art results for general connectionist sequence models on the datasets are achieved by the RTDRBM model introduced in <ref type="bibr" target="#b1">[1]</ref>. The results show that the RGAE slightly outperforms the RTDRBM and is clearly superior to the baseline RNN. Note that the RGAE only has 16 units for learning temporal dependencies (the GAE portion mainly transforms absolute pitch input to relative pitch representations). This compactness suggests that the relative processing of music indeed supports generalization by reducing the sparsity in the data.</p><p>When combining the predictions of the RGAE with an absolute pitch model (i.e., RNN or RTDRBM) based on the entropy-weighted geometric mean (cf. Section 5.1.3), a more substantial improvement is achieved than when combining the two absolute pitch models. This result shows When combining the RGAE with an absolute pitch model (i.e., RNN, RTDRBM), results improve substantially. The results suggest that absolute and relative pitch models are complementary in the aspects they learn about music and can be effectively used in an ensemble method.</p><p>that absolute and relative processing of music are complementary and can, therefore, be effectively used together in an ensemble method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Experiment 2: Copy-and-Shift Operations</head><p>This experiment shall be seen as a proof-of-concept for the RGAEs ability to sequences of copy-and-shift operations (i.e., structure schemes). We oppose our model to an RNN with GRUs, which is known to have difficulties to learn tasks in the form "whatever has been generated before, now create a (shifted) copy of it". The hypothesis is that the RGAE, due to its modeling of intervals, is superior in solving this task. It has shown in previous studies that it can learn content-invariant transformations between data instances <ref type="bibr" target="#b16">[16]</ref>, a necessary capability for learning contentinvariant structure schemes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.1">Data</head><p>In order to obtain a controlled setup for testing the model performances, we construct data obeying different recurring (chromatic) transposition patterns. To this end, the EFSC dataset is transformed into a piano-roll representation with a resolution of 1/8th note. From that, short fragments of length 4, 8, and 16 (≤ the length of the receptive field of the input to the models) are randomly sampled (rests are omitted). It is necessary that the RGAE has access to all past events with which the prediction should be related. Choosing longer fragment lengths than the lengths of the receptive fields yields considerably worse results, also for the baseline RNN, which already performs weakly in this setup. The fragments are copied and transposed according to some pre-defined transposition schemes (cf. Table 2). For each of the 10 schemes and fragment lengths, 26 sequences (512 time steps each, resulting in 133 120 time steps) are generated, where 20 sequences are used for training, 5 sequences are used for testing and 1 for evaluation. This results in a total of 600 sequences for training, 150 sequences for testing and 30 sequences for evaluation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.2">Training and Architecture</head><p>The lookback window of the RGAE is n = 16 time steps, the RNN portion has 64 units, and we do not use dropout on the input. For the baseline RNN, we also input the 16 preceding time steps, as this supports copy operations by freeing up memory in the hidden units. The baseline RNN model size (512 units) is selected by starting from 64 units and always doubling that number until no substantial improvement occurs on the evaluation set.</p><p>The GAE portion of the RGAE is pretrained for 50 epochs on the structured sequences described above. Subsequently, the RGAE is trained for 50 epochs, holding the parameters of the GAE fixed. As the data of the pretraining does not differ from the sequences in the prediction task, finetuning is not necessary.</p><p>The baseline RNN is trained for 60 epochs. Again, for both models the learning rate scheme described in Section 4.0.2 is employed. Note that in this task, we always randomly transpose the input to the models in all training phases. Therefore, we need no dropout on the input of the RGAE, and the baseline RNN does not overfit, despite its high number of parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.3">Evaluation</head><p>The models have to learn to continue sequences from the test set after exposition to the first 64 time steps of each sequence. The experiment is different to typical prediction tasks in that possibly incorrect predictions are fed back to the models, causing errors to accumulate. To obtain more stable continuations, we do not sample from the predicted distributions of the models, but instead, treat the experiment as a classification task and choose the pitch with the highest predicted probability. Accordingly, the precision is merely the percentage of correctly predicted pitches over time. In addition, we quantify how many sequences are correctly continued until the end by considering all se-   quences with an overall precision above 99% as correctly continued. Furthermore, like in Experiment 1, the categorical cross-entropy loss (cf. Equation <ref type="formula" target="#formula_8">9</ref>) is computed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.4">Results and Discussion</head><p>Table <ref type="table" target="#tab_2">3</ref> shows the quantitative results of the experiment, and Figure <ref type="figure" target="#fig_2">2</ref> shows a box plot comparing the precisions of the two models. With an average precision of 99.43% percent, where 92% of all examples are flawlessly continued, the RGAE shows remarkable stability in continuing the structure scheme realizations. The cross-entropy of the RGAE is about two orders of magnitude lower than that of the RNN. In Figure <ref type="figure" target="#fig_3">3</ref>, a specific example of this sequence continuation task is depicted. Note that the hidden unit activations of the RGAE are more regular because they only represent copy-and-shift operations instead of the musical texture itself (as it is the case for the RNN). The most challenging part for the RGAE is counting, in order to change the copy operation (i.e., transposition distance) at the right time (in fact, at most of the incorrectly continued sequences, the RGAE miscounted by one time step). It is important to note that the hidden unit activations of the RNN portion are identical for identical schemes, because they operate on transformations between events, rather than on the events themselves (i.e., they are largely content-invariant).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSION AND FUTURE WORK</head><p>The principle of modeling sequences of first-order derivatives in music is a compelling concept with the potential to solve two persistent problems in MIR: Learning transposition-invariant interval representations, and learning representations of (chromatically transposed) repetition structure. The proposed model is conceptually simple and can be trained as a generative model in sequence learning tasks. Moreover, the RGAE can act as a building block for more complex architectures, in order to extend its capabilities. For example, the temporal lookback window could be greatly extended by employing the RGAE on top of a (dilated) convolutional network, enabling it to learn higherlevel repetition structure. In another variant, an RGAE could be employed on top of an RNN. Applied to music, the RNN would provide the RGAE with representations of important, absolute reference pitches (e.g., the tonic of a scale, or the root note of a chord), and the RGAE could learn sequences of intervals in relation to them. Another interesting architecture would involve stacking more than one RGAE on top of one another to learn higher-order derivatives, for example, variations between mutually transposed parts in music.</p><p>The RGAE, however, is not limited to the symbolic, monophonic, domain of music. We show in <ref type="bibr" target="#b13">[13]</ref> that a GAE can also operate in the spectral domain of audio and in polyphonic symbolic music. Finally, we note that the RGAE is general enough to be applicable to other domains where the derivatives of functions are of higher importance than their absolute course. Possible applications include modeling temporal progressions of changes in loudness, tempo, mood, information density curves, and other musical properties, modeling moving or rotating objects, camera movements in video recordings, and signals in the time domain.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Schematic illustration of the proposed recurrent gated autoencoder architecture. Arrows represent weight matrices, rounded rectangles represent vectors. The triangles depict the Hadamard product. The specifics of the gated recurrent unit are omitted for better clarity.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Distribution of precisions for continuation of sequential copy-and-shift operations in the test set of size 150. The median is marked with a orange line, the boxes indicate the interquartile range, and circles indicate outliers.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Generated structure schemes and hidden unit activations of the RGAE and the RNN models after input of a primer indicating the {-4, +8, -4, +8, . . . } scheme, realized with melodies of length 16 not contained in the train set. Black notes indicate correct continuation, green notes indicate false negatives, red notes indicate false positives. Hidden units activations of the RNN are pruned due to space limitation.</figDesc><graphic coords="6,309.49,67.30,220.83,250.57" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Cross-Entropies of the 10-fold cross validation in the prediction task for different data sets and different models.</figDesc><table><row><cell></cell><cell>RNN</cell><cell>RTDRBM [1]</cell><cell>RGAE</cell><cell>RNN +</cell><cell cols="2">RNN + RTDRBM +</cell></row><row><cell>Data</cell><cell>(GRU)</cell><cell></cell><cell></cell><cell cols="2">RTDRBM RGAE</cell><cell>RGAE</cell></row><row><cell>Alsatian folk songs</cell><cell>2.890</cell><cell>2.897</cell><cell>2.872</cell><cell>2.844</cell><cell>2.788</cell><cell>2.771</cell></row><row><cell cols="2">Yugoslavian folk songs 2.717</cell><cell>2.655</cell><cell>2.676</cell><cell>2.617</cell><cell>2.586</cell><cell>2.530</cell></row><row><cell>Swiss folk songs</cell><cell>2.954</cell><cell>2.932</cell><cell>2.895</cell><cell>2.851</cell><cell>2.831</cell><cell>2.769</cell></row><row><cell>Austrian folk songs</cell><cell>3.185</cell><cell>3.259</cell><cell>3.171</cell><cell>3.163</cell><cell>3.070</cell><cell>3.085</cell></row><row><cell>German folk songs</cell><cell>2.358</cell><cell>2.301</cell><cell>2.305</cell><cell>2.257</cell><cell>2.233</cell><cell>2.184</cell></row><row><cell>Chinese folk songs</cell><cell>2.725</cell><cell>2.685</cell><cell>2.752</cell><cell>2.612</cell><cell>2.650</cell><cell>2.595</cell></row><row><cell>Average</cell><cell>2.805</cell><cell>2.788</cell><cell>2.779</cell><cell>2.724</cell><cell>2.693</cell><cell>2.656</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>The different relative transposition schemes used in Experiment 2.</figDesc><table><row><cell>Transposition Schemes</cell></row><row><cell>{+5, +5, +5, . . . }</cell></row><row><cell>{+7, +7, +7, . . . }</cell></row><row><cell>{-5, -5, -5, . . . }</cell></row><row><cell>{-7, -7, -7, . . . }</cell></row><row><cell>{+12, -12, +12, . . . }</cell></row><row><cell>{+3, -3, +3, . . . }</cell></row><row><cell>{+4, -4, +4, . . . }</cell></row><row><cell>{+9, -9, +9, . . . }</cell></row><row><cell>{+4, -8, +4, -8, . . . }</cell></row><row><cell>{-4, +8, -4, +8, . . . }</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>Results of the structure learning task. Average precision (Pr), percentage of continuations above 99% precision, cross-entropy (CE) and number of parameters of the respective model.</figDesc><table><row><cell cols="4">Model Pr (%) &gt; 99% CE</cell><cell># Params</cell></row><row><cell>RNN</cell><cell>41.38</cell><cell>6.67</cell><cell cols="2">10.10 ∼ 2 300 000</cell></row><row><cell cols="3">RGAE 99.43 92.00</cell><cell cols="2">0.16 ∼ 600 000</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 19th ISMIR Conference, Paris, France, September<ref type="bibr" target="#b23">[23]</ref><ref type="bibr" target="#b24">[24]</ref><ref type="bibr" target="#b25">[25]</ref><ref type="bibr" target="#b26">[26]</ref><ref type="bibr" target="#b27">[27]</ref> 2018  </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>Proceedings of the ISMIR Conference, Paris, France, September<ref type="bibr" target="#b23">[23]</ref><ref type="bibr" target="#b24">[24]</ref><ref type="bibr" target="#b25">[25]</ref><ref type="bibr" target="#b26">[26]</ref><ref type="bibr" target="#b27">[27]</ref> 2018   </p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="7.">ACKNOWLEDGMENTS</head><p>This research was supported by the <rs type="funder">EU</rs> <rs type="programName">FP7</rs> (project <rs type="projectName">Lrn2Cre8</rs>, <rs type="funder">FET</rs> grant number <rs type="grantNumber">610859</rs>), and the <rs type="funder">European Research Council</rs> (project <rs type="projectName">CON ESPRESSIONE</rs>, <rs type="funder">ERC</rs> grant number <rs type="grantNumber">670035</rs>). We thank <rs type="person">Srikanth Cherla</rs> for providing us with the source code of the RTDRBM model <ref type="bibr" target="#b1">[1]</ref>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funded-project" xml:id="_gqjYxYE">
+					<orgName type="project" subtype="full">Lrn2Cre8</orgName>
+					<orgName type="program" subtype="full">FP7</orgName>
+				</org>
+				<org type="funding" xml:id="_J352sRX">
+					<idno type="grant-number">610859</idno>
+				</org>
+				<org type="funded-project" xml:id="_ubV3yGx">
+					<orgName type="project" subtype="full">CON ESPRESSIONE</orgName>
+				</org>
+				<org type="funding" xml:id="_VHFZaVk">
+					<idno type="grant-number">670035</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Neural Probabilistic Models for Melody Prediction, Sequence Labelling and Classification</title>
+		<author>
+			<persName><forename type="first">Srikanth</forename><surname>Cherla</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+		<respStmt>
+			<orgName>City, University of London</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">PhD thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">On the properties of neural machine translation: Encoder-decoder approaches</title>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Syntax, Semantics and Structure in Statistical Translation</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page">103</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Empirical evaluation of gated recurrent neural networks on sequence modeling</title>
+		<author>
+			<persName><forename type="first">Junyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.3555</idno>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Developing and evaluating computational models of musical style. Artificial Intelligence for Engineering Design</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robin</forename><forename type="middle">C</forename><surname>Laney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alistair</forename><surname>Willis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><forename type="middle">H</forename><surname>Garthwaite</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Analysis and Manufacturing</title>
+		<imprint>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="16" to="43" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Chord sequence generation with semiotic patterns</title>
+		<author>
+			<persName><forename type="first">Darrell</forename><surname>Conklin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Mathematics and Music</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="92" to="106" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Evolving structures for electronic dance music</title>
+		<author>
+			<persName><forename type="first">Arne</forename><surname>Eigenfeldt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philippe</forename><surname>Pasquier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Genetic and Evolutionary Computation Conference, GECCO &apos;13, Amsterdam</title>
+		<meeting><address><addrLine>The Netherlands</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2013">July 6-10, 2013. 2013</date>
+			<biblScope unit="page" from="319" to="326" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">MorpheuS: Automatic music generation with recurrent pattern constraints and tension profiles</title>
+		<author>
+			<persName><forename type="first">Dorien</forename><surname>Herremans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elaine</forename><surname>Chew</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Region 10 Conference (TENCON)</title>
+		<meeting>the IEEE Region 10 Conference (TENCON)<address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2016">November 22-25, 2016. 2016</date>
+			<biblScope unit="page" from="282" to="285" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Neural networks for machine learning lecture 6a overview of mini-batch gradient descent</title>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Swersky</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Long shortterm memory</title>
+		<author>
+			<persName><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Feature discovery for sequential prediction of monophonic music</title>
+		<author>
+			<persName><forename type="first">Jonas</forename><surname>Langhabel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Lieck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Toussaint</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Rohrmeier</surname></persName>
+		</author>
+		<idno>IS- MIR 2017</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Society for Music Information Retrieval Conference</title>
+		<editor>
+			<persName><forename type="first">Zhiyao</forename><surname>Duan</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Xiao</forename><surname>Hu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Douglas</forename><surname>Turnbull</surname></persName>
+		</editor>
+		<meeting>the 18th International Society for Music Information Retrieval Conference<address><addrLine>Suzhou, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">October 23-27, 2017. 2017</date>
+			<biblScope unit="page" from="649" to="656" />
+		</imprint>
+	</monogr>
+	<note>Sally Jo Cunningham</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Learning transformations of musical material using gated autoencoders</title>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Conference on Computer Simulation of Musical Creativity</title>
+		<meeting>the 2nd Conference on Computer Simulation of Musical Creativity<address><addrLine>Milton Keynes, UK</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">September 11-13, 2017, 2017</date>
+			<biblScope unit="volume">2017</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Imposing higher-level structure in polyphonic music generation using convolutional restricted Boltzmann machines and constraints</title>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Creative Music Systems</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Learning transposition-invariant interval features from symbolic music and audio</title>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+		</author>
+		<idno>ISMIR 2018</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 19th International Society for Music Information Retrieval Conference<address><addrLine>Paris, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">September 23-27, 2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Sparse deep belief net model for visual area V2</title>
+		<author>
+			<persName><forename type="first">Honglak</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaitanya</forename><surname>Ekanadham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-First Annual Conference on Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="first">John</forename><forename type="middle">C</forename><surname>Platt</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Daphne</forename><surname>Koller</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sam</forename><forename type="middle">T</forename><surname>Roweis</surname></persName>
+		</editor>
+		<meeting>the Twenty-First Annual Conference on Neural Information Processing Systems<address><addrLine>Vancouver, British Columbia, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2007">December 3-6, 2007. 2007</date>
+			<biblScope unit="page" from="873" to="880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Gradient-based learning of higherorder image features</title>
+		<author>
+			<persName><forename type="first">Roland</forename><surname>Memisevic</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Computer Vision (ICCV)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2011">2011. 2011</date>
+			<biblScope unit="page" from="1591" to="1598" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Learning invariant features by harnessing the aperture problem</title>
+		<author>
+			<persName><forename type="first">Roland</forename><surname>Memisevic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Georgios</forename><surname>Exarchakis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML (3)</title>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="100" to="108" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Unsupervised learning of image transformations</title>
+		<author>
+			<persName><forename type="first">Roland</forename><surname>Memisevic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Conference on Computer Vision and Pattern Recognition, 2007. CVPR</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2007">2007</date>
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Learning to represent spatial transformations with factored higher-order Boltzmann machines</title>
+		<author>
+			<persName><forename type="first">Roland</forename><surname>Memisevic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1473" to="1492" />
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">modeling deep temporal dependencies with recurrent grammar cells</title>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Michalski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roland</forename><surname>Memisevic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kishore</forename><surname>Konda</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="1925" to="1933" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Sampling variations of sequences for structured music generation</title>
+		<author>
+			<persName><surname>Franc ¸ois Pachet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Csl</forename><surname>Sony</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Paris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Papadopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Roy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 18th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="167" to="173" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Methods for combining statistical models of music</title>
+		<author>
+			<persName><forename type="first">Marcus</forename><surname>Pearce</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Darrell</forename><surname>Conklin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geraint</forename><surname>Wiggins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Symposium on Computer Music Modeling and Retrieval</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="295" to="312" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Improved methods for statistical modelling of monophonic music</title>
+		<author>
+			<persName><forename type="first">Marcus</forename><surname>Pearce</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geraint</forename><surname>Wiggins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of New Music Research</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="367" to="385" />
+			<date type="published" when="2004">2004</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">The construction and evaluation of statistical models of melodic structure in music perception and composition</title>
+		<author>
+			<persName><forename type="first">Marcus</forename><surname>Thomas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pearce</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+		</imprint>
+		<respStmt>
+			<orgName>City University London</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">PhD thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Database containing , folksong transcriptions in the Kern format and a -page research guide computer database</title>
+		<author>
+			<persName><forename type="first">Helmut</forename><surname>Schaffrath</surname></persName>
+		</author>
+		<editor>David Huron</editor>
+		<imprint>
+			<date type="published" when="1995">1995</date>
+			<pubPlace>Menlo Park, CA</pubPlace>
+		</imprint>
+	</monogr>
+	<note>The Essen Folksong Collection in Kern Format</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Music similarity estimation with the mean-covariance restricted Boltzmann machine</title>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Schlueter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Osendorfer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">10th International Conference on Machine Learning and Applications and Workshops (ICMLA)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2011">2011. 2011</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="118" to="123" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">A mathematical theory of communication</title>
+		<author>
+			<persName><forename type="first">Claude</forename><surname>Elwood</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shannon</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Bell System Technical Journal</title>
+		<imprint>
+			<biblScope unit="volume">27</biblScope>
+			<biblScope unit="page" from="623" to="656" />
+			<date type="published" when="1948-07">July 1948</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">The recurrent temporal restricted Boltzmann machine</title>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><forename type="middle">W</forename><surname>Taylor</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 21, Proceedings of the Twenty-Second Annual Conference on Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="first">Daphne</forename><surname>Koller</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Léon</forename><surname>Bottou</surname></persName>
+		</editor>
+		<meeting><address><addrLine>Vancouver, British Columbia, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008">December 8-11, 2008</date>
+			<biblScope unit="page" from="1601" to="1608" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Stacked denoising autoencoders: Learning useful representations in a deep network with a local denoising criterion</title>
+		<author>
+			<persName><forename type="first">Pascal</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Larochelle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isabelle</forename><surname>Lajoie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre-Antoine</forename><surname>Manzagol</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="page" from="3371" to="3408" />
+			<date type="published" when="2010-12">Dec. 2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Discovering simple rules in complex data: A meta-learning algorithm and some surprising musical discoveries</title>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Artificial Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">146</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="129" to="148" />
+			<date type="published" when="2003">2003</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

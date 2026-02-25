@@ -1,0 +1,823 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">CONNECTIVE FUSION: LEARNING TRANSFORMATIONAL JOINING OF SEQUENCES WITH APPLICATION TO MELODY CREATION</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Taketo</forename><surname>Akama</surname></persName>
+							<email>taketo.akama@sony.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Sony Computer Science Laboratories</orgName>
+								<address>
+									<settlement>Tokyo</settlement>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">CONNECTIVE FUSION: LEARNING TRANSFORMATIONAL JOINING OF SEQUENCES WITH APPLICATION TO MELODY CREATION</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">DFF0728FBF4E6CEF7DA1A1F4FB633C7C</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:13+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>We present Connective Fusion, a music generation scheme by transformational joining of two musical sequences for creative purposes. Given two shorter sequences as inputs, our model transforms each of them such that their concatenation is more coherent to form a longer sequence, while each of the transformed shorter sequences retains meaningful similarity with the corresponding input sequence. In short, our model connects and fuses two contextually unrelated sequences in a coherent way. This transformation can be applied iteratively to gradually fuse the input sequences. The style latent space is simultaneously learned, allowing users to control how the two sequences are merged. Our approach comprises two steps of unsupervised learning: a deep generative model with a latent space is learned, followed by adversarial learning of the transformation function in the latent space. We demonstrate the usefulness of our method through the task of melody creation using a symbolic music dataset.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Spurred by the progress of deep neural networks, symbolic music generation systems, especially the ones with user controllability have gathered renewed interests these days. Most of the systems with controllability can be categorized into generating continuation <ref type="bibr" target="#b1">[1]</ref>, regenerating arbitrary positions <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b3">3]</ref>, unsupervised conditional generation <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b7">7]</ref>, or transforming musical sequences such that musical attributes, concepts, or styles are altered <ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr">[6]</ref><ref type="bibr" target="#b7">[7]</ref><ref type="bibr" target="#b8">[8]</ref>.</p><p>In this paper, we seek another category, generation by fusing input musical sequences as ideas. Specifically, we propose Connective Fusion, a generative transformation scheme which allows two input musical sequences to be transformed such that the concatenated musical sequence is musically plausible (See Fig. <ref type="figure" target="#fig_0">1</ref> for the illustration). After the transformation, each of the two sequences has meaningful similarity with the one before the transformation. Two input musical sequences can also be transformed it-  eratively to gradually increase the coherency of joining (Fig. <ref type="figure" target="#fig_0">1</ref>). Our generative transformation differs from pure transformation in that it permits users to explore or sample from the style space of how the two sequences are combined (Fig. <ref type="figure" target="#fig_1">2</ref>). The application of Connective Fusion includes i) providing users with musical ideas based on not  Technically, our approach is training a transformation function in an unsupervised learning manner, consisting of two steps: the pre-training step and the training step. In the pre-training step, a Variational Auto-Encoder (VAE) <ref type="bibr" target="#b9">[9]</ref> is trained to obtain mappings between the data space and the latent space. A given pair of musical sequences are fed into the encoder of the VAE to be mapped to the corresponding latent vectors in the latent space. In the following training step, models are trained upon the representation of the VAE latent space. The transformation function, the generator is trained adversarially <ref type="bibr" target="#b10">[10]</ref> such that transformed results are indistinguishable from the human-made musical sequences. Together with the adversarial loss, the similarity loss, consisting of the latent space distance before and after the transformation, is simultaneously taken into account in order to train models with desired amount of transformation.</p><p>In experiments, we empirically demonstrate that our method outperforms a baseline method with various parameter settings in terms of reality and five musical statistics at each transformation amount. We also quantitatively show that iterated application of our transformation allows gradual transformation while having comparable to or better performance than single (non-iterative) transformation.</p><p>Our contributions of this paper are: i) proposing a new problem setting/task and its solution, ii) presenting a model and procedure for learning style space, iii) introducing iterated application of transformation for gradual transformation, and iv) demonstrating the performance and the application for melody creation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">METHODOLOGY</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Problem Scenario</head><p>Suppose we have a dataset of sequences D y = {y</p><formula xml:id="formula_0">(i) = x (i) L ⊕ x (i) R } N i=1</formula><p>, where y (i) ∈ Y is the concatenation of two subsequences x (i) L ∈ X and x (i) R ∈ X . We can consider D y as a sequence pair dataset D = {(x Using the dataset D, the scheme of Connective Fusion basically solves the following task: given two sequences x L , x R ∈ X , transforming x L to x L and x R to x R such that the concatenated sequence x L ⊕ x R becomes more probable to be a sample in Y than x L ⊕x R , while the transformed sequences x L , x R retain meaningful similarity to the given sequences x L , x R , respectively. For example, this serves as a solution for generating longer musical sequences given shorter musical sequence pairs of any combinations as inspiration, which is useful for composing new music based on unpolished musical ideas on hand.</p><formula xml:id="formula_1">(i) L , x (i) R )} N i=1 . For instance, y (i)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Approach</head><p>Schematic diagrams of pre-training, training, and transformation of Connective Fusion are depicted in Fig. <ref type="figure" target="#fig_3">3</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2.1">Pre-training</head><p>Our approach is first training a Variational Auto-Encoder (VAE) model for obtaining bidirectional mappings between each sequence x ∈ X and its latent vector z ∈ Z ⊂ R dz , which has the compressed information of x.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2.2">Training</head><p>Then we train a generator G that transforms any pair</p><formula xml:id="formula_2">(z L , z R ) ∈ Z × Z to (z L , z R ) ∈ Z × Z that</formula><p>are indistinguishable from the pairs in the dataset. The generator also takes a style vector s ∈ S from the style space S = [0, 1] ds as an additional input. Formally, the generator can be written as</p><formula xml:id="formula_3">(z L , z R ) = G(z L , z R , s) and G : Z × Z × S → Z × Z.</formula><p>The generator G is trained together with the discriminator D : Z × Z → [0, 1] with the adversarial learning framework <ref type="bibr" target="#b10">[10]</ref>. In addition to the adversarial loss, we add the similarity loss in order to adjust the degree of similarity before and after the transformation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2.3">Transformation</head><p>Given two sequences x L and x R , these sequences are first fed to the encoder of the VAE to obtain z L and z R , respectively. The latent vectors z L and z R together with a style vector s ∈ S sampled from S = [0, 1] ds are then fed to the generator G to transform z L , z R to z L , z R , respectively. Finally, the transformed latent vectors z L , z R are fed to the decoder to generate x L , x R , respectively. The concatenation x L ⊕ x R is the generated sequence. Instead, z L and z R can also be sampled from the prior distribution p(z), providing users with scratch generation functionality followed by the transformation functionality.</p><p>The style space S allows us to control how the two sequences are connectively fused. For example, as illustrated in Fig. <ref type="figure" target="#fig_1">2</ref> and explained in the experiments Sec.3.3, users can choose preferred styles of fusion among interpolated styles on a 2D plane.</p><p>We also propose iterated transformation with G, which consists in applying G repeatedly, drawing two interrelated trajectories in the latent space. The higher the number of iterations becomes, the farther the latent vectors tend to move from the original position. This is useful for users to control the degree of similarity in transformation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Advantage of Approach Using Latent Space</head><p>Using the representation in Z but not the one in X i) is useful for defining similarity before and after the transformation, ii) is computationally inexpensive, and iii) bypasses the difficult problem of back-propagating through discrete sampling of sequences.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Pre-training Detail: Encoder and Decoder Training with Auto-Encoding VB algorithm</head><p>To train the VAE, another dataset D = {x (j) } 2N j=1 is derived from the dataset D = {(x</p><formula xml:id="formula_4">(i) L , x (i) R )} N i=1 , where x (2i-1) = x (i) L and x (2i) = x (i)</formula><p>R . The encoder model q θ (x|z) and the decoder model p θ (z|x) in the VAE are trained with the following optimization problem:</p><formula xml:id="formula_5">max θ E x∼D E z∼q θ (z|x) [log p θ (x|z)] -KL (q θ (z|x)||p(z)) ,</formula><p>(1) which is the maximization of the variational lower bound <ref type="bibr" target="#b9">[9]</ref>, the lower bound of the marginal log likelihood. Here, KL denotes the Kullback-Leibler (KL) divergence. Note that the sampling operation z ∼ q θ (z|x) is differentiable using the reparametrization trick. For the purpose of visualization in Fig. <ref type="figure" target="#fig_3">3</ref>, we name the two terms in the optimization problem</p><formula xml:id="formula_6">L rec = -E x∼D E z∼q θ (z|x) [log p θ (x|z)] and L pri = E x∼D [KL (q θ (z|x)||p(z))].</formula><p>For the rest of this paper, θ denotes the estimated model parameter after the optimization of Eq.1. We use normal distribution for the encoder model q θ (z|x).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5">Training Detail: Generator and Discriminator Training with Adversarial Learning</head><p>For notational simplicity, we introduce datasets of latent vectors D z = {(z</p><formula xml:id="formula_7">(i) L , z (i) R )} N i=1 and D z = {z (j) } 2N j=1 corre- sponding to D = {(x (i) L , x (i) R )} N i=1 and D = {x (j) } 2N</formula><p>j=1 respectively, where z</p><formula xml:id="formula_8">(i) L = argmax z q θ (z|x (i) L ), z (i) R = argmax z q θ (z|x (i)</formula><p>R ), and z (j) = argmax z q θ (z|x (j) ). The generator G and the discriminator D are parametrized by ψ and φ, respectively. In the following, we use short hand</p><formula xml:id="formula_9">L p D φ (z L , z R ) = -log D φ (z L , z R ), L n D φ (z L , z R ) = -(1 -log D φ (z L , z R ))</formula><p>, and U = U(0, 1) ds .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5.1">Discriminator Loss</head><p>In the adversarial learning framework, the discriminator classifies two sets of samples: the real class and the fake class. In Connective Fusion, samples in the real class are latent vector pairs (z L , z R ) sampled from the dataset D z . Formally, the loss function for the real class of the discriminator is</p><formula xml:id="formula_10">L p dis = E (zL,zR)∼Dz L p D φ (z L , z R ) .<label>(2)</label></formula><p>The fake class for the discriminator are latent vector pairs (z L , z R ) which are obtained by i) sampling independently with the uniform distribution over the dataset D z (1st term of Eq.3), ii) sampling independently from the prior p(z) (2nd term of Eq.3), iii) the generator G transforming samples (z L , z R , s), where z L , z R are sampled in the same way as i, while s are sampled from U, the uniform distribution over S = [0, 1] ds (3rd term of Eq.3), and iv) the generator G transforming samples (z L , z R , s), where z L , z R are sampled in the same way as ii, while s are sampled from U (4th term of Eq.3). Formally, the loss function is</p><formula xml:id="formula_11">L n dis = E zL∼D z E zR∼D z L n D φ (z L , z R ) + E zL∼p(z) E zR∼p(z) L n D φ (z L , z R ) + E zL∼D z E zR∼D z E s∼U L n D φ (G ψ (z L , z R , s)) + E zL∼p(z) E zR∼p(z) E s∼U L n D φ (G ψ (z L , z R , s)) .<label>(3)</label></formula><p>Finally, the overall loss function for the discriminator becomes</p><formula xml:id="formula_12">L dis = L p dis + L n dis .<label>(4)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5.2">Generator Loss</head><p>Based on the discriminator, a generator is trained such that the generated samples become more like the real samples rather than the fake samples. We consider two kinds of generated samples which are sampled in the same way as iii and iv in the previous section 2.5.1. Formally, the loss function is</p><formula xml:id="formula_13">L p gen = E zL∼D z E zR∼D z E s∼U L p D φ (G ψ (z L , z R , s)) + E zL∼p(z) E zR∼p(z) E s∼U L p D φ (G ψ (z L , z R , s)) .<label>(5)</label></formula><p>Additionally, we introduce the similarity loss which is the latent space distance between samples before and after the transformation:   where</p><formula xml:id="formula_14">L sim = E zL∼D z E zR∼D z E s∼U [L dist (z L , z R , s)] + E zL∼p(z) E zR∼p(z) E s∼U [L dist (z L , z R , s)] ,<label>(6)</label></formula><formula xml:id="formula_15">L dist (z L , z R , s) = 1 d z 1 σ2 z log 1 + (z L -z L ) 2 1 + 1 d z 1 σ2 z log 1 + (z R -z R ) 2 1 with (z L , z R ) = G ψ (z L , z R , s).<label>(7)</label></formula><p>Following the latent constraint paper <ref type="bibr">[6]</ref>, σz ∈ R dz is chosen to be the standard deviation σ(x) ∈ R dz of the encoder model q θ (z|x) = N µ(x), diag σ 2 (x) av-eraged over all the training dataset. Precisely, σz = 1/|D | x∈D σ(x). Finally, the overall loss function for the generator becomes</p><formula xml:id="formula_16">L gen = L p gen + λL sim .<label>(8)</label></formula><p>3. EXPERIMENTS</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Dataset</head><p>We create datasets from LMD-matched of Lakh MIDI dataset <ref type="bibr" target="#b11">[11]</ref>, comprising 45,129 files matched to the song identity entries in the Million Song Dataset <ref type="bibr" target="#b12">[12]</ref>. Each song has one or several different versions of MIDI files. We first extract files with 4/4 time signature, use accompanying tempo information to determine beat locations, and quantize each beat into 4. We then split the song identities into the proportion of 11  The color gradient corresponds to the number of iterations for our method. For all metrics, higher values are better. See Sec.3.6.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Implementation Details</head><p>2-layered long short term memory (LSTM) <ref type="bibr" target="#b13">[13]</ref> is used for the encoder and the decoder of the VAE, with the number of latent dimensionality d z = 64. 5-layered multilayer perceptron (MLP) is used for the generator and the discriminator, where input vectors are simply concatenated and ReLU activation is employed. Following the latent constraint paper <ref type="bibr">[6]</ref>, we use the gating mechanism for each of the outputs z L and z R . For the decoder to generate sequences, argmax operation is utilized at each time step greedily for sampling each token. In the adversarial learning, the parameter updates of the model are alternating between updating the discriminator 10 times and updating the generator once. Adam optimizer <ref type="bibr" target="#b14">[14]</ref> is used for training with the parameters (α, β 1 , β 2 ) = (0.000005, 0, 0.9).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Transformation Examples</head><p>Fig. <ref type="figure" target="#fig_0">1</ref> and Fig. <ref type="figure" target="#fig_1">2</ref> are the transformation examples for λ = 2.0 and λ = 0.3, respectively. In Fig. <ref type="figure" target="#fig_10">1b</ref> at iteration 1, the used pitch set of x L becomes aligned to that of x R , and the note at time around 4 transforms to the one with longer duration to join two input sequences. As the number of iterations increases, the note durations become more uniform, while retaining similarity to the input sequences in terms of pitch contours or rhythmic properties. In Fig. <ref type="figure" target="#fig_1">2b</ref>, four corners are generated by feeding s randomly sampled from {0, 1} for each dimension and the others are interpolations. Interestingly, the time 4 to 8 of the bottom left sequence is the exact transposition of the right input of Fig. <ref type="figure" target="#fig_1">2a</ref>, whereas other sequences has variations and transpositions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Evaluation Metrics</head><p>We use reality, correlations of five musical statistics evaluated against the test data, and z-distance as evaluation metrics. Reality is defined as the probability that a generated sequence is classified as human-made. Two-layered transformer binary classification model is trained on train-2 and validation-2 datasets, where the pair sequences from the dataset D are labeled as positive, while the randomly shuffled pair sequences from the same dataset are labeled as negative. The mean of output values of this classification model and its accuracy are 0.959 and 0.953 on the test dataset. Reality is a holistic metric of quality which quantifies how likely a sequence is human-made.</p><p>As musical statistics, we choose to use key, mean-pitch (MP), mean-duration (MD) for evaluating whether the first and the last 4-bars are more musically consistent after transformation. We also employ pitch-transition (PT) and duration-transition (DT) for evaluating if transitions between the first and the last 4-bars are smooth and natural. Fig. <ref type="figure" target="#fig_6">5</ref> illustrates these five musical statistics. For key, MP, and MD, these values are estimated for the first and the last 4-bars, which are interpreted as Markov transitions of musical states, creating matrices as in Fig. <ref type="figure" target="#fig_6">5</ref>. For PT and DT, we extract two or three consecutive notes around the boundary of the first and the last 4-bars, and again compute Markov transition matrices of each statistics as states. Finally, as a quantitative metric, we compute Pearson correlation coefficient between the matrix made from the test dataset and the one from the samples outputted by models.</p><p>z-distance is a scaled squared Mahalanobis distance dist(z , z) = 1/d z (z -z)Σ -1 (z -z) , where Σ = diag(σ 2 z ). We analyze z-distance in the latent space Z using song id annotations of the dataset. We randomly sampled 1,000,000 pairs of 4-bar sequences from the entire dataset, where pairs are sampled either from the same or different song id, corresponding to intra-and inter-song in Fig. <ref type="figure" target="#fig_7">6</ref>. Pairs with identical sequences are filtered out to analyze the similarity rather than the identicality. Fig. <ref type="figure" target="#fig_7">6</ref> shows that sequences from different song ids are several orders of magnitude less likely to have smaller (say, less than 1.0 or 3.0) z-distances, compared with those from the same ids. The difference of z-distances probably comes from the fact that a lot of variations can be seen within each song id and similar themes are rarely seen among different song ids especially for melody, suggesting that smaller z-distances includes variations and that z-distance encodes musically meaningful similarity. L , R ∼ N (0, diag(σ 2 LP ))</p><p>5:</p><formula xml:id="formula_17">S L ← argmax x p θ (x|z L + L ) 6: S R ← argmax x p θ (x|z R + R ) 7:</formula><p>R tmp ← estimate reality of S tmp = S L ⊕ S R 8:</p><p>if R tmp &gt; R max then 9:</p><p>S max ← S tmp ; R max ← R tmp 10:</p><formula xml:id="formula_18">z L ← z L + L ; z ← z R + R 11:</formula><p>end if 12: end for 13: return S max</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Comparisons of Methods</head><p>We introduce a naive but strong baseline method called Latent Perturb (LP), which is summarized in Algorithm 1. Note that the reality estimation model is trained with the train-1 dataset, and the argmax operation is approximated with the greedy sampling scheme. Compared to data space, perturbation in the latent space can efficiently search similar samples with high reality.</p><p>Fig. <ref type="figure" target="#fig_5">4</ref> shows the comparisons of baseline methods and ours evaluated on z-distance vs the other evaluation metrics, where z-distance is the average of the mean of zdistances for z L and z R . The reason for choosing LP with σ LP in [0.01, 0.2] is to make sure their resulting evaluation metrics span the range that the proposed technique "ours" spans. For samples from the prior as well as from the test dataset, our methods, especially with larger λ tend to outperform in all the metrics, even though LP methods use abundant computational budgets-100 forward computations of the decoder model and the classification model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.6">Evaluation of Iterated Transformation</head><p>Fig. <ref type="figure" target="#fig_9">7</ref> illustrates the performance of iterated application of our transformation. Interestingly, performance of models with larger λ after several iterations are often comparable to or better than that of models with smaller λ. This means that a model with larger λ can be used for transformation with different distances, without sacrificing the performance. For example, as illustrated in Fig. <ref type="figure" target="#fig_0">1</ref>, the model with λ = 2.0, if iteratively applied, can be used for gradual transformations with several different distances. Their quality is as satisfactory as single (non-iterative) transformation with models of smaller λ.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">RELATED WORK</head><p>Concatenative Synthesis (CS) methods <ref type="bibr" target="#b15">[15,</ref><ref type="bibr" target="#b16">16]</ref> typically use a large database of source audio segmented into units, and search units that match each segment of the target audio by unit selection algorithms. Mashup methods <ref type="bibr" target="#b17">[17,</ref><ref type="bibr" target="#b18">18]</ref> combine two or more songs to create entertaining musical results. Typically tracks from different songs are superimposed and combined. Our Connective Fusion differs from CS and Mashup in that i) ours is generative rather than searching and using existing segments of music, ii) ours tries to combine any segments, whereas CS/Mashup typically combine some searched segments, iii) ours is unsupervised learning which does not need any human annotation in the dataset or musical expertise for training models, and iv) ours is symbolic which is often not the case in CS/Mashup.</p><p>Learning transformation in the latent space has been studied for image, texts, and music <ref type="bibr">[6,</ref><ref type="bibr" target="#b19">[19]</ref><ref type="bibr" target="#b20">[20]</ref><ref type="bibr" target="#b21">[21]</ref><ref type="bibr" target="#b22">[22]</ref><ref type="bibr" target="#b23">[23]</ref>. Notably, Mueller et al. proposed to transform texts to have specified attributes based on optimization in the latent space <ref type="bibr" target="#b21">[21]</ref>. Engel et al. proposed to transform image or music to become more realistic or to have specified attributes in the latent space by using adversarial learning <ref type="bibr">[6]</ref>. Lore et al. and more recently Jahanian et al. instead proposed to transform image by learning latent space directions <ref type="bibr" target="#b22">[22,</ref><ref type="bibr" target="#b23">23]</ref>.</p><p>Learning transformation with adversarial learning without paired data has been extensively studied. The input and output domain of transformation in these studies can be categorized into the same data domain with different classes <ref type="bibr" target="#b24">[24]</ref> or attributes <ref type="bibr">[6,</ref><ref type="bibr" target="#b25">25]</ref>, the semantic domain to the data domain <ref type="bibr" target="#b24">[24]</ref>, and semantically similar domain such as simulation to real <ref type="bibr" target="#b26">[26,</ref><ref type="bibr" target="#b27">27]</ref> and unsupervised language translation <ref type="bibr" target="#b28">[28,</ref><ref type="bibr" target="#b29">29]</ref>. On the other hand, the input and output domains of transformation in this paper are essentially the same except that they have different lengths/counts.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>We introduced Connective Fusion, a new scheme of interactively generating sequences for creative purposes. Given two sequences of random combination, our model transforms each of them to similar one such that their concatenation is more indistinguishable from human-made sequences. The transformation model is adversarially learned in the latent space. Our model equips with user control-choosing the amount of transformation as well as exploring in the style space. In experiments of melody creation on a symbolic music dataset, we empirically demonstrated that our method outperforms a baseline method of various parameter settings, and that iterative gradual transformation not just introduced new functionality but also works as satisfactory as or sometimes better than noniterative transformation.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Iterated application of transformation.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Transformation with style space exploration.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Connective Fusion schematic diagrams.</figDesc><graphic coords="2,215.67,58.68,126.76,114.14" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>is a musical sequence of 8 bars, whereas x (i) L and x (i) R are musical sequences of 4 bars.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Evaluation of our model on six metrics vs z-distance. The upper/lower rows are transformation results where inputs are randomly created pairs of test/generated (sampled from prior) data. The color gradient corresponds to the number of iterations for LP. For all metrics, higher values are better. See Sec.3.5.</figDesc><graphic coords="4,54.99,49.14,492.77,191.62" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Musical statistics are corrected after our transformation. Brighter color indicates higher probability. See the second paragraph of 3.4.</figDesc><graphic coords="4,54.99,307.85,233.88,137.48" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Analysis of z-distance in the latent space Z. See the last paragraph of 3.4.</figDesc><graphic coords="4,122.46,503.32,97.51,77.87" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head></head><label></label><figDesc>:1:6:1:1 to create train-1, validation-1, train-2, validation-2, and test dataset, respectively. Train-1 and validation-1 datasets are for training proposed and baseline models, whereas train-2 and validation-2 datasets are for training evaluation models. We filter out non-monophonic tracks, bass or drum tracks, and the tracks outside the pitch range of [55, 84]. We conduct data augmentation by transposing tracks to all possible keys if the transposed tracks stay within the pitch range of [55, 84]. We retrieve 8-bar sliding windows (with a stride of 1 bar) from each track followed by filtering out windows that have more than one bar consecutive rests. Finally, for each split of train-1, validation-1, train-2, validation-2, and test dataset, we create a dataset D = {(x (i) L , x (i) R )} N i=1 by assigning the first 4-bars and the last 4-bars of each 8-bar window to x (i) L and x (i) R , respectively. For encoding musical sequences, we use Melodicorhythmic encoding proposed in [3].</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Evaluation of iterated application of our model. Iterated application of models with larger λ tends to compare favorably with others. The upper/lower rows are transformation results where inputs are randomly created pairs of test/generated (sampled from prior) data. The color gradient corresponds to the number of iterations for our method. For all metrics, higher values are better. See Sec.3.6.</figDesc><graphic coords="5,54.99,49.01,499.06,185.29" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head>Algorithm 1</head><label>1</label><figDesc>Latent Perturb (baseline method). Input: z L , z R , and σ LP 1: S max ← argmax x p θ (x|z L ) ⊕ argmax x p θ (x|z R ) 2: R max ← estimate reality of S max 3: for i = 1 to N umIter do 4:</figDesc></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Music transformer: Generating music with long-term structure</title>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">DeepBach: a steerable model for Bach chorales generation</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Pachet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Nielsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 34th International Conference on Machine Learning</title>
+		<meeting>of the 34th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Anticipation-rnn: enforcing unary constraints in sequence generation, with application to interactive music generation</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Nielsen</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/s00521-018-3868-4</idno>
+		<ptr target="https://doi.org/10.1007/s00521-018-3868-4" />
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computing and Applications</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="995" to="1005" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Learning to groove with inverse sequence transformations</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gillick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">H</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bamman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 36th International Conference on Machine Learning, ICML</title>
+		<meeting>the 36th International Conference on Machine Learning, ICML</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">A hierarchical latent vector model for learning long-term structure in music</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 35th International Conference on Machine Learning</title>
+		<meeting>of the 35th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Latent constraints: Learning to generate conditionally from unconditional generative models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Controlling symbolic music generation based on concept learning from domain knowledge</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Akama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">MIDI-VAE: modeling dynamics and instrumentation of music with applications to style transfer</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Brunner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Konrad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Wattenhofer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference</title>
+		<editor>
+			<persName><forename type="first">E</forename><surname>Ismir</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">X</forename><surname>Gómez</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">E</forename><surname>Hu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">E</forename><surname>Humphrey</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Benetos</surname></persName>
+		</editor>
+		<meeting>the 19th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Auto-encoding variational bayes</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Welling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2nd International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Generative adversarial nets</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pouget-Abadie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mirza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Warde-Farley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ozair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="volume">27</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Learning-based methods for comparing sequences, with applications to audio-to-midi alignment and matching</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note>Ph.D. dissertation</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">The million song dataset</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Bertin-Mahieux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Whitman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Lamere</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th International Conference on Music Information Retrieval (ISMIR 2011)</title>
+		<meeting>the 12th International Conference on Music Information Retrieval (ISMIR 2011)</meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997">12 1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">3rd International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Unit selection in a concatenative speech synthesis system using a large speech database</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">J</forename><surname>Hunt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">W</forename><surname>Black</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">1996 IEEE International Conference on Acoustics, Speech, and Signal Processing Conference Proceedings</title>
+		<imprint>
+			<date type="published" when="1996">1996</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="373" to="376" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Musical Mosaicing</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Zils</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Pachet</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Digital Audio Effects</title>
+		<meeting>the International Conference on Digital Audio Effects</meeting>
+		<imprint>
+			<date type="published" when="2001">2001</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Massh! -a web-based collective music mashup system</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Tokui</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings -3rd International Conference on Digital Interactive Media in Entertainment and Arts</title>
+		<meeting>-3rd International Conference on Digital Interactive Media in Entertainment and Arts</meeting>
+		<imprint>
+			<date type="published" when="2008">2008. 2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Automashupper: Automatic creation of multi-song music mashups</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E P</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Hamel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Trans. Audio, Speech and Lang. Proc</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Synthesizing the preferred inputs for neurons in neural networks via deep generator networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dosovitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yosinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Brox</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Clune</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="volume">29</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Plug &amp; play generative networks: Conditional iterative generation of images in latent space</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yosinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dosovitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Clune</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computer Vision and Pattern Recognition (CVPR)</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Sequence to better sequence: Continuous revision of combinatorial structures</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Mueller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Gifford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Jaakkola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Machine Learning</title>
+		<meeting>the 34th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Ganalyze: Toward visual definitions of cognitive image properties</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Goetschalckx</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Andonian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Oliva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Isola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The IEEE International Conference on Computer Vision (ICCV)</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">On the &quot;steerability&quot; of generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jahanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">*</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Chai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">*</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Isola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Unpaired image-to-image translation using cycle-consistent adversarial networks</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Isola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">A</forename><surname>Efros</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Computer Vision, ICCV</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Multipleattribute text rewriting</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Subramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Denoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-L</forename><surname>Boureau</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=H1g2NhC5KQ" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Unsupervised pixel-level domain adaptation with generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Bousmalis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Silberman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Dohan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Erhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Krishnan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2017 IEEE Conference on Computer Vision and Pattern Recognition, CVPR</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Learning from simulated and unsupervised images through adversarial training</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Shrivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Pfister</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Tuzel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Susskind</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Webb</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2017 IEEE Conference on Computer Vision and Pattern Recognition, CVPR</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Unsupervised machine translation using monolingual corpora only</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Denoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ranzato</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Unsupervised neural machine translation</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Artetxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Labaka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Agirre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

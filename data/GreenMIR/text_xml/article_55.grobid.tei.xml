@@ -1,0 +1,1306 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">LEARNING TO TRAVERSE LATENT SPACES FOR MUSICAL SCORE INPAINTING</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Ashis</forename><surname>Pati</surname></persName>
+							<email>ashis.pati@gatech.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department">Center for Music Technology</orgName>
+								<orgName type="institution">Georgia Institute of Technology</orgName>
+								<address>
+									<settlement>Atlanta</settlement>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Alexander</forename><surname>Lerch</surname></persName>
+							<email>alexander.lerch@gatech.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department">Center for Music Technology</orgName>
+								<orgName type="institution">Georgia Institute of Technology</orgName>
+								<address>
+									<settlement>Atlanta</settlement>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Gaëtan</forename><surname>Hadjeres</surname></persName>
+							<email>gaetan.hadjeres@sony.com</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Sony CSL</orgName>
+								<address>
+									<settlement>Paris</settlement>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">LEARNING TO TRAVERSE LATENT SPACES FOR MUSICAL SCORE INPAINTING</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">02C93AC93FE7F07A54F11BD0AE77D000</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:18+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Music Inpainting is the task of filling in missing or lost information in a piece of music. We investigate this task from an interactive music creation perspective. To this end, a novel deep learning-based approach for musical score inpainting is proposed. The designed model takes both past and future musical context into account and is capable of suggesting ways to connect them in a musically meaningful manner. To achieve this, we leverage the representational power of the latent space of a Variational Auto-Encoder and train a Recurrent Neural Network which learns to traverse this latent space conditioned on the past and future musical contexts. Consequently, the designed model is capable of generating several measures of music to connect two musical excerpts. The capabilities and performance of the model are showcased by comparison with competitive baselines using several objective and subjective evaluation methods. The results show that the model generates meaningful inpaintings and can be used in interactive music creation applications. Overall, the method demonstrates the merit of learning complex trajectories in the latent spaces of deep generative models.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Over the last decade, machine learning techniques have emerged as the tool of choice for the design of symbolic music generation models <ref type="bibr" target="#b1">[1]</ref> with deep learning being the most widely used <ref type="bibr" target="#b2">[2]</ref>. Deep generative models have been successfully applied to several different music generation tasks, e.g., monophonic music generation <ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref>, polyphonic music generation <ref type="bibr">[6,</ref><ref type="bibr" target="#b7">7]</ref> and creating musical renditions with expressive timing and dynamics <ref type="bibr" target="#b8">[8,</ref><ref type="bibr" target="#b9">9]</ref>. However, most of these models assume sequential generation of music, i.e, the generated music depends only on the music that has preceded it. In other words, the models rely only on the past musical context. This approach does not align with typical human compositional practices which are often iterative and non-sequential in nature. In addition, the sequential c Ashis Pati, Alexander Lerch, Gaëtan <ref type="bibr">Hadjeres</ref>  generation paradigm places severe limitations on the degree of interactivity allowed by these models <ref type="bibr" target="#b10">[10,</ref><ref type="bibr" target="#b11">11]</ref>. Once generated, there is no way to tweak specific parts of the generation so as to conform to users' aesthetic sensibilities or compositional requirements.</p><p>In this paper, we seek to address these problems by incorporating future musical context into the generation process. Specifically, the task is to train models to fill in missing information in musical scores, duly taking into account the complete musical context -both past and future. In essence, this is similar to inpainting where the objective is to reconstruct missing or degraded parts of any kind of media <ref type="bibr" target="#b12">[12]</ref>. For music, inpainting has been traditionally used for restoration purposes <ref type="bibr" target="#b13">[13]</ref> or to remove unwanted artifacts such as clipping <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b15">15]</ref> and packet loss <ref type="bibr" target="#b16">[16]</ref>. However, we investigate models for Musical Score Inpainting (see Figure <ref type="figure" target="#fig_0">1</ref> and Section 3.1) as tools for music creation which can aid people in (i) getting new musical ideas based on specific styles, (ii) joining different musical sections together, and (iii) modifying or extending solos. In addition, such models can allow interactive music generation by enabling users to change the musical context and get new suggestions based on the updated context.</p><p>Our main technical contribution is a novel approach for musical score inpainting which relies on latent representation-based deep generative models. These models are trained to compress information from high-dimensional spaces, e.g., the space of all 1-bar melodies, to lowdimensional latent spaces. While these latent spaces have been shown to be able to encode hidden attributes of musical data (see Section 2.3), the primary form of interaction with latent spaces has been using simple operations such as attribute vectors <ref type="bibr" target="#b17">[17,</ref><ref type="bibr" target="#b18">18]</ref> or linear interpolations <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b20">20]</ref>. Using the proposed method (see Section 3), we demonstrate that Recurrent Neural Networks (RNNs) can be trained using latent embeddings to learn complex trajectories in the latent space. This, in turn, is used to predict how to fill in missing measures in a piece of symbolic music. Our secondary contributions are: (i) a stochastic training scheme which helps model training and generalization (see Section 3.4), and (ii) a novel data encoding scheme using uneven tick durations that allows encoding triplets without substantial increase in sequence length (see Section 3.5). The effectiveness of the proposed method is demonstrated using several objective and subjective evaluation methods in Section 4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Audio &amp; Music Inpainting</head><p>The first applications of audio inpainting methods were restoration-oriented <ref type="bibr" target="#b13">[13,</ref><ref type="bibr" target="#b14">14,</ref><ref type="bibr" target="#b16">16,</ref><ref type="bibr" target="#b21">21,</ref><ref type="bibr" target="#b22">22]</ref> using different methods such as matrix factorization <ref type="bibr" target="#b14">[14]</ref>, non-local similarity measures <ref type="bibr" target="#b22">[22]</ref> and audio similarity graphs <ref type="bibr" target="#b16">[16]</ref>. While these techniques have been useful for audio-based tasks, they are not easily extendable to symbolic music.</p><p>For inpainting in the symbolic domain, the early attempts were based on Markov Chain Monte Carlo (MCMC) methods which allowed users to specify certain constraints, e.g., which notes to generate and which to retain <ref type="bibr" target="#b23">[23,</ref><ref type="bibr" target="#b24">24]</ref>. Another approach, proposed by Lattner et al., used iterative gradient descent to force the output of a deep generative model to conform to a specified structural plan <ref type="bibr" target="#b25">[25]</ref>. However, methods based on MCMC (which rely on repeated sampling), and those using iterative gradient descent are slow during inference time and hence unsuitable for interactive applications. More recently, Hadjeres et al. proposed the AnticipationRNN framework <ref type="bibr" target="#b10">[10]</ref> which used a pair of stacked RNNs to enforce user-defined constraints during inference. This allowed selective regeneration of specific parts of the music (generated or otherwise) using only two forward passes through the RNN-pair and enabled real-time generations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Variational Auto-Encoders</head><p>The Variational Auto-Encoder (VAE) <ref type="bibr" target="#b26">[26]</ref> is a type of generative model which uses an auto-encoding <ref type="bibr" target="#b27">[27]</ref> framework; during training, the model is forced to reconstruct its input. The architecture comprises an encoder and a decoder. The encoder learns to map real data-points x from a highdimensional data-space X to points in a low-dimensional space Z which is referred to as the latent space. The decoder learns to map the latent vectors back to the data-space. VAEs treat the latent vector as a random variable and model the generative process as a sequence of sampling operations: z ∼ p(z), and x ∼ p(x|z), where p(z) is a prior distribution over the latent space, and p(x|z) is the conditional pdf.</p><p>Variational inference <ref type="bibr" target="#b28">[28]</ref> is used to approximate the posterior by minimizing the KL-divergence <ref type="bibr" target="#b29">[29]</ref> between the approximate posterior q(z|x) and the true posterior p(z|x) by maximizing the evidence lower bound (ELBO) <ref type="bibr" target="#b26">[26]</ref>.</p><p>The training ensures that the reconstruction accuracy is maximized and realistic samples are generated when latent vectors are sampled using the prior p(z).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Leveraging Latent Spaces for Music Generation</head><p>Latent representation-based models such as VAEs have been found to be quite useful for several music generation tasks. Bretan et al. used the latent representation of an auto-encoder-based model to generate musical phrases <ref type="bibr" target="#b30">[30]</ref>. Lattner et al. forced the latent space of a gated autoencoder to learn pitch interval-based representations which improved the performance of predictive models of music <ref type="bibr" target="#b31">[31,</ref><ref type="bibr" target="#b32">32]</ref>. Latent spaces of music generation models have also been used to explicitly encode and control musical attributes <ref type="bibr" target="#b3">[3,</ref><ref type="bibr" target="#b20">20,</ref><ref type="bibr" target="#b33">33,</ref><ref type="bibr" target="#b34">34]</ref>, inter-track dependencies <ref type="bibr" target="#b35">[35]</ref> and musical genre <ref type="bibr" target="#b36">[36]</ref>. These studies show that trained latent spaces are able to encode hidden attributes of musical data which can be leveraged for different music generation tasks. However, latent space traversals have been relying on simpler methods such as attribute vectors <ref type="bibr" target="#b17">[17,</ref><ref type="bibr" target="#b18">18]</ref> or linear interpolations <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b20">20]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHOD</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Problem Statement</head><p>We define the score inpainting problem as follows: given a past musical context C p and a future musical context C f , the modeling task is to generate an inpainted sequence C i which can connect C p and C f in a musically meaningful manner. In other words, the model should be trained to maximize the likelihood p(C i | C p , C f ). Without much loss of generality, we assume that C p , C f , and C i comprise of n p , n f , and n i measures of music, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Approach</head><p>The key motivation behind the proposed method is that the latent embeddings of deep generative models of music encode hidden attributes of music which can be leveraged to perform inpainting. Firstly, we train a VAE-model, referred to as MeasureVAE, to reconstruct single measures of music,  i.e., the latent vectors of this model z ∈ Z map to individual measures of music. Once trained, the encoder of this model can be used to process sequences C p and C f and output corresponding latent vector sequences Z p and Z f . Secondly, we train an RNN-based model, referred to as LatentRNN, to take as input the past and future latent vector sequences (Z p and Z f ) and output a third latent vector sequence Z i which can be passed through the decoder of MeasureVAE to obtain C i .</p><p>Effectively, the LatentRNN model learns to traverse the latent space of the MeasureVAE model so as to connect the provided contexts in a musically meaningful manner. The inference is fast since it only requires forward passes through the two models. This overall approach is shown in Figure <ref type="figure" target="#fig_1">2</ref>. We call this joint architecture InpaintNet. While we restrict ourselves to 4/4 monophonic melodic sequences in this paper, the approach can be extended to other time signatures and polyphonic sequences as well. The individual model architectures are discussed next.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Model Architectures</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.1">MeasureVAE</head><p>The MeasureVAE architecture (see Figure <ref type="figure" target="#fig_3">3</ref>) is loosely based on the hierarchical recurrent MusicVAE architecture <ref type="bibr" target="#b3">[3]</ref> which proved successful in modeling individual measures of music.</p><p>The encoder consists of a learnable embedding layer (operating on tick-level) followed by a bi-directional RNN <ref type="bibr" target="#b37">[37]</ref>. The concatenated hidden state from both directions of the RNN is then passed through two identical parallel linear stacks to obtain the mean µ and variance σ which are used to sample the latent vector z via z ∼ N (µ, σ 2 ).</p><p>The decoder follows a hierarchical structure where the The Generation-RNN initialized using a concatenation of context-RNNs embeddings is unrolled n i times to get Z i .</p><p>sampled latent vector z is used to initialize the hidden state of a beat-RNN which is unrolled b times (where b is the number of beats in a measure). The output at each step of the beat-RNN is passed through a linear stack before being used to initialize the hidden state of a tick-RNN which is unrolled t times (where t is the number of events/ticks in a beat). The outputs of the tick-RNN are individually passed through a second linear stack which maps them back to the data-space. The hierarchical architecture mitigates the auto-regressive nature of the RNN and forces the decoder to use the latent vector more efficiently (as advocated in <ref type="bibr" target="#b3">[3]</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.2">LatentRNN</head><p>The LatentRNN model (see Figure <ref type="figure" target="#fig_4">4</ref>) consists of 3 subcomponents. There are 2 identical bi-directional RNNs, referred to as Past-Context-RNN and Future-Context-RNN, which process the latent vector sequences for the past and future contexts (Z p and Z f ), respectively. These are unrolled for n p and n f times in order to encode the context sequences, respectively. The final hidden states of the two context-RNNs are concatenated and then used to initialize the hidden state of a third RNN, referred to as the Generation-RNN, which is unrolled n i times. The outputs of the Generation-RNN are passed through a linear stack to obtain n i latent vectors corresponding to the inpainted measures.</p><p>The hyper-parameters for the model configurations are chosen based on initial experiments and are provided in Table <ref type="table" target="#tab_1">1</ref>. For the RNN layers in both models, Gated Recurrent Units (GRU) <ref type="bibr" target="#b38">[38]</ref> are used.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Stochastic Training Scheme</head><p>We propose a novel stochastic training scheme for training the model. For each training batch, the number of measures to be inpainted n i and the number of measures in the past context n p are randomly sampled from a uniform distribution. Thus, the number of measures in the future context becomes n f = N -n i -n p , where N is the total number of measures in each sequence of the training batch. Using these, the input sequences are split into past, future and target sequences and the model is trained to predict  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Data Encoding Scheme</head><p>We use a variant of the encoding scheme proposed by Hadjeres et al. <ref type="bibr" target="#b24">[24]</ref> for our data representation. The original encoding scheme quantizes time uniformly using the sixteenth note as the smallest sub-division. For each sub-division or tick, the note which starts on that tick is represented by a token corresponding to the note name. If no note starts on a tick, a special continuation symbol '__' is used to denote that the previous note is held. Rest is considered as a note and has a special token. The main advantages of this encoding scheme are (i) it uses only a single sequence of tokens, and (ii) uses real note names (e.g., separate tokens for A# and Bb) which allows generation of readable sheet music. However, a limitation of using the sixteenth note as the smallest sub-division is that it cannot encode triplets. The naive approach of evenly subdividing the sixteenth note divisions to encode triplets increases the sequence length a factor of 3 which can make the sequence modeling task harder. To mitigate this limitation, we propose a novel uneven subdivision scheme. Each beat is divided into 6 uneven ticks (shown in Figure <ref type="figure" target="#fig_6">5</ref>). This allows encoding triplets while only increasing the sequence length by a factor of 1.5. Consequently, each 4/4 time signature measure is a sequence of 24 tokens.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head><p>The proposed method is compared with two baseline methods (see Section 4.1) using a dataset of monophonic folk melodies in the Scottish and Irish style taken from the Session website <ref type="bibr" target="#b5">[5]</ref>. For the purposes of this work, only melodies with 4/4 time signature in which the shortest note is greater than or equal to the sixteenth note are considered resulting in approx. 21000 melodies. Implementation details and source code are available online. <ref type="foot" target="#foot_1">1</ref></p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Baseline</head><p>The performance of the proposed method is compared with the AnticipationRNN model proposed by Hadjeres et al. <ref type="bibr" target="#b10">[10]</ref>. This model, referred to as Base-ARNN, uses a stack of 2 LSTM-based <ref type="bibr" target="#b40">[40]</ref> RNN layers. Each of the 2 RNNs comprises of 2 layers with a hidden size of 256. In addition to the note-sequence tokens, this model also uses additional metadata information, i.e., tokens to indicate beat and downbeat locations as part of the user-defined constraints. For more details, the readers are directed to <ref type="bibr" target="#b10">[10]</ref>.</p><p>The original model operates on tick-level sequences and inpainting locations are specified in terms of individual tick locations. Hence, the inpainting locations may or may not be contiguous. In order to make a fair comparison, a second variant of the AnticipationRNN model is considered, referred to as Reg-ARNN, where the stochastic training scheme from Section 3.4 is used instead.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Training Configuration</head><p>The MeasureVAE model was pre-trained using single measures following the standard VAE optimization equation <ref type="bibr" target="#b26">[26]</ref> with the β-weighting scheme <ref type="bibr" target="#b41">[41,</ref><ref type="bibr" target="#b42">42]</ref>. In order to prioritize high reconstruction accuracy, a low value of β = 1e-3 was used. Pre-training was done for 30 epochs resulting in a reconstruction accuracy of approx. 99%. While this seems to be better than results in <ref type="bibr" target="#b3">[3]</ref>, we attribute this to the shorter duration of generation (single measures) and the differences in datasets and data encoding. MeasureVAE parameters were frozen after pre-training and no gradientbased updates were performed on these parameters during the InpaintNet model training.</p><p>The Adam algorithm <ref type="bibr" target="#b43">[43]</ref> was used for model training, with a learning rate of 1e-3, β 1 = 0.9, β 2 = 0.999, and = 1e-8. To ensure consistency, all models were trained for 100 epochs (with early-stopping) with the same batchsize using a sub-sequence length of 16 measures (384 ticks). For the InpaintNet and Reg-ARNN models, the number of measures to be inpainted and the number of past measures were randomly selected:</p><formula xml:id="formula_0">n i ∈ [2, 6], n p ∈ [1, 16 -1 -n i ].</formula><p>This ensured that past and future contexts each contain at (nats/token) on the held-out test set (lower is better). Inpaint-Net outperforms both baselines. The last two rows show the results for the ablation models described in Section 4.4.</p><p>least 1 measure. For the baseline models, teacher-forcing was used with a probability of 0.5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Predictions on Test Data</head><p>Two experiments were conducted to evaluate the predictive power of the models. The first experiment considered the average token-wise negative log-likelihood (NLL) on a held-out test set. The results (see first 3 rows of Table <ref type="table" target="#tab_2">2</ref>) indicate that our proposed model outperforms both baselines, showing an improvement of approx. 25% in the NLL over the Reg-ARNN model and approx. 55% over the Base-ARNN model.</p><p>The next experiment compared the models by varying the number of measures to be inpainted. Figure <ref type="figure" target="#fig_7">6</ref> shows the average token-wise NLL when n i was increased from 2 to 8. Again, our proposed model outperforms both baselines. It should be noted that since the sub-sequence length is constant at 16 measures, increasing n i means that the available context is reduced. Thus, there is an expected drop in the performance with increasing n i as the models are forced to make longer predictions with less contextual information. However, the InpaintNet model performs better even when forced to predict beyond the training limit of 6 measures.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Ablations Studies</head><p>In order to further ascertain the efficiency of the proposed approach, ablation studies were conducted to evaluate the benefit of adding past and future context information. Specifically, we trained two variants of the InpaintNet model which relied on only one type of contextual information. The first model, referred to as PastInpaintNet only considered the past context C p as input whereas the second model, referred to as FutureInpaintNet considered only the future context C f . The last two rows of Table <ref type="table" target="#tab_2">2</ref> summarize the performance of these ablation models. It is clear that both past and future contexts are important for the modeling process. In addition, we also tried training a variant of the InpaintNet model with an untrained (randomly initialized) MeasureVAE model. This model failed to train properly achieving an NLL of approx. 1.33. This indicates that a structured latent space where latent vectors are trained to encode hidden data attributes is important for training the LatentRNN model.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Qualitative Analysis</head><p>Considering that we are primarily interested in the aesthetic quality of the inpaintings, we encourage the readers to browse through the inpainting examples provided in the supplementary material. <ref type="foot" target="#foot_3">2</ref> We consider some of those examples in the analysis below.</p><p>Figure <ref type="figure" target="#fig_9">7</ref> shows sample inpaintings by the models for one of the melodies in the test set. While the Base-ARNN model collapses to produce long half notes which do not effectively reflect the surrounding context, the other two models do better. Both the Reg-ARNN and InpaintNet model generate rhythmically consistent inpaintings. The InpaintNet, in particular, mimics the rhythmic properties of the context better. For instance, measures 7 and 10 of the inpainted measures match the rhythm of measures 6, 14, and 15. Also, measure 8 matches measure 16. However, the use of G (subdominant scale degree in D-major) in the half-note to end measure 8 is unusual. We observed that in other examples also, the InpaintNet model occasionally produces pitches which are anomalous -either out-of-key or not fitting in the context. The Reg-ARNN model, on the other hand, tends to stay in key. Additional examples are provided in the supplementary material.</p><p>One advantage of working with the latent space is that the sampling operation, inherent in the VAE inference process, ensures that for the same context we can get different inpainting results. Figure <ref type="figure">8</ref> shows three such generations for the context of Figure <ref type="figure" target="#fig_9">7</ref>. It is interesting to note that the base rhythm is retained across all three inpaintings. This feature is particularly interesting from an interactive music generation perspective, as this model can be used to quickly provide users with multiple ideas and will be investigated further in future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Subjective Listening Study</head><p>To evaluate the perceived quality of the inpainted measures, a listening test was conducted to compare our proposed model against the two baselines. A set of 30 melodies from the held-out test set were randomly selected and their first   showing the probability that the InpaintNet model is rated higher. Analysis is based on the Bradley-Terry model <ref type="bibr" target="#b44">[44,</ref><ref type="bibr" target="#b45">45]</ref>. The proposed model loses against the real data but performs at par with the baseline models.</p><p>16 measures were extracted. The models were then used to inpaint 4 measures (measure number 7 to 10) in these melodic excerpts. Participants were presented with pairs of melodic excerpts and asked to select the one in which they thought the inpainted measures fit better within the surrounding context. In some of the pairs, one melodic excerpt was the real data (without any inpainting). Each participant was presented with 10 such pairs. A total of 72 individuals participated in the study (720 comparisons). The location of the inpainted measures was kept consistent across all examples so as to prevent confusion among participants and allow them to focus better on the inpainted measures.</p><p>The Bradley-Terry model <ref type="bibr" target="#b44">[44,</ref><ref type="bibr" target="#b45">45]</ref> for paired comparisons was used to get an estimate of how the proposed model performs against the baselines and the real data (see Figure <ref type="figure">9</ref>). While the proposed model expectedly has a very low probability of winning against the real data (wins approx. 1 out of 5 times), it performs only at par with the baseline models (with probability approx. 0.5). Significance tests using the Wilcoxon signed rank test were further conducted which validated that differences between the proposed model and the baselines were not statistically significant (p-value &gt; 0.01). This was unexpected since the proposed model showed significant improvement over the baselines in the NLL metric. Further dividing the study population into two groups differing in musical proficiency (based on the Ollen index <ref type="bibr" target="#b46">[46]</ref>) showed that, comparatively, the group with greater musical proficiency favored the generations from the InpaintNet model more than the group with less musical proficiency.</p><p>Additional analysis revealed that cases where the Inpaint-Net model performed the worst (maximum losses against the baselines), had anomalies in the predicted pitch similar to those discussed in Section 4.5. Specifically, they either had a single out-of-key note (e.g., F note in G-Major scale) or used a pitch or interval not used in the provided contexts. We conjecture that it is these anomalous pitch predictions which lead to poor perceptual ratings in spite of the model performing better in terms of modeling rhythmic features. This will be analyzed further in future studies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>This paper investigates the problem of musical score inpainting and proposes a novel approach to generate multiple measures of music to connect two musical excerpts by using a conditional RNN which learns to traverse the latent space of a VAE. We also improve upon the data encoding and introduce a stochastic training process which facilitate model training and improve generalization. The proposed model shows good performance across different objective and subjective evaluation experiments. The architecture also enables multiple generations with the same contexts, thereby, making it suitable for interactive applications <ref type="bibr" target="#b47">[47]</ref>. We think the idea of learning to traverse latent spaces could be useful for other music generation tasks also. For instance, the architecture of the LatentRNN model can be changed to add contextual information from other voices/instruments to perform multi-instrument music generation. Future work will include a more thorough investigation of the anomalies in pitch prediction. A possible way to address that would be to add the context embedding as input at each step of unrolling the LatentRNN or use additional regularizers. Another promising avenue for future work is substituting RNNs with attention-based models <ref type="bibr" target="#b48">[48]</ref> which have had success in sequential music generation tasks <ref type="bibr" target="#b9">[9]</ref>.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Musical Score Inpainting task schematic. A generative model needs to take past and future musical contexts into account to generate a sequence that can connect them in a musically meaningful manner.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Schematic of the proposed approach. The pretrained MeasureVAE encoder is used to convert the past and future context sequences (C p and C f ) into their respective latent vector sequences (Z p and Z f ). The LatentRNN learns to traverse the latent space of MeasureVAE to output a latent vector sequence Z i which is passed through the pre-trained decoder to output the inpainted musical sequence C i .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: MeasureVAE schematic. Individual components of the encoder and decoder are shown below the main blocks (dotted arrows indicate data flow within the individual components). z denotes the latent vector and x denotes the reconstructed measure.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: LatentRNN schematic. The Past-Context and Future-Context-RNNs encode Z p and Z f , respectively.The Generation-RNN initialized using a concatenation of context-RNNs embeddings is unrolled n i times to get Z i .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Figure showing the data representation. The token string on the bottom demonstrates the encoding scheme for the measure displayed on the top-left. Top-right shows the proposed uneven tick-duration scheme for each beat.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Figure showing token-wise NLL (nats/token) for different number of inpainted measures on the held-out test set (lower is better). InpaintNet outperforms both baselines. Models were trained to predict only 2 to 6 measures.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Figure showing the inpaintings generated by different models for the same context. From top to bottom -a.: Base-ARNN, b.: Reg-ARNN, c.: InpaintNet, d.: Original Melody.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head>Figure 8 :Figure 9 :</head><label>89</label><figDesc>Figure 8: Figure showing different inpaintings (using the InpaintNet model) for the same context as Figure 7.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Ashis Pati, Alexander Lerch, Gaëtan Hadjeres. "Learning To Traverse Latent Spaces for Musical Score Inpainting", 20th International Society for Music Information Retrieval Conference, Delft, The Netherlands, 2019.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>Table showing configurations of both models.</figDesc><table /><note><p><p><p>n: Number of Layers, i: Input Size, o: Output Size, h: Hidden Size, d: Dropout Probability, SELU: Scaled Exponential Linear Unit</p><ref type="bibr" target="#b39">[39]</ref></p>, ReLU: Rectifier Linear Unit the target sequence given the past and future context sequences. This stochastic training scheme ensures that the model learns to deal with variable length contexts and can perform inpaintings at arbitrary locations.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Table showing the average token-wise NLL</figDesc><table><row><cell>Model Variant</cell><cell>Test NLL</cell></row><row><cell>Base-ARNN</cell><cell>0.662</cell></row><row><cell>Reg-ARNN</cell><cell>0.402</cell></row><row><cell>InpaintNet (Our Method)</cell><cell>0.300</cell></row><row><cell>PastInpaintNet</cell><cell>0.643</cell></row><row><cell>FutureInpaintNet</cell><cell>0.481</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>https://github.com/ashispati/InpaintNet Proceedings of the</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_3"><p>https://ashispati.github.io/inpaintnet/ Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019</p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">The machine learning algorithm as creative musical tool</title>
+		<author>
+			<persName><forename type="first">Rebecca</forename><surname>Fiebrink</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baptiste</forename><surname>Caramiaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mclean</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<publisher>Oxford University Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Deep learning for music generation: Challenges and directions. Neural Computing and Applications</title>
+		<author>
+			<persName><forename type="first">Jean-Pierre</forename><surname>Briot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018-10">Oct 2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A hierarchical hatent vector model for learning long-term structure in music</title>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Curtis</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douglas</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 35th International Conference on Machine Learning (ICML)</title>
+		<meeting>of the 35th International Conference on Machine Learning (ICML)<address><addrLine>Stockholm Sweden</addrLine></address></meeting>
+		<imprint>
+			<publisher>Stockholmsmässan</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4364" to="4373" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Algorithmic composition of melodies with deep recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">Florian</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Muscinelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johanni</forename><surname>Seeholzer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wulfram</forename><surname>Brea</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gerstner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 1st Conference on Computer Simulation of Musical Creativity (CSMC)</title>
+		<meeting>of the 1st Conference on Computer Simulation of Musical Creativity (CSMC)</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Music transcription modelling and composition using deep learning</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Bob</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joao</forename><forename type="middle">Felipe</forename><surname>Sturm</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oded</forename><surname>Santos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Ben-Tal</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Korshunova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 1st Conference on Computer Simulation of Musical Creativity (CSMC)</title>
+		<meeting>of the 1st Conference on Computer Simulation of Musical Creativity (CSMC)<address><addrLine>Huddersfield, UK</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">MidiNet: A convolutional generative adversarial network for symbolic-domain music generation</title>
+		<author>
+			<persName><forename type="first">Li-Chia</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Szu-Yu</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi-Hsuan</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Society of Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>of International Society of Music Information Retrieval Conference (ISMIR)<address><addrLine>Suzhou, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="324" to="331" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Modeling temporal dependencies in high-dimensional sequences: Application to polyphonic music generation and transcription</title>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Boulanger-Lewandowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascal</forename><surname>Vincent</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of 29th International Conference on Machine Learning (ICML)</title>
+		<meeting>of 29th International Conference on Machine Learning (ICML)<address><addrLine>Edinburgh, Scotland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">This time with feeling: Learning expressive musical performance</title>
+		<author>
+			<persName><forename type="first">Sageev</forename><surname>Oore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sander</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douglas</forename><surname>Eck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karen</forename><surname>Simonyan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Computing and Applications</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1" to="13" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Music transformer</title>
+		<author>
+			<persName><forename type="first">Cheng-Zhi Anna</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Curtis</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">D</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Monica</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douglas</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Conference of Learning Representations (ICLR)</title>
+		<meeting>of International Conference of Learning Representations (ICLR)<address><addrLine>New Orleans, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Anticipation-RNN: Enforcing unary constraints in sequence generation, with application to interactive music generation</title>
+		<author>
+			<persName><forename type="first">Gaëtan</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Nielsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Computing and Applications</title>
+		<imprint>
+			<date type="published" when="2018-11">Nov 2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Deep learning techniques for music generation-A survey</title>
+		<author>
+			<persName><forename type="first">Jean-Pierre</forename><surname>Briot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaëtan</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1709.01620</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Image inpainting</title>
+		<author>
+			<persName><forename type="first">Marcelo</forename><surname>Bertalmio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillermo</forename><surname>Sapiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Caselles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Coloma</forename><surname>Ballester</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 27th Annual Conference on Computer Graphics and Interactive Techniques</title>
+		<meeting>of the 27th Annual Conference on Computer Graphics and Interactive Techniques</meeting>
+		<imprint>
+			<publisher>ACM Press/Addison-Wesley Publishing Co</publisher>
+			<date type="published" when="2000">2000</date>
+			<biblScope unit="page" from="417" to="424" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title/>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Adler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Valentin</forename><surname>Emiya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><forename type="middle">G</forename><surname>Jafari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Elad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Gribonval</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><forename type="middle">D</forename><surname>Plumbley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="922" to="932" />
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Audio declipping via nonnegative matrix factorization</title>
+		<author>
+			<persName><forename type="first">Çagdaş</forename><surname>Bilen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Ozerov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Pérez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)</title>
+		<meeting>of IEEE Workshop on Applications of Signal essing to Audio and Acoustics (WASPAA)</meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="1" to="5" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">An efficient algorithm for clipping detection and declipping audio</title>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Laguna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lerch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 141st AES Convention</title>
+		<meeting>of the 141st AES Convention<address><addrLine>Los Angeles, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Inpainting of long audio segments with similarity graphs</title>
+		<author>
+			<persName><forename type="first">Nathanael</forename><surname>Perraudin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicki</forename><surname>Holighaus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Majdak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Balazs</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1083" to="1094" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="3111" to="3119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Using artificial intelligence to augment human intelligence</title>
+		<author>
+			<persName><forename type="first">Shan</forename><surname>Carter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Nielsen</surname></persName>
+		</author>
+		<ptr target="https://distill.pub/2017/aia" />
+	</analytic>
+	<monogr>
+		<title level="j">Distill</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Learning latent representations of music to generate interactive musical palettes</title>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sageev</forename><surname>Oore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douglas</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of IUI Workshops</title>
+		<meeting>of IUI Workshops</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">GLSR-VAE: Geodesic latent space regularization for variational autoencoder architectures</title>
+		<author>
+			<persName><forename type="first">Gaëtan</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Nielsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of IEEE Symp. Series on Computational Intelligence (SSCI)</title>
+		<meeting>of IEEE Symp. Series on Computational Intelligence (SSCI)</meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1" to="7" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Joint audio inpainting and source separation</title>
+		<author>
+			<persName><forename type="first">Çagdaş</forename><surname>Bilen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Ozerov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Pérez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Conference on Latent Variable Analysis and Signal Separation</title>
+		<meeting>of International Conference on Latent Variable Analysis and Signal Separation</meeting>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="251" to="258" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Sparse non-local similarity modeling for audio inpainting</title>
+		<author>
+			<persName><forename type="first">Ichrak</forename><surname>Toumi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Valentin</forename><surname>Emiya</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<meeting>of IEEE International Conference on Acoustics, Speech and Signal essing (ICASSP)</meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="576" to="580" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Maximum entropy model for melodic patterns</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Sakellariou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesca</forename><surname>Tria</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vittorio</forename><surname>Loreto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the ICML Workshop on Constructive Machine Learning</title>
+		<meeting>of the ICML Workshop on Constructive Machine Learning<address><addrLine>Lille, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">DeepBach: A steerable model for Bach chorales generation</title>
+		<author>
+			<persName><forename type="first">Gaëtan</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Nielsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 34th International Conference on Machine Learning (ICML)</title>
+		<meeting>of the 34th International Conference on Machine Learning (ICML)<address><addrLine>Sydney, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">70</biblScope>
+			<biblScope unit="page" from="1362" to="1371" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Imposing higher-level structure in polyphonic music generation using convolutional restricted boltzmann machines and constraints</title>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Creative Music Systems</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<date type="published" when="2018-03">March 2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Auto-encoding variational bayes</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Welling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Conference of Learning Representations (ICLR)</title>
+		<meeting>of International Conference of Learning Representations (ICLR)<address><addrLine>Banff, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Extracting and composing robust features with denoising autoencoders</title>
+		<author>
+			<persName><forename type="first">Pascal</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Larochelle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre-Antoine</forename><surname>Manzagol</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 25th International Conference on Machine learning (ICML</title>
+		<meeting>of the 25th International Conference on Machine learning (ICML<address><addrLine>Helsinki, Finland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+			<biblScope unit="page" from="1096" to="1103" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Variational Inference: A review for statisticians</title>
+		<author>
+			<persName><forename type="first">Alp</forename><surname>David M Blei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jon</forename><forename type="middle">D</forename><surname>Kucukelbir</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mcauliffe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the American Statistical Association</title>
+		<imprint>
+			<biblScope unit="volume">112</biblScope>
+			<biblScope unit="issue">518</biblScope>
+			<biblScope unit="page" from="859" to="877" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">On information and sufficiency. The annals of mathematical statistics</title>
+		<author>
+			<persName><forename type="first">Solomon</forename><surname>Kullback</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><forename type="middle">A</forename><surname>Leibler</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1951">1951</date>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="page" from="79" to="86" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">A unit selection methodology for music generation using deep neural networks</title>
+		<author>
+			<persName><forename type="first">Mason</forename><surname>Bretan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gil</forename><surname>Weinberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Larry</forename><surname>Heck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 8th International Conference on Computational Creativity (ICCC)</title>
+		<meeting>of the 8th International Conference on Computational Creativity (ICCC)<address><addrLine>Atlanta, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">A predictive model for music based on learned interval representations</title>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Society of Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>of International Society of Music Information Retrieval Conference (ISMIR)<address><addrLine>Paris, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="26" to="33" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Audio-to-score alignment using transposition-invariant features</title>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Arzt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Lattner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Society of Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>of International Society of Music Information Retrieval Conference (ISMIR)<address><addrLine>Paris, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="592" to="599" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Latent constraints: Learning to generate conditionally from unconditional generative models</title>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Conference on Learning Representations (ICLR)</title>
+		<meeting>of International Conference on Learning Representations (ICLR)<address><addrLine>Toulon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Latent space regularization for explicit control of musical attributes</title>
+		<author>
+			<persName><forename type="first">Ashis</forename><surname>Pati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lerch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML Machine Learning for Music Discovery Workshop (ML4MD), Extended Abstract</title>
+		<meeting><address><addrLine>Long Beach, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Learning a latent space of multitrack measures</title>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Curtis</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douglas</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 2nd Workshop on Machine Learning for Creativity and Design</title>
+		<meeting>of the 2nd Workshop on Machine Learning for Creativity and Design<address><addrLine>Montréal, Québec</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">MIDI-VAE: Modeling dynamics and instrumentation of music with applications to style transfer</title>
+		<author>
+			<persName><forename type="first">Gino</forename><surname>Brunner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andres</forename><surname>Konrad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roger</forename><surname>Wattenhofer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Society of Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>of International Society of Music Information Retrieval Conference (ISMIR)<address><addrLine>Paris, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="747" to="754" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Bidirectional recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kuldip K</forename><surname>Paliwal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Signal Processing</title>
+		<imprint>
+			<biblScope unit="volume">45</biblScope>
+			<biblScope unit="issue">11</biblScope>
+			<biblScope unit="page" from="2673" to="2681" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">An empirical exploration of recurrent network architectures</title>
+		<author>
+			<persName><forename type="first">Rafal</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of 32nd International Conference on Machine Learning (ICML)</title>
+		<meeting>of 32nd International Conference on Machine Learning (ICML)<address><addrLine>Lille, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="2342" to="2350" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Self-normalizing neural networks</title>
+		<author>
+			<persName><forename type="first">Günter</forename><surname>Klambauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Unterthiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Mayr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="971" to="980" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Long shortterm memory</title>
+		<author>
+			<persName><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Beta-Vae: Learning basic visual concepts with a constrained variational framework</title>
+		<author>
+			<persName><forename type="first">Irina</forename><surname>Higgins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Loic</forename><surname>Matthey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arka</forename><surname>Pal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Burgess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Glorot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Botvinick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shakir</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lerchner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Conference on Learning Representations (ICLR)</title>
+		<meeting>of International Conference on Learning Representations (ICLR)<address><addrLine>Toulon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Generating sentences from a continuous space</title>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Samuel R Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vilnis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">M</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rafal</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samy</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 20th Conference on Computational Language Processing</title>
+		<meeting>of the 20th Conference on Computational Language essing</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Conference on Learning Representations (ICLR)</title>
+		<meeting>of International Conference on Learning Representations (ICLR)<address><addrLine>San Diego, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Rank analysis of incomplete block designs: I. The method of paired comparisons</title>
+		<author>
+			<persName><forename type="first">Ralph</forename><surname>Allan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bradley</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Milton</forename><forename type="middle">E</forename><surname>Terry</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Biometrika</title>
+		<imprint>
+			<biblScope unit="volume">39</biblScope>
+			<biblScope unit="issue">3/4</biblScope>
+			<biblScope unit="page" from="324" to="345" />
+			<date type="published" when="1952">1952</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">MM algorithms for generalized Bradley-Terry models. The annals of statistics</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hunter</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="page" from="384" to="406" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">A criterion-related validity test of selected indicators of musical sophistication using expert ratings</title>
+		<author>
+			<persName><surname>Joy E Ollen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+		</imprint>
+		<respStmt>
+			<orgName>The Ohio State University</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">PhD thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">A modelagnostic web interface for interactive music composition by inpainting</title>
+		<author>
+			<persName><forename type="first">Théis</forename><surname>Bazin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashis</forename><surname>Pati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaëtan</forename><surname>Hadjeres</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Information Processing Systems (NeurIPS)</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note>Demonstration Track</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

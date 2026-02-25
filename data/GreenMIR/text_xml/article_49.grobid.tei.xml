@@ -1,0 +1,1190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MUSIC FADERNETS: CONTROLLABLE MUSIC GENERATION BASED ON HIGH-LEVEL FEATURES VIA LOW-LEVEL FEATURE MODELLING</title>
+				<funder ref="#_NXp8PvA #_NNjnZjB #_w5H6n5G">
+					<orgName type="full">unknown</orgName>
+				</funder>
+				<funder ref="#_RrSuqAV">
+					<orgName type="full">MOE</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Hao</forename><surname>Hao Tan</surname></persName>
+							<email>haohao_tan@sutd.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Singapore University of Technology</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Dorien</forename><surname>Herremans</surname></persName>
+							<email>dorien_herremans@sutd.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Singapore University of Technology</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MUSIC FADERNETS: CONTROLLABLE MUSIC GENERATION BASED ON HIGH-LEVEL FEATURES VIA LOW-LEVEL FEATURE MODELLING</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">9DDE7663D37B5371548A509D7E2631F1</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>High-level musical qualities (such as emotion) are often abstract, subjective, and hard to quantify. Given these difficulties, it is not easy to learn good feature representations with supervised learning techniques, either because of the insufficiency of labels, or the subjectiveness (and hence large variance) in human-annotated labels. In this paper, we present a framework that can learn high-level feature representations with a limited amount of data, by first modelling their corresponding quantifiable low-level attributes. We refer to our proposed framework as Music FaderNets, which is inspired by the fact that low-level attributes can be continuously manipulated by separate "sliding faders" through feature disentanglement and latent regularization techniques. High-level features are then inferred from the low-level representations through semisupervised clustering using Gaussian Mixture Variational Autoencoders (GM-VAEs). Using arousal as an example of a high-level feature, we show that the "faders" of our model are disentangled and change linearly w.r.t. the modelled low-level attributes of the generated output music. Furthermore, we demonstrate that the model successfully learns the intrinsic relationship between arousal and its corresponding low-level attributes (rhythm and note density), with only 1% of the training set being labelled. Finally, using the learnt high-level feature representations, we explore the application of our framework in style transfer tasks across different arousal states. The effectiveness of this approach is verified through a subjective listening test.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>We consider low-level musical attributes as attributes that are relatively straightforward to quantify, extract and calculate from music, such as rhythm, pitch, harmony, etc. On the other hand, high-level musical attributes refer to semantic descriptors or qualities of music that are relatively abstract, such as emotion, style, genre, etc. Due to the nature of abstractness and subjectivity in these high-level musical qualities, obtaining labels for these qualities typically c Hao Hao Tan, Dorien Herremans. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Hao Hao Tan, Dorien Herremans, "Music FaderNets: Controllable Music Generation Based On High-Level Features via Low-Level Feature Modelling", in Proc. of the 21st Int. Society for Music Information Retrieval Conf., Montréal, Canada, 2020. requires human annotation. However, training conditional models on top of these human-annotated labels using supervised learning might result in sub-par performance because firstly, obtaining such labels can be costly, hence the amount of labels collected might be insufficient to train a model that can generalize well <ref type="bibr" target="#b1">[1]</ref>; Secondly, the annotated labels could have high variance among raters due to the subjectivity of these musical qualities <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b3">3]</ref>.</p><p>Instead of inferring high-level features directly from the music sample, we propose to use low-level features as a "bridge" between the music and the high level features. This is because the relationship between the sample and its low-level features can be learnt relatively easier, as the labels are easier to obtain. In addition, we learn the relationship between the low-level features and the high-level features in a data-driven manner. In this paper, we show that the latter works well even with a limited amount of labelled data. Our work relies heavily on the concept that each high-level feature is intrinsically related to a set of low-level attributes. By tweaking the levels of each lowlevel attribute in a constrained manner, we can achieve a desired change on the high-level feature. This idea is heavily exploited in rule-based systems <ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr" target="#b6">[6]</ref>, however rulebased systems are often not robust enough as their capabilities are constrained by the fixed set of predefined rules handcrafted by the authors. Hence, we propose an alternative path which is to learn these implicit relationships with semi-supervised learning techniques.</p><p>To achieve the goals stated above, we intend to build a framework which can fulfill these two objectives:</p><p>• Firstly, the model should be able to control multiple low-level attributes of the music sample in a continuous manner, as if it is controlled by sliding knobs on a console (or also known as faders). Each knob should be independent from the others, and only controls one single feature that it is assigned to.</p><p>• Secondly, the model should be able to learn the relationship between the levels of the sliding knobs controlling the low-level features, and the selected highlevel feature. This is analogous to learning a preset of the sliding knobs on a console.</p><p>We named our model "Music FaderNets", with reference to musical "faders" and "presets" as described above. Achieving the first objective requires representation learning and feature disentanglement techniques. This motivates us to use latent variable models <ref type="bibr" target="#b7">[7]</ref> as we can learn separate latent spaces for each low-level feature to obtain disentangled controllability. Achieving the second objective requires the latent space to have a hierarchical structure, such that high-level information can be inferred from low-level representations. This is achieved by incorporating Gaussian Mixture VAEs <ref type="bibr">[8]</ref> in our model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Controllable Music Generation</head><p>The application of deep learning techniques for music generation has been rapidly advancing <ref type="bibr" target="#b9">[9]</ref><ref type="bibr" target="#b10">[10]</ref><ref type="bibr" target="#b11">[11]</ref><ref type="bibr" target="#b12">[12]</ref><ref type="bibr" target="#b13">[13]</ref>, however, embedding control and interactivity in these systems still remains a critical challenge <ref type="bibr" target="#b10">[10]</ref>. Variants of conditional generative models (such as CGAN <ref type="bibr" target="#b14">[14]</ref> and CVAE <ref type="bibr" target="#b15">[15]</ref>) are used to allow control during generation, which have attained much success mainly in the image domain. Fader Networks <ref type="bibr" target="#b16">[16]</ref> is one of the main inspirations of this work (hence the name Music FaderNets), in which users can modify different visual features of an image using "sliding faders". However, their approach is built upon a CVAE with an additional adversarial component, which is very different from our approach. Recently, controllable music generation has gained much research interest, both on modelling low-level <ref type="bibr" target="#b17">[17]</ref><ref type="bibr" target="#b18">[18]</ref><ref type="bibr" target="#b19">[19]</ref><ref type="bibr" target="#b20">[20]</ref> and high-level features <ref type="bibr" target="#b21">[21,</ref><ref type="bibr" target="#b22">22]</ref>. Specifically, <ref type="bibr" target="#b18">[18]</ref> and <ref type="bibr" target="#b19">[19]</ref> each proposed a novel latent regularization method to encode attributes along specific latent dimensions, which inspired the "sliding knob" application in this work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Disentangled Representation Learning for Music</head><p>Disentangled representation learning has been widely used across both the visual <ref type="bibr" target="#b23">[23]</ref><ref type="bibr" target="#b24">[24]</ref><ref type="bibr" target="#b25">[25]</ref><ref type="bibr" target="#b26">[26]</ref> and speech domain <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b27">27,</ref><ref type="bibr" target="#b28">28]</ref> to learn disjoint subsets of attributes. Such techniques have also been applied to music in several recent works, both in the audio <ref type="bibr" target="#b29">[29]</ref><ref type="bibr" target="#b30">[30]</ref><ref type="bibr" target="#b31">[31]</ref> and symbolic domain <ref type="bibr" target="#b32">[32]</ref><ref type="bibr" target="#b33">[33]</ref><ref type="bibr" target="#b34">[34]</ref>. The discriminator component in our model draws inspiration from both the explicit conditioning component in the EC 2 -VAE model <ref type="bibr" target="#b33">[33]</ref>, and the extraction component in the Ext-Res model <ref type="bibr" target="#b34">[34]</ref>. We find that most of the work on disentanglement in symbolic music focuses on low-level features, and is done on monophonic music.</p><p>This research distinguishes itself from other related work through the following novel contributions:</p><p>• We combine latent regularization techniques with disentangled representation learning to build a framework that can control various continuous lowlevel musical attribute values using "faders", and apply the framework on polyphonic music modelling.</p><p>• We show that it is possible to infer high-level features from low-level latent feature representations, even under weakly supervised scenario. This opens up possibilities to learn good representations for abstract, high-level musical qualities even under data scarcity conditions. We further demonstrate that the learnt representations can be used for controllable generation based on high-level features.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">PROPOSED FRAMEWORK</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Gaussian Mixture Variational Autoencoders</head><p>VAEs <ref type="bibr" target="#b35">[35]</ref> combine the power of both latent variable models and deep generative models, hence they provide both representation learning and generation capabilities. Given observations X and latent variables z, the VAE learns a graphical model z → X by maximizing the evidence lower bound (ELBO) of the marginal likelihood p(X) as below:</p><formula xml:id="formula_0">L(p, q; X) = E q(z|X) [log p(X|z)] -D KL (q(z|X)||p(z))</formula><p>where q(z|X) and p(z) represent the learnt posterior and prior distribution respectively. In vanilla VAEs, p(z) is an isotropic, unimodal Gaussian. Gaussian Mixture VAEs (GM-VAE) <ref type="bibr">[8]</ref> extend the prior to a mixture of K Gaussian components, which corresponds to learning a graphical model with an extra hierarchy of dependency c → z → X.</p><p>The newly introduced categorical variable c ∈ C, whereby |C| = K, is a discrete representation of the observations. Hence, a new distribution q(c|X) is introduced to infer the class of each observation, which enables semi-supervised and unsupervised clustering applications. Following <ref type="bibr">[8]</ref>, the ELBO of a GM-VAE is derived as:</p><formula xml:id="formula_1">L(p, q; X) = E q(z|X) [log p(X|z)] - K k=1 q(c k |X)D KL (q(z|X)||p(z|c k )) -D KL (q(c|X)||p(c))</formula><p>The original KL loss term from the vanilla VAE is modified into two new terms: (i) the KL divergence between the approximate posterior q(z|X) and the conditional prior p(z|c k ), marginalized over all Gaussian components; (ii) the KL divergence between the cluster inferring distribution q(c|X), and the categorical prior p(c).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Model Formulation</head><p>Figure <ref type="figure" target="#fig_0">1</ref> shows the model formulation of our proposed Music FaderNets. Input X is a sequence of performance tokens converted from MIDI following <ref type="bibr" target="#b12">[12,</ref><ref type="bibr" target="#b13">13]</ref>. Assume that we want to model a high-level feature with K discrete states, which is related to a set of N low-level features. We denote the latent variables learnt for each low-level feature as z 1...N ; the labels for each low-level feature as y 1...N ; and the class inferred from each latent variable as c 1...N .</p><p>The joint probability of X, z 1...N , c 1...N is written as:</p><formula xml:id="formula_2">p(X, z 1...N , c 1...N ) = p(X|z 1...N ) N i=1 p(z i |c i ) N i=1 p(c i )</formula><p>We assume that each categorical prior p(c i ), i ∈ [1, N ] is uniformly distributed, and the conditional distributions p(z i |c i ) = N (µ ci , diag(σ ci )) are diagonal-covariance Gaussians with learnable means and constant variances.</p><p>For each low-level attribute, we learn an approximate posterior q(z i |X), parameterized by an encoder neural network, that samples latent code z i which represents the i-th low-level feature. (3) Cluster Inference: This component parameterizes the cluster inference probability q(c|X), with c representing the selected high-level feature. It can be approximated by q(c|X) ≈ E q(z|X) p(c|z) <ref type="bibr" target="#b36">[36]</ref>, where the cluster state is predicted from each latent code z i instead of X.</p><p>To incorporate the "sliding knob" concept, we need to map the change of value of an arbitrary dimension on z i (denoted as z d i , shown on Figure <ref type="figure" target="#fig_0">1</ref> as the darkened dimension) linearly to the change of value of the low-level feature label y i . After comparing across previous methods on conditioning and regularization <ref type="bibr" target="#b15">[15,</ref><ref type="bibr" target="#b16">16,</ref><ref type="bibr" target="#b18">18,</ref><ref type="bibr" target="#b19">19]</ref>, we choose to adopt <ref type="bibr" target="#b19">[19]</ref> which applies a latent regularization loss term written as L reg (z d i , y i ) = MSE(tanh(D z d i ), sign(D y i )), where D z d i and D y i denotes the distance matrix of values z d i and y i within a training batch respectively. We provide a detailed comparison study across each proposed method in Section 4.2. Hence, if we define:</p><formula xml:id="formula_3">L i φ (p, q; X) =                K k=1 q(c i,k |X)D KL (q(z i |X)||p(z i |c i,k )) + D KL (q(c i |X)||p(c i )), if unsupervised D KL (q(z i |X)||p(z i |c i )), if supervised<label>(1</label></formula><p>) then the entire training objective can be derived as:</p><formula xml:id="formula_4">L(p, q; X) = E q(z1|X)...q(z N |X) [log p(X|z 1 , z 2 , ..., z N )] -β • N i=1 L i φ (p, q; X) + N i=1 L reg (z d i , y i ) + E q(z1|X)...q(zn|X) [log p(y 1 |z 1 )...p(y N |z N )] (<label>2</label></formula><formula xml:id="formula_5">)</formula><p>where β is the KL weight hyperparameter <ref type="bibr" target="#b24">[24]</ref>. The first term in Eq. 2 represents the reconstruction loss. The second KL loss term (derived from the ELBO function of GM-VAE) correspond to the cluster inference component, which allows both supervised and unsupervised training setting, depending on the availability of label c. If we omit the cluster inference component, it could conform to a vanilla VAE by replacing this term with the KL loss term of VAE. The third term is the latent regularization loss applied during the encoding process. The last term is the reconstruction loss of the low-level feature labels, which corresponds to the discriminator component. All encoders and decoders are implemented with gated recurrent units (GRUs), and teacher-forcing is used to train all decoders.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTAL SETUP</head><p>In this work, we chose arousal (which refers to the energy level conveyed by the song <ref type="bibr" target="#b37">[37]</ref>) as the high-level feature to be modelled. In order to select relevant low-level features, we refer to musicology papers such as <ref type="bibr" target="#b6">[6,</ref><ref type="bibr" target="#b38">38,</ref><ref type="bibr" target="#b39">39]</ref>, which suggest that arousal is related to features including rhythm density, note density, key, dynamic, tempo, etc. Among these low-level features, we focus on modelling the scorelevel features in this work (i.e. rhythm, note and key).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Data Representation and Hyperparameters</head><p>We use two polyphonic piano music datasets for training: the Yamaha Piano-e-Competition dataset <ref type="bibr" target="#b12">[12]</ref>, and the VGMIDI dataset <ref type="bibr" target="#b3">[3]</ref>, which contains piano arrangements of 95 video game soundtracks in MIDI, annotated with valence and arousal values in the range of -1 to 1. The arousal labels are used to guide the cluster inference component in our GM-VAE model using semi-supervised learning. We extract every 4-beat segment from each music sample, with a beat resolution of 4 (quarter-note granularity). Each segment is encoded into event-based tokens following <ref type="bibr" target="#b12">[12]</ref> with a maximum sequence length of 100. This results in a total of 103,934 and 1,013 sequences from the Piano e-Competition and VGMIDI dataset respectively, which are split into train/validation/test sets with a ratio of 80/10/10.</p><p>Inspired by <ref type="bibr" target="#b33">[33]</ref>, we represent each rhythm label, y rhythm , as a sequence of 16 one-hot vectors with 3 dimensions, denoting an onset for any pitch, a holding state, or a rest. The rhythm density value is calculated as the number of onsets in the sequence divided by the total sequence length. Each note label, y note , is represented by a sequence of 16 one-hot vectors with 16 dimensions, each dimension denoting the number of notes being played or held at that time step (we assume a minimum polyphony of 0 and a maximum of 15). The note density value is the average number of notes being played or held for per time step.</p><p>For key, we use the key analysis tool from music21 <ref type="bibr" target="#b40">[40]</ref> to extract the estimated global key of each 4-beat segment.</p><p>The key is represented using a 24-dimension one-hot vector, accounting for major and minor modes. In this work, we directly concatenate the key vector as a conditioning signal with z rhythm and z note as an input to the global decoder for reconstruction. For representing arousal, we split the arousal ratings into two clusters (K = 2): high arousal cluster for positive labels, and low arousal cluster for negative labels. We remove labels annotated within the range [-0.1, 0.1] so as to reduce ambiguity in the annotations.</p><p>The hyperparameters are tuned according to the results on the validation set using grid search. The mean vectors of p(c|z) are all randomly initialized with Xavier initialization, whereas the variance vectors are kept fixed with value e -2 . We observe that the following annealing strategy for β leads to the best balance between reconstruction and controllability: β is set to 0 in the first 1,000 training steps, and is slowly annealed up to 0.2 in the next 10,000 training steps. We set the batch size to 128, all hidden sizes to 512, and the encoded z dimensions to 128. The Adam optimizer is used with a learning rate of 10 -3 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Measuring the Controllability of Latent Features</head><p>The proposed Music FaderNets model should meet two requirements: (i) Each "fader" independently controls one low-level musical feature without affecting other features (disentanglement), and (ii) the "faders" should change linearly with the controlled attribute of the generated output (linearity). For disentanglement, we follow the definition proposed in <ref type="bibr" target="#b41">[41]</ref> which decomposes the concept of disentanglement into generator consistency and generator restrictiveness. Using rhythm density as an example:</p><p>• Consistency on rhythm density means that for the same value of z d rhythm , the value of the output's rhythm density should be consistent.</p><p>• Restrictiveness on rhythm density means that changing the value of z d rhythm does not affect the attributes other than rhythm density (in our case, note density).</p><p>• Linearity on rhythm density means that the value of rhythm density is directly proportional to the value of z d rhythm , which is analogous to a sliding fader.</p><p>We will be evaluating all three of these points in our experiment. For evaluating linearity, <ref type="bibr" target="#b19">[19]</ref> proposed a slightly modified version of the interpretability metric by <ref type="bibr" target="#b42">[42]</ref>, which includes the following steps: (1) encode each sample in the test set, obtain the rhythm latent code and the dimension z d which has the maximum mutual information with regards to the attribute; (2) learn a linear regressor to predict the input attribute values based on z d . The linearity score is hence the coefficient of determination (R 2 ) score of the linear regressor. However, this method evaluates only the encoder and not the decoder. As we want the sliding knobs to directly impact the output, we argue that the relationship between z d and the output attributes should be more important. Hence, we propose to "slide" the values of the regularized dimension z d within a given range and decode them into reconstructed outputs. Then, instead of predicting the input attributes given the encoded z d , the linear regressor learns to predict the corresponding output attributes given the "slid" values of z d .</p><p>We demonstrate a single workflow to calculate the consistency, restrictiveness and linearity scores of a given model based on the low-level features (we use rhythm density as an example low-level feature for the discussion below), as depicted in Figure <ref type="figure" target="#fig_1">2</ref> The final evaluation scores are then calculated as follows:</p><formula xml:id="formula_6">Consistency score = 1 - 1 T T t=1 σ t (r 1...M,t )<label>(3)</label></formula><note type="other">Consistency Restrictiveness Linearity Rhythm Density Note Density Rhythm Density Note Density Rhythm Density Note Density</note><p>Proposed (Vanilla VAE) 0.4367 ± 0.0258 0.3490 ± 0.0360 0.6645 ± 0.0169 0.6481 ± 0.0154 0.7805 ± 0.0142 0.8255 ± 0.0107 Proposed (GM-VAE) 0.5096 ± 0.0248 0.4207 ± 0.0309 0.6603 ± 0.0164 0.6457 ± 0.0132 0.7580 ± 0.0124 0.7792 ± 0.0177 Pati et al. <ref type="bibr" target="#b19">[19]</ref> 0.4625 ± 0.0264 0.5100 ± 0.0150 0.6417 ± 0.0171 0.5497 ± 0.0206 0.7613 ± 0.0171 0.8220 ± 0.0143 CVAE <ref type="bibr" target="#b15">[15]</ref> 0.2613 ± 0.0376 0.4997 ± 0.0355 0.6863 ± 0.0221 0.7140 ± 0.0130 0.4969 ± 0.0166 0.3997 ± 0.0411 Fader Networks <ref type="bibr" target="#b16">[16]</ref> 0.2730 ± 0.0366 0.4983 ± 0.0425 0.6861 ± 0.0163 0.7379 ± 0.0149 0.5482 ± 0.0283 0.4647 ± 0.0292 GLSR <ref type="bibr" target="#b18">[18]</ref> 0.1891 ± 0.0346 0.1969 ± 0.0831 0.6365 ± 0.0276 0.7136 ± 0.0185 0.2465 ± 0.0197 0.1799 ± 0.0209 Table <ref type="table">1</ref>. Experimental results (conducted on the Yamaha dataset test split) on the controllability of low-level features (rhythm density and note density) using disentangled latent variables. Bold marks the best performing model.</p><formula xml:id="formula_7">Restrictiveness score = 1 - 1 M M m=1 σ m (n m,1..T ) (4) Linearity score = R 2 (M(p 1...M ))<label>(5)</label></formula><p>where σ(•) denotes the standard deviation, and M denotes the linear regressor model. In other words, consistency calculates the average standard deviation across all output rhythm density values given the same z d rhythm , whereas restrictiveness calculates the average standard deviation across all output note density values given the changing z d rhythm . In a perfectly disentangled and linear model, the consistency, restrictiveness and linearity scores should be equal to 1, and higher scores indicate better performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">EXPERIMENTS AND RESULTS</head><p>We compare the evaluation scores of our proposed model, using both a vanilla VAE (omitting the cluster inference component) and GM-VAE, with several models proposed in related work on controllable synthesis: CVAE <ref type="bibr" target="#b15">[15]</ref>, Fader Networks <ref type="bibr" target="#b16">[16]</ref>, GLSR <ref type="bibr" target="#b18">[18]</ref> and Pati et al. <ref type="bibr" target="#b19">[19]</ref>. We repeat the above steps for 10 runs for each model and report the mean and standard deviation of each score. Table <ref type="table">1</ref> shows the evaluation results. Overall, our proposed models achieve a good all-rounded performance on every metric as compared to other models, especially in terms of linearity, models that use <ref type="bibr" target="#b19">[19]</ref>'s regularization method largely outperform other models. Our model shares similar results with <ref type="bibr" target="#b19">[19]</ref>, however as compared to their work, we encode a multi-dimensional, regularized latent space instead of a single dimension value for each low-level feature, thus allowing more flexibility. Our model can also be used for "generation via analogy" as mentioned in EC 2 -VAE <ref type="bibr" target="#b33">[33]</ref>, by mix-matching z rhythm from one sample with z note from another. Moreover, the feature latent vectors can be used to infer interpretable and semantically meaningful clusters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Inferring High-Level Features from Latent Low-Level Representations</head><p>Figure <ref type="figure" target="#fig_3">3</ref> visualizes the rhythm and note density latent space learnt by GM-VAE using t-SNE dimensionality reduction. We observe that both spaces successfully learn a Gaussian-mixture space with two well-separated components, which correspond to high and low arousal clusters, even though it was trained with only around 1% of labelled data. We also find that the regularized z d values capture the overall trend of the actual rhythm and note density values. Interestingly, the model learns the implicit relationship between high/low arousal and the corresponding levels of rhythm/note density. From Figure <ref type="figure" target="#fig_3">3</ref>, we observe that the high arousal cluster corresponds to higher rhythm density and lower note density, whereas the low arousal cluster corresponds to lower rhythm density and higher note density. This is reasonable as music segments with high arousal often consist of fast running notes and arpeggios, being played one note at a time, whereas music segments with low arousal often exhibit a chordal texture with more sustaining notes and relatively less melodic activity.</p><p>To further inspect the importance of using low-level features, we train a separate GM-VAE model with only one encoder (without discriminator component), which encodes only a single latent vector for each segment. The model is trained to infer the arousal label with the single latent vector similarly in a semi-supervised manner, and the hyperparameters are kept the same. From Figure <ref type="figure" target="#fig_4">4</ref>, we can observe that the latent space learnt without using low-level features is not well-segregated into two separate components, suggesting that the right choice of low-level features helps the learning of a more discriminative and disentangled feature latent space.</p><p>The major advantage demonstrated from the results above is that by carefully choosing low-level features supported by domain knowledge, semi-supervised (or weakly supervised) training can be leveraged to learn interpretable representations that can capture implicit relationships between high-level and low-level features, overcoming the  difficulties mentioned in the introduction section. This is an important insight for learning representations of abstract musical qualities under label scarcity conditions in future.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Style Transfer on High Level Features</head><p>Utilizing the learnt high-level feature representations enables the application of feature style transfer. Following <ref type="bibr" target="#b29">[29]</ref>, given the means of each Gaussian component, µ arousal=0 and µ arousal=1 , the "shifting vector" from high arousal to low arousal is s low_shift = µ arousal=0 -µ arousal=1 , and vice versa. To shift a music segment from high to low arousal, we modify the latent codes by z rhythm = z rhythm + s low_shift , z note = z note + s low_shift . Both new latent codes z rhythm and z note are fed into the global decoder for reconstruction. For cases where c rhythm = c note , we choose to perform shifting only on the latent codes which are not lying within the target arousal cluster. Figure <ref type="figure" target="#fig_5">5</ref> shows several examples of arousal shift performed on given music segments. We can observe that the shift is clearly accompanied with the desired changes in rhythm density and note density, as mentioned in Section 5.1. More examples are available online. 1 We also conducted a subjective listening test to evaluate the quality of arousal shift performed by Music FaderNets. We randomly chose 20 music segments from our dataset, and performed a low-to-high arousal shift on 10 segments and a high-to-low arousal shift on the other 10. Each subject listened to the original sample and then the transformed sample, and was asked whether (1) the arousal level changes after the transformation, and; (2) how well the transformed sample sounds in terms of rhythm, melody, harmony and naturalness, on a 1 <ref type="url" target="https://music-fadernets.github.io/">https://music-fadernets.github.io/</ref>  A total of 48 subjects participated in the survey. We found that 81.45% of the responses agreed with the actual direction of level change in arousal, shifted by the model. This showed that our model is capable of shifting the arousal level of a piece to a desired state. From the heat map shown in Figure <ref type="figure" target="#fig_6">6</ref>, we observe that shifting from high to low arousal has a higher rate of agreement (92.5%) than shifting from low to high arousal (70.41%). Meanwhile, the mean opinion score of rhythm, melody, harmony and naturalness were reported at 3.53, 3.39, 3.41 and 3.33 respectively, showing that the quality of the generated samples are generally above moderate level.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSION AND FUTURE WORK</head><p>We propose a novel framework called Music FaderNets<ref type="foot" target="#foot_0">foot_0</ref> , which can generate new variations of music samples by controlling levels ("sliding knobs") of low-level attributes, trained with latent regularization and feature disentanglement techniques. We also show that the framework is capable of inferring high-level feature representations ("presets", e.g. arousal) on top of latent low-level representations by utilizing the GM-VAE framework. Finally, we demonstrate the application of using learnt high-level feature representations to perform arousal transfer, which was confirmed in a user experiment. The key advantage of this framework is that it can learn interpretable mixture components that reveal the intrinsic relationship between lowlevel and high-level features using semi-supervised learning, so that abstract musical qualities can be quantified in a more concrete manner with limited amount of labels.</p><p>While the strength of arousal transfer is gradually increased, we find that the identity of the original piece is also gradually shifted. A recent work on text generation using VAEs <ref type="bibr" target="#b43">[43]</ref> observed this similar trait and attributed its cause to the "latent vacancy" problem by topological analysis. A possible solution is to adopt the Constrained-Posterior VAE <ref type="bibr" target="#b43">[43]</ref>, in which we aim to explore in future work. Future work will also focus on applying the framework on other sets of abstract musical qualities (such as valence <ref type="bibr" target="#b37">[37]</ref>, tension <ref type="bibr" target="#b44">[44]</ref>, etc.), and extending the framework to model multi-track music with longer duration to produce more complete music.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. Music FaderNets model architecture. The latent codes z 1...N are then passed through the remaining three components: (1) Discriminator: To ensure that z i incorporates information of the assigned low-level feature, it is passed through a discriminator represented by a function d(z i ) to reconstruct the low-level feature label y i ; (2) Reconstruction: All latent codes are fed into a global decoder network which parameterizes the conditional probability p(X|z 1...n ) to reconstruct the input X;(3) Cluster Inference: This component parameterizes the cluster inference probability q(c|X), with c representing the selected high-level feature. It can be approximated by q(c|X) ≈ E q(z|X) p(c|z)<ref type="bibr" target="#b36">[36]</ref>, where the cluster state is predicted from each latent code z i instead of X.To incorporate the "sliding knob" concept, we need to map the change of value of an arbitrary dimension on z i (denoted as z d i , shown on Figure1as the darkened dimension) linearly to the change of value of the low-level feature label y i . After comparing across previous methods on conditioning and regularization<ref type="bibr" target="#b15">[15,</ref><ref type="bibr" target="#b16">16,</ref><ref type="bibr" target="#b18">18,</ref><ref type="bibr" target="#b19">19]</ref>, we choose to adopt<ref type="bibr" target="#b19">[19]</ref> which applies a latent regularization loss term written as L reg (z d i , y i ) = MSE(tanh(D z d i ), sign(D y i )), where D z d i and D y i denotes the distance matrix of values z d i and y i within a training batch respectively. We provide a detailed comparison study across each proposed method in Section 4.2. Hence, if we define:</figDesc><graphic coords="3,54.99,48.72,487.52,171.06" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Workflow of obtaining evaluation metrics for "faders" controlling rhythm density.</figDesc><graphic coords="4,310.11,48.72,232.43,91.41" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>. After obtaining the rhythm density latent code for all samples in the training set and finding the minimum and maximum value of z d rhythm , we "slide" for T = 8 steps by calculating min(z d rhythm ) + t T (max(z d rhythm ) -min(z d rhythm )), with t ∈ [1, T ]. This results in a list of values denoted as [z d rhythm ] 1...T . Then, we conduct the following steps: 1. Randomly select M = 100 samples from the test set, and encode each sample into z rhythm and z note ; 2. Alter the d-th element in z rhythm using the values in the range [z d rhythm ] 1...T , to obtain [ẑ rhythm ] m,1...T for each sample m; 3. Decode each new rhythm density latent code together with the unchanged note density latent code z note to get Xm,1...T ; 4. Calculate rhythm density r m,1...T and note density n m,1...T for each reconstructed output; 5. Pair up the new rhythm density latent code with the resulting rhythm density of the output as T training data points p m = {([z d rhythm ] t , r m,t ) | t ∈ [1, T ]} for a linear regressor.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. Visualization of rhythm (top) and note (bottom) density latent space in the GM-VAE. Each column is colored in terms of: (left) original density values, (middle) regularized z d values, (right) arousal cluster labels (0 refers to low arousal and 1 refers to high arousal).</figDesc><graphic coords="5,310.11,182.50,232.44,125.97" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 .</head><label>4</label><figDesc>Figure 4. Arousal cluster visualization of GM-VAE with (left), and without (right) using low-level features.</figDesc><graphic coords="6,54.99,178.76,232.43,149.44" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 .</head><label>5</label><figDesc>Figure 5. Examples of arousal transfer on music samples.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 .</head><label>6</label><figDesc>Figure 6. Subjective listening test results. Left: Heat map of annotated arousal level change against actual arousal level change. Right: Bar plot of opinion scores for each musical quality, with 95% confidence interval.</figDesc><graphic coords="6,310.11,48.72,232.44,78.86" type="bitmap" /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>Source code available at: https://github.com/gudgud96/ music-fader-nets</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="7.">ACKNOWLEDGEMENTS</head><p>We would like to thank the anonymous reviewers for their constructive reviews. We also thank <rs type="person">Yin-Jyun Luo</rs> for the insightful discussions on GM-VAEs. This work is supported by <rs type="funder">MOE</rs> <rs type="grantNumber">Tier 2</rs> grant no. <rs type="grantNumber">MOE2018-T2-2-161</rs> and <rs type="grantNumber">SRG ISTD 2017 129</rs>. The subjective listening test is approved by the <rs type="institution">Institutional Review Board</rs> under <rs type="grantNumber">SUTD-IRB 20-315</rs>. We would also like to thank the volunteers for taking the subjective listening test.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_RrSuqAV">
+					<idno type="grant-number">Tier 2</idno>
+				</org>
+				<org type="funding" xml:id="_NXp8PvA">
+					<idno type="grant-number">MOE2018-T2-2-161</idno>
+				</org>
+				<org type="funding" xml:id="_NNjnZjB">
+					<idno type="grant-number">SRG ISTD 2017 129</idno>
+				</org>
+				<org type="funding" xml:id="_w5H6n5G">
+					<idno type="grant-number">SUTD-IRB 20-315</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Semi-supervised generative modeling for controllable speech synthesis</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Habib</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mariooryad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Shannon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Battenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Skerry-Ryan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Stanton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Bagby</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Emotion in music task at mediaeval 2015</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Aljanaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Soleymani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">MediaEval</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Learning to generate music with sentiment</title>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">N</forename><surname>Ferreira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Whitehead</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the International Society for Music Information Retrieval Conference</title>
+		<meeting>of the International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Emotional coloring of computer-controlled music performances</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bresin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Friberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Music Journal</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="44" to="63" />
+			<date type="published" when="2000">2000</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Changing musical emotion: A computational rule system for modifying score and performance</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">R</forename><surname>Livingstone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Muhlberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">R</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">F</forename><surname>Thompson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Music Journal</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="41" to="64" />
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A closed-loop, music-based brain-computer interface for emotion mediation</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">K</forename><surname>Ehrlich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">R</forename><surname>Agres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Guan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Cheng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">PloS one</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">A tutorial on deep latent variable models of natural language</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1812.06834</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Variational deep embedding: An unsupervised and generative approach to clustering</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.05148</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">The emergence of deep learning: new opportunities for music and audio technologies</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Herremans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-H</forename><surname>Chuan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computing and Applications</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="page" from="913" to="914" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Deep learning techniques for music generation</title>
+		<author>
+			<persName><forename type="first">J.-P</forename><surname>Briot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Pachet</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<publisher>Springer</publisher>
+			<biblScope unit="volume">10</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A functional taxonomy of music generation systems</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Herremans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-H</forename><surname>Chuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Chew</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Computing Surveys (CSUR)</title>
+		<imprint>
+			<biblScope unit="volume">50</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="1" to="30" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">This time with feeling: Learning expressive musical performance</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Computing and Applications</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1" to="13" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Music transformer: Generating music with long term structure</title>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Conditional generative adversarial nets</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mirza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Osindero</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1411.1784</idno>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning structured output representation using deep conditional generative models</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Sohn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Yan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="3483" to="3491" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Fader networks: Manipulating images by sliding attributes</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Zeghidour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Denoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ranzato</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5967" to="5976" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">A hierarchical latent vector model for learning long-term structure in music</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Machine Learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Glsr-vae: Geodesic latent space regularization for variational autoencoder architectures</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Nielsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Pachet</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Symposium Series on Computational Intelligence (SSCI)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1" to="7" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Latent space regularization for explicit control of musical attributes</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML Machine Learning for Music Discovery Workshop (ML4MD), Extended Abstract</title>
+		<meeting><address><addrLine>Long Beach, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Latent constraints: Learning to generate conditionally from unconditional generative models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Learning Representations</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Music style transfer: A position paper</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Workshop on Musical Metacreation</title>
+		<meeting>of International Workshop on Musical Metacreation</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Encoding musical style with transformer autoencoders</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Machine Learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Infogan: Interpretable representation learning by information maximizing generative adversarial nets</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Houthooft</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Abbeel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2172" to="2180" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">betavae: Learning basic visual concepts with a constrained variational framework</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Higgins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Matthey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Burgess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Glorot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Botvinick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerchner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Learning Representations</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Disentangling by factorising</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mnih</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Machine Learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Disentangled sequential autoencoder</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yingzhen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mandt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="5670" to="5679" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Unsupervised learning of disentangled and interpretable representations from sequential data</title>
+		<author>
+			<persName><forename type="first">W.-N</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Glass</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1878" to="1889" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Style tokens: Unsupervised style modeling, control and transfer in end-to-end speech synthesis</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Stanton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Skerry-Ryan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Battenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Shor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">A</forename><surname>Saurous</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Machine Learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Learning disentangled representations of timbre and pitch for musical instrument sounds using gaussian mixture variational autoencoders</title>
+		<author>
+			<persName><forename type="first">Y.-J</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Agres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Herremans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the International Society for Music Information Retrieval Conference</title>
+		<meeting>of the International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Learning disentangled representations for timber and pitch in music audio</title>
+		<author>
+			<persName><forename type="first">Y.-N</forename><surname>Hung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-A</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1811.03271</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Musical composition style transfer via disentangled timbre representations</title>
+		<author>
+			<persName><forename type="first">Y.-N</forename><surname>Hung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-A</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Joint Conference of Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Midi-vae: Modeling dynamics and instrumentation of music with applications to style transfer</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Brunner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Konrad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Wattenhofer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the International Society for Music Information Retrieval Conference</title>
+		<meeting>of the International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Deep music analogy via latent representation disentanglement</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the International Society for Music Information Retrieval Conference</title>
+		<meeting>of the International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Controlling symbolic music generation based on concept learning from domain knowledge</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Akama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the International Society for Music Information Retrieval Conference</title>
+		<meeting>of the International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Auto-encoding variational bayes</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Welling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Learning Representations</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Hierarchical generative modeling for controllable speech synthesis</title>
+		<author>
+			<persName><forename type="first">W.-N</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Shen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">A circumplex model of affect</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">A</forename><surname>Russell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of personality and social psychology</title>
+		<imprint>
+			<biblScope unit="volume">39</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page">1161</biblScope>
+			<date type="published" when="1980">1980</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">The influence of musical structure on emotional expression</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gabrielsson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Lindström</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2001">2001</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Relationships between musical structure and psychophysiological measures of emotion</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Danuser</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Emotion</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page">377</biblScope>
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">music21: A toolkit for computer-aided musicology and symbolic music data</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">S</forename><surname>Cuthbert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Ariza</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the International Society for Music Information Retrieval Conference</title>
+		<meeting>of the International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Weakly supervised disentanglement with guarantees</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Shu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ermon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Poole</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Discovering interpretable representations for both deep generative and discriminative models</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Adel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ghahramani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Weller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="50" to="59" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">On variational learning of controllable representations for text without supervision</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">C K</forename><surname>Cheung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Morpheus: generating structured music with constrained patterns and tension</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Herremans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Chew</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Affective Computing</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

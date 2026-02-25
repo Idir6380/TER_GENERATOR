@@ -1,0 +1,697 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">EXPLORING SAMPLING TECHNIQUES FOR GENERATING MELODIES WITH A TRANSFORMER LANGUAGE MODEL</title>
+				<funder ref="#_WdPqF5d">
+					<orgName type="full">European Research Council</orgName>
+					<orgName type="abbreviated">ERC</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Sony Computer Science Laboratories Paris</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Mathias</forename><surname>Rose Bjare</surname></persName>
+							<email>mathias.bjare@jku.at</email>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Computational Perception</orgName>
+								<orgName type="institution">Johannes Kepler University Linz</orgName>
+								<address>
+									<country key="AT">Austria</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Stefan</forename><surname>Lattner</surname></persName>
+							<email>stefan.lattner@sony.com</email>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Sony Computer Science Laboratories (CSL)</orgName>
+								<address>
+									<settlement>Paris</settlement>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+							<email>gerhard.widmer@jku.at</email>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Computational Perception</orgName>
+								<orgName type="institution">Johannes Kepler University Linz</orgName>
+								<address>
+									<country key="AT">Austria</country>
+								</address>
+							</affiliation>
+							<affiliation key="aff2">
+								<orgName type="department">LIT AI Lab</orgName>
+								<orgName type="institution">Linz Institute of Technology</orgName>
+								<address>
+									<country key="AT">Austria</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">EXPLORING SAMPLING TECHNIQUES FOR GENERATING MELODIES WITH A TRANSFORMER LANGUAGE MODEL</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">3260D985F6A5D7C00E48260A9EB13577</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Research in natural language processing has demonstrated that the quality of generations from trained autoregressive language models is significantly influenced by the used sampling strategy. In this study, we investigate the impact of different sampling techniques on musical qualities such as diversity and structure. To accomplish this, we train a high-capacity transformer model on a vast collection of highly-structured Irish folk melodies and analyze the musical qualities of the samples generated using distribution truncation sampling techniques. Specifically, we use nucleus sampling, the recently proposed "typical sampling", and conventional ancestral sampling. We evaluate the effect of these sampling strategies in two scenarios: optimal circumstances with a well-calibrated model and suboptimal circumstances where we systematically degrade the model's performance. We assess the generated samples using objective and subjective evaluations. We discover that probability truncation techniques may restrict diversity and structural patterns in optimal circumstances, but may also produce more musical samples in suboptimal circumstances.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>In recent years, developments in natural language modelling have also accelerated the field of symbolic music generation. In this context, the musical events of a music piece are represented as a sequence of symbols or tokens from a fixed vocabulary, and the goal is to learn to generate new token sequences. At present, the autoregressive transformer model <ref type="bibr" target="#b1">[1]</ref> is the basis of many symbolic music generation models <ref type="bibr" target="#b2">[2]</ref><ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref>. In this context, a conditional distribution is learned by solving a masked selfprediction task <ref type="bibr" target="#b2">[2]</ref><ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref>, and generation is performed with stochastic sampling techniques, e.g., ancestral sampling, or maximization-based search techniques, e.g., beam search.</p><p>However, the choice of decoding technique has been shown to impact various qualitative features of generated samples substantially. In <ref type="bibr" target="#b6">[6]</ref>, the authors showed that generation with nucleus sampling yields natural language samples that are more contextualized than those from conventional sampling techniques, and samples of nucleus sampling score higher in human evaluations. More recently, the authors of <ref type="bibr" target="#b7">[7]</ref> propose typical sampling and show that it reduces degenerate sample generation while exhibiting performance competitive with nucleus sampling. Typical sampling is based on the authors' finding that words in human language are typical. More specifically, the authors show that most words of human language are, in fact, not the most likely words (lowest information content (IC)), as measured with a language model, but rather typical words, i.e., they have an IC close to the conditional entropy of the language model. Typical sampling explicitly enforces this condition.</p><p>We hypothesize that a careful choice of sampling technique could also improve certain aspects of music generated using language models, particularly because in <ref type="bibr">[8]</ref>, it has been shown that musical events tend to be typical. However, we find that many music generation systems rely on ordinary sampling techniques. In addition, studies on the effect of sampling techniques on musical qualities are limited.</p><p>In this work, we study the structural and tonal properties of music generated with different sampling techniques applied to a high-capacity transformer model. Specifically, we measure the IC, long and short-term self-similarities and scale consistency of samples generated with conventional sampling, nucleus sampling, and typical sampling. We test the sampling techniques for a well-calibrated model and for under-calibrated models. We support our findings by performing a listening study. We conduct our experiments on The Session dataset <ref type="bibr" target="#b9">[9]</ref>, a large dataset of well-structured monophonic music in the established musical genre of Irish traditional music. We choose this dataset since we expect it to provide suitable conditions for training a well-calibrated model. Our findings suggest that truncation techniques can address inadequacies of models that are not well-fitted to the data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">BACKGROUND AND RELATED WORK</head><p>Although maximization-based techniques like beam search work well for directed language generation tasks<ref type="foot" target="#foot_0">foot_0</ref> (such as machine translation and summarization), beam search has been shown to produce dull and repetitive samples for open-ended language generation tasks<ref type="foot" target="#foot_1">foot_1</ref>  <ref type="bibr" target="#b6">[6]</ref>, an effect that can be observed in music generation as well <ref type="bibr" target="#b10">[10]</ref>. It is, therefore, more common to use stochastic sampling techniques <ref type="foot" target="#foot_2">3</ref> for open-ended generation tasks. The most obvious method is ancestral sampling, where one token at a time is sampled based on the predicted distribution, conditioned on the previously generated tokens. However, it has been shown that truncating the conditional distribution (by setting the probability of specific tokens to zero, followed by renormalising), can lead to better sample quality than the non-truncated variant. An example of distribution truncation is top-k sampling, where all but the k most probable tokens are zeroed. In <ref type="bibr" target="#b12">[12]</ref>, the authors showed that top-k sampling generates more coherent samples than the nontruncated variant. In <ref type="bibr" target="#b6">[6]</ref>, it is explained that the quality improvement of top-k sampling is caused by removing unreliably estimated low-probability tokens, and it is found that top-k sampling mitigates the problem. However, it is also shown that top-k sampling is sensitive to the distribution's entropy (see Section 3.3), making it hard to select a value of k that fits both high and low certainty conditions. As a solution, they propose nucleus sampling that assigns zero probability to the largest set of least probable tokens that together have a probability below a given threshold. The authors find that the samples produced using the technique are preferred by humans over other sampling techniques. Nucleus sampling has been used in music generation in <ref type="bibr" target="#b13">[13]</ref><ref type="bibr" target="#b14">[14]</ref><ref type="bibr" target="#b15">[15]</ref>, but its effects are difficult to quantify without comparisons to the non-truncated case. Although nucleus sampling mitigates the problem of poorly estimated low-probability tokens, it does not prevent generating degenerated repetitive sequences caused by low entropy distributions (see Section 3). As a solution, in <ref type="bibr" target="#b7">[7]</ref>, the authors propose typical sampling and show that this technique prevents degenerated sample generation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">ANCESTRAL SAMPLING</head><p>Let p (x t |x &lt;t ) be the conditional probability of a symbol x t given previously observed symbols x &lt;t (i.e., the context) and let q be a model fitted to p, e.g., a neural network fitted via likelihood maximization. Given a model q, ancestral sampling samples one token at a time using x 0 ∼ q(•), x 1 ∼ q(•|x 0 ), ..., x t ∼ q(•|x &lt;t ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Distribution truncation sampling techniques</head><p>In distribution truncation, a truncated distribution q is obtained by zeroing the probability of a subset of tokens and renormalising the resulting distribution. Formally, q is defined by</p><formula xml:id="formula_0">q(x t |x &lt;t ) = q(xt|x&lt;t) v∈V q(v|x&lt;t) if x t ∈ V 0 otherwise , (<label>1</label></formula><formula xml:id="formula_1">)</formula><p>where V is the set of tokens with nonzero probability in q. For the remainder of this article, we use 'conventional sampling' to denote sampling from untruncated distributions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Nucleus sampling</head><p>In nucleus sampling, V is defined as the smallest set such that</p><formula xml:id="formula_2">v∈V q(v|x &lt;t ) ≥ τ,<label>(2)</label></formula><p>where τ is a constant determining the number of tokens to be removed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Typical sampling</head><p>In typical sampling <ref type="bibr" target="#b7">[7]</ref>, V is defined in terms of the token information content described below.</p><p>Definition 3.1 (Conditional information content). The conditional information content (IC) is given by</p><formula xml:id="formula_3">IC (x t |x &lt;t ) = -log q (x t |x &lt;t ).<label>(3)</label></formula><p>In computational music perception, IC has been used to model how surprising a musical event is given the musical context <ref type="bibr" target="#b16">[16]</ref><ref type="bibr" target="#b17">[17]</ref><ref type="bibr" target="#b18">[18]</ref>. Definition 3.2 (Conditional entropy). The conditional entropy is the expected conditional information content</p><formula xml:id="formula_4">H (x t |x &lt;t ) = E xt∼q(•|x&lt;t) [IC (x t |x &lt;t )] .<label>(4)</label></formula><p>The entropy of a distribution explains how confident a model is. It ranges from 0 to log n where n is the number of symbols in the vocabulary, with 0 indicating that the distribution is deterministic and log n indicating that the distribution is uniformly random. In typical sampling, the probabilities of tokens with the highest deviation of information from the entropy</p><formula xml:id="formula_5">|H (x t |x &lt;t ) -IC (x t |x &lt;t )|<label>(5)</label></formula><p>are set to zero. More precisely, let U = v 1 , v 2 , ..., v n be an ascending ordering of the vocabulary in accordance to Equation <ref type="bibr" target="#b5">(5)</ref>. Then V is defined as the smallest prefix of U such that q(U |x &lt;t ) ≥ τ . Equation ( <ref type="formula" target="#formula_5">5</ref>) implies that V is restricted by a band around the entropy as shown in Figure <ref type="figure" target="#fig_0">1</ref>. Therefore, also the most likely token under q can have zero probability in q. The authors of <ref type="bibr" target="#b7">[7]</ref> note that this property, however, lowers the number of degenerately repetitive samples, as opposed to nucleus sampling, without degrading preference in human evaluations. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>domain ( ) probablity (p)</head><note type="other">Typical Sampling</note></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head><p>In this section, we describe the setup for both our objective and subjective experiments, the used data, training details, degradation scenarios, and generation details, as well as objective and subjective evaluation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Data</head><p>Our experiments are performed on monophonic symbolic music. Specifically, we use the midi-encoded version of the The Session dataset <ref type="bibr" target="#b9">[9]</ref>, consisting of 45, 849 traditional Irish folk tunes originally encoded in ABC notation. We discard the 5% longest sequences to lower the computational footprint of the autoregressive transformer model, and partition the dataset in training, validation, and test sets with proportions 10/12, 1/12, and 1/12, respectively. All analyses will be performed on the test set, while our generative models will be trained and optimized on the training and validation sets, respectively. The dataset contains tunes with the same name, corresponding to different versions of the same tune. We ensure that tunes with the same name appear in exactly one of the three sets.</p><p>We tokenize the sequences using a modified version of the popular REMI representation <ref type="bibr" target="#b3">[3]</ref>. REMI serializes a score bar-wise from left to right. A bar is serialized as a sequence of tokens starting with a bar-delimiter token followed by a serialization of the notes within that bar. Each note is serialized as three tokens indicating the onset within the bar, the pitch and the duration, in that order. The position and duration tokens are quantized to 1/12th of a beat. Contrary to the original REMI implementation, we omit velocity, tempo change and chord symbols, since these are not encoded in the original ABC files either. Similar to <ref type="bibr" target="#b4">[4]</ref>, we extend the REMI representation with time-signature tokens inserted immediately after the bar token. We base our tokenization implementation on a modified version of the REMI python implementation in MidiTok <ref type="bibr" target="#b19">[19]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Training</head><p>We train a 21-layered Transformer decoder model <ref type="bibr" target="#b20">[20]</ref> with relative attention <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b21">21]</ref> in a self-supervised prediction task. We train the model using Adam optimization <ref type="bibr" target="#b22">[22]</ref> with a learning rate of 10 -4 until no improvement takes place on the validation set during 10 subsequent epochs. The used batch size is 16, and the input sequence length is 512 tokens. Sequences shorter than 512 tokens are zero-padded. The negative log-likelihood (NLL) on the test dataset is measured to be N LL = 0.30, which is similar to the result of a recent transformer-based model trained on the same dataset <ref type="bibr" target="#b18">[18]</ref>. We thus call this a wellcalibrated model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Model Degradation</head><p>In addition to the well-calibrated model, we consider two under-calibrated models, which we achieve by intentionally degrading the well-calibrated model. For our first degradation, we scale the logits vector h of the transformer softmax output distribution, i.e.,</p><formula xml:id="formula_6">q(x t |x &lt;t ) = Softmax(h/r),<label>(6)</label></formula><p>where r &gt; 1.0 is a temperature scale. This degradation increases the distribution's entropy (uncertainty) while keeping the relative ordering of the probabilities the same. Using temperature scaling, we deliberately increase the probability of token predictions x t that fit the token context x &lt;t poorly, thereby simulating the failure case of unreliably estimated tokens reported for conventional sampling (see section 2), where truncation techniques are expected to provide better results. We empirically set r to the minimal value that leads to an audible degradation of the generated sequences. This resulted in r = 1.5. The NLL of the test data under the temperature-degraded model is measured to be N LL = 0.31, which is an increase of 0.01 compared to the well-calibrated model. Secondly, we consider an unbiased degradation where we perturb the network weights by adding a small amount of Gaussian noise. More specifically, for every weight matrix W of the well-calibrated model, we obtain a degraded weight matrix W ′ by adding noise z W to W</p><formula xml:id="formula_7">W ′ = W + kz W ,<label>(7)</label></formula><p>where z W ∼ N (0, std(W )) and k is a constant. We sample the noise vector once and keep it fixed for all our experiments. We empirically set k to be the minimal value where sample degradations are audible, which results in k = 0.175. The NLL of the test data under the resulting model is measured as N LL = 0.36, which is an increase of 0.06.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Generation</head><p>When generating sequences with the learned models, for all models, we perform conventional sampling, nucleus sampling and typical sampling as described in section 3.</p><p>Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p><p>We sample until either the end-of-sequence token is encountered or a maximum length is reached. Due to computing limitations, we fix the maximum sequence length to the 80%-quantile of the dataset song-length distribution. We keep both sequences which terminate with the end-ofsequence token and sequences with the maximum length reached in our sample sets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Objective Evaluation</head><p>The objective evaluations are performed by calculating different statistics from the generated sequences and comparing the results between different (non-)degradations, sampling types and with the original reference data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.1">Surprisal</head><p>We are interested in the degree of surprisal of the samples generated with the different sampling methods. Similar to <ref type="bibr" target="#b16">[16]</ref><ref type="bibr" target="#b17">[17]</ref><ref type="bibr" target="#b18">[18]</ref>, we measure surprisal using the IC of events. As we do not have access to the data distribution, we interpret the well-calibrated model to be an oracle that approximates the data distribution. We then use the well-calibrated model to measure the mean IC of all events from a specific sampling method and model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.2">Structural Consistency</head><p>We measure structural consistency by investigating the self-similarities of the generated pieces. Similar to <ref type="bibr" target="#b5">[5]</ref>, we compute a self-similarity distribution from samples of a given sampling method and contrast it with the similarity distribution calculated from real data. To do so, we first compute the similarity between bar pairs separated by measure lags of size t. This is done for each tune x in sample sets D according to</p><formula xml:id="formula_8">l x i,i+t = |N (i) ∩ N (i + t)| |N (i) ∪ N (i + t)| ,<label>(8)</label></formula><p>where the set of notes in the i-th bar is denoted as N (i), and two notes are deemed equal if their pitches, durations, and onset positions within their respective bars are identical. The similarity score l x i,j between any two bars ranges from 0.0 to 1.0, with a score of 1.0 indicating that the two bars are identical. After computing the similarity for all possible lags in each tune of a sample set D, we calculate the average similarity scores of that sample set by</p><formula xml:id="formula_9">L D t = 1 |D|   x∈D j=i+t l x i,j   .<label>(9)</label></formula><p>Note that eq. ( <ref type="formula" target="#formula_9">9</ref>) does not define a probability distribution and does not, in general, sum to one. For each dataset, we then calculate an overall self-similarity score</p><formula xml:id="formula_10">SS(D) = 1 T T t=1 L D t , (<label>10</label></formula><formula xml:id="formula_11">)</formula><p>where T is the maximum bar lag considered. SS(D) captures both short-term self-similarities, e.g., repetitions or variations of motives, and long-term self-similarities, e.g., repetitions or variations of musical segments. Similar to <ref type="bibr" target="#b5">[5]</ref>, we also consider the deviation of a sample set's similarity distribution L D t to the dataset's similarity distribution L t given by</p><formula xml:id="formula_12">SE(D) = 1 T T t=1 L t -L D t .<label>(11)</label></formula><p>We interpret this deviation as a measure of how closely the self-similarities of tunes generated with the different sampling techniques follow the self-similarities of tunes found in the dataset. We set T = 38 in our experiments (i.e., the smallest maximum number of bars generated by any method).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.3">Tonal Consistency</head><p>We are furthermore interested in the tonality coherence of samples generated with the sampling methods. Specifically, we investigate the scale consistency <ref type="bibr" target="#b23">[23]</ref>, i.e., the maximum percentage of notes fitting a diatonic scale. The scale consistency is therefore calculated by</p><formula xml:id="formula_13">max scale #pitch_in_scale(x, scale) #pitches(x) .<label>(12)</label></formula><p>A scale consistency value of 1.0 indicates that all pitches are within a single scale, whereas lower values indicate more complex harmonic structures.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">User Study</head><p>In addition to the objective evaluations described above, we also perform a user study to gather subjective evaluations of the tunes' musical quality, structural properties and complexity. For that, we hosted a website consisting of two pages. The first page explains the purpose of the study, specifically that it aims to evaluate sampling techniques for neural network music generation. Furthermore, the users are instructed to rate the respective tunes using the attributes overall quality, short-term structure, longterm structure and complexity using a 5-point Likert scale.</p><p>The users are also asked to use appropriate headphones or loudspeakers and to announce their level of musical expertise with choices {Beginner, Intermediate, Expert}. On the second page, a list of 10 audio widgets is displayed, one for each tune. Below each widget, the Likert scales for the 4 different attributes (as described above) are provided for voting. In addition, the users can click on a "sheet link" that opens a window displaying the tune in staff notation. The 10 tunes for every user constitute the Cartesian product of all three sampling methods (i.e., conventional, nucleus, typical) and all three model modes (i.e., wellcalibrated, temperature degradation, noise-degradation) plus a reference tune. It is ensured that every user obtains unique tunes sampled randomly from a set of 500 instances for each of the 10 types, presented in a random order. To prevent biases, every user is allowed to perform the study only once. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">RESULTS AND DISCUSSION</head><p>In this section, we present the results of the experiments described in Section 4. For the figures and tables, we use the abbreviations WELL, NOISE and TEMP for the well-calibrated, noise-degraded and temperature-degraded models, respectively. To these abbreviations, we append CONV, NUCL and TYP for conventional sampling, nucleus sampling and typical sampling correspondingly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Objective Evaluation</head><p>In the following section, we analyse and discuss the results of our objective and subjective evaluations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.1">Surprisal</head><p>We report the results of the IC estimation in Figure <ref type="figure" target="#fig_1">2</ref> for the truncation degrees τ = 0.4, ..., 1.0. The samples from the well-calibrated model have the lowest IC and the IC of samples from the temperature-degraded model is higher than the IC of samples from the noise-degraded model. For both nucleus and typical sampling, the IC decreases with decreasing τ . For typical sampling in particular, this suggests that relatively more high information than low information tokens are pruned, similar to what is found in <ref type="bibr">[8]</ref>.</p><p>For most degradation scenarios and sampling methods, a τ value between 0.8 and 0.9 is shown to recover the original data distribution best.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.2">Structural Consistency</head><p>We compute the self-similarity (see Equation ( <ref type="formula" target="#formula_10">10</ref>)) for all models and sampling techniques and show the result in Figure <ref type="figure" target="#fig_2">3a</ref>. Similarly, we plot the self-similarity deviation (see Equation <ref type="bibr" target="#b11">(11)</ref>) in Figure <ref type="figure" target="#fig_2">3b</ref>. From Figure <ref type="figure" target="#fig_2">3a</ref>, we find that the overall self-similarity of samples produced with typical and nucleus sampling increases as τ decreases. This holds for both degraded models and the well-calibrated model. However, we find that the increase in self-similarity is more moderate for samples generated with typical sampling than those of nucleus sampling, indicating that the removal of highly probable tokens keeps the self-similarity at more moderate levels. In the temperature degradation scenario, we find that moderate levels of truncation lower the self-similarity deviation for the temperature-degraded model and thereby counteract the temperature degradation (with an optimal τ of 0.8 and 0.6 for nucleus sampling and typical sampling, respectively). In fact, in this scenario, the self-similarity of samples generated with nucleus and typical sampling follows the self-similarity of the reference distribution closer than samples generated with ordinary sampling for most tested truncation strengths. This is not the case for the unbiased noise degradation, where the self-similarity increases with higher truncation strengths, increasing also the deviation from the reference statistics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.3">Tonal Consistency</head><p>We inspect the tonal consistency by calculating the scale consistency (see Equation ( <ref type="formula" target="#formula_13">12</ref>)) and report the results in Figure <ref type="figure" target="#fig_2">3c</ref>. For both nucleus and typical sampling, we find that samples generated with low values of τ lead to a higher degree of scale consistency. Furthermore, we find for any given τ that generations from typical sampling have lower scale consistency than samples generated with nucleus sampling. Especially when considering temperature degradation, the scale consistency of nucleus sampling is almost at the level of the reference distribution at τ = 0.9, whereas typical sampling stays low even at high levels of τ . An important observation is that (with the exception of typical sampling in the temperature degradation scenario) there is an optimal τ for both truncation techniques that leads to a recovery of the dataset's scale consistency statistic in both degradation scenarios.</p><p>Similar to the findings in <ref type="bibr" target="#b6">[6]</ref> for natural language, our objective evaluations in the high-temperature scenario indicate that the musical statistics of the samples generated with truncation techniques more closely match the statistics of samples from the reference distribution. This finding implies that truncation sampling techniques can be applied to music generative language models, similar to their application in natural language. This can help remove tokens with unreliable probability estimates that do not fit the musical context well. This approach may have implications for more complex datasets and limited resources, where obtaining a well-calibrated model can be challenging.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">User Study</head><p>The user study was performed by 38 participants who, according to their self-assessment can be divided into 8 beginners, 18 intermediate and 12 musical experts. The presented melodies (except the reference) are generated as described in Section 4.4, with τ = 0.8 for both, nucleus and typical sampling. Table <ref type="table" target="#tab_0">1</ref> shows the user study results. As there is a high variance for all ratings, we performed for all attributes a Welch's t-test between all m = 10 tune types. Using a desired significance level of α = 0.05, the corresponding Bonferroni correction to the  m(m-1) = 0.05 45 = 0.001. We can see in the first column that the human-composed reference tracks have the highest quality scores on average and that the perceived quality of the tunes tends to degrade for the noise-and temperature degradation cases as expected. The t-test shows that the users' preference for REFERENCE is significant compared to all samples of the under-calibrated models (with p &lt; 1 × 10 -4 ), except for TEMP_NUCL with p = 0.37. This shows that nucleus sampling can potentially improve the sample quality of low-confidence models, while typical sampling is not able to recover any degradations. Furthermore, we find that WELL_CONV, WELL_NUCL and WELL_TYP differ in QULT with p = 0.07, 0.67 and 0.37 respectively compared to REFERENCE. This provides some evidence that nucleus and typical sampling improves the sampling quality of well-calibrated models, but this effect is not significant. While nucleus sampling performs well in the temperature-degraded model, we observe some (non-significant) evidence of a lower complexity than conventional and typical sampling in the wellcalibrated model (with p = 0.023 and p = 0.044, respec-tively). Typical sampling (with τ = 0.8) does not cause significant differences from conventional sampling. As the p-value between NOISE_TYP and NOISE_CONV is also low (but not significant, with p = 0.06), there is some evidence that typical sampling slightly reduces the complexity of outputs from under-calibrated models. This could be explained by typical sampling pruning the higher and lower probability events, overall reducing the possible number of events to be sampled. The well-calibrated model performs well with all sampling techniques (no significant differences to REFERENCE), with only some non-significant evidence for lower complexity with nucleus sampling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSION</head><p>We investigated the effect of distribution truncation sampling techniques on the musical qualities of information content, self-similarity, scale consistency and complexity of samples generated under different degradation scenarios. Our objective evaluations show that a higher truncation strength leads to increased self-similarity and tonal consistency. This trend is more pronounced for samples generated with nucleus sampling compared to samples generated with typical sampling. For a well-calibrated model, we show that the increase in self-similarity and scale consistency leads to an increase in deviations of these metrics from the reference distribution. However, for under-calibrated models, we showed that the deviations from the original data statistics could often be reduced with the correct truncation strategy and carefully selected truncation levels (where a τ between 0.8 and 0.9 seems to be good trade-off value over all experiments). While nucleus sampling carries the risk to reduce complexity of the outputs, this trend could not be observed with typical sampling.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: In typical sampling, a probability band around the entropy (dark-grey) defines the set V of tokens with non-zero probabilities in the truncated distribution.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Information content of generated data using different sampling strategies and τ values under the wellcalibrated model.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Structural and tonal consistency for different model degradations, sampling strategies and τ values. In (a) the selfsimilarity of sample sets generated with sampling techniques is shown. Higher values indicate a higher degree of self-similarities. In (b) the deviation of the generated samples' self-similarities to the self-similarity and the data reference distribution is shown. A deviation of 0 indicates that the self-similarity of a sample set fits the reference distribution exactly. In (c) the scale consistency of different sample strategies and the reference dataset is shown.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Results showing the mean-opinion scores of the user study ± the standard deviation. QULT denotes the overall quality estimation, ST_STR the perceived shortterm structure, LT_STR the perceived long-term structure and CPLX the perceived complexity of the rated samples.</figDesc><table><row><cell>Method</cell><cell>QULT</cell><cell cols="3">ST_STR LT_STR CPLX</cell></row><row><cell>REFERENCE</cell><cell cols="2">3.7±1.0 3.8±1.0</cell><cell>3.7±1.1</cell><cell>3.6±0.8</cell></row><row><cell>WELL_CONV</cell><cell cols="2">3.2±1.1 3.7±0.9</cell><cell>3.5±1.2</cell><cell>3.3±1.0</cell></row><row><cell>WELL_NUCL</cell><cell cols="2">3.6±1.1 3.9±1.1</cell><cell>3.7±1.1</cell><cell>2.8±1.0</cell></row><row><cell>WELL_TYP</cell><cell cols="2">3.4±1.2 3.6±0.9</cell><cell>3.7±1.0</cell><cell>3.3±1.0</cell></row><row><cell cols="3">NOISE_CONV 2.7±1.0 3.2±0.9</cell><cell>3.0±1.0</cell><cell>2.8±0.9</cell></row><row><cell cols="3">NOISE_NUCL 2.6±1.3 3.2±1.4</cell><cell>2.8±1.5</cell><cell>2.5±1.2</cell></row><row><cell>NOISE_TYP</cell><cell cols="2">2.7±1.1 3.2±1.1</cell><cell>3.1±1.2</cell><cell>2.4±1.0</cell></row><row><cell>TEMP_CONV</cell><cell cols="2">2.1±1.3 2.7±1.1</cell><cell>2.1±1.1</cell><cell>3.7±1.0</cell></row><row><cell>TEMP_NUCL</cell><cell cols="2">3.4±1.2 3.6±0.9</cell><cell>3.4±1.3</cell><cell>3.4±1.1</cell></row><row><cell>TEMP_TYP</cell><cell cols="2">2.2±1.1 2.7±0.9</cell><cell>2.4±1.0</cell><cell>3.3±0.8</cell></row><row><cell cols="5">multiple comparisons problem gives a significance level of</cell></row><row><cell>α</cell><cell></cell><cell></cell><cell></cell></row><row><cell>1</cell><cell></cell><cell></cell><cell></cell></row><row><cell>2</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Generation with input sequence conditioning.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>Generation without input sequence conditioning.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>In the context of generative models, "sampling techniques" could refer to a multitude of aspects in the generative pipeline (e.g., Gibbs sampling in restricted Boltzmann machines<ref type="bibr" target="#b11">[11]</ref>). In our work, "sampling techniques", refers to techniques for obtaining samples from a trained language model.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_3"><p>Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="7.">ACKNOWLEDGMENTS</head><p>The work leading to these results was conducted in a collaboration between JKU and <rs type="funder">Sony Computer Science Laboratories Paris</rs> under a research agreement. GW's work is supported by the <rs type="funder">European Research Council (ERC)</rs> under the European Union's <rs type="programName">Horizon 2020 research and innovation programme</rs>, grant agreement <rs type="grantNumber">101019375</rs> ("Whither Music?").</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_WdPqF5d">
+					<idno type="grant-number">101019375</idno>
+					<orgName type="program" subtype="full">Horizon 2020 research and innovation programme</orgName>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">An improved relative self-attention mechanism for transformer with application to music generation</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<idno>abs/1809.04281</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Pop music transformer: Beat-based modeling and generation of expressive pop piano compositions</title>
+		<author>
+			<persName><forename type="first">Y.-S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th ACM International Conference on Multimedia</title>
+		<meeting>the 28th ACM International Conference on Multimedia</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1180" to="1188" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">FIGARO: generating symbolic music with finegrained artistic control</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Von Rütte</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Biggio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Kilcher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hoffman</surname></persName>
+		</author>
+		<idno>abs/2201.10936</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Museformer: Transformer with fine-and coarse-grained attention for music generation</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Liu</surname></persName>
+		</author>
+		<editor>NeurIPS</editor>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">The curious case of neural text degeneration</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Buys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Forbes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Choi</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>in ICLR. OpenReview.net</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Typical decoding for natural language generation</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Meister</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Pimentel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Wiher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Cotterell</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2202.00666</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">On the typicality of musical sequences</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">R</forename><surname>Bjare</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lattner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ISMIR</title>
+		<imprint>
+			<publisher>Late-breaking demo</publisher>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Music transcription modelling and composition using deep learning</title>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">L</forename><surname>Sturm</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">F</forename><surname>Santos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Ben-Tal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Korshunova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Conf. Computer Simulation of Musical Creativity</title>
+		<meeting>Conf. Computer Simulation of Musical Creativity<address><addrLine>Huddersfield, UK</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Musings on typicality</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<ptr target="https://benanne.github.io/2020/09/01/typicality.html" />
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>Online</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Restricted boltzmann machines for collaborative filtering</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mnih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 24th international conference on Machine learning</title>
+		<meeting>the 24th international conference on Machine learning</meeting>
+		<imprint>
+			<date type="published" when="2007">2007</date>
+			<biblScope unit="page" from="791" to="798" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Language models are unsupervised multitask learners</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Compound word transformer: Learning to compose full-song music over dynamic directed hypergraphs</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="178" to="186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Tradformer: A transformer model of traditional music</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Sturm</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Casini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Joint Conference on Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A user-customized automatic music composition system</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Mo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2022 International Conference on Robotics and Automation (ICRA)</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="640" to="645" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Meaning in music and information theory</title>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">B</forename><surname>Meyer</surname></persName>
+		</author>
+		<ptr target="http://www.jstor.org/stable/427154" />
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of Aesthetics and Art Criticism</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="412" to="424" />
+			<date type="published" when="1957">1957</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">The construction and evaluation of statistical models of melodic structure in music perception and composition</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Pearce</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<pubPlace>London, UK</pubPlace>
+		</imprint>
+		<respStmt>
+			<orgName>Department of Computing, City University</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">Ph.D. dissertation</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Differentiable short-term models for efficient online learning and prediction in monophonic music</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">R</forename><surname>Bjare</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Trans. Int. Soc. Music. Inf. Retr</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page">190</biblScope>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">MidiTok: A python package for MIDI file tokenization</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Fradet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-P</forename><surname>Briot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Chhel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">El</forename><surname>Fallah Seghrouchni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Gutowski</surname></persName>
+		</author>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+	<note>in ISMIR (Late-breaking demo</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ICLR</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Self-attention with relative position representations</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Shaw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL-HLT</title>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="464" to="468" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR (Poster)</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">C-rnn-gan: A continuous recurrent neural network with adversarial training</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Mogren</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Constructive Machine Learning Workshop (CML) at NIPS 2016</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

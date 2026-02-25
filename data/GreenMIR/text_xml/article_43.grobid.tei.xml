@@ -1,0 +1,853 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">CHORD JAZZIFICATION: LEARNING JAZZ INTERPRETATIONS OF CHORD SYMBOLS</title>
+				<funder ref="#_Cpe3S9K">
+					<orgName type="full">JST ACCEL</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Tsung-Ping</forename><surname>Chen</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Information Science</orgName>
+								<orgName type="institution">Academia Sinica</orgName>
+								<address>
+									<country key="TW">Taiwan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Satoru</forename><surname>Fukayama</surname></persName>
+							<email>s.fukayama@aist.go.jp</email>
+							<affiliation key="aff1">
+								<orgName type="department">National Institute of Advanced Industrial Science and Technology (AIST)</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Masataka</forename><surname>Goto</surname></persName>
+							<email>m.goto@aist.go.jp</email>
+							<affiliation key="aff1">
+								<orgName type="department">National Institute of Advanced Industrial Science and Technology (AIST)</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Li</forename><surname>Su</surname></persName>
+							<email>lisu@iis.sinica.edu.tw</email>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Information Science</orgName>
+								<orgName type="institution">Academia Sinica</orgName>
+								<address>
+									<country key="TW">Taiwan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">CHORD JAZZIFICATION: LEARNING JAZZ INTERPRETATIONS OF CHORD SYMBOLS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">67CF9481FCF85CC7692F06CB2B7A16AC</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:16+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Chord symbols, typically notating the root note and the chord quality, are extensively used yet oversimplified representation of tonal harmony and chord progressions in popular music. In spite of its convenience, the chord symbol notation only provides basic information about the chordal configuration, and leaves much room for interpretation. With such limitations, an algorithm generating merely chord symbols is usually insufficient for a wide range of music genres such as jazz. To solve this problem, we propose chord jazzification, a process to generate realistic chord configurations in jazz style. With deep learning approaches, we decompose chord jazzification into coloring and voicing. Coloring concerns the choice of color tones, while voicing concerns the configurations of chords. We also create a new dataset featuring interpretations of chord symbols in pop-jazz compositions. By conducting experiments on the new dataset, we show that 1) the twostage process outperforms an end-to-end generation approach in modeling chord configurations, and 2) attentionbased models are better at capturing the structure of chord sequences in comparison with recurrent neural networks.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Harmony and chords are the central topic in the study of tonal music. To facilitate the study, researchers in the fields of music information retrieval (MIR) and computational musicology have developed various techniques, such as automatic chord recognition <ref type="bibr" target="#b1">[1]</ref><ref type="bibr" target="#b2">[2]</ref><ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref>, chord similarity and tonal distance <ref type="bibr" target="#b6">[6]</ref><ref type="bibr">[7]</ref><ref type="bibr" target="#b8">[8]</ref><ref type="bibr" target="#b9">[9]</ref>, harmonic analysis <ref type="bibr" target="#b10">[10]</ref><ref type="bibr" target="#b11">[11]</ref><ref type="bibr" target="#b12">[12]</ref><ref type="bibr" target="#b13">[13]</ref>, and chord generation <ref type="bibr" target="#b14">[14]</ref><ref type="bibr" target="#b15">[15]</ref><ref type="bibr" target="#b16">[16]</ref>.</p><p>Most of these aforementioned techniques process the chord data using chord symbol representation, i.e., a symbolic notation system indicating the root note, quality, and other additional information of the chord. For example, the chord symbol C:7 stands for the C dominant seventh chord in root position, whose theoretical configuration is c Tsung-Ping Chen, Satoru Fukayama, Masataka Goto, Li Su. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Tsung-Ping Chen, Satoru Fukayama, Masataka Goto, Li Su, "Chord Jazzification: Learning Jazz Interpretations of Chord Symbols", in Proc. of the 21st Int. Society for Music Information Retrieval Conf., Montréal, Canada, 2020. depicted in Figure <ref type="figure" target="#fig_0">1a</ref>. This symbol, however, does not explicitly point out the actual configuration, e.g., every specific note performed by a musician. Hence, the notation system is limited in describing the nuances in real-world performance. Learning to interpret the chord symbols is challenging in two aspects. First, expert musicians often color a chord by adding notes to, or omitting notes from the chord according to the musical context, although the chord symbol itself does not specify such alterations. Second, chords composed of the same set of pitch classes can be voiced differently by spacing and doubling the chord tones. Take the comping technique in jazz music as an instance. <ref type="foot" target="#foot_0">1</ref> Instead of sticking to the typical configuration of a chord, a jazz pianist may play the C dominant seventh chord with the configuration shown in Figure <ref type="figure" target="#fig_0">1b</ref>, in which the 5th of the root, G4, is omitted, and the 9th of the root, D5, is added; while another jazz pianist may arrange these notes in a totally different way as demonstrated in Figure <ref type="figure" target="#fig_0">1c</ref>, where Bb is doubled and D is spaced a register lower. In fact, the way how musicians interpret chord symbols in a given context involves not only their thorough understanding of various musical styles, but also their personal tastes. Therefore, to generate the realization of chord symbols through MIR approaches is a challenging yet valuable task, despite this topic is rarely discussed possibly because of the lack of data.</p><p>In this paper, we propose chord jazzification, a process to realize chord symbols with jazz harmony through deep learning approaches. Based on the two aforementioned aspects of interpreting the chord symbols, the chord jazz-Figure <ref type="figure" target="#fig_3">2</ref>: Annotations of the proposed dataset. Chord Symbol specifies the root and the quality of each chord (a bass note is explicitly notated with a slash when it is not the root note), e.g., Db:M/F stands for a Db major triad with the bass note F. Time indicates the onset and the duration (measured in beats) of each chord. Voicing represents the configuration of each chord with a set of scientific pitch notations. Coloring indicates the chord degrees which appear in the voicing but are not specified by the chord symbol, and vice versa, e.g., (o1,9) indicates that the root is omitted and the 9th is added. Note that 7 is explicitly qualified by {M, m, d} (major, minor, diminished) to disambiguate its interval. Roman Numeral Analysis denotes the scale degree on which a chord is built, as well as the quality and the inversion information, e.g., V7 stands for a dominant seventh chord in root position. Structure includes the annotations of phrase, measure and metrical position. To specify the phrase a chord belongs to, each chord is labeled with a letter plus a number in a way similar to musical form analysis. Metrical position shows the position of a chord with respect to the metric grid (starting with 0). ification task is formulated as two subtasks, namely the chord coloring and the chord voicing. The chord coloring task decides which pitch classes are to be played for elaborating a chord symbol, while the chord voicing task deals with the spacing and the doubling of the pitch classes to be played. Although the jazzification of chord progressions is not limited to coloring and voicing, we focus on the two aspects for the primary study. To facilitate the research on chord jazzification, we also compile a new dataset consisting of chord symbols and corresponding chord configurations in pop-jazz compositions. In comparison with other jazz-related datasets, such as the Charlie Parker's Omnibook data <ref type="bibr" target="#b17">[17]</ref>, the Jazz Audio-Aligned Harmony (JAAH) dataset <ref type="bibr" target="#b18">[18]</ref>, the JazzCorpus <ref type="bibr" target="#b19">[19]</ref>, and the Weimar Jazz Database <ref type="bibr" target="#b20">[20]</ref>, our dataset includes more detailed information of chords, especially the chordal configuration. With the newly compiled dataset, we conduct several experiments to verify the two-stage framework for chord jazzification. Experiment results indicate that it is effective to decompose chord jazzification into coloring and voicing, rather than to adopt an end-to-end approach.</p><p>The current work is different from the accompaniment or harmonization tasks <ref type="bibr" target="#b21">[21,</ref><ref type="bibr" target="#b22">22]</ref>, in terms of that such works require melodies as prior knowledge and regard chords as appendages to melodies. Besides, our work concerns both the voicings of a chord sequence and the interpretation of each single chord, thus is distinct from the voice leading generation task <ref type="bibr" target="#b23">[23,</ref><ref type="bibr" target="#b24">24]</ref>. The jazzification of a chord progression is part of the music composition process to expand a tonal structure, i.e., the prolongation described in Heinrich Schenker's music theory <ref type="bibr" target="#b25">[25]</ref>. Chord jazzification can advance other MIR-related tasks such as style analysis and chord generation <ref type="bibr" target="#b26">[26]</ref><ref type="bibr" target="#b27">[27]</ref><ref type="bibr" target="#b28">[28]</ref><ref type="bibr" target="#b29">[29]</ref>. We hope that our work can draw more attention to the musical knowledge regarding the implicit relations between the notated chord symbols and the actual harmony being performed.</p><p>In summary, our contribution is threefold. First, we address the issue of interpreting chord symbols by chord jazzification. Second, we compile a new dataset for the generation of jazzy harmony and for the study of chord embellishments. Finally, a deep learning framework is proposed to generate jazz-style chord progressions. In the following, we will first present the new dataset (Section 2), and then formulate the framework of chord jazzification (Section 3); based on the framework, several experiments are introduced thereon (Section 4).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">THE CHORD JAZZIFICATION DATASET</head><p>The corpus is composed of 50 musical pieces selected from published Japanese pop-jazz piano solos, in which chord symbols are explicitly specified. <ref type="foot" target="#foot_1">2</ref> To obtain the corresponding voicing of each chord symbol, we manually perform harmonic reduction for each piece. Concretely, notes within the region of a chord symbol are selected to build the configuration of the chord symbol. With the chord A brief introduction of the chord qualities and colorings used in the corpus is illustrated in Figure <ref type="figure" target="#fig_1">3</ref>. Not surprisingly, the three seventh chords, major seventh (M7), minor seventh (m7), and dominant seventh <ref type="bibr">(7)</ref>, account for more than half of the chords, as jazz harmony is notable for the use of seventh chords. On the other hand, characteristic colorings of pop-jazz music can also be found in many chords, such as adding a major second or a compound major second (2) and omitting the perfect fifth (o5).</p><p>In summary, 796 musical phrases amounting to 6700 chord labels are included in the dataset. These annotations provide information concerning the relationship between the symbolic notation and the actual configuration of chords in human compositions. It therefore has the potential to be applied to many MIR-related research topics, such as corpus-based study of tonal harmony in music practice, generation of colorful chord progressions, and computer-aided composition, to name but a few. It has to be acknowledged that the dataset has some limitations in describing an actual interpretation of chord symbols, in the sense that the transcription of chords eliminates the harmonic and rhythmical variances within the region of each chord symbol. Nevertheless, the dataset can be a starting point for performers and composers to learn to elaborate and develop a tonal structure through the chord jazzification process, which is relatively easier compared to learning the elaboration directly from a complete musical piece.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">CHORD JAZZIFICATION</head><p>The goal of chord jazzification is to endow plain chords (e.g., a sequence of triads) with jazz harmony. We tackle the chord jazzification task through two successive steps, that is, coloring and voicing. The coloring part functions as an intermediate state which specifies chords in terms of pitch classes, and the voicing part assigns pitch heights to the specified pitch classes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Coloring</head><p>In this paper, 48 triads in root position ({major, minor, augmented, diminished} by 12 semitones) are considered for coloring. We define the chord coloring task as predicting the bass note and the pitch classes to render each triad in a given sequence.</p><p>Formally, the input of the coloring task is a triad sequence {x i } T i=1 and a duration sequence {d i } T i=1 , where i denotes time steps, T is the length of the sequence, x i ∈ R 12 is a chroma representation of the ith triad, and d i is the duration of x i . The coloring task predicts the bass sequence {b c i } T i=1 and the pitch class sequence {p c i } T i=1 for the input sequence, where c stands for coloring, b c i ∈ R 12 is a softmax-activated chroma vector indicating the 12 pitch classes' probabilities to be the bass of colored x i , and p c i ∈ R 12 is a sigmoid-activated chroma vector indicating the 12 pitch classes' probabilities to be the constituent notes (except the bass) of colored x i . For example, b c i = [0.8, 0, 0, 0, 0.2, 0, 0, 0, 0, 0, 0, 0] indicates the pitch classes C and E respectively have a probability of 80% and 20% to be the bass note, and p c i = [0, 0.9, 0, 0, 0.9, 0, 0, 0, 0, 0, 0.9, 0] suggests that there is a 90% chance that Db , E, and Bb are activated to render x i .</p><p>We employ a basic sequential learning architecture for the coloring task. As shown in Figure <ref type="figure" target="#fig_2">4a</ref>, the architecture is composed of three layers: 1) an input embedding layer, 2) a sequential modeling layer, and 3) an output layer. Specifically, the three layers are formulated as follows:</p><formula xml:id="formula_0">e c i = W e c (d i x i ), (Input Embedding) h c i = f c (e c i | e c 1:T ), (Sequential Modeling) p c i = sigmoid(W p c h c i ), (Output) b c i = softmax(W b c h c i ),<label>(1)</label></formula><p>where</p><formula xml:id="formula_1">W e c ∈ R d×12 , W p c ∈ R 12×d , and W b c ∈ R 12×d</formula><p>are learnable parameters, f c : R d → R d denotes a trainable neural network, and d is a hyperparameter indicating the dimensions of the embedding space. Two candidate networks are employed for the sequential modeling layer:</p><p>• Bi-directional Recurrent Neural Network with Long Short-Term Memory (BLSTM):</p><formula xml:id="formula_2">h c i = - → h c i ⊕ ← - h c i , - → h c i = LSTM(e c i | e c 1:i-1 ), ← - h c i = LSTM(e c i | e c i+1:T ),<label>(2)</label></formula><p>where ⊕ denotes vector concatenation. • Multihead Self-attention Network (MHSA):</p><formula xml:id="formula_3">h c(l) i = W outer σ(W inner u i + b 1 ) + b 2 , u i = W u (u i1 ⊕ • • • ⊕ u iJ ) + h c(l-1) i , u ij = V j softmax K j q ij √ d , q ij = W Q j h c(l-1) i , K j = W K j [h c(l-1) 1 , • • • , h c(l-1) T</formula><p>],</p><formula xml:id="formula_4">V j = W V j [h c(l-1) 1 , • • • , h c(l-1) T ],<label>(3)</label></formula><p>where l denotes the iteration step, and the initial value h c(0) i = e c i ; σ represents the ReLU activation function; J is the number of heads;</p><formula xml:id="formula_5">W outer j ∈ R d×4d , W inner j ∈ R 4d×d , W u ∈ R d×d , and W Q j , W K j , W V j ∈ R d J</formula><p>×d are learnable parameters. This network is equivalent to the encoder of the Transformer <ref type="bibr" target="#b31">[31]</ref>, while we leave out layer normalization and position encoding terms for simplicity. In this paper, we set d = 512, l = 2, and J = 8.</p><p>The binary cross entropy (BCE) and the categorical cross entropy (CCE) are used to calculate the losses. Let p c * i and b c * i denote the ground truths of p c i and b c i ; the total loss of the coloring model L c is defined as:</p><formula xml:id="formula_6">L c = T i=1 [BCE(p c * i , p c i ) + CCE(b c * i , b c i )] .<label>(4)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Voicing</head><p>We define chord voicing as a task which predicts the voicings of a chord sequence. Formally, given a chord sequence of T time steps in terms of their basses {b v i } T i=1 , constituent pitch classes {p v i } T i=1 , and durations {d i } T i=1 , the task predicts the voicings {v i } T i=1 for the chord sequence, where v stands for voicing, b v i ∈ R 12 is a onehot chroma vector indicating the bass of the ith chord,</p><formula xml:id="formula_7">p v i ∈ R</formula><p>12 is a multi-hot chroma vector representing the pitch classes of the ith chord except the bass note, and v i ∈ R 88 is a voicing vector indicating the 88 tones' probabilities to be played on the piano.</p><p>Similar to the coloring task, we employ a 3-layer architecture for the voicing task, as shown in Figure <ref type="figure" target="#fig_2">4b</ref>. The three layers are formulated as follows:</p><formula xml:id="formula_8">e v i = W e v (d i (p v i ⊕ b v i )), (Input Embedding) h v i = f v (e v i | e v 1:T ), (Sequential Modeling) v i = sigmoid(W v h v i ), (Output)<label>(5)</label></formula><p>where W e v ∈ R d×24 and W v ∈ R 88×d are learnable parameters, and f v : R d → R d is a neural network. Likewise, the BLSTM and the MHSA networks are two options for the sequential modeling layer. Let v * i ∈ R 88 denote the target voicing of the ith chord; we define the loss as:</p><formula xml:id="formula_9">L v = T i=1 BCE(v * i , v i ).<label>(6)</label></formula><p>As the voicing task is to arrange the constituent notes of chords on an 88-key piano based on the given basses and the sets of pitch classes, the outcome of v * i can be known to a certain degree. More precisely, a note in v * i can be activated only if its pitch class is activated in b v i or p v i . With this consideration, we design corresponding masks to modify the loss computation. Let b v i ∈ R 88 and p v i ∈ R 88 be the extensions of b v i and p v i to all octaves of the piano. Then, the loss constrained by the masks becomes:</p><formula xml:id="formula_10">L v = T i=1 BCE(v * i , m i v i ), m i = b v i ∨ p v i , (Mask)<label>(7)</label></formula><p>where stands for the Hadamard product, and ∨ denotes the logical OR operator.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Two-stage Chord Jazzification</head><p>We stack the chord voicing model on the top of the chord coloring model by setting b i = b v i = onehot(arg max b c i ) and p i = p v i = round(p c i ), as illustrated in Figure <ref type="figure" target="#fig_2">4c</ref>. In other words, the outputs of the coloring model are first converted into binary vectors, and then taken as inputs by the voicing model. Such an integrated model jazzifies chord progressions in two stages: first, for a given sequence of triads {x i } T i=1 and the corresponding durations {d i } T i=1 , the coloring model generates a colored sequence represented by {b i } T i=1 and {p i } T i=1 ; based on the colored sequence, the voicing model subsequently generates a voiced chord progression {v} T i=1 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS 4.1 Chord Jazzification with Supervised Learning</head><p>With the formulations of chord jazzification as multi-class classification (for b c i ) and multi-label classification (for p c i and v i ) problems, we train the coloring and voicing models using the new dataset, and perform 4-fold cross validation. For the coloring task, the input triad sequences and the input duration sequences are respectively derived from the Chord Symbol and the Time annotations of the dataset, while the ground truths of the bass sequences and the pitch class sequences are obtained from the Voicing labels. As for the voicing task, the duration sequences and the ground truth labels of the coloring task are taken as the inputs, while the Voicing labels are used as the ground truths of the output sequences. We augment the training set through transposing the data from 4 semitones down to 5 semitones up (within the valid range of the piano), leading to 10 times the training data. As a result, there are 5970 and 199 sequences for training and testing respectively. Evaluation results are shown in Table <ref type="table" target="#tab_0">1</ref>. For both the coloring and voicing tasks, the employment of either the BLSTM or the MHSA as the sequential modeling layers yields comparable performance to the other, while the MHSA appears to surpass the BLSTM in cases of multilabel classification, i.e., the predictions of pitch classes and voicing. When the input embedding layers in the two subtasks are removed, all the performances decrease by from 3.19% to 4.69%. This indicates that the transformation to dense vectors benefits the learning process when the input data is sparsely represented. Moreover, the introduction of the input-related masks to the loss calculation in Eqn (7) also improves the modeling of voicing; precisely, the F1 score increases 2.66% if the masks are utilized. It is worth noting that the amount of training data is quite limited, and therefore the performance seems to be satisfactory in the current experimental setting.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">End-to-end Chord Jazzification</head><p>To motivate the decomposition of chord jazzification into 2 stages, we train a chord jazzification model in an end-toend manner for comparison. Technically, we replace the output module of the coloring model with that of the voicing model; and we employ a 2-layer BLSTM, rather than  <ref type="formula" target="#formula_2">2</ref>), for the sequential modeling layer in order to make the number of parameters comparable to the two-stage chord jazzification model. The evaluation result is shown in Table <ref type="table" target="#tab_0">1</ref>.</p><p>In this end-to-end architecture, the performance drops substantially to nearly half of the value. This result conversely validates the two-stage approach. Given the fact that the prediction of polyphony is often challenging, it turns out to be beneficial to generate an intermediate stage, that is, the chroma representations with respect to coloring, before the overall jazzification of chords.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Consistency of Chord Jazzification</head><p>Chord progressions often have a repetitive structure, therefore it is important for a model to preserve this property and generate chord sequences of self-consistency. To measure the consistency of a model's generations, we compute the self-similarity matrices (SSMs) of each generated voicing sequence and corresponding label sequence, and then calculate the difference between each generation-label SSM pair. Let V = [v 1 , • • • , v T ] denote the normalized voicing sequence generated by a model, and</p><formula xml:id="formula_11">V * = [v * 1 , • • • , v * T ]</formula><p>denote the normalized label sequence, where v i = round (vi)  round(vi) is a binarized and normalized voicing, and</p><formula xml:id="formula_12">v * i = v * i v *</formula><p>i is a normalized target voicing; we define the consistency score (CS) of a generated sequence as follows:</p><formula xml:id="formula_13">CS = 1 -reduce_mean(∆SSM), ∆SSM = |SSM pred -SSM label |, SSM pred = V V, SSM label = V * V * .<label>(8)</label></formula><p>The more similar the structures of the two sequences are, the higher the CS score is. Table <ref type="table">2</ref> shows the average consistency score over 4 cross-validation folds. To provide a benchmark for the consistency measure, we also show the CS score computed from label sequences and randomly-generated sequences (denoted as RANDOM). Both the two models get higher scores than the random condition, indicating that they learn some structural information. Besides, the MHSA outperforms the BLSTM due to an essential difference between them: the BLSTM processes each time step of a  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Generating Jazz Harmony</head><p>We train the two-stage chord jazzification model using the proposed dataset, and generate jazzified chord progressions with input triad sequences derived from the JAAH dataset. 3 In total, 2210 sequences with 23199 chords were generated. To examine the effect of jazzification, we quantitatively analyze the difference between each input triad and its jazzified counterpart. Particularly, we are interested in changes with respect to chord coloring: 1) what notes are added to or omitted from a triad? 2) Is a note other than the root being chosen as the bass note?</p><p>The result is represented in Figure <ref type="figure" target="#fig_6">6</ref>. Around 40% of the input triads are embellished with a minor seventh (m7). And the addition of a major seventh (M7) also accounts for around 3.6%, ranked in the top fourth. These frequent colorings with a major or minor seventh reflect the characteristics of jazz music in which most triads that appear in lead sheets or fake books can have sevenths added to them. Moreover, extended chords and inverted chords can also be found. For instance, the coloring (b2,m7) for a major triad will lead to a dominant seventh flat ninth chord; and the coloring None/3 indicates the first inversion of triads. It is worth mentioning that some generated slash chords are not inverted chords. An example is shown in the bottom of Figure <ref type="figure" target="#fig_6">6</ref>. With the coloring (2,M7)/2, the last triad Db:M becomes Db:M7/Eb, which can be interpreted as an Eb dominant thirteenth chord-the dominant chord of the relative major mode (assuming F is the tonic). In other words, this coloring not only breaks the repetitive structure  of the input triad sequence, but also implies a new tonality. In addition to coloring, it can be observed that the linear progressions of voices are quite smooth, showing that the model also learns the knowledge of voice leading.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>To learn the interpretation of chord symbols from musical data, we proposed chord jazzification, a process of generating realistic jazz-style chord progressions through two musical techniques: chord coloring and chord voicing. Chord coloring decides a bass and a set of pitch classes for elaborating a triad, while chord voicing arranges the bass and the set of pitch classes on the piano. We correspondingly built a dataset which includes coloring and voicing annotations, and hence can be used as the training data of the chord jazzification task. By formulating the chord coloring and chord voicing tasks as classification problems, we experimentally showed that the two-stage framework is capable of generating plausible chord configurations from a sequence of chord symbols.</p><p>Chord jazzification has the potential to be applied to two different yet related practices in music: performing and composing. For music performing, it is practical and desirable to interpret the chord symbols on lead sheets through jazzification. For music composing, the generated sequence by the chord jazzification model can be regarded as an intermediate product with which a musician can further create a human-machine collaborative musical work. In future research, we are planning to include more rhythmical and structural information, such as metrical position, to better represent the harmonic features, and apply more advanced deep learning techniques to improve the chord jazzification task.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Three configurations of the C dominant seventh chord. In music theory, the C dominant seventh chord in root position is configured as (a). (b) and (c) are two alterations of the chord.</figDesc><graphic coords="1,341.12,217.46,174.33,76.54" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Chord qualities and chord colorings in the proposed dataset (the long tail of the coloring distribution is left out). Chord degrees of compound intervals are merged with simple ones in the coloring figure for simplicity.</figDesc><graphic coords="3,55.00,48.72,232.43,246.60" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: (a) The coloring model. (b) The voicing model. (c) The two-stage chord jazzification model.</figDesc><graphic coords="4,92.97,48.72,114.09,187.09" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Table 2 :</head><label>2</label><figDesc>Consistency measure of chord jazzification.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: The difference of self-similarity matrices. Left: ∆SSM of the BLSTM. Right: ∆SSM of the MHSA. The origin of the matrices is at the lower left corner.</figDesc><graphic coords="6,78.24,130.28,185.95,85.01" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>3</head><label></label><figDesc>https://github.com/MTG/JAAH</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Top: the coloring distribution of the generated chords (part of the distribution is omitted). Bottom: a generated example. A number after the slash symbol indicates the degree of the bass note relative to the root note.</figDesc><graphic coords="6,310.11,48.72,232.43,229.61" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="2,64.75,48.72,468.06,209.77" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Results of the coloring and the voicing tasks.</figDesc><table><row><cell>Model</cell><cell cols="2">Coloring Bass Pitch Classes</cell><cell>Voicing</cell></row><row><cell>BLSTM</cell><cell>81.87</cell><cell>76.52</cell><cell>63.64</cell></row><row><cell>MHSA</cell><cell>80.78</cell><cell>77.02</cell><cell>64.86</cell></row><row><cell cols="2">BLSTM w/o E 77.18</cell><cell>73.33</cell><cell>60.12</cell></row><row><cell>BLSTM w/o M</cell><cell>-</cell><cell>-</cell><cell>60.98</cell></row><row><cell>End-to-End</cell><cell>-</cell><cell>-</cell><cell>37.87</cell></row><row><cell></cell><cell></cell><cell></cell><cell>The</cell></row><row><cell cols="4">lower part shows the ablation tests without the embedding</cell></row><row><cell cols="4">layer (w/o E) and without masks (w/o M), as well as the</cell></row><row><cell cols="4">result using end-to-end training. All the values indicate</cell></row><row><cell cols="3">the average F1 scores (%) over 4 validations.</cell><cell></cell></row><row><cell cols="3">a 1-layer BLSTM as defined in Eqn (</cell><cell></cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Comping means accompanying or complementing a soloist by playing the chords to fill the harmonic and rhythmical vacancies in the music.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>The dataset is available at https://github.com/ Tsung-Ping/Chord-Jazzification.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="6.">ACKNOWLEDGMENTS</head><p>This work was supported in part by <rs type="funder">JST ACCEL</rs> Grant Number <rs type="grantNumber">JPMJAC1602</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_Cpe3S9K">
+					<idno type="grant-number">JPMJAC1602</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Improved chord recognition by combining duration and harmonic language models</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Korzeniowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 19th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="10" to="17" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A large-scale study of language models for chord prediction</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Korzeniowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">R W</forename><surname>Sears</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="91" to="95" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Large vocabulary automatic chord estimation with an even chance training scheme</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Kwok</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 18th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="531" to="536" />
+		</imprint>
+		<respStmt>
+			<orgName>IS-MIR</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Structured training for largevocabulary chord recognition</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 18th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="188" to="194" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">A fully convolutional deep auditory model for musical chord recognition</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Korzeniowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Workshop on Machine Learning for Signal Processing</title>
+		<meeting>the IEEE International Workshop on Machine Learning for Signal Processing</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1" to="6" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Comparing approaches to the similarity of musical chord sequences</title>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">B</forename><surname>De Haas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Robine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Hanna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">C</forename><surname>Veltkamp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wiering</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Exploring Music Contents -7th International Symposium (CMMR)</title>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="page" from="242" to="258" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Tonal pitch step distance: a similarity measure for chord progressions</title>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">B</forename><surname>De Haas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">C</forename><surname>Veltkamp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wiering</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 9th International Conference on Music Information Retrieval (ISMIR)</title>
+		<meeting>the 9th International Conference on Music Information Retrieval (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+			<biblScope unit="page" from="51" to="56" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Detecting harmonic change in musical audio</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Harte</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sandler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Gasser</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st ACM workshop on Audio and music computing multimedia</title>
+		<meeting>the 1st ACM workshop on Audio and music computing multimedia</meeting>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="page" from="21" to="26" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">A probabilistic model for chord progressions</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Paiement</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 6th International Conference on Music Information Retrieval (ISMIR)</title>
+		<meeting>the 6th International Conference on Music Information Retrieval (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="312" to="319" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Functional harmony recognition of symbolic music data with multi-task recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 19th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="90" to="97" />
+		</imprint>
+		<respStmt>
+			<orgName>IS-MIR</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A flexible approach to automated harmonic analysis: multiple annotations of chorales by Bach and Praetorius</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Condit-Schultz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Fujinaga</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 19th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="66" to="73" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">A framework for automated Schenkerian analysis</title>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">B</forename><surname>Kirlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">E</forename><surname>Utgoff</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 9th International Conference on Music Information Retrieval (ISMIR)</title>
+		<meeting>the 9th International Conference on Music Information Retrieval (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+			<biblScope unit="page" from="363" to="368" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Harmony Transformer: Incorporating chord segmentation into harmony recognition</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="259" to="267" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Chord generation from symbolic melody using BLSTM networks</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Rhyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 18th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="621" to="627" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Text-based LSTM networks for automatic music composition</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fazekas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sandler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">the 1st Conference on Computer Simulation of Musical Creativity</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Unsupervised chord-sequence generation from an audio example</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kosta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Marchini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Purwins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 13th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="page" from="481" to="486" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Using multidimensional sequences for improvisation in the OMax paradigm</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Déguernel</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">SMC</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Vincent</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">SMC</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Assayag</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">SMC</orgName>
+			</affiliation>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th Sound and Music Computing Conference</title>
+		<meeting>the 13th Sound and Music Computing Conference</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="481" to="486" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Audio-aligned jazz harmony dataset for automatic chord transcription and corpus-based research</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Eremenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Demirel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Bozkurt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 19th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="483" to="490" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Harmonic analysis of music using combinatory categorial grammar</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Granroth-Wilding</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+		<respStmt>
+			<orgName>University of Edinburgh</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">Ph.D. dissertation</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Inside the Jazzomat -New Perspectives for Jazz Research</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Pfleiderer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Frieler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Abeßer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-G</forename></persName>
+		</author>
+		<editor>Zaddach, and B. Burkhart</editor>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<publisher>Schott Campus</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">DeepBach: a steerable model for Bach chorales generation</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Pachet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Nielsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Machine Learning (ICML)</title>
+		<meeting>the 34th International Conference on Machine Learning (ICML)</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1362" to="1371" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Computational model for automatic chord voicing based on Bayesian network</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kitahara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Katsura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Katayose</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Nagata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Conference on Music Perception and Cognition (ICMPC)</title>
+		<meeting>the 10th International Conference on Music Perception and Cognition (ICMPC)</meeting>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+			<biblScope unit="page" from="395" to="398" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ChordNet: Learning and producing voice leading with neural networks and dynamic programming</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hörnel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of New Music Research</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="387" to="397" />
+			<date type="published" when="2004">2004</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">A computational cognitive model for the analysis and generation of voice leadings</title>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">M C</forename><surname>Harrison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">T</forename><surname>Pearce</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Music Perception: An Interdisciplinary Journal</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="208" to="224" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">O</forename><surname>Jonas</surname></persName>
+		</author>
+		<title level="m">Introduction to the Theory of Heinrich Schenker</title>
+		<imprint>
+			<publisher>Musicalia Press</publisher>
+			<date type="published" when="2005">2005</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Creative chord sequence generation for electronic dance music</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Conklin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Gasser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oertl</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Applied Sciences</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<biblScope unit="page">1704</biblScope>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">A fluid chord voicing generator</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Scanteianu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Jackson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Keller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Computer Music Conference (ICMC)</title>
+		<meeting>the International Computer Music Conference (ICMC)</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="171" to="175" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">A computermediated interface for jazz piano comping</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dias</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">SMC</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Guedes</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">SMC</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Marques</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">SMC</orgName>
+			</affiliation>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Music Technology meets Philosophy -From Digital Echos to Virtual Ethos: Joint Proceedings of the 40th International Computer Music Conference (ICMC), and the 11th Sound and Music Computing Conference</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="558" to="564" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">MySong: automatic accompaniment generation for vocal melodies</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Morris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Basu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2008 Conference on Human Factors in Computing Systems (CHI)</title>
+		<meeting>the 2008 Conference on Human Factors in Computing Systems (CHI)</meeting>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+			<biblScope unit="page" from="725" to="734" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kostka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Payne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Almen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tonal</forename><surname>Harmony</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1995">1995</date>
+			<publisher>McGraw-Hill</publisher>
+			<biblScope unit="volume">3</biblScope>
+		</imprint>
+	</monogr>
+	<note>rd ed</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

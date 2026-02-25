@@ -1,0 +1,642 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MEL SPECTROGRAM INVERSION WITH STABLE PITCH</title>
+				<funder ref="#_vtrGPt9 #_exsK4RT #_ujxbS8Y">
+					<orgName type="full">unknown</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Bruno</forename><forename type="middle">Di</forename><surname>Giorgi</surname></persName>
+							<email>bdigiorgi@apple.com</email>
+						</author>
+						<author>
+							<persName><forename type="first">Mark</forename><surname>Levy</surname></persName>
+							<email>mark_levy@apple.com</email>
+						</author>
+						<author>
+							<persName><forename type="first">Richard</forename><surname>Sharp</surname></persName>
+							<email>richard_sharp@apple.com</email>
+						</author>
+						<title level="a" type="main">MEL SPECTROGRAM INVERSION WITH STABLE PITCH</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">9A8BA8531ED93319799AED72865FC595</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:15+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Vocoders are models capable of transforming a lowdimensional spectral representation of an audio signal, typically the mel spectrogram, to a waveform. Modern speech generation pipelines use a vocoder as their final component. Recent vocoder models developed for speech achieve a high degree of realism, such that it is natural to wonder how they would perform on music signals. Compared to speech, the heterogeneity and structure of the musical sound texture offers new challenges. In this work we focus on one specific artifact that some vocoder models designed for speech tend to exhibit when applied to music: the perceived instability of pitch when synthesizing sustained notes. We argue that the characteristic sound of this artifact is due to the lack of horizontal phase coherence, which is often the result of using a time-domain target space with a model that is invariant to time-shifts, such as a convolutional neural network.</p><p>We propose a new vocoder model that is specifically designed for music. Key to improving the pitch stability is the choice of a shift-invariant target space that consists of the magnitude spectrum and the phase gradient. We discuss the reasons that inspired us to re-formulate the vocoder task, outline a working example, and evaluate it on musical signals 1 . Our method results in 60% and 10% improved reconstruction of sustained notes and chords with respect to existing models, using a novel harmonic error metric. * Equal contribution 1 Reconstruction examples <ref type="url" target="https://machinelearning">https://machinelearning</ref>. apple.com/research/mel-spectrogram</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>In modern speech synthesis pipelines a first model generates a low-dimensional audio representation, usually the mel spectrogram, from text; and a second model, named Vocoder, transforms the mel spectrogram to an audio waveform. Theoretically, vocoders designed for speech could be directly applied to musical signals; however closer inspection reveals features and constraints that are exclusive to the music domain. For example, unlike speech, music signals can be polyphonic and contain longer sustained notes whose pitch precision and stability is essential.</p><p>The stability of a sustained pitched note manifests in the time-domain audio signal as the steady repetition of a periodic waveform. Periodic patterns are by definition not shift-invariant, except for shifts of an integer number of periods, therefore they require some form of auto-regression in order to be reproduced accurately. As expected, timedomain vocoders using shift invariant architectures <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b2">2]</ref>, despite other advantages such as generation efficiency, produce jitters that are perceived as pitch and timbre instability. For this reason, other time-domain generative models for audio include an autoregressive mechanism in the neural architecture <ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref>. In practice, time-domain models are required to learn all possible shifts of periodic patterns, a space that increases exponentially for polyphonic music, and how to create smooth sequences of these patterns.</p><p>Inspired by a recent generative model for single notes <ref type="bibr" target="#b6">[6]</ref>, we propose a new vocoder model for music (Fig. <ref type="figure" target="#fig_0">1</ref>), where the target of the neural network is an intermediate frequency-domain audio representation that is shiftinvariant for sustained notes. This representation is composed of the magnitude spectrum and the phase gradient, and can be later turned to audio via: 1. a phase integration algorithm and 2. the inverse STFT. The proposed design can be used with an efficient shift-invariant neural architecture and still yield stable reconstruction of sustained notes. Specifically, our contributions include:</p><p>• a formulation of the mel spectrogram inversion task, matching shift-invariant network and target, in order to improve the perceived stability of sustained notes</p><p>• a phase integration algorithm • an evaluation metric measuring pitch stability for multiple notes</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">BACKGROUND</head><p>Figure <ref type="figure">2</ref>: Magnitude M , phase φ and phase gradient ∇φ patterns for a sinusoidal (top row) and an impulse (bottom row) signal. While the magnitude spectrum is easy to interpret visually, patterns in the phase spectrum are harder to decipher, but become evident in the phase gradient.</p><p>A discrete audio signal x can be analyzed in the timefrequency space using the STFT:</p><formula xml:id="formula_0">X[m, n] = i x[i + nR]w[i]e -jωmi ,<label>(1)</label></formula><p>where m and n are the integer frequency bin and time frame indices, R is the hop size between successive frames, w is a window function defined in the [-N/2, N/2) interval, with N being the frame size and ω m = 2πm/N the angular frequency. The STFT is a complex-valued matrix, as such it can be represented in the polar form:</p><formula xml:id="formula_1">X[m, n] = M [m, n]e -jφ[m,n] .<label>(2)</label></formula><p>The magnitude component M highlights the energy of the signal at various locations in the time-frequency grid: it is easier to interpret and more widely used than the phase component φ. However, the phase spectrum is of primary perceptual importance to reconstruct the audio signal precisely, and while harder to interpret at first sight, it does contain patterns that can guide model design choices (Fig. <ref type="figure">2</ref>). In Sect. 2.1 we describe two patterns that form in the magnitude and phase spectrum corresponding to the occurrence of ideal sinusoidal and impulsive signal components.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Sinusoidal and impulsive components</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1.1">Sinusoidal components</head><p>In the magnitude spectrum, sinusoidal components such as any single harmonic of a pitched instrument's sustained note, show up as horizontal lines (Fig. <ref type="figure">2(a)</ref>). While the magnitude spectrum does not depend on the frame index n, and is therefore shift-invariant, the phase spectrum depends linearly on n (Fig. <ref type="figure">2(b</ref>)), and the rate of change is given by the frequency of the sinusoidal component. Failing to reconstruct this linear relation between phase and time results in loss of horizontal phase coherence, perceived as unstable pitch, because errors are attributed to sudden changes of the frequency of the sinusoidal component.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1.2">Impulsive components</head><p>Impulsive components such as the attack of a percussion instrument show up as vertical lines in the magnitude spectrum (Fig. <ref type="figure">2(d)</ref>). While the magnitude spectrum does not depend on the frequency index m, the phase spectrum depends linearly on m (Fig. <ref type="figure">2(e</ref>)), and the rate of change depends on the offset between the location of the impulse and the frame center. Failing to reconstruct this linear relation between phase and frequency results in loss of vertical phase coherence, which is perceived as smeared transients, because the errors are attributed to the location of the impulse.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Phase gradient</head><p>The linear patterns that emerge in the phase for sinusoidal and impulsive components are better highlighted in the two components of the phase gradient ∇φ = (φ ′ i , φ ′ m ). The partial derivative of phase along the time dimension φ ′ i is called instantaneous frequency. For the bins that belong to sinusoidal components, φ ′ i is constant and the phase can be propagated horizontally:</p><formula xml:id="formula_2">φ[m, n + 1] = φ[m, n] + Rφ ′ i [m, n].<label>(3)</label></formula><p>The partial derivative along the frequency dimension φ ′ m is called local group delay. For the bins that belong to impulsive components, φ ′ m is constant and the phase can be propagated vertically:</p><formula xml:id="formula_3">φ[m + 1, n] = φ[m, n] + φ ′ m [m, n].<label>(4)</label></formula><p>In the time-frequency reassignment literature (see e.g. <ref type="bibr">[7]</ref>), the phase gradient components are used to assign the energy of a spectral bin (m, n) to a nearby point of maximum contribution ( ṁ, ṅ):</p><formula xml:id="formula_4">ṁ[m, n]= m + ∆m[m, n] ṅ[m, n]= n + ∆n[m, n],<label>(5)</label></formula><p>where ∆n[m, n] (Fig. <ref type="figure">2</ref>(f)) and ∆m[m, n] (Fig. <ref type="figure">2</ref>(c)) represent time and frequency bin offsets and are derived from the phase gradient</p><formula xml:id="formula_5">∆m[m, n]= φ ′ i [m, n] N 2π -m ∆n[m, n]= -φ ′ m [m, n] N 2πR .<label>(6)</label></formula><p>In the following sections, we discuss how the phase gradient can be used for mel spectrogram inversion.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Mel spectrogram inversion</head><p>The log-amplitude mel spectrogram (simply mel spectrogram from now on) is a low-resolution time-frequency representation that is derived from the power spectrogram M 2 , by first warping the frequency axis using the mel scale, then scaling the values to log-amplitude. Estimating the original audio signal x from the mel spectrogram requires recovering the information that has been lost in the direct computation, i.e. the phase information and the linearly-spaced and higher frequency resolution of the magnitude spectrum.</p><p>While the majority of the recent approaches try to learn this inverse transformation end-to-end, this is especially hard for a polyphonic music signal. To precisely reproduce a sustained note, an end-to-end model needs to learn: 1. different patterns for every combination of phase shift and period of a periodic waveform, and 2. how to activate them in the right sequence <ref type="bibr" target="#b6">[6]</ref>. Accomplishing both tasks is challenging for speech and arguably even more so for music, which contains generally longer pitched sounds with wider pitch range, possibly multiple concurrent fundamental frequencies (polyphony), and whose absolute precision is essential.</p><p>Instead of reconstructing the signal in the time domain, we propose to use as output space an intermediate timefrequency representation consisting of three channels: the magnitude spectrum and the two components of the phase gradient:</p><formula xml:id="formula_6">(M, φ ′ i , φ ′ m ).</formula><p>The phase gradient is later integrated to estimate the phase spectrum φ, and finally audio is computed via the inverse STFT.</p><p>A model trained on our proposed output representation does not need to learn: 1. the shift variations of periodic waveforms as those are explicitly modeled by the inverse STFT, and 2. how to sequence phase, which is handled via the phase integration algorithm. Differently from the phase spectrum, the phase derivative along time is shift-invariant, thus it is a more suitable target for a shift-invariant architecture, such as the convolutional neural network.</p><p>The approaches that have been suggested in the recent years for neural audio synthesis in the time-domain have to use auto-regression to achieve horizontal phase coherence. For example, autoregression is at the core of models like WaveNet <ref type="bibr" target="#b3">[3]</ref> and WaveRNN <ref type="bibr" target="#b4">[4]</ref>, however the fact that it is applied at the rate of audio samples make these model prohibitively expensive for the generation of high-resolution audio signals.</p><p>Audio domain shift-invariant convolutional neural vocoders can generate audio samples with much higher efficiency, but are not suited to reconstruct long pitched components precisely. This holds regardless of the training strategy, and includes for example generative adversarial networks (GAN) based models <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b2">2]</ref> and diffusion based models <ref type="bibr" target="#b8">[8,</ref><ref type="bibr" target="#b9">9]</ref>. A recent neural vocoder for speech mel spectrogram inversion <ref type="bibr" target="#b5">[5]</ref> adds an autoregressive loop that works on chunks of audio. The autoregressive nature of this architecture allows performing temporal integration, the operation needed to reconstruct stable sinusoidal components, while advancing by audio chunks rather than samples improves efficiency. However, the poor reconstruction quality observed when applying this model to music signals suggests that it is difficult to learn signal properties such as the rotation of phase from data with sufficient generalization.</p><p>In the neural audio synthesis literature, using instantaneous frequency has been considered explicitly in <ref type="bibr" target="#b6">[6]</ref>, where it is generated alongside the magnitude spectrum in order to reconstruct the audio of single notes, conditioned on the pitch contour and a timbre embedding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Phase integration</head><p>Recovering the phase spectrum from the phase gradients requires an integration step. Theoretically, perfect integration should be possible under specific constraints, such as continuous phase gradient spectrum and window functions with infinite support. In practice, however there is no closed-form solution for integrating typical discrete phase gradient spectra <ref type="bibr" target="#b10">[10]</ref>.</p><p>Well-known phase gradient integration algorithms have been developed in the Time-Scale Modification (TSM) literature. The standard Phase-Vocoder (PV) algorithm propagates the phase derivative along the time dimension to modify the duration of sinusoidal components <ref type="bibr" target="#b11">[11]</ref>.</p><p>The PV is able to preserve horizontal phase coherence, but struggles with vertical phase coherence, leading to smeared transients. Improvements to the standard phasevocoder algorithm <ref type="bibr" target="#b12">[12]</ref><ref type="bibr" target="#b13">[13]</ref><ref type="bibr" target="#b14">[14]</ref> use the magnitude spectrum to identify sinusoidal and/or impulsive components, and can propagate phase in either direction (time or frequency) depending on the local properties of the signal.</p><p>The phase gradient integration algorithm that we develop (Sect. 3.2) is inspired by these recent variations, and leads to subjectively improved reconstruction quality, alongside increased computational efficiency. A formal evaluation of the integration algorithm is out of the scope of this manuscript and left as future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">MODEL</head><p>In this section we describe our proposed model for mel spectrogram inversion. The model is composed of a timewise convolutional neural network (Sect. 3.1) that estimates magnitude and phase gradient from the mel spectrogram, and a phase integration algorithm (Sect. 3.2) that estimates the phase spectrum given the phase gradient. The time-domain reconstructed audio is finally obtained via inverse STFT from the magnitude and phase spectra.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Network architecture</head><p>The neural network is a stack of 8 1-d (time) convolutional layers with 1536 hidden channels, a kernel size of 3 frames and ReLU activations (Fig. <ref type="figure" target="#fig_2">3</ref>). The input and output have the same number of time frames, but different numbers of frequency bins, and their center frequencies are different, i.e. log-spaced for the mel spectrogram input and linearly spaced for the magnitude and phase gradient outputs. The frequency bins of the input and the magnitude channel of the output are independently standardized using the mean and standard deviation values computed from the training set. We found that a direct path from the input to the magnitude channel of the output leads to significant improvements in the reconstruction of magnitude and the training speed. This direct path consists only of a frequency warping operation from mel-to linear-scale.</p><p>The phase gradients (φ ′ i , φ ′ m ) are computed using the Auger-Flandrin technique <ref type="bibr" target="#b15">[15]</ref>. Although we have not ex-  perimented with other ways to compute the phase gradient, it was argued <ref type="bibr" target="#b16">[16]</ref> that using a less precise method, such as finite differences might perform just as well. Instead of using the phase gradients directly, we use the vertical and horizontal bin offsets (Eq. ( <ref type="formula" target="#formula_5">6</ref>)), which are derived from the two components of the phase gradient. In order to remove outliers, the absolute bin offsets are clipped to 4.0 on the frequency dimension and to N/2R on the time dimension. The model uses linear output activation on all output channels except for the magnitude channel, where we apply a scaled tanh activation f β (x) = β tanh(x/β) with β = 5 to use mostly the linear regime while also preventing overflow <ref type="bibr" target="#b6">[6]</ref>. The three channels are then scaled and offset appropriately to match the statistics of the targets.</p><formula xml:id="formula_7">Q P V R u w O m X 0 = " &gt; A A A B 7 3 i c b V B N S 8 N A E N 3 U r 1 q / q h 6 9 L B b B U 0 m k q M e C H j x W s B / Q h r L Z T t q l m 0 3 c n Q g l 9 E 9 4 8 a C I V / + O N / + N 2 z Y H b X 0 w 8 H h v h p l 5 Q S K F Q d f 9 d g p r 6 x u b W 8 X t 0 s 7 u 3 v 5 B + f C o Z e J U c 2 j y W M a 6 E z A D U i h o o k A J n U Q D i w I J 7 W B 8 M / P b T 6 C N i N U D T h L w I z Z U I h S c o Z U 6 v V u Q y K j q l y t u 1 Z 2 D r h I v J x W S o 9 E v f / U G M U 8 j U M g l M 6 b r u Q n 6 G d M o u I R p q Z c a S B g f s y F 0 L V U s A u N n 8 3 u n 9 M w q A x r G 2 p Z C O l d / T 2 Q s M m Y S B b Y z Y j g y y 9 5 M / M / r p h h e + 5 l Q S Y q g + G J R m E q K M Z 0 9 T w d C A 0 c 5 s Y R x L e y t l I + Y Z h x t R C U b g r f 8 8 i p p X V S 9 y 6 p 3 X 6 v U a 3 k c R X J C T s k 5 8 c g V q Z M 7 0 i B N w o k k z + S V v D m P z o v z 7 n w s W g t O P n N M / s D 5 / A G E H 4 + W &lt; / l a t e x i t &gt; ∆n &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " B B r F t 0 f g o g o 8 d W 9 f G A o a g g 6 z N Y U = " &gt; A A A B 7 3 i c b V B N S 8 N A E J 3 U r 1 q / q h 6 9 L B b B U 0 m k q M e C H j x W s B / Q h r L Z b t q l m 0 3 c n Q g l 9 E 9 4 8 a C I V / + O N / + N 2 z Y H b X 0 w 8 H h v h p l 5 Q S K F Q d f 9 d g p r 6 x u b W 8 X t 0 s 7 u 3 v 5 B + f C o Z e J U M 9 5 k s Y x 1 J 6 C G S 6 F 4 E w V K 3 k k 0 p 1 E g e T s Y 3 8 z 8 9 h P X R s T q A S c J 9 y M 6 V C I U j K K V O r 1 b L p G S q F + u u F V 3 D r J K v J x U I E e j X / 7 q D W K W R l w h k 9 S Y r u c m 6 G d U o 2 C S T 0 u 9 1 P C E s j E d 8 q 6 l i k b c + N n 8 3 i k 5 s 8 q A h L G 2 p Z D M 1 d 8 T G Y 2 M m U S B 7 Y w o j s y y N x P / 8 7 o p h t d + J l S S I l d s s S h M J c G Y z J 4 n A 6 E 5 Q z m x h D I t 7 K 2 E j a i m D G 1 E J R u C t / z y K m l d V L 3 L q n d f q 9 R r e R x F O I F T O A c P r q A O d 9 C A J j C Q 8 A y v 8 O Y 8 O i / O u / O x a C 0 4 + c w x / I H z + Q O C m 4 + V &lt; / l a t e x i t &gt; ∆m &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " k v 8 E z d z A I 3 Z 5 f l 7 / H H G S f J i d E b c = " &gt; A A A B 6 H i c b V B N S 8 N A E J 3 U r 1 q / q h 6 9 L B b B U 0 m k q M e C F y 9 C C 7 Y W 2 l A 2 2 0 m 7 d r M J u x u h h P 4 C L x 4 U 8 e p P 8 u a / c d v m o K 0 P B h 7 v z T A z L 0 g E 1 8 Z 1 v 5 3 C 2 v r G 5 l Z x u 7 S z u 7 d / U D 4 8 a u s 4 V Q x b L B a x 6 g R U o + A S W 4 Y b g Z 1 E I Y 0 C g Q / B + G b m P z y h 0 j y W 9 2 a S o B / R o e Q h Z 9 R Y q X n X L 1 f c q j s H W S V e T i q Q o 9 E v f / U G M U s j l I Y J q n X X c x P j Z 1 Q Z z g R O S 7 1 U Y 0 L Z m A 6 x a 6 m k E W o / m x 8 6 J W d W G Z A w V r a k I X P 1 9 0 R G I 6 0 n U W A 7 I 2 p G e t m b i f 9 5 3 d S E 1 3 7 G Z Z I a l G y x K E w F M T G Z f U 0 G X C E z Y m I J Z Y</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.1">Losses</head><p>The magnitude channel is trained with a Mean Square Error (MSE) loss term, and a further MSE loss term computed on the first 20 linear-frequency cepstral coefficients (LFCC).</p><formula xml:id="formula_8">L 1 = ( M -M ) 2 (7) L 2 = (DCT :20 ( M ) -DCT :20 (M )) 2 ,<label>(8)</label></formula><p>where M indicates the estimated magnitude spectrum, M the target magnitude spectrum, and DCT the normalized Discrete Cosine Transform; in these and the following loss formulas the [m, n] indices and the global average operation have been omitted for simplicity. While L 1 acts on point estimates, L 2 pushes the spectral envelope towards its true value, leading to faster convergence and better reconstruction quality.</p><p>The phase gradient channels are trained with another MSE loss, weighted by the power spectrum of the target signal M<ref type="foot" target="#foot_1">foot_1</ref> . A matrix λ ∈ [0, 1], computed from the phase gradient (Sect. 3.2), is used to distinguish sinusoidal and impulsive components. The idea is that the phase derivative along the time/frequency dimension contributes to the loss only for sinusoidal/impulsive components:</p><formula xml:id="formula_9">L 3 = M 2 ( ∆m -∆m) 2 λ &gt; 0.5 M 2 ( ∆n -∆n) 2 λ ≤ 0.5, ,<label>(9)</label></formula><p>where ( ∆m, ∆n) are the estimated bin offsets.</p><p>Finally, because λ is a function of ∇φ and is used for integration, we add a loss term:</p><formula xml:id="formula_10">L 4 = M 2 ( λ -λ) 2 , (<label>10</label></formula><formula xml:id="formula_11">)</formula><p>where λ is computed using the phase gradient estimates and λ using the target values. The final loss is a weighted sum of all the loss terms:</p><formula xml:id="formula_12">L = l α l L l ,<label>(11)</label></formula><p>where all weights are set to 1 except α 2 = 0.1 to balance the contribution of all terms during training. Differently from time-domain methods for mel spectrogram inversion, we found reconstruction losses to yield satisfying results and did not add any adversarial loss. Evaluating the advantages of including adversarial losses is left for future research.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Phase integration</head><p>The algorithm we use for integrating phase from phase gradients relies on the classification of spectral bins into either sinusoidal, transient or noise components.</p><p>The classification uses the phase gradient and relies on the following rationale <ref type="bibr">[7]</ref>: around sinusoidal/impulsive components the reassigned frequency/time is approximately constant along frequency/time</p><formula xml:id="formula_13">λ[m, n] = e -( d dm ṁ[m,n]/ d dn ṅ[m,n]) 2 , (<label>12</label></formula><formula xml:id="formula_14">)</formula><p>where the derivatives d/dm and d/dn are computed with centered finite differences. After computing λ, the phase gradients are propagated horizontally (Eq. ( <ref type="formula" target="#formula_2">3</ref>)) if λ &gt; λ S , vertically (Eq. ( <ref type="formula" target="#formula_3">4</ref>)) if λ &lt; λ I , and set to a random value otherwise. λ I and λ S are threshold values for impulsive and sinusoidal components, and are used to identify the spectral bins over which respectively vertical or horizontal phase coherence should be enforced. We empirically set λ I = 0.4 and λ S = 0.5, as these values performed well on early trials.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head><p>In this section we discuss how we evaluate the pitch stability of the proposed model, comparing to strong baseline vocoder models from the speech synthesis literature.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental Setup</head><p>We compare the reconstruction of the proposed phase-gradient model against state-of-the-art approaches: . phase-gradient model achieves lower error than the baseline models on the entire range. The values have been smoothed with a moving average with size/stride equal to 12/6 semitones to filter out noise. The bottom row shows the error when adding more notes in different combinations, where the error is averaged over the entire pitch range, and the numbers on the x axis indicate the intervals in semitones that are played simultaneously, e.g. "0, 4, 7" is the major triad. from commercial libraries <ref type="foot" target="#foot_5">6</ref> , split into training, validation and test in the ratio of 80/10/10, which we refer to as the Ambient dataset. The audio from these loop libraries is converted to mono at 44.1kHz, 16-bit, the spectrograms are computed with a frame size of 2048 samples and hop size of 256 samples, and finally 96 bands are used for the mel spectrogram.</p><formula xml:id="formula_15">melgan [1] 2 , hifigan [2] 3 , cargan [5]</formula><p>All neural networks were trained from scratch. The phase-gradient network was trained using 2 Volta GPUs in parallel and batches of 32 examples, with the Adam optimizer and learning rate set to 3e-5. The training was stopped after 1024 epochs, when the validation loss converged, which took approximately 2 days.</p><p>As a further non machine-learned baseline, we consider a reconstruction algorithm griffin-lim, which generates audio from the mel spectrogram by first warping the frequency axis and the values to obtain a magnitude spectrogram, then applying the Griffin-Lim algorithm <ref type="bibr" target="#b17">[17]</ref> for 500 iterations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Pitch stability</head><p>To evaluate the pitch stability of our model, we used Flu-idSynth <ref type="foot" target="#foot_6">7</ref> to synthesize a dataset of one second long notes and chords in the (C2, C7) range, using a set of four different sounds: a rhodes piano, a church organ, a string ensemble and a nylon guitar. Measuring stability with a pitch tracker is only feasible for single notes, and we found that errors computed with a pitch tracker even for monophonic signals did not reflect our perception of reconstruction quality. A possible explanation is that pitch-trackers average out errors in the harmonic frequencies, which is inconvenient in this context because the precise location of the overtones is important for timbre perception <ref type="bibr" target="#b18">[18]</ref>.</p><p>For this reason, we define a harmonic error metric H err as the sum of the frequency errors of the fundamental and the first 4 harmonic frequencies, expressed in the pitch scale:</p><formula xml:id="formula_16">H err [p, h, n] = 12| log 2 ( fp,h [n] f p,h [n] )|,<label>(13)</label></formula><p>where f p,h [n] and fp,h [n] are the frequencies of the h-th harmonic of the p-th note, at frame n, for the original and the reconstructed audio respectively; the frequencies are estimated as the closest peaks to the nominal frequency of the partial, using quadratic interpolation, on a magnitude spectrum computed using frame/hop size equal to 4096/256 samples. We look at the mean and maximum values of the harmonic error, as a way to summarize the expected and worst case reconstruction errors.</p><p>Results show that our phase-gradient model was able to reconstruct the single notes with lower mean and maximum harmonic error over the entire range of notes, especially in the lower pitch range (Fig. <ref type="figure" target="#fig_3">4(a)</ref>). A possible explanation for the larger improvement on the low register is that the long waveform period of lower-pitched notes makes them challenging to learn in the time-domain, given the high number of phase variations. A visualization of the different models' reconstruction of the same E2 guitar note is provided in Fig. <ref type="figure" target="#fig_4">5</ref>.</p><p>We also synthesized different combinations of notes, to test the reconstruction quality on more challenging signals. The combinations include octaves, major 12ths, perfect fifths, an open-and a close-position voicing of the major triad, and a close-position voicing of the major seventh chord. As expected, the harmonic error increases when adding more notes (Fig. <ref type="figure" target="#fig_3">4</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Reconstruction quality</head><p>To evaluate the overall reconstruction quality of the proposed model, we compute the Frechét Audio Distance (FAD) <ref type="bibr" target="#b19">[19]</ref> on the Ambient dataset, the dataset of 1920 one second long notes and chords ("N+C") used in Sect. 4.2, and the NSynth dataset <ref type="bibr" target="#b20">[20]</ref>. The results are shown in Table <ref type="table" target="#tab_0">1</ref> alongside aggregated mean harmonic error results from the experiment discussed in Sect. 4.2.</p><p>The FAD metric compares embedding statistics generated on two potentially different sets of audio signals, i.e. evaluation and reference set. On the Ambient and NSynth datasets we compute the FAD between the reconstructed test split (evaluation) and the original training split (reference). On N+C, the reconstructed and original signals from the entire dataset are used as evaluation and reference sets. An ideal model (oracle) is added to provide reference values, useful when the evaluation and reference sets are different.</p><p>The aggregated mean harmonic error results are computed over two meaningful subsets of the N+C dataset: a "Notes" dataset, representing all single notes, and a "Chords" dataset, containing all note combinations with more than one pitch class (see Fig. <ref type="figure" target="#fig_3">4</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>bottom row).</head><p>We conducted a small listening test to evaluate a set of notes reconstructed with different models. The set includes G2 and G3 notes randomly selected from NSynth, for each instrument family. The 5-scale Mean Opinion Score (MOS) values and the 95% confidence intervals are shown in Table <ref type="table" target="#tab_0">1</ref>.</p><p>The results show that the phase-gradient model is competitive with other state-of-the-art models, despite having simpler neural network and training procedure. The fact that hifigan model is able to score lower FAD than the proposed model on the Ambient and N+C datasets suggests it has higher reconstruction accuracy on different sonic characteristics.</p><p>Specifically, we noticed that hifigan was able to reconstruct impulsive components such as transients and percussive onsets with higher energy and often more accurately than the phase-gradient model, while strug-gling with the stability of pitched notes and chords. The diffwave model exhibited high frequency "hissing" noise, but was otherwise surprisingly stable on harmonic components. This quality likely stems from the wide ~7s receptive field, obtained using the entire reverse process at generation time instead of a fast sampling schedule <ref type="bibr" target="#b8">[8]</ref>. As reported by its authors in <ref type="bibr" target="#b5">[5]</ref>, we confirm that the reconstructions made by the cargan model contained "boundary artifacts that appear as repeated clicks", compromising their usability. Finally, the reconstructions obtained with the melgan model were characterized by heavy phase artifacts such as metallic sounds, and very unstable pitch.</p><p>Generation time is also shown in Table <ref type="table" target="#tab_0">1</ref> in terms of real-time factor (RTF), defined as the number of seconds of audio that can be generated per second, evaluated on a single NVidia Volta GPU. phase-gradient's generation is faster than real time, and close to cargan. While phase-gradient's neural network is as fast as hifigan and melgan, 99% of the generation time is spent during the auto-regressive phase integration stage, suggesting a clear direction for optimization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSIONS</head><p>In this work we have proposed a new mel spectrogram inversion model designed for music that achieves improved reconstruction of sustained notes and chords, compared to state-of-the-art models from the speech synthesis literature. This improvement is obtained using a frequencydomain target representation that is time shift invariant for harmonic signal components. The proposed model is able to reconstruct single notes and chords respectively 60% and 10% more precisely than existing models, when evaluated with a novel harmonic error metric, while still being competitive on generic loop reconstruction. Potential directions for improvement include using pitch-shift augmentation, investigating log-frequency target representations, and training a separate time-domain model to supply the percussive components.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Our proposed model for mel spectrogram inversion. A one dimensional CNN estimates the magnitude and the phase gradient from the mel spectrogram. The phase gradient is then integrated to estimate the phase spectrum and finally audio is obtained via the inverse STFT.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>t e x i t s h a 1 _ b a s e 6 4 = " N J Y l l J L m 8 u R j u r Z r p</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>+Figure 3 :</head><label>3</label><figDesc>Figure 3: Convolutional network architecture</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure4: Harmonic error of different mel spectrogram inversion models for synthesized notes in the (C2, C7) range (top row). phase-gradient model achieves lower error than the baseline models on the entire range. The values have been smoothed with a moving average with size/stride equal to 12/6 semitones to filter out noise. The bottom row shows the error when adding more notes in different combinations, where the error is averaged over the entire pitch range, and the numbers on the x axis indicate the intervals in semitones that are played simultaneously, e.g. "0, 4, 7" is the major triad.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Reconstructions of an E2 nylon guitar note usdifferent mel spectrogram inversion models. The figure shows the reassigned spectrograms [7] which highlight the instability on the fundamental and the harmonics caused by the lack of temporal phase coherence.</figDesc><graphic coords="5,310.11,68.54,232.44,87.17" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>(b)), as they are harder to recognize in the input mel spectrogram. The phase-gradient model is able to yield lower mean and maximum harmonic error on all the considered combi-Reconstruction results nations of notes. However, the decrease in the reconstruction quality, particularly on close-position chord voicings, suggests possible connections with the target's frequency resolution.</figDesc><table><row><cell></cell><cell></cell><cell>FAD (↓)</cell><cell cols="2">H err (↓)</cell><cell>MOS (↑)</cell><cell cols="2">RTF (↑) #Params</cell></row><row><cell></cell><cell cols="4">Ambient NSynth N+C Notes Chords</cell><cell>NSynth</cell><cell></cell></row><row><cell>griffin-lim [17]</cell><cell>10.59</cell><cell>6.16 6.79</cell><cell>0.28</cell><cell cols="2">0.24 1.42 ± 0.11</cell><cell>7.14</cell><cell>0</cell></row><row><cell>melgan [1]</cell><cell>2.07</cell><cell>2.80 2.84</cell><cell>0.36</cell><cell cols="2">0.30 1.58 ± 0.15</cell><cell>179.90</cell><cell>4M</cell></row><row><cell>cargan [5]</cell><cell>6.47</cell><cell>8.31 8.45</cell><cell>0.21</cell><cell cols="2">0.21 1.74 ± 0.12</cell><cell>4.36</cell><cell>25M</cell></row><row><cell>hifigan [2]</cell><cell>0.85</cell><cell>1.31 1.81</cell><cell>0.16</cell><cell cols="2">0.17 2.89 ± 0.12</cell><cell>68.12</cell><cell>13M</cell></row><row><cell>diffwave [8]</cell><cell>2.62</cell><cell>6.84 1.89</cell><cell>0.14</cell><cell cols="2">0.15 3.19 ± 0.12</cell><cell>0.32</cell><cell>7M</cell></row><row><cell>phase-gradient</cell><cell>1.26</cell><cell>1.26 1.86</cell><cell>0.09</cell><cell cols="2">0.14 3.73 ± 0.13</cell><cell>3.58</cell><cell>28M</cell></row><row><cell>oracle</cell><cell>0.51</cell><cell>0.33 0.00</cell><cell>0.00</cell><cell cols="2">0.00 4.34 ± 0.15</cell><cell>-</cell><cell>-</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://github.com/descriptinc/melgan-neurips</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>https://github.com/kan-bayashi/ParallelWaveGAN.git</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>https://github.com/descriptinc/cargan</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>https://github.com/lmnt-com/diffwave Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>we used the following loop packs licensed from Big Fish Audio Ltd.: Ambient Piano, Ambient Skyline 3, Ambient Waves, Eclipse: Ambient Guitars, Ethereal Harp, Zen Ambient Vol. 2</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_6"><p>http://www.fluidsynth.org</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="6.">ACKNOWLEDGEMENTS</head><p>We would like to thank the following colleagues for their valuable help and feedback: <rs type="person">David Varas Gonzalez</rs>, <rs type="person">Tim O'Brien</rs>, <rs type="person">Avery Wang</rs>, <rs type="person">Meghna Ranjit</rs>, and <rs type="person">André Bergner</rs>.</p><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022   </p></div>
+			</div>
+			<div type="funding">
+<div><p>t X 1 a O X x S J 4 K o m I e i x 6 8 S K 0 Y D + g D W W z n b R r N 5 u w u x F K 6 C / w 4 k E R r / 4 k b / 4 b t 2 0 O 2 v p g 4 P H e D D P z g k R w b V z 3 2 1 l Z X V v f 2 C x s F b d 3 d v f 2 S w e H T R 2 n i m G D x S J W 7 Y B q F F x i w 3 A j s J 0 o p F E g s B W M b q d + 6 w m V 5 r F 8 M O M E / Y g O J A 8 5 o 8 Z K 9 f t e q e x W 3 B n I M v F y U o Y c t V 7 p q 9 u P W R q h N E x Q r T u e m x g / o 8 p w J n B S 7 K Y a E 8 p G d I A d S y W N U P v Z 7 N A J O b V K n 4 S x s i U N m a m / J z I a a T 2 O A t s Z U T P U i 9 5 U / M / r p C a 8 9 j M u k 9 S g Z P N F Y S q I i c n 0 a 9 L n C p k R Y 0 s o U 9 z e S t i Q K s q M z a Z o <rs type="programName">Q / A W X 1 4 m z f O K d 1 n x 6 h f l 6 k 0 e R w G O 4 Q T O w I M r q M I d 1 K A B D B C e 4 R X e n E</rs> f n x X l 3 P u a t K 0 4 + c w R / 4 H z + A K c F j N c = &lt; / l a t e x i t &gt; M &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " f 5 N r m U 0</p><p>H e n Y 9 F a 8 U p Z 4 7 h D 5 z P H x W A j k U = &lt; / l a t e x i t &gt; φ &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " B r Y P w F C V D i n 5 u Y G X U 3 p o o o a F w f <rs type="programName">Q = " &gt; A A A B 6 3 i c b V B N S 8 N A E J 3 U r 1 q / q h 6 9 L B b B U 0 l E 1 G P R</rs> i 8 c K 9 g P a U D b b T b t 0 s w m 7 E 6 G E / g U v H h T x 6 h / y 5 r 9 x 0 + a g r Q 8 G H u / N M D M v S K Q w 6 L r f T m l t f W N z q 7 x d 2 d n d 2 z + o H h 6 1 T Z x q x l s s l r H u B t R w K R R v o U D J u 4 n m N A o k 7 w S T u 9 z v P H F t R K w e c Z p w P 6 I j <rs type="person">J U L B K O Z S X</rs> y g c V G t u 3 Z 2 D r B K v I D U o 0 B x U v / r D m K U R V 8 g k N a b n u Q n 6 G d U o m O S z S j 8 1 P K F s Q k e 8 Z 6 m i E T d + N r 9 1 R s 6 s M i R h r G 0 p J H P 1 9 0 R G I 2 O m U W A 7 I 4 p j s + z l 4 n 9 e L 8 X w x s <rs type="programName">+ E S l L k i i 0 W h a k k G J P 8 c T I U m j O U U 0 s o 0 8 L e S t i Y a s r Q x l O x I X j L L 6 + S 9 k X d u 6 p 7 D 5 e 1 x m 0 R R x l O 4 B T O</rs> w Y N r a M A 9 N K E F D M b w D K / w 5 k T O i / P u f C x a S 0 4 x c w x / 4 H z + A C S g j k 8 = &lt; / l a t e x i t &gt; Z &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " N k / b B / 4 q b j C 4 4 + u X 2 b w F H M W g 9 K o = " &gt; A A A B 8 X i c b V B N S 8 N A E J 3 U r 1 q / q h 6 9 L B b B U 0 l E 1 G P R i 8 c K t h a b U C b b T b t 0 s w m 7 G 6 G E / g s v H h T x 6 r / x 5 r 9 x 2 + a g r Q</p><p>7 1 y + 8 n N I u Z N F S g 1 l 3 P T U 2 Q o z K c C j a p + J l m K d I R D l j X U o k x 0 0 E + u 3 h C T q z S J 1 G i b E l D Z u r v i R x j r c d x a D t j N E O 9 6 E 3 F / 7 x u Z q K r I O c y z Q y T d L 4 o y g Q x C Z m + T / p c M W r E 2 B K k i t t b C R 2 i Q m p s S B U b g r f 4 8 j J p n 9 W 9 i 7 p 3 d 1 5 r X B d x l O E I</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_vtrGPt9">
+					<orgName type="program" subtype="full">Q / A W X 1 4 m z f O K d 1 n x 6 h f l 6 k 0 e R w G O 4 Q T O w I M r q M I d 1 K A B D B C e 4 R X e n E</orgName>
+				</org>
+				<org type="funding" xml:id="_exsK4RT">
+					<orgName type="program" subtype="full">Q = &quot; &gt; A A A B 6 3 i c b V B N S 8 N A E J 3 U r 1 q / q h 6 9 L B b B U 0 l E 1 G P R</orgName>
+				</org>
+				<org type="funding" xml:id="_ujxbS8Y">
+					<orgName type="program" subtype="full">+ E S l L k i i 0 W h a k k G J P 8 c T I U m j O U U 0 s o 0 8 L e S t i Y a s r Q x l O x I X j L L 6 + S 9 k X d u 6 p 7 D 5 e 1 x m 0 R R x l O 4 B T O</orgName>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Melgan: Generative adversarial networks for conditional waveform synthesis</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>De Boissiere</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Gestin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">Z</forename><surname>Teoh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sotelo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>De Brébisson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">C</forename><surname>Courville</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Hifi-gan: Generative adversarial networks for efficient and high fidelity speech synthesis</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bae</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page">33</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Wavenet: A generative model for raw audio</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">V D</forename><surname>Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Senior</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ISCA Speech Synthesis Workshop</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Efficient neural audio synthesis</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Elsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Noury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Casagrande</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Lockhart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Stimberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">V D</forename><surname>Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning (ICML)</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Chunked autoregressive gan for conditional waveform synthesis</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Morrison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Seetharaman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<imprint>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+	<note>in International Conference on Learning Representations (ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Gansynth: Adversarial neural audio synthesis</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">K</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Gulrajani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">A unified theory of time-frequency reassignment</title>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">R</forename><surname>Fitz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">A</forename><surname>Fulop</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:0903.3080</idno>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Diffwave: A versatile diffusion model for audio synthesis</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Ping</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Catanzaro</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Music enhancement via image translation and vocoding</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kandpal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Nieto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Jin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="3124" to="3128" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Real-time spectrogram inversion using phase gradient heap integration</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Pruša</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">L</forename><surname>Søndergaard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Digital Audio Effects</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="17" to="21" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">The phase vocoder: A tutorial</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dolson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Music Journal</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="14" to="27" />
+			<date type="published" when="1986">1986</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Phase vocoder done right</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Pruša</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Holighaus</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE European Signal Processing Conference</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="976" to="980" />
+		</imprint>
+		<respStmt>
+			<orgName>EU-SIPCO</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Improved phase vocoder time-scale modification of audio</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Laroche</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dolson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Speech and Audio Processing</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="323" to="332" />
+			<date type="published" when="1999">1999</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Audio time stretching using fuzzy classification of spectral bins</title>
+		<author>
+			<persName><forename type="first">E.-P</forename><surname>Damskägg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Välimäki</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Applied Sciences</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page">1293</biblScope>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Improving the readability of time-frequency and time-scale representations by the reassignment method</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Auger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Flandrin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on signal processing</title>
+		<imprint>
+			<biblScope unit="volume">43</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="1068" to="1089" />
+			<date type="published" when="1995">1995</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Algorithms for computing the time-corrected instantaneous frequency (reassigned) spectrogram, with applications</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">A</forename><surname>Fulop</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Fitz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the Acoustical Society of America</title>
+		<imprint>
+			<biblScope unit="volume">119</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="360" to="371" />
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">A fast griffin-lim algorithm</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Perraudin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Balazs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">L</forename><surname>Søndergaard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Workshop on Applications of Signal Processing to Audio and Acoustics</title>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="1" to="4" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Quality of piano tones</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Fletcher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">D</forename><surname>Blackham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">A</forename><surname>Stratton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the Acoustical Society of America</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="749" to="761" />
+			<date type="published" when="1962">1962</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Fréchet audio distance: A reference-free metric for evaluating music enhancement algorithms</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kilgour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zuluaga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Roblek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sharifi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ISCA Interspeech</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2350" to="2354" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Neural audio synthesis of musical notes with wavenet autoencoders</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Resnick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning (ICML)</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

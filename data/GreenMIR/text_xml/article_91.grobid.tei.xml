@@ -1,0 +1,1612 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">AUDIO EMBEDDINGS AS TEACHERS FOR MUSIC CLASSIFICATION</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Yiwei</forename><surname>Ding</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">Music Informatics Group</orgName>
+								<orgName type="department" key="dep2">Music Informatics Group</orgName>
+								<orgName type="institution" key="instit1">Georgia Institute of Technology</orgName>
+								<orgName type="institution" key="instit2">Georgia Institute of Technology</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Alexander</forename><surname>Lerch</surname></persName>
+							<email>alexander.lerch@gatech.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">Music Informatics Group</orgName>
+								<orgName type="department" key="dep2">Music Informatics Group</orgName>
+								<orgName type="institution" key="instit1">Georgia Institute of Technology</orgName>
+								<orgName type="institution" key="instit2">Georgia Institute of Technology</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">AUDIO EMBEDDINGS AS TEACHERS FOR MUSIC CLASSIFICATION</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C025ABD2E0166CE38FABE4E252DABEA3</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:16+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Music classification has been one of the most popular tasks in the field of music information retrieval. With the development of deep learning models, the last decade has seen impressive improvements in a wide range of classification tasks. However, the increasing model complexity makes both training and inference computationally expensive. In this paper, we integrate the ideas of transfer learning and feature-based knowledge distillation and systematically investigate using pre-trained audio embeddings as teachers to guide the training of low-complexity student networks. By regularizing the feature space of the student networks with the pre-trained embeddings, the knowledge in the teacher embeddings can be transferred to the students. We use various pre-trained audio embeddings and test the effectiveness of the method on the tasks of musical instrument classification and music auto-tagging. Results show that our method significantly improves the results in comparison to the identical model trained without the teacher's knowledge. This technique can also be combined with classical knowledge distillation approaches to further improve the model's performance.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>The classification of music has always been a widely popular task in the field of Music Information Retrieval (MIR). Music classification serves as an umbrella term for a variety of tasks, including music genre classification <ref type="bibr" target="#b1">[1]</ref>, musical instrument classification <ref type="bibr" target="#b2">[2]</ref>, and music auto-tagging <ref type="bibr" target="#b3">[3]</ref>. The last decade has seen dramatic improvements in a wide range of such music classification tasks due to the increasing use of artificial neural networks <ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr" target="#b6">[6]</ref><ref type="bibr">[7]</ref>.</p><p>One major contributing factor to these impressive accomplishments is the increased algorithmic complexity of the machine learning models which also means that the training process requires an increased amount of data. As not all tasks have this abundance of annotated data, transfer learning has been widely and successfully applied to various music classification tasks <ref type="bibr" target="#b8">[8]</ref>. In transfer learning, a model is first pre-trained on a large-scale dataset for a (source) task that is somewhat related to the (target) task and then fine-tuned with a comparably smaller dataset of the target task <ref type="bibr" target="#b9">[9]</ref>. This enables knowledge to be transferred across datasets and tasks. Transfer learning has been repeatedly shown to result in state-of-the-art performance for a multitude of MIR tasks <ref type="bibr" target="#b10">[10]</ref><ref type="bibr" target="#b11">[11]</ref><ref type="bibr" target="#b12">[12]</ref>.</p><p>Another side effect of the increasing model complexity is the slow inference speed. One way to address this issue is model compression by means of knowledge distillation. Here, a low-complexity (student) model is trained while leveraging the knowledge in the high-complexity (teacher) model <ref type="bibr" target="#b13">[13,</ref><ref type="bibr" target="#b14">14]</ref>. The teacher-student paradigm has met with considerable success in reducing the model complexity while minimizing performance decay <ref type="bibr" target="#b15">[15,</ref><ref type="bibr" target="#b16">16]</ref>.</p><p>In this study, we integrate ideas and approaches from both transfer learning and knowledge distillation and apply them to the training of low-complexity networks to show the effectiveness of knowledge transfer for music classification tasks. More specifically, we utilize pre-trained audio embeddings as teachers to regularize the feature space of lowcomplexity student networks during the training process. Thus, the main contributions of this paper are a systematic study of</p><p>• the effectiveness of various audio embeddings as teachers for knowledge transfer, • different ways to apply the knowledge transfer from teachers to students, and • the impact of data availability on the performance of the investigated systems. The models and experiments are publicly available as opensource code. <ref type="foot" target="#foot_0">1</ref></p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>This section first briefly introduces transfer learning and knowledge distillation, which are both often used to transfer knowledge between tasks and models, respectively, and then surveys the application of feature space regularization in the training of neural networks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Transfer Learning</head><p>In transfer learning approaches, a model is pre-trained on a source task with a large dataset and subsequently fine-tuned on a (different but related) target task with a (typically smaller) dataset <ref type="bibr" target="#b9">[9]</ref>. By utilizing the knowledge learned from the source task, models trained following the transfer learning paradigm can often achieve significantly better results than the same models trained directly on the target task <ref type="bibr" target="#b17">[17]</ref>; this is especially the case if these models have a large number of parameters and the training data for the target task is limited. In the case where fine-tuning the whole model might be too computationally expensive, another way to do transfer learning is to use the pre-trained embeddings and train only the classification head. This allows for a separation of the tasks of computing the embeddings and the classification itself.</p><p>Transfer learning has been successfully applied to a wide variety of areas ranging from computer vision <ref type="bibr" target="#b18">[18,</ref><ref type="bibr" target="#b19">19]</ref> to natural language processing <ref type="bibr" target="#b20">[20]</ref>. In MIR, transfer learning has been used for a multitude of target tasks <ref type="bibr" target="#b8">[8,</ref><ref type="bibr" target="#b10">10,</ref><ref type="bibr" target="#b11">11,</ref><ref type="bibr" target="#b21">21]</ref>. Besides fine-tuning the whole model, pre-trained embeddings such as VGGish <ref type="bibr" target="#b22">[22]</ref> and Jukebox <ref type="bibr" target="#b23">[23]</ref> have also shown good performance on many tasks including autotagging <ref type="bibr" target="#b12">[12,</ref><ref type="bibr" target="#b25">24]</ref>, instrument classification <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b12">12]</ref>, and music emotion recognition <ref type="bibr" target="#b12">[12,</ref><ref type="bibr" target="#b25">[24]</ref><ref type="bibr" target="#b26">[25]</ref><ref type="bibr" target="#b27">[26]</ref>.</p><p>One disadvantage of transfer learning is the slow inference speed. In most cases, the model has a large number of parameters, which means that both fine-tuning (if done on the whole model) and inference potentially lead to a high computational workload.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Knowledge Distillation</head><p>Approaches for knowledge distillation aim at model compression, i.e., reducing the complexity of the network. The knowledge of a (usually high-complexity) pre-trained network (the teacher) is transferred to a different (lowcomplexity) network (the student) during the training phase, in which the student not only learns from the ground truth labels but also from the teacher predictions. This is achieved by adding a "distillation loss" term to the student's loss function to learn from the teacher's prediction <ref type="bibr" target="#b13">[13,</ref><ref type="bibr" target="#b14">14]</ref>.</p><p>The most popular distillation loss is the Kullback-Leibler divergence between the logits of the student and the teacher, with a hyperparameter called temperature to soften the probability distribution of the teacher's prediction over classes <ref type="bibr" target="#b13">[13]</ref>. The soft target provides more "dark" knowledge than the ground truth hard label <ref type="bibr" target="#b28">[27,</ref><ref type="bibr" target="#b29">28]</ref>. The Pearson correlation coefficient has also been proposed as a distance measure between the logits as an alternative to the Kullback-Leibler divergence <ref type="bibr" target="#b30">[29]</ref>.</p><p>Besides learning from logits, the student network can also try to learn from the feature map from the intermediate layers of the teacher network <ref type="bibr" target="#b31">[30]</ref><ref type="bibr" target="#b32">[31]</ref><ref type="bibr" target="#b33">[32]</ref>. As the feature maps of the student and teacher do not necessarily share the same dimension and the same size, a variety of ways to match the feature space of the student and the teacher have been proposed <ref type="bibr" target="#b32">[31,</ref><ref type="bibr" target="#b34">33,</ref><ref type="bibr" target="#b35">34]</ref>. Therefore, feature-based knowledge distillation has more flexibility than the logits-based traditional approach, which, at the same time, also makes it more challenging to find the best way of matching the feature space <ref type="bibr" target="#b36">[35,</ref><ref type="bibr" target="#b37">36]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Feature Space Regularization</head><p>Feature-based knowledge distillation is a technique of regularizing the feature space of the network during training. Besides knowledge distillation, there exists a wide variety of other ways to implement regularization. One example is contrastive learning, which aims at contrasting the features of instances with positive labels against negative labels <ref type="bibr" target="#b38">[37,</ref><ref type="bibr" target="#b39">38]</ref>. Contrastive learning has been shown to improve the performance of neural networks on music autotagging <ref type="bibr" target="#b40">[39,</ref><ref type="bibr" target="#b41">40]</ref> and music performance assessment <ref type="bibr" target="#b42">[41]</ref>.</p><p>Regularizing the feature space using pre-trained audio embeddings has also been reported to be effective in music classification <ref type="bibr" target="#b43">[42]</ref> and music source separation <ref type="bibr" target="#b44">[43]</ref>, where Hung and Lerch proposed to use pre-trained embeddings to help structure the latent space during training. This technique is similar to but different from both transfer learning and knowledge distillation. In transfer learning, the same model is used on two different datasets, and a typical setting is that knowledge from the large dataset will be transferred to the small dataset. In knowledge distillation, only one dataset is used and the typical setting is that the knowledge will be transferred from a large model to a small model. In comparison, regularizing the feature space using embeddings requires neither the dataset nor the model to be the same, yet still allows to transfer knowledge learned by the teacher model from a large dataset to the low-complexity student network for a different (small) dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHODS</head><p>Inspired by the promising preliminary results of prior work <ref type="bibr" target="#b43">[42]</ref>, we integrate the idea of transfer learning and knowledge distillation by using pre-trained audio embeddings as teachers to regularize the feature space of the student network during training. The overall pipeline is illustrated in Figure <ref type="figure" target="#fig_0">1</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Loss Function</head><p>Similar to knowledge distillation <ref type="bibr" target="#b13">[13]</ref>, we rewrite our loss function as</p><formula xml:id="formula_0">L = (1 -λ)L pred + λL reg (1)</formula><p>where L pred is the loss function for conventional neural network training, L reg is the loss function that measures the distance between the student network's feature map and the pre-trained embeddings, and λ ∈ [0, 1] is a weighting hyper-parameter.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Regularization Location</head><p>Different stages in a neural network output different feature maps, and the optimal location to apply regularization continues to be controversially discussed in feature-based knowledge distillation <ref type="bibr" target="#b37">[36]</ref>. In this study, we investigate either regularizing only the final feature map before the classification head as shown in Figure <ref type="figure" target="#fig_0">1</ref> or regularizing the feature maps at all stages of the student network. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Feature Alignment</head><p>To measure the distance between the student feature map l ∈ R Ts×Cs and the pre-trained teacher embeddings v ∈ R Tt×Ct which might have different numbers of time frames (i.e., T s ̸ = T t ), we first align the intermediate feature map with the pre-trained embeddings in time by repeating the one with fewer time frames, then compute the distance for each frame and finally average them along the time axis.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Distance Measure</head><p>Considering that pre-trained embeddings and feature maps have often different dimensionalities, the use of distance measures that are independent of dimensionality allows for easier application.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4.1">Cosine Distance Difference</head><p>Cosine distance difference<ref type="foot" target="#foot_3">foot_3</ref> as proposed in previous work <ref type="bibr" target="#b43">[42,</ref><ref type="bibr" target="#b44">43]</ref> measures the difference in the cosine distance between pairs of samples. Given n pairs of samples of single-time-frame features l 1 , l 2 , ..., l n and pre-trained embeddings v 1 , v 2 , ..., v n , the cosine distance difference for one pair is</p><formula xml:id="formula_1">D ij = |d cos (l i , l j ) -d cos (v i , v j )|,<label>(2)</label></formula><p>and the distance for this time frame is averaged among all pairs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4.2">Distance Correlation</head><p>Distance correlation was proposed as a generalization of classical correlation to measure the independence between two random vectors in arbitrary dimensions <ref type="bibr" target="#b45">[44]</ref>. It is capable of handling features of different dimensionality; furthermore, correlation-based distance measures have been shown to be effective in knowledge distillation <ref type="bibr" target="#b30">[29,</ref><ref type="bibr" target="#b33">32]</ref>. Using the same notation as above, we define</p><formula xml:id="formula_2">a ij = ∥l i -l j ∥,<label>(3) āi</label></formula><formula xml:id="formula_3">. = 1 n n j=1 a ij , ā.j = 1 n n i=1 a ij , ā.. = 1 n 2 i,j=1 a ij<label>(4)</label></formula><formula xml:id="formula_4">A ij = a ij -āi. -ā.j + ā..<label>(5)</label></formula><p>where i, j ∈ {1, 2, ..., n}, and similarly, b ij = ∥v iv j ∥ and B ij = b ij -bi. -b.j + b.. . <ref type="foot" target="#foot_4">3</ref> The distance for the time frame is then</p><formula xml:id="formula_5">L reg = 1 -R 2 n (l, v) = 1 - V 2 n (l, v) V 2 n (l, l)V 2 n (v, v)<label>(6)</label></formula><p>where</p><formula xml:id="formula_6">V 2 n (l, l) = 1 n 2 n i,j=1 A 2 ij , V 2 n (v, v) = 1 n 2 n i,j=1 B 2 ij , V 2 n (l, v) = 1 n 2 n i,j=1 A ij B ij .</formula><p>Note that V 2 n (l, l) and V 2 n (v, v) will be 0 if and only if all the n samples of features (or embeddings) within one batch are identical <ref type="bibr" target="#b45">[44]</ref>, which we assume not to occur here.</p><p>To optimize both distance measures during training, block stochastic gradient iteration is used, which means that the distance is computed over mini-batches instead of the whole dataset <ref type="bibr" target="#b46">[45,</ref><ref type="bibr" target="#b47">46]</ref>. With stochastic approximation, the computational complexity of the distance measure for n samples is reduced from O(n 2 ) to O(mn) where m is the batch size.</p><p>It is worth mentioning that both distance measures ensure that if the distance is zero, the feature maps would differ from the pre-trained embeddings by only an orthogonal linear transformation, which can be modeled in a single linear layer. Therefore, if the regularization loss is zero, the student would have the same performance as the teacher in classification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTAL SETUP</head><p>We test the effectiveness of using pre-trained embeddings as teachers on two different tasks, datasets, and models with four different pre-trained embeddings as follows.</p><p>4.1 Tasks, Datasets, Models, and Metrics</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.1">Musical Instrument Classification with OpenMIC</head><p>Musical instrument classification is a multi-label classification problem. We use the OpenMIC dataset <ref type="bibr" target="#b2">[2]</ref>, which provides weakly labeled audio snippets of length 10 s. Following prior work <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b50">49]</ref>, we use the suggested test set and randomly split 15% of the training data as the validation set, resulting in 12,692 training observations, 2,223 validation observations, and 5085 test observations. To ensure a consistent sample rate, the audio is resampled to 32 kHz <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b50">49]</ref>. As the dataset is not completely labeled, i.e., parts of the labels are missing and not labeled as positive or negative, the missing labels are masked out when computing the loss function as suggested in previous work <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b10">10,</ref><ref type="bibr" target="#b50">49]</ref>.</p><p>We use receptive field regularized ResNet (CP-ResNet) <ref type="bibr" target="#b5">[5]</ref> for this task, as it reaches state-of-the-art performance when trained only on the OpenMIC dataset (i.e., neither trained with transfer learning nor trained with any knowledge distillation). CP-ResNet has a ResNet-like structure <ref type="bibr" target="#b19">[19]</ref> with an added hyper-parameter ρ to control the maximum receptive field of the ResNet. We set ρ = 7 to match the setting which provides the best results in the original work <ref type="bibr" target="#b5">[5]</ref>.</p><p>The results are reported with the metrics mean Average Precision (mAP) and F1-score. The F1-score is calculated in a macro fashion, which means that for each instrument, the F1-score is computed for both the positive labels and the negative labels and then averaged, and the final F1-score is the mean of the F1-scores of all instruments. The detection threshold for the prediction is set to 0.4 following previous work <ref type="bibr" target="#b5">[5]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.2">Music Auto-Tagging with MagnaTagATune</head><p>Similar to musical instrument classification, music autotagging is also a multi-label classification problem. We use the MagnaTagATune dataset <ref type="bibr" target="#b3">[3]</ref> for this task, which comes with audio clips of approximately 29.1 s. Following previous work, we use only the top 50 labels and exclude all the songs without any positive label from the dataset <ref type="bibr">[7,</ref><ref type="bibr" target="#b51">50]</ref>. For comparability, the data split is adopted from previous work, with audio files in the directories '0' to 'b' being the training set, 'c' being the validation set, and 'e' and 'f' being the test set <ref type="bibr" target="#b49">[48,</ref><ref type="bibr" target="#b52">51]</ref>, resulting in 15,247 training clips, 1,529 validation clips, and 4,332 test clips.</p><p>We apply a modified fully convolutional neural network (FCN) <ref type="bibr" target="#b6">[6]</ref> to this task. It is the simplest model among the benchmark models for the MagnaTagATune dataset <ref type="bibr" target="#b49">[48]</ref> and consists of several convolution and max-pooling layers. To further reduce the complexity of the model, we apply the MobileNet-like modification <ref type="bibr" target="#b53">[52]</ref> to the network by breaking the 3 × 3 convolutions into depth-wise separable convolutions and 1 × 1 convolutions.</p><p>The results are evaluated with mAP and ROC-AUC.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Pre-trained Embeddings</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">VGGish</head><p>VGGish <ref type="bibr" target="#b22">[22]</ref> is a widely used embedding in MIR, with a VGG network <ref type="bibr" target="#b54">[53]</ref> being trained on a large number of Youtube videos. The open-source PyTorch implementation is used to extract VGGish features <ref type="foot" target="#foot_5">4</ref> which by default extracts 128 principle components and then quantizes them to 8 bit. The time resolution is 960 ms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.2">OpenL3</head><p>The OpenL3 embedding <ref type="bibr" target="#b55">[54,</ref><ref type="bibr" target="#b56">55]</ref> is trained on a music subset of AudioSet <ref type="bibr" target="#b57">[56]</ref> in a self-supervised paradigm. The audio embeddings are extracted using the open-source Python package OpenL3<ref type="foot" target="#foot_6">foot_6</ref> with the dimensionality being 512. To keep consistent with VGGish, the time resolution is set to 960 ms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.3">PaSST</head><p>PaSST <ref type="bibr" target="#b10">[10]</ref> is a 7-layer transformer trained on AudioSet for acoustic event detection. It applies the structure of a vision transformer <ref type="bibr" target="#b16">[16,</ref><ref type="bibr" target="#b58">57]</ref> and proposes the technique of Patchout to make the training efficient. We use the opensource code <ref type="foot" target="#foot_7">6</ref> released by the authors to extract the 768dimensional embeddings. The time resolution is also set to 960 ms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.4">PANNs</head><p>PANNs <ref type="bibr" target="#b11">[11]</ref> include several convolutional neural networks and are also trained on AudioSet for acoustic event detection. We use the default CNN14 model from the official repository <ref type="foot" target="#foot_8">7</ref> . The embedding dimensionality is 2048. Different from other embeddings, PANNs provide only one global embedding for each clip of audio. Pilot experiments have shown that extracting the embeddings for short segments and concatenating them does not improve performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Systems Overview</head><p>The following systems are evaluated for comparison:  <ref type="bibr" target="#b5">[5]</ref>, SS means being trained with shake-shake regularization <ref type="bibr" target="#b48">[47]</ref>. **When using KD, the missing labels in OpenMIC were masked to avoid potentially adding more training data. † Results from the open-source re-implementation <ref type="bibr" target="#b49">[48]</ref>.</p><p>• Teacher LR : logistic regression on the pre-trained embeddings (averaged along the time axis), which can be seen as one way to do transfer learning by freezing the whole model except for the classification head. • KD: classical knowledge distillation where the soft targets are generated by the logistic regression. • EAsT Cos-Diff (for Embeddings-As-Teachers): feature space regularization as proposed by Hung and Lerch that uses cosine distance difference and regularizes only the final feature map <ref type="bibr" target="#b43">[42]</ref>. • EAsT Final and EAsT All : proposed systems based on distance correlation as the distance measure, either regularizing only at the final stage or at all stages, respectively. • EAsT KD : a combination of classical knowledge distillation and our method of using embeddings to regularize the feature space. The feature space regularization is done only at the final stage. We perform a search of λ for each of the EasT systems and choose the best-performing value on the validation set. <ref type="foot" target="#foot_9">8</ref></p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">RESULTS</head><p>This section presents the results of different systems and their performance in the case of limited training data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Results on OpenMIC and MagnaTagATune</head><p>Table <ref type="table" target="#tab_0">1</ref> shows the results on the OpenMIC and the Mag-naTagATune datasets.</p><p>We can observe that the models trained with the extra regularization loss consistently outperform the non-regularized ones on both datasets, with all features, and all regularization methods. This means that the knowledge in the embeddings is successfully transferred to the student networks and consistently enhances the performance.</p><p>Although EAsT Final appears to give better results on the OpenMIC dataset while EAsT All seems to have slightly better performance on the MagnaTagATune dataset, the difference between them is very small, meaning that the model does not benefit significantly from being regularized by pretrained embeddings at earlier stages where the feature maps are still relatively low-level.</p><p>The results for the teacher systems show that the older VGGish and OpenL3 embeddings are clearly outperformed by the more recently proposed embeddings PaSST and PANNs. In fact, the teacher systems for the newer embeddings perform so strongly that the students can rarely outperform them, while the student systems trained with VGGish and OpenL3 provide better results than the corresponding teachers. We can see that whether the teachers themselves have an excellent performance or not, students benefit from learning the additional knowledge from these embeddings, and the students' upper limit is not bounded by the performance of teachers.</p><p>Comparing we can see that with VGGish and OpenL3 embeddings, regularizing the feature space provides better results than simply using the teachers' soft targets. On the other hand, for the PaSST and PANNs embeddings, classical knowledge distillation provides competitive results. The possible reason is that the soft targets given by "weak" teachers might have provided too much incorrect information to the students while the high-quality soft targets generated by the "strong" teachers provide good guidance for the students' training.</p><p>The combination system EAsT KD gives us better results with PaSST and PANNs embeddings (with the exception of no noteworthy improvement with the PaSST embedding on the OpenMIC dataset) while for VGGish and OpenL3 embeddings, the performance is not as good as EAsT Final or EAsT All in most cases. This observation is in accordance with our speculation that traditional knowledge distillation performs best with a "strong" teacher. While learning from audio embeddings benefits a student network even more in the presence of a "strong" teacher, learning from "weak" embeddings can still improve the model's performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Comparison of Model Complexity</head><p>Table <ref type="table" target="#tab_1">2</ref> lists the number of parameters as well as rough inference speed measurements 9 of the models.</p><p>The numbers of parameters only take the backbone structure (i.e., excluding the final classification head) into account so that it does not vary across datasets with different numbers of classes. Iterations per second are tested with 128×1000 input spectrograms.</p><p>We can see that Mobile FCN and CP ResNet are much faster in inference than pre-trained models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Limited Training Data</head><p>To investigate the impact of limited training data on our methods, we present the system performances for reduced training data, i.e., for 25%, 50%, and 75% of the original training data. The results are shown in Figure <ref type="figure" target="#fig_1">2</ref>. We use VGGish and PaSST as the pre-trained embeddings.</p><p>We can observe that limiting the training data has the greatest impact on the baseline systems, which show the biggest performance drop.</p><p>On the OpenMIC dataset, EAsT Cos-Diff and EAsT Final have similar decreases in mAP, and the KD system is less 9 reference GPU: NVIDIA 2070 Super  affected. An interesting finding is that when the VGGish embedding is used, KD shows better performance for limited data amounts while it is outperformed by EAsT Cos-Diff and EAsT Final when the whole OpenMIC dataset is available. This means using embeddings as teachers might still require a sufficient amount of data to have good guidance on the student models. On the MagnaTagATune dataset, however, the EAsT Cos-Diff and EAsT Final systems show less performance decay than either KD or the baseline when the training data is limited. This suggests that in our training settings, there is no certain answer to which method is least affected by the lack of training data, and the answer might be dependent on specific tasks, models, and data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSION AND FUTURE WORK</head><p>In this paper, we explored the use of audio embeddings as teachers to regularize the feature space of low-complexity student networks during training. We investigated several different ways of implementing the regularization and tested its effectiveness on the OpenMIC and MagnaTagATune datasets. Results show that using embeddings as teachers enhances the performance of the low-complexity student models, and the results can be further improved by combining our method with a traditional knowledge distillation approach.</p><p>Future work will investigate the performance of our method on a wider variety of downstream tasks and embeddings. Moreover, as there have been a wide variety of models to extract audio and music embeddings, we speculate that using an ensemble of different pre-trained embeddings also has considerable potential. Finally, the flexibility of feature-based knowledge distillation offers a wide range of possible algorithmic modifications. Our focus will be on evaluating different distance measures and regularizing the network using features from different stages of the teacher network instead of using only the output embeddings.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Overall pipeline of training a model by using pre-trained embeddings as teachers. The training loss is a weighted sum (weighting factor omitted in the figure) of prediction loss and regularization loss. The regularization loss measures the distance between pre-trained embedding and the output feature map after the feature alignment. During inference, only the bottom part with the blue background is used.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Results with limited training data on two datasets.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Results on OpenMIC (above) and MagnaTagATune (below) dataset for different models regularized with different pre-trained embeddings. Best performances are in bold, and best results excluding the teachers are underlined. *Reported results</figDesc><table><row><cell>• Baseline: CP ResNet (on OpenMIC) and Mobile</cell></row><row><cell>FCN (on MagnaTagATune) trained without any extra</cell></row><row><cell>regularization loss.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>KD and the EAsT Final or EAsT All systems, Comparison of the model complexity.</figDesc><table><row><cell>Model</cell><cell>Parameters (M)</cell><cell>Iteration / s</cell></row><row><cell>VGGish</cell><cell>72.1</cell><cell>172.2</cell></row><row><cell>OpenL3</cell><cell>4.69</cell><cell>117.9</cell></row><row><cell>PaSST</cell><cell>86.1</cell><cell>18.7</cell></row><row><cell>PANNs</cell><cell>79.7</cell><cell>70.6</cell></row><row><cell>Mobile FCN</cell><cell>0.34</cell><cell>319.3</cell></row><row><cell>CP ResNet</cell><cell>5.52</cell><cell>205.3</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://github.com/suncerock/ EAsT-music-classification.Last accessed on June</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>21,  2023.   </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_3"><p>has been referred to in previous work as Distance-based Regularization (Dis-Reg)<ref type="bibr" target="#b43">[42,</ref><ref type="bibr" target="#b44">43]</ref>.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_4"><p>Eq. (3) uses 2-norm following the implementation in https: //github.com/zhenxingjian/Partial_Distance_ Correlation. Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_5"><p>https://github.com/harritaylor/torchvggish. Last accessed on April 4, 2023.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_6"><p>https://github.com/marl/openl3/tree/main. Last accessed onApril 4, 2023   </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_7"><p>https://github.com/kkoutini/PaSST/tree/main. Last accessed on April 4, 2023.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_8"><p>https://github.com/qiuqiangkong/audioset_ tagging_cnn. Last accessed on April 4, 2023.Proceedings of the 24th ISMIR Conference, Milan, Italy, November<ref type="bibr" target="#b5">[5]</ref><ref type="bibr" target="#b6">[6]</ref>[7]<ref type="bibr" target="#b8">[8]</ref><ref type="bibr" target="#b9">[9]</ref> 2023   </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_9"><p>For all the hyperparameters, please refer to the config files in our GitHub.</p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Musical genre classification of audio signals</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Tzanetakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Cook</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Speech and Audio Processing</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="293" to="302" />
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Openmic-2018: An open data-set for multiple instrument recognition</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Humphrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Durand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="438" to="444" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Evaluation of algorithms using games: The case of music tagging</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Law</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>West</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">I</forename><surname>Mandel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Bay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">S</forename><surname>Downie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference</title>
+		<meeting>the International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="387" to="392" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">An attention mechanism for musical instrument recognition</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gururani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="83" to="90" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Receptive field regularization techniques for audio classification and tagging with deep convolutional neural networks</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Koutini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<date type="published" when="1987">1987-2000, 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Automatic tagging using deep convolutional neural networks</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fazekas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sandler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference</title>
+		<meeting>the International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="805" to="811" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Sample-level cnn architectures for music auto-tagging using raw waveforms</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting>the IEEE International Conference on Acoustics, Speech and Signal Processing</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="366" to="370" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Transfer learning for music classification and regression tasks</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fazekas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sandler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference</title>
+		<meeting>the International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="141" to="149" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">A survey on transfer learning</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">J</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Knowledge and Data Engineering</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="1345" to="1359" />
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Efficient training of audio transformers with patchout</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Koutini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schlüter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of INTERSPEECH 2022</title>
+		<meeting>INTERSPEECH 2022</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2753" to="2757" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Panns: Large-scale pretrained audio neural networks for audio pattern recognition</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Iqbal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Plumbley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="2880" to="2894" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Supervised and unsupervised learning of audio representations for music understanding</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">C</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Korzeniowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oramas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Gouyon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">F</forename><surname>Ehmann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference</title>
+		<meeting>the International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="256" to="263" />
+		</imprint>
+	</monogr>
+	<note>IS-MIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Distilling the knowledge in a neural network</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dean</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/1503.02531" />
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Do deep nets really need to be deep</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Caruana</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>Advances in Neural Information Processing Systems (NeurIPS)</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning metrics from teachers: Compact networks for image embedding</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><forename type="middle">O</forename><surname>Yazici</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">V D</forename><surname>Weijer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ramisa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (ICCV)</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition (ICCV)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2902" to="2911" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Training data-efficient image transformers &amp; distillation through attention</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Touvron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Cord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Douze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Massa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sablayrolles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jégou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning (ICML)</title>
+		<meeting>the International Conference on Machine Learning (ICML)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page">357</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Big transfer (bit): General visual representation learning</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kolesnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Beyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Puigcerver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gelly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Houlsby</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the European Conference on Computer Vision (ECCV)</title>
+		<meeting>the European Conference on Computer Vision (ECCV)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="491" to="507" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Imagenet: A large-scale hierarchical image database</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L.-J</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Fei-Fei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="248" to="255" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Deep residual learning for image recognition</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="770" to="778" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Bert: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M.-W</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Toutanova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the North American Chapter of the Association for Computational Linguistics (NAACL)</title>
+		<meeting>the Conference of the North American Chapter of the Association for Computational Linguistics (NAACL)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Deep embeddings with essentia models</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Alonso-Jiménez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Late Breaking Demo of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Cnn architectures for largescale audio classification</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hershey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chaudhuri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">F</forename><surname>Gemmeke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">C</forename><surname>Moore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Plakal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Platt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">A</forename><surname>Saurous</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Seybold</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting>the IEEE International Conference on Acoustics, Speech and Signal Processing</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="131" to="135" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Jukebox: A generative model for music</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Payne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/2005.00341" />
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m">Proceedings of the 24th ISMIR Conference</title>
+		<meeting>the 24th ISMIR Conference<address><addrLine>Milan, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023-09">November 5-9, 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Codified audio language modeling learns useful representations for music information retrieval</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Castellon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="88" to="96" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Comparison and analysis of deep audio embeddings for music emotion recognition</title>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">S</forename><surname>Koh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dubnov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI Workshop on Affective Content Analysis</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Musav: a dataset of relative arousalvalence annotations for validation of audio models</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Lizarraga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Seijas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Alonso-Jiménez</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="650" to="658" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Rethinking the inception architecture for computer vision</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Szegedy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Vanhoucke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ioffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Shlens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wojna</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2818" to="2826" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">When does label smoothing help</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kornblith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>Advances in Neural Information Processing Systems (NeurIPS)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Knowledge distillation from a stronger teacher</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>You</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>Advances in Neural Information Processing Systems (NeurIPS)</meeting>
+		<imprint>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Fitnets: Hints for thin deep nets</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Romero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Ballas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">E</forename><surname>Kahou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Chassang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gatta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations (ICLR)</title>
+		<meeting>the International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">A comprehensive overhaul of feature distillation</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Heo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kwak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">Y</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)</title>
+		<meeting>the IEEE/CVF International Conference on Computer Vision (ICCV)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1921" to="1930" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Correlation congruence for knowledge distillation</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)</title>
+		<meeting>the IEEE/CVF International Conference on Computer Vision (ICCV)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="5007" to="5016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">A gift from knowledge distillation: Fast optimization, network minimization and transfer learning</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Joo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bae</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="4133" to="4141" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Paraphrasing complex network: Network compression via factor transfer</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kwak</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>Advances in Neural Information Processing Systems (NeurIPS)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Knowledge distillation: A survey</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">J</forename><surname>Maybank</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Tao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Computer Vision</title>
+		<imprint>
+			<biblScope unit="volume">129</biblScope>
+			<biblScope unit="page" from="1789" to="1819" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Knowledge distillation and student-teacher learning for visual intelligence: A review and new outlooks</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K.-J</forename><surname>Yoon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Pattern Analysis and Machine Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">44</biblScope>
+			<biblScope unit="page" from="3048" to="3068" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Discriminative unsupervised feature learning with convolutional neural networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dosovitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">T</forename><surname>Springenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Riedmiller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Brox</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>Advances in Neural Information Processing Systems (NeurIPS)</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">A simple framework for contrastive learning of visual representations</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kornblith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning (ICML)</title>
+		<meeting>the International Conference on Machine Learning (ICML)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1597" to="1607" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Contrastive learning of musical representations</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Spijkervet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">A</forename><surname>Burgoyne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="673" to="681" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Music representation learning based on editorial metadata from discogs</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Alonso-Jiménez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="825" to="833" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Improving music performance assessment with contrastive learning</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Seshadri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="634" to="641" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Feature-informed embedding space regularization for audio classification</title>
+		<author>
+			<persName><forename type="first">Y.-N</forename><surname>Hung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the European Signal Processing Conference</title>
+		<meeting>the European Signal Processing Conference</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="419" to="423" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Feature-informed latent space regularization for music source separation</title>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Digital Audio Effects (DAFx)</title>
+		<meeting>the International Conference on Digital Audio Effects (DAFx)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Measuring and testing dependence by correlation of distances</title>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">J</forename><surname>Székely</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">L</forename><surname>Rizzo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><forename type="middle">K</forename><surname>Bakirov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Annals of Statistics</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="2769" to="2794" />
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Block stochastic gradient iteration for convex and nonconvex optimization</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Yin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">SIAM Journal on Optimization</title>
+		<imprint>
+			<biblScope unit="volume">25</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="1686" to="1716" />
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">On the versatile uses of partial distance correlation in deep learning</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Chakraborty</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Singh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the European Conference on Computer Vision (ECCV)</title>
+		<meeting>the European Conference on Computer Vision (ECCV)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="327" to="346" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Shake-shake regularization of 3-branch residual networks</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Gastaldi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Workshop Track of the International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Evaluation of cnn-based automatic music tagging models</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">SMC</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ferraro</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">SMC</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">SMC</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">SMC</orgName>
+			</affiliation>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Sound and Music Computing</title>
+		<meeting>the Sound and Music Computing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="331" to="337" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Music instrument classification reprogrammed</title>
+		<author>
+			<persName><forename type="first">H.-H</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Multimedia Modeling (MMM)</title>
+		<meeting>the International Conference on Multimedia Modeling (MMM)</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="345" to="357" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<title level="m" type="main">Toward interpretable music tagging with self-attention</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/1906.04972" />
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Data-driven harmonic filters for audio representation learning</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Nieto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serrc</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting>the IEEE International Conference on Acoustics, Speech and Signal Processing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="536" to="540" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<monogr>
+		<title level="m" type="main">Mobilenets: Efficient convolutional neural networks for mobile vision applications</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">G</forename><surname>Howard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kalenichenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Weyand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Andreetto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Adam</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/1704.04861" />
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">Very deep convolutional networks for large-scale image recognition</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Zisserman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations (ICLR)</title>
+		<meeting>the International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<analytic>
+		<title level="a" type="main">Look, listen, and learn more: Design choices for deep audio embeddings</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Cramer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H.-H</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting>the IEEE International Conference on Acoustics, Speech and Signal Processing</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3852" to="3856" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Look, listen and learn</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Arandjelovic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Zisserman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Computer Vision (ICCV)</title>
+		<meeting>the IEEE International Conference on Computer Vision (ICCV)</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="609" to="617" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">Audio set: An ontology and human-labeled dataset for audio events</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">F</forename><surname>Gemmeke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Freedman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Lawrence</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">C</forename><surname>Moore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Plakal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ritter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting>the IEEE International Conference on Acoustics, Speech and Signal Processing</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="776" to="780" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<analytic>
+		<title level="a" type="main">An image is worth 16x16 words: Transformers for image recognition at scale</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dosovitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Beyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kolesnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Weissenborn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Unterthiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Minderer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Heigold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gelly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Houlsby</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations (ICLR)</title>
+		<meeting>the International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

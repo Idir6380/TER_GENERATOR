@@ -1,0 +1,1304 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">SINGING VOICE SYNTHESIS USING DIFFERENTIABLE LPC AND GLOTTAL-FLOW-INSPIRED WAVETABLES</title>
+				<funder>
+					<orgName type="full">IIR</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Queen Mary University of London</orgName>
+				</funder>
+				<funder ref="#_kynYjnV">
+					<orgName type="full">UK Research and Innovation</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Chin-Yun</forename><surname>Yu</surname></persName>
+							<email>chin-yun.yu@qmul.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Centre for Digital Music</orgName>
+								<orgName type="institution" key="instit2">Queen Mary University of London</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">György</forename><surname>Fazekas</surname></persName>
+							<email>george.fazekas@qmul.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Centre for Digital Music</orgName>
+								<orgName type="institution" key="instit2">Queen Mary University of London</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">SINGING VOICE SYNTHESIS USING DIFFERENTIABLE LPC AND GLOTTAL-FLOW-INSPIRED WAVETABLES</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C6C7FEB4E75926ED17E71E8AEEA4282F</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:14+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>This paper introduces GlOttal-flow LPC Filter (GOLF), a novel method for singing voice synthesis (SVS) that exploits the physical characteristics of the human voice using differentiable digital signal processing. GOLF employs a glottal model as the harmonic source and IIR filters to simulate the vocal tract, resulting in an interpretable and efficient approach. We show it is competitive with stateof-the-art singing voice vocoders, requiring fewer synthesis parameters and less memory to train, and runs an order of magnitude faster for inference. Additionally, we demonstrate that GOLF can model the phase components of the human voice, which has immense potential for rendering and analysing singing voice in a differentiable manner. Our results highlight the effectiveness of incorporating the physical properties of the human voice mechanism into SVS and underscore the advantages of signal-processingbased approaches, which offer greater interpretability and efficiency in synthesis.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Singing voice synthesis (SVS) has attracted substantial interest as a research topic over the last decades, and a variety of techniques have been developed. Early successful SVS systems were usually based on sample concatenation <ref type="bibr" target="#b0">[1]</ref><ref type="bibr" target="#b1">[2]</ref><ref type="bibr" target="#b2">[3]</ref><ref type="bibr" target="#b3">[4]</ref>, while parametric systems have become much more prevalent. The actual synthesis process in parametric systems is carried out by a vocoder controlled by synthesis parameters generated from a separate acoustic model given some musical context factors (i.e. note number, duration, phoneme, etc.). Early systems of this kind use a linear source-filter model as vocoder <ref type="bibr" target="#b4">[5,</ref><ref type="bibr" target="#b5">6]</ref>. Deep Neural Networks (DNNs) have subsequently become the dominant approach for state-of-the-art vocoders <ref type="bibr" target="#b6">[7]</ref><ref type="bibr" target="#b7">[8]</ref><ref type="bibr" target="#b8">[9]</ref><ref type="bibr" target="#b9">[10]</ref><ref type="bibr" target="#b10">[11]</ref><ref type="bibr" target="#b11">[12]</ref><ref type="bibr" target="#b12">[13]</ref>. However, mel-spectrograms are often chosen as input features to these models, which are less interpretable than traditional vocoder parameters (e.g. f0, aperiodicity ratios). Also, a significant amount of data is needed to cover various vocal expressions to achieve generalisation.</p><p>In contrast, Differentiable Digital Signal Processing (DDSP) models <ref type="bibr" target="#b13">[14]</ref><ref type="bibr" target="#b14">[15]</ref><ref type="bibr" target="#b15">[16]</ref> incorporate existing signal processing operations into neural networks as an inductive bias, making them more interpretable and generalisable. DDSP additive synthesis has been proposed for SVS by Alonso et al. <ref type="bibr" target="#b16">[17]</ref>. Wu et al. <ref type="bibr" target="#b17">[18]</ref> improved this further by using subtractive synthesis and sawtooth as the harmonic source. Nercessian et al. <ref type="bibr" target="#b18">[19]</ref> proposed a differentiable version of the WORLD vocoder <ref type="bibr" target="#b19">[20]</ref> for doing end-to-end singing voice conversion. Yoshimura et al. <ref type="bibr" target="#b20">[21]</ref> used Taylor expansion to approximate the mel-log spectrum approximation filter's (MLSA) exponential function and embedded it into an SVS system. However, most of their architectures only assume the target signal is a monophonic instrument, which can potentially lead to solutions that do not reflect some properties of voice. In their design, the harmonic sources are fixed to a specific shape (e.g. sawtooth, pulse train), and the filters are symmetric in the time domain, except Yoshimura et al. <ref type="bibr" target="#b20">[21]</ref> which use a minimum-phase MLSA filter. Incorporating constraints specific to the human voice on the harmonic source and the filters could lead to a more interpretable and compact SVS vocoder.</p><p>In this work, we propose GlOttal-flow LPC Filter (GOLF), an SVS module informed by the physical properties of the human voice. We build upon the Harmonicplus-Noise architecture of DDSP <ref type="bibr" target="#b13">[14]</ref> and the subtractive synthesis of SawSing <ref type="bibr" target="#b17">[18]</ref>, but replace the harmonic source with a glottal model and use IIR filters. We developed a differentiable IIR implementation in PyTorch <ref type="bibr" target="#b21">[22]</ref> for training efficiency. We then used this module as a neural vocoder and compared its performance with other DDSPbased vocoders. Specifically, a simple and lightweight NN encoder converts the mel-spectrogram into synthesis parameters, and the synthesiser decodes the signal from it. We paired different synthesisers with the same encoder and trained them jointly.</p><p>Our contributions are twofold. First, GOLF has significantly fewer synthesis parameters but is still competitive with state-of-the-art SVS vocoders. Second, GOLF requires less than 40% of memory to train and runs ten times faster than its alternatives for inference. Moreover, we indirectly show that GOLF could model the phase components of the human voice by aligning the synthesised waveforms to the ground truth and calculating the differences. This characteristic has excellent potential for analysing singing voice in a differentiable manner. Decomposing the human voice into the glottal source and vocal tract could also enable us to adjust the singing style in different ways, such as altering the amount of vocal effort with varying shapes of the glottal pulse.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">BACKGROUND</head><p>We first introduce the relevant notation. x i denotes the i th column vector and x i,j denotes the entry at the i th row and the j th column of the matrix X. Concatenating two matrices along the column dimension is denoted by [; ]. x i denotes the i th entry of the vector x or a time sequence x indexed by i. X(z) denotes the response of x n in the z-domain. Unless stated otherwise, we use n as the time index and k as the frame index. Angular frequencies and periods are normalised to the interval [0, 1]. We use onebased indexing for elements with finite dimensions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Glottal Source-Filter Model</head><p>In the source-filter model, we have the following simplified voice production model:</p><formula xml:id="formula_0">S(z) = (G(z) + N (z)) H(z)L(z),<label>(1)</label></formula><p>where G(z) represents the periodic vibration from the vocal folds, N (z) represents random components of the glottal source, H(z) represents the vocal-tract filter, and L(z) represents the radiation at the lips <ref type="bibr" target="#b22">[23]</ref>. Since this formulation is linear, the radiation filter L(z) and the glottal pulse G(z) can be merged into a single source G ′ (z) called the radiated glottal pulse. If we assume L(z) is a first-order differentiator 1z -1 <ref type="bibr" target="#b23">[24]</ref>, then G ′ (z) is the derivative of the glottal pulse, which can be described by the LF model <ref type="bibr" target="#b24">[25]</ref>, a four-parameter model of glottal flow. H(z) is usually a Linear Predictive Coding (LPC) filter.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Linear Predictive Coding</head><p>LPC assumes that the current speech sample s n can be predicted from a finite number of previous M samples s n-1 to s n-M by a linear combination with residual errors e n :</p><formula xml:id="formula_1">s n = e n - M i=1 a i s n-i ,<label>(2)</label></formula><p>where a i are the linear prediction coefficients. This is the same as filtering the residuals, equivalent to the glottal source in our case, with an M th -order all-pole filter, a filter that has an infinite impulse response (IIR). We can use the LPC filter to represent the response of the vocal tract if the vocal tract is approximated by a series of cylindrical tubes with varying diameters <ref type="bibr" target="#b25">[26]</ref>, providing a physical interpretation.</p><p>Using LPC for neural audio synthesis is not new <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b26">27,</ref><ref type="bibr" target="#b27">28]</ref>, and works have been conducted to incorporate IIR filters and train them jointly with deep learning models <ref type="bibr" target="#b28">[29]</ref><ref type="bibr" target="#b29">[30]</ref><ref type="bibr" target="#b30">[31]</ref><ref type="bibr" target="#b31">[32]</ref><ref type="bibr" target="#b32">[33]</ref><ref type="bibr" target="#b33">[34]</ref><ref type="bibr" target="#b34">[35]</ref>. The difficulty of training IIR in deep learning framework (e.g. PyTorch) using Eqn (2) is that its computation is recursive, i.e. the output at each step depends on the previous results, and to make the calculation differentiable, separated tensors are allocated in each step. This generates a significant number of memory allocations and overheads for creating tensors, thus leading to performance issues, especially for long sequences. One way to mitigate this is to allocate shared continuous memory before computation. However, in-place modification is not differentiable in these frameworks. Some studies sidestep the recursion by approximating IIR in the frequency domain using Discrete Fourier Transform (DFT) <ref type="bibr" target="#b26">[27,</ref><ref type="bibr" target="#b29">30,</ref><ref type="bibr" target="#b31">[32]</ref><ref type="bibr" target="#b32">[33]</ref><ref type="bibr" target="#b33">[34]</ref><ref type="bibr" target="#b34">[35]</ref>, but the accuracy of this approximation depends on the DFT resolution. Moreover, the IIRs used in practice are usually low-order; in this case, it is faster to compute them directly, especially on long sequences.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">PROPOSED MODEL</head><p>Usually, N (z) in Eqn ( <ref type="formula" target="#formula_0">1</ref>) is treated as amplitudemodulated Gaussian noise <ref type="bibr" target="#b22">[23,</ref><ref type="bibr" target="#b23">24]</ref>. Our early experiments found this formulation to be challenging to optimise. As an alternative, we move the noise components N (z) outside the glottal source and filter it with time-varying filter C(z), resulting in</p><formula xml:id="formula_2">S(z) = G ′ (z)H(z) + N (z)C(z).<label>(3)</label></formula><p>This resembles the classic Harmonic-plus-Noise model <ref type="bibr" target="#b35">[36]</ref> and was used in previous DDSP-based SVS <ref type="bibr" target="#b16">[17,</ref><ref type="bibr" target="#b17">18]</ref>. Alonso et al. <ref type="bibr" target="#b16">[17]</ref> modelled G ′ (z)H(z) jointly using additive harmonic oscillators and timevarying Finite Impulse Responses (FIRs) as C(z); Wu et al. <ref type="bibr" target="#b17">[18]</ref> introduced a sawtooth oscillator as G ′ (z) and zero-phase time-varying FIRs as H(z). In this work, we use a glottal flow model to synthesise harmonic sources and time-varying IIRs as filters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Glottal Flow Wavetables</head><p>We adopted the transformed-LF model <ref type="bibr" target="#b36">[37]</ref> for generating glottal pulses. This model re-parameterises the LF model <ref type="bibr" target="#b24">[25]</ref> using just one parameter R d , which has been found to correspond to the perceived vocal effort well and covers a wide range of different glottal flow shapes. We sampled K values of log(R d ) with equal spacing inside [log(0.3), log(2.7)] according to the value range suggested by <ref type="bibr" target="#b22">[23]</ref>. We calculate the flow derivative function g ′ (t; R d ) in continuous time t for each sampled R d and then sampled L points in one period to get its discrete version. The details for calculating g ′ (t; R d ) were given in <ref type="bibr" target="#b37">[38]</ref>. By stacking these sampled glottal flows, we built wavetables D ∈ R K×L , with each row containing one period of a sampled glottal pulse (see Fig. as: L+1) . The wavetables D are fixed in our case, contrary to <ref type="bibr" target="#b15">[16]</ref>, and we only pick one wavetable at a time, not a weighted sum.</p><formula xml:id="formula_3">g ′ n = (1 -p) (1 -q) d⌊k⌋,⌊l⌋ + q d⌊k⌋,⌈l⌉ + p (1 -q) d⌈k⌉,⌊l⌋ + q d⌈k⌉,⌈l⌉ , (4) where l = (φ n mod 1)L + 1, k = τ n (K -1) + 1, p = k -⌊k⌋, q = l -⌊l⌋, and D = [D; d 1 ] ∈ R K×(</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Frame-Wise LPC Synthesis</head><p>Time-varying LPC synthesis is usually done by linearly interpolating the LPC coefficients to the audio resolution and filtering sample by sample. This is not parallelisable and slows down the training process. As an alternative, we approximate LPC synthesis by treating each frame independently and using overlap-add:</p><formula xml:id="formula_4">s n = k LP C(g ′ n γ n u n-kT ; a k )w n-kT ,<label>(5)</label></formula><p>where LP C(e n ; a) represents Eqn (2), a k ∈ R M are the filter coefficients at the k th frame, u n and w n are the windowing functions, γ n ∈ R + is the gain, and T is the hop size. u n is fixed to the square window. In this way, the computation can be parallelised. We found that the voice quality differences between overlap-add LPC and sampleby-sample LPC are barely noticeable if we use a sufficiently small hop size. We empirically found that a 200 Hz frame rate is sufficient.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">LPC Coefficients Parameterisation</head><p>For the LPC filter to be stable, all of its poles must lie inside the unit circle on the complex plane. Stability can be guaranteed using robust representations, such as reflection coefficients <ref type="bibr" target="#b27">[28]</ref>. The representation we chose in this work is cascaded 2nd-order IIR filters, and we solve the stability issue by ensuring all the 2nd-order filters are stable. We use the coefficient representation from <ref type="bibr" target="#b32">[33]</ref> to parameterise the i th IIR filter's coefficients 1 + η i,1 z -1 + η i,2 z -2 from the encoder's outputs and cascade them together to form an M th -order LPC filter:</p><formula xml:id="formula_5">(1 + η 1,1 z -1 + η 1,2 z -2 )(1 + η 2,1 z -1 + η 2,2 z -2 ) • • • (1 + η M 2 ,1 z -1 + η M 2 ,2 z -2 ) = 1 + a 1 z -1 + a 2 z -2 + • • • + a M z -M = A(z). (6)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Unvoiced Gating</head><p>The instantaneous frequency f n predicted by the encoder is always non-zero and keeps the oscillator working. Without constraint, the model would utilise these harmonics in the unvoiced region creating buzzing artefacts <ref type="bibr" target="#b17">[18]</ref>. We propose to mitigate this problem by jointly training the model to predict the voiced/unvoiced probabilities as v n ∈ [0, 1] and feeding the gated frequency fn = v n f n to the oscillator instead.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">OPTIMISATION</head><p>Training deep learning models is usually accomplished by backpropagating the gradients evaluated at a chosen loss function L throughout the whole computational graph back to the parameters. Partially inspired by Bhattacharya et al. <ref type="bibr" target="#b28">[29]</ref>, we derived the closed form of backpropagation through time to utilise efficient IIR implementation to solve the problems we mentioned in Section 2.2 while keeping the filter differentiable. Here, e ∈ R N is the input, a ∈ R M is the filter coefficients, and s ∈ R N is the output. Assuming we know ∂L ∂s , we can get the derivatives ∂L ∂e and ∂L ∂a , using chain rules ∂L ∂s ∂s ∂e and ∂L ∂s ∂s ∂a .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Backpropagation Through the Coefficients</head><p>Taking the derivatives of Eqn (2) with respect to a i we get:</p><formula xml:id="formula_6">∂s n ∂a i = -s n-i - M k=1 a k ∂s n-k ∂a i ,<label>(7)</label></formula><p>which equals LP C(-s n-i ; a). s n | n≤0 does not depend on a i so the initial conditions ∂sn ∂ai | n≤0 are zeros. We can get ∂sn ∂a with one pass of filtering because ∂sn ∂aj is ∂sn ∂ai shifted by an offset ji. Lastly, we calculate ∂L ∂ai as</p><formula xml:id="formula_7">N n=1</formula><p>∂L ∂sn ∂sn ∂ai .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Backpropagation Through the Input</head><p>To get the derivatives for input e n , we first re-write Eqn (2) as the following convolutional form:</p><formula xml:id="formula_8">s n = n m=1 e m h n-m ,<label>(8)</label></formula><p>where</p><formula xml:id="formula_9">h n = Z -1 {H(z)}, H(z) = 1 A(z)</formula><p>. From Eqn (8) we see that ∂sn ∂em = h n-m . The derivative of loss L with respect to e m depends on all future samples s n , which is:</p><formula xml:id="formula_10">∂L ∂e m = N n=m ∂L ∂s n ∂s n ∂e m = N n=m ∂L ∂s n h n-m .<label>(9)</label></formula><p>By swapping the variables n, m and considering the equivalence of Eqn (2) and Eqn (8), Eqn (9) can be simplified to</p><formula xml:id="formula_11">∂L ∂e n = N m=n ∂L ∂s m h m-n = ∂L ∂s n - M i=1 a i ∂L ∂e n+i .<label>(10)</label></formula><p>Eqn <ref type="bibr" target="#b9">(10)</ref> shows that we can get the derivatives ∂L ∂en by just filtering ∂L ∂sn with the same filter, but running in backwards. The initial conditions ∂L ∂en | n&gt;N are naturally zeros. In conclusion, backpropagation through an IIR filter consists of two passes of the same filter and one matrix multiplication <ref type="foot" target="#foot_1">1</ref> . We implemented the IIR in C++ and CUDA with multi-threading to filter multiple sequences simultaneously <ref type="foot" target="#foot_2">2</ref> . The differentiable IIR is done by registering the above backward computation in PyTorch, and we submitted the implementation to TorchAudio <ref type="bibr" target="#b38">[39]</ref> as part of the torchaudio.functional.lfilter.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">EXPERIMENTAL SETUP</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Dataset</head><p>We test GOLF as a neural vocoder on the MPop600 dataset <ref type="bibr" target="#b39">[40]</ref>, a high-quality Mandarin singing voice dataset featuring nearly 600 singing recordings with aligned lyrics sung by four singers. We used the audio recordings from the f1 (female) and m1 (male) singers. For each singer, we selected the first three recordings as the test set, the following 27 recordings as the validation set, and used the rest as training data (around three hours in total). All the recordings were downsampled to 24 kHz. The vocoder feature we choose is the log mel-spectrogram. We computed the feature with a window size of 1024 and 80 mel-frequency bins and set the hop size T to 120. We normalised the feature to between zero and one and sliced the training data into two seconds excerpts with 1.5 seconds overlap.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Model Details</head><p>We adopted the encoder from SawSing but replaced the transformer layers with three layers of Bi-LSTM for favourable implementation, resulting in around 0.7M parameters in total. A final linear layer predicts the synthesis parameters {f k , v k , γ k , β k , a k , b k }. The first four parameters are linearly upsampled to {f n , v n , γ n , β n }. β n and b k are the Gaussian noise's gain and filter coefficients. We added an average pooling layer with a size of 10 and two convolution layers after the encoder to predict the R d fractional index τ o at a lower rate and then linearly upsampled to τ n . This step avoids possible modulation effects caused by switching the wavetables too quickly. A system diagram of GOLF is shown in Fig. <ref type="figure" target="#fig_1">2</ref>. We set K = 100, L = 2048, Hanning window for w n , and M = 22 for both LPC filters. We used the same hop size T and a window size of 480 for frame-wise LPC. We normalised all wavetables to have equal energy and aligned them with the negative peak. We compare GOLF with three DDSP-based baselines using the same NN encoder to predict their synthesis parameters. The first two are the original DDSP <ref type="bibr" target="#b13">[14]</ref> and SawSing <ref type="bibr" target="#b17">[18]</ref>. We set their noise filter length to 80 and harmonic filter length to 256 for SawSing. The third model is PUlse-train LPC Filter (PULF), which is similar to GOLF but replaces the glottal flow wavetables with a band-limited pulse train <ref type="bibr" target="#b18">[19]</ref> using additive synthesis, while the LPC order for the harmonic source is increased to 26 to accommodate the glottal pulse response. The number of oscillating sinusoids was set to over 150 for all the baselines. We did not compare GOLF with Nercessian et al. <ref type="bibr" target="#b18">[19]</ref> and Yoshimura et al. <ref type="bibr" target="#b20">[21]</ref> because these architectures are based closely on the source-filter model, and use additional postnets to enhance the voice, which makes it harder to compare directly with GOLF.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Training Configurations</head><p>We trained separate models for each singer, resulting in 8 models. The loss function is the summation of the multi-resolution STFT loss (MSSTFT) and f0 loss from SawSing with FFT sizes set to {512, 1024, 2048}, plus a binary cross entropy loss on voiced/unvoiced prediction. We stopped the gradients from the harmonic source to the f0s and voiced decisions to stabilise the training. We used Adam <ref type="bibr" target="#b40">[41]</ref> for running all optimisations. For DDSP and SawSing, the batch size and learning rate were set to 32 and 0.0005; for GOLF and PULF, the numbers were 64 and 0.0001. We used the ground truth f0s (extracted by WORLD <ref type="bibr" target="#b19">[20]</ref>) for the harmonic oscillator of PULF during training due to stability issues. We trained all the models for 800k steps to reach sufficient convergence and picked the checkpoint with the lowest validation loss as the final model<ref type="foot" target="#foot_3">foot_3</ref> .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">EVALUATIONS 6.1 Objective Evaluation</head><p>The objective metrics we choose are the MSSTFT, the mean absolute error (MAE) in f0, and the Fréchet audio distance (FAD) <ref type="bibr" target="#b41">[42]</ref> on the predicted singing of the test set. Table <ref type="table" target="#tab_0">1</ref> shows that DDSP has the lowest MSSTFT and f0 errors, while SawSing reaches the lowest FAD. GOLF and PULF show comparable results in f0 errors to other baselines. We report the memory usage when training these models and their real-time factor (RTF), both on GPU and CPU, in Table <ref type="table" target="#tab_1">2</ref>. The amount of memory required to train GOLF is around 35% of others, and it runs extremely fast, especially on the CPU. As an additional metric we use the L2 loss between the predicted and the ground truth waveform. The intuition behind this is that GOLF and PULF are the only two models introducing non-linear phase response because of IIR filtering. The filters in DDSP and SawSing are all zerophase, and the initial phases of the sinusoidal oscillators are fixed to zeros. We emphasise that this test is not targeting human perception but the phase reconstruction ability of the models. Humans cannot perceive the absolute frequency phase, but accurate reconstruction could be important in sound matching and mixing use cases. We evaluate the loss on one of the test samples from m1 we used in the subjective evaluation. We created a new parameter called phase offset sampled at 20 Hz. We linearly upsampled phase offset and added it to the instantaneous phase φ n , introducing a slowly varying phase shift. We optimised this parameter by minimising the predicted waveform's L2 loss to the ground truth using Adam with a learning rate of 0.001 and 1000 steps. We wrapped the differences between the points of phase offset during optimisation to [-0.5, 0.5]. We ran this optimisation five times for each model. Each time the phase offset was initialised randomly. We report the minimum and maximum final losses from these trials. Table <ref type="table" target="#tab_1">2</ref>. The required number of VRAM (GB) for training with a batch size of 32, real-time factor (RTF), and the minimum/maximum L2 loss on waveform using one of the test samples. The benchmark was conducted on an Ubuntu 20.04 LTS machine with an i5-4790k processor and an NVIDIA GeForce RTX 3070 GPU.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Subjective Evaluation</head><p>We conducted an online listening test using Go Listen <ref type="bibr" target="#b42">[43]</ref>. We picked one short clip from each test set recording, resulting in 6 clips with duration ranging from 6 to 11 seconds. The test is thus divided into six examples, each consisting of one ground truth clip and four synthesised results from different models, and their loudness was normalised to -16dB LUFS. The order of the examples and the stimulus were randomised for each subject. Each subject was requested to rate the quality of these stimuli on a score from 0 to 100. We collected responses from 33 anonymous participants. We dropped one of the participants who did not indicate using headphones. We normalise scores to fall between 1 to 5 and report the Mean Opinion Score (MOS) in Fig. <ref type="figure" target="#fig_3">4</ref>. DDSP has the highest opinion scores overall, and a Wilcoxon signed-rank test shows that it is not statistically significantly different from the f1 ground truth (p = 0.168). We applied the one-side Wilcoxon test on GOLF and PULF to compare them with SawSing, and the results show that GOLF significantly outperforms SawSing (p &lt; 0.0001), and PULF performs better than SawSing on m1 (p &lt; 0.022).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.">DISCUSSIONS</head><p>Given the evaluation results and the number of synthesis parameters in GOLF is roughly six times smaller than DDSP and SawSing, it is clear that GOLF's synthesis parameters are a more compact representation. Comparing  the differences between GOLF and PULF in Table <ref type="table" target="#tab_1">2</ref>, we can see that the performance gain is due to the use of wavetables. Other baselines synthesise band-limited harmonic sources with many sinusoids oscillating simultaneously, thus increasing the computational cost. PULF's MOS score is much worse on f1, with noticeable artefacts in the unvoiced region and random components of the voice. After investigation, we found the noise gains β n predicted by PULF fluctuating at high speed, producing a modulation effect. This behaviour is also found in PULF trained on m1 and GOLF, even on the harmonic gains γ n . Still, the amount of fluctuation is small and barely noticeable in the test samples. Given the available results, we could only conclude that this effect relates to the type of harmonic source and the range of f0, i.e., female singers have higher f0. This amplitude modulation effect cannot be observed in spectrograms and thus is not captured by the training loss we used. It could be an intrinsic drawback of using frame-wise LPC approximation, but more experiments and comparisons with sample-wise LPC are needed.</p><p>In addition, SawSing produced low scores for both singers because of the buzzing artefacts in the unvoiced region.</p><p>Although unvoiced gating (Sec. 3.4) reduces this problem to a large degree, human ears are susceptible to this effect. This could be an inherent problem in using a sawtooth as the harmonic source. The L2 loss shown in Table <ref type="table" target="#tab_1">2</ref> demonstrates that GOLF matches phase-related characteristics more accurately than other models. Fig. <ref type="figure" target="#fig_2">3</ref> shows GOLF produces the most similar waveform to the ground truth. Other baselines' waveforms are similar because they use the same additive synthesiser. It is possible to reduce their L2 loss by optimising the initial phases of the oscillators, but this cannot account for time-varying source shapes. Low L2 loss is a positive effect of the deterministic phase responses embedded in GOLF. This opens up many possibilities, such as decomposing and analysing the voice in a differentiable manner and training the vocoder using the time domain loss function. The latter could be a possible way to reduce the fluctuation problem discussed in the previous paragraph. The waveform matching of GOLF can be improved further by using a more flexible glottal source model, adding FIR and all-pass filters to account for the voice's mixed-phase components and the recording environment's acoustic response.</p><p>Lastly, we note that cascaded IIR filters provide an orderless representation (i.e. the cascading order does not affect the outputs). This results in the responsibility problem <ref type="bibr" target="#b43">[44,</ref><ref type="bibr" target="#b44">45]</ref> for the last layer of the encoder, which might be one of the reasons why GOLF and PULF are less stable to train than other baselines. Developing architectures that can handle orderless representation or switch to other robust representations are possible ways to address this.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8.">CONCLUSIONS</head><p>We present a lightweight singing voice vocoder called GOLF, which uses wavetables with different glottal flows as entries to model the time-varying harmonic components and differentiable LPC filters for filtering both the harmonics and random elements. We show that GOLF requires less memory to train and runs an order of magnitude faster on the CPU than other DDSP-based vocoders, but still attains competitive voice quality in subjective and objective evaluations. Furthermore, we empirically show that the predicted waveforms from GOLF represent the voice's phase response more faithfully, which could allow us to use GOLF to decompose and analyse human voice.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. An example of the wavetables we used, corresponding to matrix D with K = 31.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Overview of the GOLF synthesis process. phase offset is only introduced at test time, where the details are given in Section 6.1.</figDesc><graphic coords="4,333.36,146.87,185.95,330.75" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. The predicted waveforms of a short segment from one of the m1 test samples. The differences were computed by subtracting the predicted signal from the reference.</figDesc><graphic coords="6,54.98,68.54,487.57,167.17" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 .</head><label>4</label><figDesc>Figure 4. The MOS results of the vocoders trained on different singers with 95% confidence interval.</figDesc><graphic coords="6,54.98,292.07,232.46,91.57" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 .</head><label>1</label><figDesc>Evaluation results on the test set. We omit the standard deviation if it is smaller than 0.01.</figDesc><table><row><cell cols="4">Singers Models MSSTFT MAE-f0 (cent)</cell><cell>FAD</cell></row><row><cell></cell><cell>DDSP</cell><cell>3.09</cell><cell>74.47±1.19</cell><cell>0.50±0.02</cell></row><row><cell>f1</cell><cell>SawSing</cell><cell>3.12</cell><cell>78.91±1.18</cell><cell>0.38±0.02</cell></row><row><cell></cell><cell>GOLF</cell><cell>3.21</cell><cell>77.06±0.88</cell><cell>0.62±0.02</cell></row><row><cell></cell><cell>PULF</cell><cell>3.27</cell><cell>76.90±1.11</cell><cell>0.75±0.04</cell></row><row><cell></cell><cell>DDSP</cell><cell>3.12</cell><cell>52.95±1.03</cell><cell>0.57±0.02</cell></row><row><cell>m1</cell><cell>SawSing</cell><cell>3.13</cell><cell>56.46±1.04</cell><cell>0.48±0.02</cell></row><row><cell></cell><cell>GOLF</cell><cell>3.26</cell><cell>54.09±0.30</cell><cell>0.67±0.01</cell></row><row><cell></cell><cell>PULF</cell><cell>3.35</cell><cell>54.60±0.73</cell><cell>1.11±0.04</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2</head><label>2</label><figDesc>shows the lowest losses GOLF and PULF can reach are significantly smaller than the others, with GOLF having the smallest among all.</figDesc><table><row><cell cols="2">Models Memory</cell><cell>RTF GPU CPU</cell><cell>Waveform L2 Min Max</cell></row><row><cell>DDSP</cell><cell>7.3</cell><cell cols="2">0.015 0.237 71.83 88.77</cell></row><row><cell>SawSing</cell><cell>7.3</cell><cell cols="2">0.015 0.240 75.72 93.16</cell></row><row><cell>GOLF</cell><cell>2.6</cell><cell cols="2">0.009 0.023 21.98 64.82</cell></row><row><cell>PULF</cell><cell>7.5</cell><cell cols="2">0.015 0.248 44.08 70.59</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 24th International Society for Music Information Retrieval Conference, Milan, Italy, Nov 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>The computation of the IIR does not need to fulfil the implementation requirements set by the automatic differentiation framework, thus can be highly optimised.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_2"><p>Although the single-core performance of a GPU is usually inferior to a CPU, and we can only use at most one thread for each IIR, the GPU has a much higher number of cores, which is beneficial for training on a large number of sequences at once.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_3"><p>The trained checkpoints, source codes, and audio samples are available at https://github.com/iamycy/golf.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="9.">ACKNOWLEDGEMENTS</head><p>The authors want to thank <rs type="person">Moto Hira</rs> (mthrok), <rs type="person">Christian Puhrsch</rs> (cpuhrsch), and <rs type="person">Alban Desmaison</rs> (albanD) for reviewing our pull requests to TorchAudio. We are incredibly grateful to <rs type="person">Parmeet Singh Bhatia</rs> (parmeet) for implementing the first version of efficient IIR in the TorchAudio codebase as lfilter.cpp. We thank <rs type="person">Ben Hayes</rs> for giving feedback on the equations of backpropagation through an <rs type="funder">IIR</rs>. The first author wants to exclusively thank <rs type="person">Ikuyo Kita</rs> for giving positive, energetic support during the writing process. The first author is a research student at the <rs type="affiliation">UKRI Centre for Doctoral Training in Artificial Intelligence and Music</rs>, supported jointly by <rs type="funder">UK Research and Innovation</rs> [grant number <rs type="grantNumber">EP/S022694/1</rs>] and <rs type="funder">Queen Mary University of London</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_kynYjnV">
+					<idno type="grant-number">EP/S022694/1</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A singing voice synthesis system based on sinusoidal modeling</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">W</forename><surname>Macon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jensen-Link</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Oliverio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">A</forename><surname>Clements</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">B</forename><surname>George</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="1997">1997</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="435" to="438" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Singing voice synthesis combining excitation plus resonance and sinusoidal plus residual models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bonada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ò</forename><surname>Celma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">À</forename><surname>Herrada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Loscos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Ortolà</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Serra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Yoshioka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Kayama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Hisaminato</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kenmochi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Computer Music Conference (ICMC)</title>
+		<meeting><address><addrLine>Havana, Cuba</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2001">2001</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Synthesis of the singing voice by performance sampling and spectral models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bonada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Signal Processing Magazine</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="67" to="79" />
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Expressive singing synthesis based on unit selection for the singing synthesis challenge 2016</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bonada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">Umbert</forename><surname>Morist</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Blaauw</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">INTER-SPEECH. International Speech Communication Association (ISCA)</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">An HMM-based singing voice synthesis system</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Saino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Nankaku</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Tokuda</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">9th International Conference on Spoken Language Processing</title>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Recent development of the DNN-based singing voice synthesis system-Sinsy</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Hono</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Murata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Oura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Nankaku</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Tokuda</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Asia-Pacific Signal and Information Processing Association Annual Summit and Conference</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1003" to="1009" />
+		</imprint>
+		<respStmt>
+			<orgName>APSIPA ASC</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Natural TTS synthesis by conditioning WaveNet on mel spectrogram predictions</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Jaitly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Skerrv-Ryan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4779" to="4783" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">LPCNet: Improving neural speech synthesis through linear prediction</title>
+		<author>
+			<persName><forename type="first">J.-M</forename><surname>Valin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Skoglund</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="5891" to="5895" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Unified sourcefilter GAN with harmonic-plus-noise source excitation generation</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Yoneyama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-C</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Toda</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">INTERSPEECH. International Speech Communication Association (ISCA)</title>
+		<imprint>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">WaveGlow: A flow-based generative network for speech synthesis</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Prenger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Valle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Catanzaro</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3617" to="3621" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Diff-Singer: Singing voice synthesis via shallow diffusion mechanism</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI Conference on Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page">28</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A survey on recent deep learning-driven singing voice synthesis systems</title>
+		<author>
+			<persName><forename type="first">Y.-P</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-R</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-C</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-T</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X.-H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-W</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2021 IEEE International Conference on Artificial Intelligence and Virtual Reality (AIVR)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="319" to="323" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Hierarchical diffusion models for singing voice neural vocoder</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Takahashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mitsufuji</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.07508</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">DDSP: Differentiable digital signal processing</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">H</forename><surname>Hantrakul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Neural waveshaping synthesis</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Hayes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Saitis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fazekas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval</title>
+		<meeting>International Society for Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Differentiable wavetable synthesis</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Shan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Hantrakul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Avent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Trevelyan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="4598" to="4602" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Latent space explorations of singing voice synthesis using DDSP</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Alonso</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Erkut</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2103.07197</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">DDSP-based singing vocoders: A new subtractivebased synthesizer and a comprehensive evaluation</title>
+		<author>
+			<persName><forename type="first">D.-Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-Y</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-R</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Friedman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Jackson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bruzenak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-W</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval</title>
+		<meeting>International Society for Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Differentiable WORLD synthesizerbased neural vocoder with application to end-to-end audio style transfer</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Nercessian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2208.07282</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">WORLD: a vocoder-based high-quality speech synthesis system for real-time applications</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Morise</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Yokomori</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Ozawa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEICE TRANSACTIONS on Information and Systems</title>
+		<imprint>
+			<biblScope unit="volume">99</biblScope>
+			<biblScope unit="issue">7</biblScope>
+			<biblScope unit="page" from="1877" to="1884" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Embedding a differentiable mel-cepstral synthesis filter to a neural speech synthesis system</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Yoshimura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Takaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Oura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Hono</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Nankaku</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Tokuda</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2211.11222</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">PyTorch distributed: Experiences on accelerating data parallel training</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Varma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Salpekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Noordhuis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Paszke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Vaughan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Damania</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the VLDB Endowment</title>
+		<meeting>the VLDB Endowment</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">13</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Glottal source and vocal-tract separation</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Degottex</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+		<respStmt>
+			<orgName>Université Pierre et Marie Curie-Paris VI</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">Ph.D. dissertation</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Glottal source modeling for singing voice synthesis</title>
+		<author>
+			<persName><forename type="first">H.-L</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">O</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iii</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Computer Music Conference (ICMC)</title>
+		<imprint>
+			<date type="published" when="2000">2000</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">A fourparameter model of glottal flow</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liljencrants</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>-G. Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">STL-QPSR</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="1" to="13" />
+			<date type="published" when="1985">1985. 1985</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Markel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">H</forename><surname>Gray</surname></persName>
+		</author>
+		<title level="m">Linear Prediction of Speech, ser. Communication and Cybernetics</title>
+		<meeting><address><addrLine>Berlin, Heidelberg</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="1976">1976</date>
+			<biblScope unit="volume">12</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">ExcitGlow: Improving a WaveGlowbased neural vocoder with linear prediction analysis</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Byun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M.-J</forename><surname>Hwang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H.-G</forename><surname>Kang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Asia-Pacific Signal and Information Processing Association Annual Summit and Conference</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="831" to="836" />
+		</imprint>
+		<respStmt>
+			<orgName>APSIPA ASC</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">End-to-end LPCNet: A neural vocoder with fully-differentiable LPC estimation</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Subramani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-M</forename><surname>Valin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">U</forename><surname>Isik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Smaragdis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Krishnaswamy</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2202.11301</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Optimization of cascaded parametric peak and shelving filters with backpropagation algorithm</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Bhattacharya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Nowak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">U</forename><surname>Zölzer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Digital Audio Effects</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="101" to="108" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Neural parametric equalizer matching using differentiable biquads</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Nercessian</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Digital Audio Effects</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="265" to="272" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Differentiable IIR filters for machine learning applications</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Kuznetsov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Parker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Esqueda</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Digital Audio Effects</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="297" to="303" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Direct design of biquad filter cascades with deep learning by sampling random polynomials</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">T</forename><surname>Colonel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">J</forename><surname>Steinmetz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Michelen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Reiss</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="3104" to="3108" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Lightweight and interpretable neural modeling of an audio distortion effect using hyperconditioned differentiable biquads</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Nercessian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sarroff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">J</forename><surname>Werner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="890" to="894" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Joint estimation of fader and equalizer gains of dj mixers using convex optimization</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sincia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Digital Audio Effects</title>
+		<imprint>
+			<publisher>DAFx</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="312" to="319" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Style transfer of audio effects with differentiable signal processing</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">J</forename><surname>Steinmetz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><forename type="middle">J</forename><surname>Bryan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Reiss</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the Audio Engineering Society</title>
+		<imprint>
+			<biblScope unit="volume">70</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<biblScope unit="page" from="708" to="721" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Spectral modeling synthesis: A sound analysis/synthesis system based on a deterministic plus stochastic decomposition</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Music Journal</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="12" to="24" />
+			<date type="published" when="1990">1990</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">The LF-model revisited. transformations and frequency domain analysis</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fant</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Speech Trans. Lab. Q. Rep., Royal Inst. of Tech. Stockholm</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page">40</biblScope>
+			<date type="published" when="1995">1995</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Reshaping the transformed LF model: Generating the glottal source from the waveshape parameter Rd</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gobl</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">INTERSPEECH. International Speech Communication Association (ISCA)</title>
+		<imprint>
+			<date type="published" when="2017-08">Aug. 2017</date>
+			<biblScope unit="page" from="3008" to="3012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Torchaudio: Building blocks for audio and speech processing</title>
+		<author>
+			<persName><forename type="first">Y.-Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Astafurov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Puhrsch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Pollack</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Genzel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Greenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hwang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Goldsborough</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Narenthiran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chintala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quenneville-Bélair</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="6982" to="6986" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">MPop600: A mandarin popular song database with aligned audio, lyrics, and musical scores for singing voice synthesis</title>
+		<author>
+			<persName><forename type="first">C.-C</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-R</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-W</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S.-H</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Asia-Pacific Signal and Information Processing Association Annual Summit and Conference</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1647" to="1652" />
+		</imprint>
+		<respStmt>
+			<orgName>APSIPA ASC</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Fréchet audio distance: A metric for evaluating music enhancement algorithms</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kilgour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zuluaga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Roblek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sharifi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1812.08466</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Go Listen: An end-to-end online listening test platform</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Barry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">W</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Hines</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Open Research Software</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Deep set prediction networks</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hare</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Prugel-Bennett</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">The responsibility problem in neural networks with unordered targets</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Hayes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Saitis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fazekas</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=jd7Hy" />
+	</analytic>
+	<monogr>
+		<title level="m">24th International Society for Music Information Retrieval Conference</title>
+		<meeting><address><addrLine>Milan, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023-09">2023. Nov 5-9, 2023</date>
+		</imprint>
+	</monogr>
+	<note>jRiv4 Proceedings of the</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

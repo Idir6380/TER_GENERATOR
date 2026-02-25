@@ -1,0 +1,1033 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MUSIC SOURCE SEPARATION WITH MLP MIXING OF TIME, FREQUENCY, AND CHANNEL</title>
+				<funder ref="#_2xngy7P">
+					<orgName type="full">JST CREST</orgName>
+				</funder>
+				<funder ref="#_YQrAUZD">
+					<orgName type="full">JSPS KAKENHI</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Tomoyasu</forename><surname>Nakano</surname></persName>
+							<email>t.nakano@aist.go.jp</email>
+							<affiliation key="aff0">
+								<orgName type="institution">National Institute of Advanced Industrial Science and Technology (AIST)</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Masataka</forename><surname>Goto</surname></persName>
+							<email>m.goto@aist.go.jp</email>
+							<affiliation key="aff0">
+								<orgName type="institution">National Institute of Advanced Industrial Science and Technology (AIST)</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MUSIC SOURCE SEPARATION WITH MLP MIXING OF TIME, FREQUENCY, AND CHANNEL</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">3C1A1A32C137F0F278DE6A29DA37860C</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>This paper proposes a new music source separation (MSS) model based on an architecture with MLP-Mixer that leverages multilayer perceptrons (MLPs). Most of the recent MSS techniques are based on architectures with CNNs, RNNs, and attention-based transformers that take waveforms or complex spectrograms or both as inputs. For the growth of the research field, we believe it is important to study not only the current established methodologies but also diverse perspectives. Therefore, since the MLP-Mixer-based architecture has been reported to perform as well as or better than architectures with CNNs and transformers in the computer vision field despite the MLP's simple computation, we report a way to effectively apply such an architecture to MSS as a reusable insight. In this paper we propose a model called TFC-MLP, which is a variant of the MLP-Mixer architecture that preserves time-frequency positional relationships and mixes time, frequency, and channel dimensions separately, using complex spectrograms as input. The TFC-MLP was evaluated with source-to-distortion ratio (SDR) using the MUSDB18-HQ dataset. Experimental results showed that the proposed model can achieve competitive SDRs when compared with state-of-the-art MSS models.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Music source separation (MSS) is the task of obtaining individual source signals -such as vocals, drums, and bass -from real music acoustic signals. This is an essential technique for various applications, including music information retrieval and music listening interfaces, where the characteristics of individual sound sources are analyzed and utilized. MSS has actually been used to add effects to individual source (instrument) sounds for music appreciation <ref type="bibr" target="#b1">[1]</ref> and adjust their volume <ref type="bibr" target="#b1">[1]</ref><ref type="bibr" target="#b2">[2]</ref><ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref>, to improve the cochlear implant user's musical experience by adjusting the volume of preferred instruments <ref type="bibr" target="#b5">[5]</ref>, to synthesize singing voices <ref type="bibr" target="#b6">[6]</ref>, to acquire feature expressions of singing voices <ref type="bibr">[7]</ref>, to identify singers <ref type="bibr" target="#b8">[8]</ref>, to achieve audioto-lyrics alignment <ref type="bibr" target="#b9">[9,</ref><ref type="bibr" target="#b10">10]</ref>, to create music mashups <ref type="bibr" target="#b11">[11]</ref>, to separate sources for music education <ref type="bibr" target="#b12">[12]</ref>, and to estimate compatibility between vocals and accompaniment <ref type="bibr" target="#b13">[13]</ref>.</p><p>Currently, the mainstream approaches for MSS use deep neural networks <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b15">15]</ref>, and their performance is improving year by year. For their performance comparison to measure the improvement, MUSDB18 <ref type="bibr" target="#b16">[16]</ref> had been used as the common standard data set for the four target sound sources (Vocals, Drums, Bass, and Other). Then MUSDB18-HQ <ref type="bibr" target="#b17">[17]</ref>, an extended frequency bandwidth version of MUSDB18, was released and has been used for recent evaluations.</p><p>As for the current state-of-the-art MSS models, the topranked models <ref type="bibr" target="#b18">[18,</ref><ref type="bibr" target="#b19">19]</ref> in the Music Demixing (MDX) Challenge 2021 <ref type="bibr" target="#b20">[20]</ref> and the two models presented in two arXiv papers in 2022 <ref type="bibr" target="#b21">[21,</ref><ref type="bibr" target="#b22">22]</ref> have an average SDR (source-to-distortion ratio) over 7 dB for the four sources when using MUSDB18-HQ as training, validation, and test data. These models are explained in the next section.</p><p>Such deep MSS models can be classified in terms of the type of input and output used for separation and the type of architecture. The input and output of the models are selected from waveforms, amplitude spectrograms, complex spectrograms, phase spectrograms, etc. The architecture of the models is mainly selected from ResNet, DenseNet, U-Net, and Transformer and is used with layers of Convolutional Neural Networks (CNNs) or Recurrent Neural Networks (RNNs). Simpler architectures based on multilayer perceptrons (MLPs), however, have not been used in state-of-the-art MSS models.</p><p>Meanwhile, in the field of computer vision, highperformance architectures based on MLPs have recently been proposed and reported to perform as well as or better than architectures using CNNs or transformers <ref type="bibr" target="#b24">[23,</ref><ref type="bibr" target="#b25">24]</ref>. In addition, those simpler MLP-centric architectures have also been applied in audio-related research, with cases of singing voice synthesis <ref type="bibr" target="#b26">[25]</ref> and speech enhancement <ref type="bibr" target="#b27">[26]</ref>. However, such MLP-centric architectures have not been applied in the MSS domain, though fully connected layers and MLPs have been used for linear transformation such as embedding and expansion. Since we believe that new perspectives, in addition to the development of established methodologies, are important for the advancement of the research field, this paper investigates how MLP-based architectures can be effectively leveraged for MSS.</p><p>As such a modern MLP-centric high-performance architecture, Tolstikhin et al. proposed the MLP-Mixer <ref type="bibr" target="#b24">[23]</ref> that applies MLPs to a T p × C p matrix to estimate the Table <ref type="table">1</ref>. SDRs in MUSDB18-HQ for the state-of-the-art models and our proposed TFC-MLP. The "Avg." column means the average of the SDR results for the four sources. The "Per-source" column means that the per-source adjustment/tuning has been implemented. The "Extra" column indicates the number of songs added as extra training data, and † means that only mixed sounds were added. Models with "*" are evaluated in MUSDB18 <ref type="bibr" target="#b16">[16]</ref>, and SDRs for models with "**" are recalculated in MUSDB18-HQ using the pretrained model  <ref type="bibr" target="#b25">[24]</ref> that performs better when trained with fewer images than the original MLP-Mixer. The Image-to-Image Mixer transforms images as a 3D tensor (W × H × C) instead of the 2D matrix (T p × C p ) and preserves the relative positions of patches to induce a bias towards natural images. In other words, the token-mixing MLP and the channel-mixing MLP are split into three processes of width-mixing MLP, height-mixing MLP and channelmixing MLP. This also keeps the total number of trainable parameters low, since the size of each dimension of the 2D matrix (i.e., T p and C p ) obtained by transformation from the 3D tensor is relatively large.</p><p>In investigating such MLP-based architectures in the MSS domain, we decided to use a complex spectrogram, which is a reasonable representation for MSS, as the input. Since the size of its complex time-frequency representation is larger than the size of typical images in the computer vision domain, we apply the memory-efficient Image-to-Image Mixer to MSS and report its experimental results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>As described in Section 1, the state-of-the-art models <ref type="bibr" target="#b18">[18,</ref><ref type="bibr" target="#b19">19,</ref><ref type="bibr" target="#b21">21,</ref><ref type="bibr" target="#b22">22]</ref> in the MSS study show that the average SDR score for the four source separations exceeds 7 dB in the evaluation using MUSDB18-HQ. The SDRs for each of the four sources based on these models are shown in Table <ref type="table">1</ref>.</p><p>KUIELab-MDX-Net was proposed by Kim et al. <ref type="bibr" target="#b18">[18]</ref>. It is an architecture that combines an extended version of TFC-TDF-U-Net <ref type="bibr" target="#b28">[27]</ref>, which separates in the timefrequency domain (i.e., complex spectrogram), and Demucs <ref type="bibr" target="#b29">[28]</ref>, which separates in the time domain (i.e., waveform). Each source signal i separated by those subnetworks is mixed using source-dependent weights w i . Specifically, w i was set to 0.5, 0.5, 0.7, and 0.9 for bass, drums, other, and vocals in MDX Challenge 2021 <ref type="bibr" target="#b20">[20]</ref>  <ref type="foot" target="#foot_0">1</ref> . In KUIELab-MDX-Net, to improve performance, a mechanism called Mixer was used to remix the music acoustic signal with the separated signal by using the 1x1 convolution, and different FFT frame sizes were used for each sound source by applying a frequency cut-off trick <ref type="bibr" target="#b20">[20]</ref>.</p><p>TFC-TDF-U-Net used in the KUIELab-MDX-Net is a variant of U-Net architecture that combines the timefrequency convolutions (TFC) block with the timedistributed fully-connected networks (TDF) block. Here, TFC is a dense block of 2D CNNs, and TDF is a block that extracts nonlocal features along the frequency axis, such as correlations between harmonics, by fully connecting the entire frequency range of a single frame of the spectrogram. TDF was inspired by the Frequency Transformation Block (FTB) proposed by Yin et al. <ref type="bibr" target="#b30">[29]</ref> and was introduced specifically to help separate singing voices <ref type="bibr" target="#b28">[27]</ref>. As the other component of KUIELab-MDX-Net, Demucs <ref type="bibr" target="#b29">[28]</ref> is a U-Net encoder/decoder structure with waveforms as input and BiLSTM applied to the innermost layer between the encoder and decoder to provide long-range context.</p><p>Hybrid Demucs was proposed by Défossez et al. <ref type="bibr" target="#b19">[19]</ref>. It is a bi-U-Net encoder-decoder model that combines 1D convolution in the time domain and along the frequency axis in the complex time-frequency domain. BiLSTM and local attention were used in the innermost layer, and residual branches, group normalization <ref type="bibr" target="#b31">[30]</ref> and GELU were introduced. In addition, better generalization and stability were achieved by penalizing the largest singular value in each layer <ref type="bibr" target="#b32">[31]</ref>, and overall performance was improved by bagging multiple models.</p><p>Band-Split RNN was proposed by Luo et al. <ref type="bibr" target="#b21">[21]</ref>. It is a state-of-the-art spectrogram-based model that uses complex spectrograms as input and output. By splitting the complex spectrogram input into subbands specifically designed for each sound source, the intrinsic properties and patterns of each source signal are utilized. For a 3D tensor representing the time dimension, frequency dimension, and subband dimension, similar to the Dual-path RNN <ref type="bibr" target="#b33">[32]</ref>, a sequence-level RNN is first applied across the time dimension, then a band-level RNN is applied across the band dimension. In fact, for Vocals, results showed that the modified utterance-level SDR can be improved by more than 2 dB by setting the bandwidth appropriately. In addition, semi-supervised fine tuning was performed by using pseudo-targets separated from the mixtures using a pretraining model in order to make effective use of songs with only mixtures (1750 songs). The Band-Split RNN currently achieves a state-of-the-art SDR of 8.24 dB in the evaluation using only MUSDB18-HQ as training data.</p><p>Hybrid Transformer Demucs was proposed by Rouard et al. <ref type="bibr" target="#b22">[22]</ref>. The innermost layer, called the bottleneck, of the Hybrid Demucs <ref type="bibr" target="#b19">[19]</ref> is replaced by a cross-domain transformer encoder (i.e., time domain and time-frequency domain) that uses self-attention within each domain and cross-attention across domains. Compared to the Hybrid Demucs, the performance is lower when trained with MUSDB18-HQ only, but the SDR was 0.46 dB better when 800 additional training songs were used. Sparse HT Demucs <ref type="bibr" target="#b22">[22]</ref>, which extended the receptive field using a sparse attention kernel, achieved a state-of-the-art result of 9.27 dB SDR by fine-tuning for each source.</p><p>As described above, the MLP-centric architecture has never been applied in state-of-the-art MSS models where the average SDR exceeds 7 dB on MUSDB18-HQ.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">TFC-MLP</head><p>This paper proposes Time-Frequency-Channel-MLP (TFC-MLP), which is a model that leverages the Image-to-Image Mixer architecture <ref type="bibr" target="#b25">[24]</ref> to separate music sources using a complex spectrogram as input. This is realized by replacing the height, width, and color (RGB) in the image with the time, frequency, and channel in the complex spectrogram, respectively. In other words, TFC-MLP has a structure that alternates mixing in the time, frequency, and channel dimensions. In this way, we expect to be able to take into account the nonlocal structure. Especially with respect to the frequency dimension, we expect to extract nonlocal relationships along the frequency axis, such as harmonic structures, by connecting the entire frequency range of the spectrogram, as in the FTB <ref type="bibr" target="#b30">[29]</ref> and the TDF <ref type="bibr" target="#b28">[27]</ref>.</p><p>The process of the TFC-MLP model is shown in Fig-</p><formula xml:id="formula_0">ure 1. The complex spectrogram X STFT ∈ C F0×T0×2 of a 2-channel (stereo) mixture signal is first converted to a 4-channel 3D tensor X CaC ∈ R F0×T0×4</formula><p>with the real and imaginary parts represented as channels, a.k.a. complexas-channels (CaC) <ref type="bibr" target="#b28">[27]</ref>. Here T 0 is a fixed length. Then, as with the MLP-Mixer and Image-to-Image Mixer as well as the Vision Transformer (ViT) <ref type="bibr" target="#b34">[33]</ref>, the patch embedding is first performed using C linear weights of size P T × P F × 4 (Figure <ref type="figure" target="#fig_1">2</ref>). This reduces the frequency dimension F 0 to F 0 /P F and the time dimension T 0 to T 0 /P T , which reduces the matrix size and memory consumption in the following frequency-mixing MLP and time-mixing MLP. To compensate for the information loss due to decreasing the resolution in the time-frequency plane and the loss of continuity in the time-frequency direction, we increase the dimension in the channel direction.</p><p>The embedded tensor then passes through N MLP-Mixer layers. As shown in Figure <ref type="figure">3</ref>, each MLP-Mixer layer mixes the tensor with the frequency dimension, then the time dimension, and finally the channel dimension. Such mixing is passed through an MLP consisting of a linear layer, a GELU nonlinearity, and another linear layer, and output without changing the tensor size. The dimension of the tensor at the input/output layer of the MLP is kept constant, and the dimension at the hidden layer is adjusted by multiplying it by a factor f depending on the input dimension. Skip connections and channel layer normalization have also been added to help with the optimization. Here, following the implementation of the Image-to-Image Mixer <ref type="bibr" target="#b25">[24]</ref>, skip connections are placed before and after the two mixing steps of frequency and time ("Type A"). In addition to that, a version with skip connection and layer normalization added before time-mixing MLP was also implemented ("Type B"). After mixing the time, frequency, and channel dimensions, patch expansion is used to restore the number of time and frequency dimensions for inverse transformation into waveforms and also to match the channel dimension to the number of separated sources.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EVALUATION</head><p>The proposed TFC-MLP was evaluated using the MUSDB18-HQ dataset <ref type="bibr" target="#b17">[17]</ref>. 86 songs were used as training data, 14 songs as validation data, and 50 songs as test data. The music acoustic signals were stereo with a sampling frequency of 44.1 kHz, and four sound sources -"Vocals," "Drums," "Bass," and "Other" -were used for separation. Separation performance was evaluated by calculating SDR using the museval Python package<ref type="foot" target="#foot_2">foot_2</ref> . As in most previous studies ( <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b21">21]</ref>, etc.), the SDR of each source was calculated by taking the median values over all 1-second segments of each song to obtain the SDR of the track and then taking the median of all tracks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental setting</head><p>The proposed model was optimized using Adam <ref type="bibr" target="#b35">[34]</ref> for the L1 loss between its separated signals and the ground-  This can be implemented as a nonoverlapping CNN.</p><p>truth source signals. The Adam parameters were set as no weight decay, learning rate 0.0003, β 1 = 0.9, and β 2 = 0.999. The waveform for calculating the CaC spectrogram to be input to the model was normalized so that the mean amplitude of the music acoustic signal was 0 and the standard deviation was 1. The training was distributed across multiple GPUs, with a batch size of 4 on each GPU.</p><p>In training, we used data augmentation techniques <ref type="bibr" target="#b19">[19]</ref>, including pitch shift and tempo stretch, randomly swapping channels, random sign flip, random scaling of amplitude, and remixing of stems within one batch.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Base hyperparameters</head><p>Due to the many hyperparameters required for the building of the proposed TFC-MLP model, hyperparameters related to the short-time Fourier transform (STFT) were first determined through preliminary experiments. To obtain X CaC , the STFT frame size (i.e., FFT size) was chosen as 4096, which had the highest SDR when compared among 512, 1024, 2048, and 4096. As Kim et al. <ref type="bibr" target="#b18">[18]</ref> also stated, the performance tended to increase with larger FFT size. Therefore the frequency dimension F 0 is 2048. Related to the FFT size, the STFT hop size was investigated among 128, 256, 512, and 1024, and 1024 was selected. Also related to the FFT size and STFT hop size, the number of time frames T 0 in the complex spectrogram was selected as 128 from 32, 64, 128, 256, and 512. The number of time frames T 0 of 128 based on an FFT size of 4096 and an STFT hop size of 1024 is input to the model, thus the waveform size required for this is equal to T w = 1024 × 128 -1 (about 3 seconds). Therefore, it is necessary to train the model while cutting out an ap- </p><formula xml:id="formula_1">F F f F T T f T C C f C Fully connected Fully connected GELU Figure 3.</formula><p>The Mixer layer contains one frequency-mixing MLP, one time-mixing MLP, and one channel-mixing MLP. Before each MLP, a transposition is performed to apply the MLP to the frequency dimension F , the time dimension T , and the channel dimension C. Transposition is also performed before every layer normalization to normalize along the channel dimension C. proximately 3-second segment of the waveform, and the shift size of 16384 (about 0.37 seconds) was used. Luo et al. <ref type="bibr" target="#b21">[21]</ref> found that the shorter the shift, the better the modified utterance-level SDR, and they used 0.5 seconds. The above 16384 is short enough compared to 0.5 seconds and can be considered sufficient in this study.</p><p>As hyperparameters regarding the model, the dimensions C of the patch embedding were investigated by us. Specifically, 128 and 256 were investigated and 256 was selected. As hyperparameters related to the Mixer layer, 8 and 16 were investigated as the number of layers N and 16 was selected, and the parameter f for adjusting the number of dimensions of the hidden layer of each MLP was selected as 4 from 1, 2, and 4. Dropout in the MLP <ref type="bibr" target="#b26">[25]</ref> and skip connections before and after the Mixer layer were also investigated, but they have not yielded better results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Experiment</head><p>Using the set of hyperparameters determined in Section 4.2 as a basis, we report the SDR scores obtained under the following various conditions for the other hyperparameters.</p><p>• Investigation of the results of complex spectrogram loss <ref type="bibr" target="#b21">[21]</ref>.</p><p>Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p><p>Table <ref type="table">2</ref>. SDRs for different hyperparameters of the proposed model. The "Seed" column indicates random seeds. In the "Loss" column, "W" indicates that only waveform loss was used, and "W+S" indicates that complex spectral loss was added. The "Epoch" column indicates the number of epochs with the smallest validation loss and the specified number of epochs, where "*" means that validation loss was not considered. Note that " †" means the cases where the number of epochs with the smallest validation loss did not change when training beyond 200 epochs (i.e., the same model was used for the evaluation </p><p>, using (4, 4) as the basis, halving the FFT size and time dimension T for (2, 2), and halving it further for (1, 1). For (1, 1), the STFT hop size was set to 512 since the FFT size is 1024. • The number of epochs for training was set to 200 or 300, and models with the smallest validation loss within each epoch-condition were evaluated. • The results of adding 120 full-length songs (sung in English) to the training data were evaluated. • For the basic parameter condition, we trained three times with different random seeds.</p><p>In the test phase, the model with the smallest validation loss was used for evaluation in each training condition. The signal separated by the proposed model was divided into segments of fixed length T w with shift width T w /4, which were weighted overlap-added to obtain the final signal. In addition, the shift trick <ref type="bibr" target="#b29">[28]</ref> was performed 10 times.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Results and discussions</head><p>In addition to the evaluation of SDRs using the MUSDB18-HQ test set, the number of parameters and the Real Time Factor (RTF) will also be discussed, as file size and the time required for separation may be important in some situations depending on how the MSS model is used.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4.1">SDRs</head><p>The experimental results are shown in Table <ref type="table">2</ref>. The highest SDR score, up to 7.30 dB, was obtained for the Type A model using the patch size of (4, 4) and waveform L1 loss in addition to the base hyperparameters. This was not significantly higher than the state-of-the-art values shown in Table <ref type="table">1</ref>, but close performance was achieved.</p><p>Focusing on the results for each source with respect to our TFC-MLP, as shown in Table <ref type="table">1</ref>, the SDRs for Vocals and Other were 8.91 dB and 6.14 dB, respectively, which were higher than the 8.35 dB and 5.65 dB SDRs for the Hybrid Demucs and the 7.93 dB and 5.72 dB SDRs for the Hybrid Transformer Demucs. This model's SDR score for Other also exceeded the one obtained using KUIELab-MDX-Net, 5.90. Here, in comparison to the KUIELab-MDX-Net results without waveform information (i.e., excluding processing by Demucs), it is possible that similar or better performance was obtained for Drums and Vocals, although an exact comparison cannot be made because the test data is different (i.e., MUSDB18 was used). In comparison to the Band-Split RNN results, TFC-MLP could not yield a higher SDR for all sound sources. However, the current TFC-MLP does not include a source-specific framework, so addressing this issue is a future challenge.</p><p>As for the patch size, the FFT size and other conditions were different due to memory capacity. Therefore, although exact comparisons are not possible, the best results were obtained for <ref type="bibr" target="#b4">(4,</ref><ref type="bibr" target="#b4">4)</ref> in the current results. However, additional study is needed for (2, 2), since it gave results similar to those given by (4, 4). As for complex spectrogram loss, its SDR was slightly lower than that of all conditions using only waveform loss. Not only comparisons using the real and imaginary parts of the complex numbers, but also losses based on amplitude and phase could be considered.</p><p>We also showed that the performance of the models was further improved by using additional training data. As shown in Table <ref type="table">1</ref>, compared to the current world's best model Sparse HT Demucs with 800 songs added as the training data, we obtained competitive results with an SDR of 9.68 dB for the Vocals and 6.46 dB for the Others.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4.2">RTF and the number of parameters</head><p>As comparison, models were trained for each of the Hybrid Demucs and Hybrid Transformer Demucs. Based on the published source codes, a model parameter setting "80a68df8"<ref type="foot" target="#foot_4">foot_4</ref> was used for Hybrid Demucs, and the default parameter setting was used for Hybrid Transformer Demucs. The same implementation for audio synthesis was used for all TFC-MLP, Hybrid Demucs, and Hybrid Transformer Demucs. We used the 50 songs in the MUSDB18-HQ test set to obtain the average of their RTFs.</p><p>Table <ref type="table" target="#tab_2">3</ref> shows the results. The RTF values of TFC-MLP were slower than the other two models. TFC-MLP had an RTF lower than 1.0 (faster than real time) when a GPU was used, but the computation time was long without GPU. This could be due to the large size of the time-frequency spectrogram. As for the number of model parameters, TFC-MLP had more parameters than Hybrid Transformer Demucs, but fewer parameters than Hybrid Demucs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4.3">Comparison with the state-of-the-art models</head><p>The proposed TFC-MLP model has some similarities to the state-of-the-art MSS models, which potentially have led to the competitive performance achieved.</p><p>• The frequency-mixing MLP is similar to the full connection of frequency dimensions in TDF <ref type="bibr" target="#b28">[27]</ref> and the band-level RNN applied across band dimensions in Band-Split <ref type="bibr" target="#b21">[21]</ref>. On the other hand, the following are included in the existing state-of-the-art MSS models but not currently included in our TFC-MLP. They have the potential to improve performance when applied in the future.</p><p>• As presented by Défossez et al. <ref type="bibr" target="#b19">[19]</ref> and Kim et al. <ref type="bibr" target="#b18">[18]</ref>, a hybrid approach that also considers waveforms could improve performance. • As Kim et al. <ref type="bibr" target="#b18">[18]</ref>, Luo et al. <ref type="bibr" target="#b21">[21]</ref>, and Rouard et al. <ref type="bibr" target="#b22">[22]</ref> have shown, the introduction of sourcespecific techniques, such as band splitting, could improve separation performance. • Deep learning techniques such as model selection methods (e.g., exponential moving average), training stabilization (e.g., singular value decomposition and sparsification), and the introduction of a learning rate scheduler could further improve performance.</p><p>Finally, to the best of our knowledge, there are no studies that mix the channel dimension with the time and frequency dimensions as in TFC-MLP. Such a mixer layer used in the TFC-MLP architecture has the advantage of reducing the overall memory usage compared to the original MLP-Mixer, just as the Image-to-Image Mixer reduced the memory usage. This reusable insight of mixing the channel dimension separately could be useful for other studies that have dealt with the time and frequency dimensions so far, but could be extended to the channel dimension.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4.4">Future directions</head><p>As future work, we plan to improve the performance of TFC-MLP by incorporating the ideas discussed above and further exploring more optimal hyperparameters. For example, increasing the FFT window size by utilizing frequency cut-off trick <ref type="bibr" target="#b20">[20]</ref> is expected to improve the performance. Automatic optimization of hyperparameters could also be incorporated.</p><p>Future work will also include the visualization of the inside of TFC-MLP for analysis. We could visualize the linear weights used in the patch embedding by converting them back to complex numbers and then calculating their amplitudes. The visualized results could allow us to analyze what local patterns the model is focusing on. However, when we tried it, it was difficult to understand the behavior of the mixer layer due to the mixing of real and imaginary parts during the patch embedding. We are therefore interested in using the amplitude and phase (group delay) instead of the real and imaginary parts so that we can analyze the model in a more comprehensive way.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>This paper has described a new MSS architecture called TFC-MLP that uses complex spectrograms as input. Our contributions are summarized as follows:</p><p>(1) We proposed a simpler MLP-centric MSS architecture that achieves competitive performance compared to state-of-the-art models.</p><p>(2) We reported on some hyperparameter searches that will be useful for other researchers exploring this type of architecture. (3) We discussed the similarities and differences between the state-of-the-art models and TFC-MLP, and suggested directions for future research.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. Overview of the TFC-MLP model.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Patch embedding. After dividing the CaC tensor of size F 0 × T 0 × 4 into patches of size P F × P T × 4, each patch was linearly transformed into 1 × 1 × C to obtain a 3D tensor of size F 0 /P F × T 0 /P T × C (i.e., F × T × C).This can be implemented as a nonoverlapping CNN.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>. A bold font indicates the maximum value at each source.</figDesc><table><row><cell>Model</cell><cell></cell><cell></cell><cell></cell><cell cols="3">Test SDR in dB</cell></row><row><cell>Name</cell><cell cols="5">Per-source Extra Avg. Vocals Drums</cell><cell cols="2">Bass Other</cell></row><row><cell>KUIELab-MDX-Net (w/o Demucs) [18]*</cell><cell>✓</cell><cell></cell><cell>7.28</cell><cell>8.91</cell><cell>7.07</cell><cell>7.33</cell><cell>5.81</cell></row><row><cell>TFC-MLP (ours)</cell><cell></cell><cell></cell><cell>7.30</cell><cell>8.91</cell><cell>7.18</cell><cell>6.96</cell><cell>6.14</cell></row><row><cell>KUIELab-MDX-Net [18]**</cell><cell>✓</cell><cell></cell><cell>7.48</cell><cell>8.97</cell><cell>7.20</cell><cell>7.83</cell><cell>5.90</cell></row><row><cell>Hybrid Transformer Demucs [22]</cell><cell></cell><cell></cell><cell>7.52</cell><cell>7.93</cell><cell>7.94</cell><cell>8.48</cell><cell>5.72</cell></row><row><cell>Hybrid Demucs [19]</cell><cell></cell><cell></cell><cell>7.64</cell><cell>8.35</cell><cell>8.12</cell><cell>8.43</cell><cell>5.65</cell></row><row><cell>Band-Split RNN [21]</cell><cell>✓</cell><cell></cell><cell>8.24</cell><cell>10.01</cell><cell>9.01</cell><cell>7.22</cell><cell>6.70</cell></row><row><cell>TFC-MLP (ours)</cell><cell></cell><cell>120</cell><cell>7.78</cell><cell>9.68</cell><cell>7.75</cell><cell>7.23</cell><cell>6.46</cell></row><row><cell>Hybrid Demucs [19]</cell><cell></cell><cell>800</cell><cell>8.34</cell><cell>8.75</cell><cell>9.31</cell><cell>9.13</cell><cell>6.18</cell></row><row><cell>Hybrid Transformer Demucs [22]</cell><cell></cell><cell>150</cell><cell>8.49</cell><cell>8.56</cell><cell>9.51</cell><cell>9.76</cell><cell>6.13</cell></row><row><cell>Hybrid Transformer Demucs [22]</cell><cell></cell><cell>800</cell><cell>8.80</cell><cell>8.93</cell><cell>10.05</cell><cell>9.78</cell><cell>6.42</cell></row><row><cell>Band-Split RNN [21]</cell><cell>✓</cell><cell cols="2">1750 † 8.97</cell><cell>10.47</cell><cell>10.15</cell><cell>8.16</cell><cell>7.08</cell></row><row><cell>Hybrid Transformer Demucs [22]</cell><cell>✓</cell><cell>800</cell><cell>9.00</cell><cell>9.20</cell><cell cols="2">10.08 10.39</cell><cell>6.32</cell></row><row><cell>Sparse HT Demucs [22]</cell><cell>✓</cell><cell>800</cell><cell>9.27</cell><cell>9.37</cell><cell cols="2">10.83 10.47</cell><cell>6.41</cell></row><row><cell cols="2">class of an image. The matrix is obtained by dividing the</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">image into patches and embedding each patch into a T p -</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">dimensional vector, which is called a token, and the num-</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">ber of tokens is the channel dimension C p . Here, a token-</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">mixing MLP, a full connection within an individual token,</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">and a channel-mixing MLP, a full connection between to-</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">kens (i.e., channel direction), are applied alternately. Given</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">sufficient training data, MLP-Mixer was shown to perform</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>as well as or better than CNNs or transformers.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">By extending this MLP-Mixer, for the image recon-</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">struction task, Mansour et al. proposed the Image-to-Image</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Mixer</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 .</head><label>3</label><figDesc>). A bold font indicates the maximum value at each source, both without and with extra training songs. The number of model parameters and the average Real Time Factor (RTF) value. The Hybrid Transformer Demucs is denoted as "HT Demucs". Column "GPU" shows the RTF with a single GPU, and column "CPU" shows the RTF under the condition without a GPU.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell cols="2">TFC-MLP</cell><cell></cell><cell></cell><cell></cell><cell cols="2">Test SDR in dB</cell></row><row><cell cols="5">Type Seed (P F , P T ) Loss</cell><cell>Epoch</cell><cell cols="5">Extra Avg. Vocals Drums Bass Other</cell></row><row><cell>A</cell><cell>seed 1</cell><cell cols="2">(4, 4)</cell><cell>W</cell><cell>134 † / 200</cell><cell></cell><cell>7.30</cell><cell>8.91</cell><cell>7.18 6.96</cell><cell>6.14</cell></row><row><cell>A</cell><cell>seed 2</cell><cell cols="2">(4, 4)</cell><cell>W</cell><cell>166 † / 200</cell><cell></cell><cell>7.26</cell><cell>8.84</cell><cell>7.07 6.89</cell><cell>6.22</cell></row><row><cell>A</cell><cell>seed 3</cell><cell cols="2">(4, 4)</cell><cell>W</cell><cell>109 / 200</cell><cell></cell><cell>6.97</cell><cell>8.32</cell><cell>6.98 6.57</cell><cell>5.99</cell></row><row><cell>A</cell><cell>seed 3</cell><cell cols="2">(4, 4)</cell><cell>W</cell><cell>283 / 300</cell><cell></cell><cell>6.93</cell><cell>8.49</cell><cell>6.80 6.55</cell><cell>5.87</cell></row><row><cell>B</cell><cell>seed 1</cell><cell cols="2">(4, 4)</cell><cell>W</cell><cell>190 / 200</cell><cell></cell><cell>7.17</cell><cell>8.92</cell><cell>6.95 6.83</cell><cell>5.96</cell></row><row><cell>B</cell><cell>seed 2</cell><cell cols="2">(4, 4)</cell><cell>W</cell><cell>191 / 200</cell><cell></cell><cell>7.02</cell><cell>8.59</cell><cell>6.78 6.68</cell><cell>6.01</cell></row><row><cell>B</cell><cell>seed 3</cell><cell cols="2">(4, 4)</cell><cell>W</cell><cell>157 / 200</cell><cell></cell><cell>6.95</cell><cell>8.56</cell><cell>6.58 6.73</cell><cell>5.91</cell></row><row><cell>A</cell><cell>seed 1</cell><cell cols="2">(2, 2)</cell><cell>W</cell><cell>189 / 200</cell><cell></cell><cell>7.13</cell><cell>8.58</cell><cell>7.02 6.99</cell><cell>5.91</cell></row><row><cell>A</cell><cell>seed 1</cell><cell cols="2">(1, 1)</cell><cell>W</cell><cell>175 / 200</cell><cell></cell><cell>6.38</cell><cell>7.40</cell><cell>6.33 6.49</cell><cell>5.30</cell></row><row><cell>A</cell><cell>seed 1</cell><cell cols="2">(4, 4)</cell><cell cols="2">W+S 197 / 200</cell><cell></cell><cell>6.83</cell><cell>8.76</cell><cell>6.60 6.14</cell><cell>5.83</cell></row><row><cell>A</cell><cell>seed 1</cell><cell cols="2">(4, 4)</cell><cell cols="2">W+S 253 / 300</cell><cell></cell><cell>6.72</cell><cell>8.39</cell><cell>6.69 6.02</cell><cell>5.79</cell></row><row><cell>A</cell><cell>seed 1</cell><cell cols="2">(4, 4)</cell><cell>W</cell><cell>142 / 200</cell><cell>120</cell><cell>7.71</cell><cell>9.42</cell><cell>7.66 7.37</cell><cell>6.39</cell></row><row><cell>A</cell><cell>seed 1</cell><cell cols="2">(4, 4)</cell><cell>W</cell><cell>200* / 200</cell><cell>120</cell><cell>7.78</cell><cell>9.68</cell><cell>7.75 7.23</cell><cell>6.46</cell></row><row><cell>Model</cell><cell></cell><cell>GPU</cell><cell cols="3">CPU Params.</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">Hybrid Demucs 0.14</cell><cell cols="3">1.87 83.9 M</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">HT Demucs</cell><cell>0.17</cell><cell cols="3">2.55 26.9 M</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">TFC-MLP</cell><cell cols="4">0.51 12.28 43.2 M</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">• Investigation of patch size (P</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table><note><p>F , P T ) between (4, 4),</p></note></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://github.com/kuielab/mdx-net/blob/ Leaderboard_A/README_SUBMISSION.md Proceedings of the</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_2"><p>https://github.com/sigsep/sigsep-mus-eval Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_3"><p>Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_4"><p>https://github.com/facebookresearch/demucs/ blob/main/docs/training.md</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="6.">ACKNOWLEDGMENTS</head><p>This work was supported in part by <rs type="funder">JST CREST</rs> Grant Number <rs type="grantNumber">JPMJCR20D4</rs> and <rs type="funder">JSPS KAKENHI</rs> Grant Number <rs type="grantNumber">JP21H04917</rs>, Japan.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_2xngy7P">
+					<idno type="grant-number">JPMJCR20D4</idno>
+				</org>
+				<org type="funding" xml:id="_YQrAUZD">
+					<idno type="grant-number">JP21H04917</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Remixing stereo music with score-informed source separation</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Woodruff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Pardo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dannenberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 7th International Conference on Music Information Retrieval (ISMIR 2006)</title>
+		<meeting>the 7th International Conference on Music Information Retrieval (ISMIR 2006)</meeting>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="page" from="314" to="319" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Extraction and remixing of drum tracks from polyphonic music signals</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Gillet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 2005 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA 2005)</title>
+		<meeting>the 2005 IEEE Workshop on Applications of Signal essing to Audio and Acoustics (WASPAA 2005)</meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="315" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">INTER:D: A drum sound equalizer for controlling volume and timbre of drums</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">G</forename><surname>Okuno</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 2nd European Workshop on the Integration of Knowledge, Semantic and Digital Media Technologies (EWIMT 2005)</title>
+		<meeting>the 2nd European Workshop on the Integration of Knowledge, Semantic and Digital Media Technologies (EWIMT 2005)</meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="205" to="212" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Instrument equalizer for query-by-example retrieval: Improving sound source separation based on integrated harmonic and inharmonic models</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Itoyama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Komatani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Ogata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">G</forename><surname>Okuno</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 9th International Conference of Music Information Retrieval</title>
+		<meeting>the 9th International Conference of Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2008">2008. 2008</date>
+			<biblScope unit="page" from="133" to="138" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Remixing music using source separation algorithms to improve the musical experience of cochlear implant users</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pons</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Janer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Rode</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Nogueira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of the Acoustical Society of America</title>
+		<imprint>
+			<biblScope unit="volume">140</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="4338" to="4349" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">DeepSinger: Singing voice synthesis with data mined from the web</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T.-Y</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 2020 ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</title>
+		<meeting>the 2020 ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2020">2020. 2020</date>
+			<biblScope unit="page" from="1979" to="1989" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Selfsupervised contrastive learning for singing voices</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Yakura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Trans. on Audio Speech and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="1614" to="1623" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">On the importance of audio-source separation for singer identification in polyphonic music</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">K</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 20th Annual Conference of the International Speech Communication Association</title>
+		<meeting>the 20th Annual Conference of the International Speech Communication Association</meeting>
+		<imprint>
+			<date type="published" when="2019">Interspeech 2019. 2019</date>
+			<biblScope unit="page" from="2020" to="2024" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">LyricSynchronizer: Automatic synchronization system between musical audio signals and lyrics</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Fujihara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ogata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">G</forename><surname>Okuno</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Journal of Selected Topics in Signal Processing</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1252" to="1261" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Transfer learning of wav2vec 2.0 for automatic lyric transcription</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 23rd International Society for Music Information Retrieval Conference</title>
+		<meeting>the 23rd International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="187" to="195" />
+		</imprint>
+	</monogr>
+	<note>ISMIR 2022</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Modeling the compatibility of stem tracks to generate music mashups</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">B L</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the Thirty-Fifth AAAI Conference on Artificial Intelligence (AAAI-21)</title>
+		<meeting>the Thirty-Fifth AAAI Conference on Artificial Intelligence (AAAI-21)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="187" to="195" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Pitch-informed solo and accompaniment separation towards its use in music education applications</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Cano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Schuller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Dittmar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">EURASIP Journal on Advances in Signal Processing</title>
+		<imprint>
+			<biblScope unit="volume">2014</biblScope>
+			<biblScope unit="issue">23</biblScope>
+			<biblScope unit="page" from="1" to="19" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Vocal-accompaniment compatibility estimation using self-supervised and joint-embedding techniques</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Nakatsuka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Koyama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hamasaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Morishima</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Access</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="101" to="994" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">An overview of lead and accompaniment separation in music</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Rafii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-R</forename><surname>Stöter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">I</forename><surname>Mimilakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Fitzgerald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Pardo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Trans. on Audio Speech and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1307" to="1335" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Deep learning approaches in topics of singing information processing</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Trans. on Audio Speech and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="2422" to="2451" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">The MUSDB18 corpus for music separation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Rafii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-R</forename><surname>Stöter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">I</forename><surname>Mimilakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bittner</surname></persName>
+		</author>
+		<idno type="DOI">10.5281/zenodo.1117372</idno>
+		<ptr target="https://doi.org/10.5281/zenodo.1117372" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">MUSDB18-HQ -an uncompressed version of MUSDB18</title>
+		<idno type="DOI">10.5281/zenodo.3338373</idno>
+		<ptr target="https://doi.org/10.5281/zenodo.3338373" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">KUIELab-MDX-Net: A two-stream neural network for music demixing</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jung</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Music Demixing Workshop 2021 (MDX 2021)</title>
+		<meeting>Music Demixing Workshop 2021 (MDX 2021)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1" to="7" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Hybrid spectrogram and waveform source separation</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Music Demixing Workshop 2021 (MDX 2021)</title>
+		<meeting>Music Demixing Workshop 2021 (MDX 2021)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1" to="11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Music demixing challenge 2021</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mitsufuji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fabbro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Uhlich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-R</forename><surname>Stöter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K.-W</forename><surname>Cheuk</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Front. Sig. Proc</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Music source separation with bandsplit rnn</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2209.15174</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="10" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Hybrid transformers for music source separation</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Rouard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Massa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2211.08553</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="5" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m">Proceedings of the 24th ISMIR Conference</title>
+		<meeting>the 24th ISMIR Conference<address><addrLine>Milan, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023-09">November 5-9, 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">MLP-Mixer: An all-MLP architecture for vision</title>
+		<author>
+			<persName><forename type="first">I</forename><forename type="middle">O</forename><surname>Tolstikhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Houlsby</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kolesnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Beyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Unterthiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Steiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Keysers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lucic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dosovitskiy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 35th Conference on Neural Information Processing Systems</title>
+		<meeting>the 35th Conference on Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2021">NeurIPS 2021. 2021</date>
+			<biblScope unit="page">272</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Image-to-Image MLP-Mixer for image reconstruction</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mansour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Heckel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2202.02018</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="15" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">MLP Singer: Towards rapid parallel korean singing voice synthesis</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Tae</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 2021 IEEE International Workshop on Machine Learning for Signal Processing</title>
+		<meeting>the 2021 IEEE International Workshop on Machine Learning for Signal essing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021. 2021</date>
+			<biblScope unit="page" from="1" to="6" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Speech enhancement using mlp-based architecture with convolutional token mixing module and squeeze-and-excitation network</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Shin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Access</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="119" to="283" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Investigating U-Nets with various intermediate blocks for spectrogram-based singing voice separation</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jung</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 21st International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21st International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="192" to="198" />
+		</imprint>
+	</monogr>
+	<note>ISMIR 2020</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Music source separation in the waveform domain</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">R</forename><surname>Bach</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1911.13254</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="16" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">PHASEN: A phase-and-harmonics-aware speech enhancement network</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zeng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the The Thirty-Fourth AAAI Conference on Artificial Intelligence</title>
+		<meeting>the The Thirty-Fourth AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="page" from="9458" to="9465" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Group normalization</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 15th European Conference on Computer Vision (ECCV 2018)</title>
+		<meeting>the 15th European Conference on Computer Vision (ECCV 2018)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="3" to="19" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Spectral norm regularization for improving the generalizability of deep learning</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yoshida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Miyato</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1705.10941</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="12" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Dual-path RNN: efficient long sequence modeling for time-domain single-channel speech separation</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Yoshioka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 2020 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting>the 2020 IEEE International Conference on Acoustics, Speech and Signal essing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="46" to="50" />
+		</imprint>
+	</monogr>
+	<note>ICASSP 2020</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">An image is worth 16x16 words: Transformers for image recognition at scale</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dosovitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Beyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kolesnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Weissenborn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Unterthiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Minderer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Heigold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gelly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Houlsby</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the Ninth International Conference on Learning Representations</title>
+		<meeting>the Ninth International Conference on Learning Representations</meeting>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+	<note>ICLR 2021</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the 3rd International Conference on Learning Representations</title>
+		<meeting>the 3rd International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2015">2015. 2015</date>
+			<biblScope unit="page" from="1" to="15" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m">Proceedings of the 24th ISMIR Conference</title>
+		<meeting>the 24th ISMIR Conference<address><addrLine>Milan, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023-09">November 5-9, 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

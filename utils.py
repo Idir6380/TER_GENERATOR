@@ -8,6 +8,8 @@ from datetime import datetime
 import pandas as pd
 import requests
 #import fitz
+from bs4 import BeautifulSoup
+import glob
 from config import (
     OUTPUT_DIR_IMPROVED,
     TEXT_DIR,
@@ -240,12 +242,30 @@ def load_ground_truth():
             ground_truth[idx] = gt
     return ground_truth
 
+def clear_article():  # sourcery skip: for-append-to-extend
+    for i in range(113):
+        xml_files = glob.glob(f"/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/text_xml/article_{i+1}.grobid.tei.xml")
+
+        if xml_files:
+            with open(xml_files[0], 'r', encoding='utf-8') as f:
+                soup = BeautifulSoup(f, 'xml')
+            paragraphs = []
+            body = soup.find('body')
+            if body:
+                for p in body.find_all('p'):
+                    if not p.find_parent(['figure', 'table', 'formula']):
+                        paragraphs.append(p.get_text())
+            article_text = "\n".join(paragraphs)
+            with open(f"/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/text_xml_nettoyer/article_{i+1}.txt", "w") as f:
+                f.write(article_text)
+            
+            
 def main():
     #merge_articles('data', OUTPUT_DIR_IMPROVED)
-    articles = load_links()
-
-    download_pdfs(articles)
-    extract_text_from_pdf()
+    # articles = load_links()
+    clear_article()
+    # download_pdfs(articles)
+    # extract_text_from_pdf()
     #gt = load_ground_truth()                                                      
     #print(f"Loaded {len(gt)} articles")
     #print(gt[11])

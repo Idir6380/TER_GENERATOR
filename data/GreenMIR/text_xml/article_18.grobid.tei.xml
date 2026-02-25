@@ -1,0 +1,933 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">GENERATING COHERENT DRUM ACCOMPANIMENT WITH FILLS AND IMPROVISATIONS</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Rishabh</forename><surname>Dahale</surname></persName>
+							<email>dahalerishabh1@iitb.ac.in</email>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Electrical Engineering</orgName>
+								<orgName type="institution">Indian Institute of Technology</orgName>
+								<address>
+									<settlement>Bombay</settlement>
+									<country key="IN">India</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Vaibhav</forename><surname>Talwadker</surname></persName>
+							<email>talwadkerv@gmail.com</email>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Electrical Engineering</orgName>
+								<orgName type="institution">Indian Institute of Technology</orgName>
+								<address>
+									<settlement>Bombay</settlement>
+									<country key="IN">India</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Preeti</forename><surname>Rao</surname></persName>
+							<email>prao@ee.iitb.ac.in</email>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Electrical Engineering</orgName>
+								<orgName type="institution">Indian Institute of Technology</orgName>
+								<address>
+									<settlement>Bombay</settlement>
+									<country key="IN">India</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Prateek</forename><surname>Verma</surname></persName>
+							<email>prateekv@stanford.edu</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">GENERATING COHERENT DRUM ACCOMPANIMENT WITH FILLS AND IMPROVISATIONS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">CFC29FA3222552C1BC0E93EE561C03DF</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:18+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Creating a complex work of art like music necessitates profound creativity. With recent advancements in deep learning and powerful models such as transformers, there has been huge progress in automatic music generation. In an accompaniment generation context, creating a coherent drum pattern with apposite fills and improvisations at proper locations in a song is a challenging task even for an experienced drummer. Drum beats tend to follow a repetitive pattern through stanzas with fills/improvisation at section boundaries. In this work, we tackle the task of drum pattern generation conditioned on the accompanying music played by four melodic instruments ± Piano, Guitar, Bass, and Strings. We use the transformer sequence to sequence model to generate a basic drum pattern conditioned on the melodic accompaniment to find that improvisation is largely absent, attributed possibly to its expectedly relatively low representation in the training data. We propose a novelty function to capture the extent of improvisation in a bar relative to its neighbors. We train a model to predict improvisation locations from the melodic accompaniment tracks. Finally, we use a novel BERT-inspired in-filling architecture, to learn the structure of both the drums and melody to in-fill elements of improvised music.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Songs in popular music genres like rock are typically split into different sections such as the verse, bridge, and chorus. While the primary task of a drummer is to play in time, it is also important for the drummer to be consistent with the song structure. Traditionally fills, or short groups of notes, are played as the song transitions from one section to another (say, verse to chorus). Thus, it can serve as an indicator to the audience as well as the band, of an upcoming transition in the song. The duration of fills generally tends to be only a few beats long, no more than the length of a bar. Even though they are rare events in a drum track, fills are an important part of the overall aesthetics. Beyond signaling transitions, drum fills can also be played in sections where the accompanying instrumentation is sparse.</p><p>Motivated by the above, we improve the quality of the generated drum tracks from seq-to-seq models by incorporating fills/improvisations towards our overall goal of accompaniment generation. This is achieved via the following three distinct stages:</p><p>1. Basic Drum Pattern Generation: Using a seq-toseq model to generate a drumbeat as the accompaniment to given melodic instrument tracks of guitar, bass, strings, and piano (i.e. the Melodic Accompaniment -MA).</p><p>2. Improvisation Location Detection: Detecting explicitly the position of improvisation from the MA using a self-similarity function and mini BERT model.</p><p>3. Generating Improvised Bars: Generating the fills in the previously detected bars.</p><p>Our main contributions are: (i) We show that traditional attention-based transformer architectures fail to capture the ªimprovisation" due to implicit data imbalance. (ii) We also show that the sampling-based approaches fail to produce a variation of pattern at the right location. To mitigate this, we learn to predict where to improvise directly from the melody tracks using powerful self-attention-based architectures. (iii) We propose a novel in-filling approach, inspired by BERT that can look at the context of drums and the context of melody and use it to generate the improvised bars. (iv) We demonstrate an MLP-based synthesis module for drum improvisation generation from a latent code. For simplicity we have ignored the dynamic (velocities) in the generated drum patterns of this work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORKS</head><p>Since the introduction of the Transformer architecture <ref type="bibr" target="#b1">[1]</ref>, there has been a growing interest in this model for sequential task modeling like in NLP and music generation. The architecture uses an attention mechanism to learn longterm patterns and can easily surpass dilated convolutionalbased methods such as WaveNet <ref type="bibr" target="#b2">[2]</ref>. They achieve stateof-the-art performance in a variety of natural language problems <ref type="bibr" target="#b3">[3]</ref>, music/audio understanding <ref type="bibr" target="#b4">[4]</ref> and generation tasks <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b6">6]</ref>. However, for generative models, the decoding strategy still remains an open question. Even though high-quality models can be obtained by the use of likelihood as the training objective, likelihood maximiza- tion methods like beam search lead to degeneration <ref type="bibr">[7]</ref>.</p><p>To solve this issue, many researchers use sampling-based methods like temperature sampling, top-k sampling, and nucleus sampling <ref type="bibr">[7±9]</ref>. Despite all of the success of sequential modeling recently, there still exist many issues that are relevant to our current work such as understanding rare words or sparsely occurring events of interest <ref type="bibr" target="#b10">[10]</ref>. Another major problem is the presence of biases in the generated output, as they mimic the distribution present in the training datasets <ref type="bibr" target="#b11">[11]</ref>. These issues are ubiquitous across datasets and modalities and are implicit in our task due to the low representation of improvised bars. We here show how these constraints and biases affect the quality of drum generation, and the steps we take to mitigate them.</p><p>Conditioned drum beat generation is an important subtask of music generation. Wei et al. <ref type="bibr" target="#b12">[12]</ref> observed that the polyphonic melody self-similarity matrix (SSM) is structurally similar to the drum SSM. They used this to predict the drum SSM from the melody SSM and used this intermediate representation to generate the drumbeat. While they used the audio form of the melody as the input, the symbolic domain also offers opportunities for similar research. An example is the work of <ref type="bibr" target="#b13">[13]</ref> using symbolic representation of the drum track to predict locations and generate improvisations for the drum track. In this work, we address drum generation conditioned on a melodic accompaniment track, bringing considerably more complexity to the problem.</p><p>In the symbolic domain, systems use a discretized representation such as MIDI tag and pianoroll representations that capture the essential information at the semantic level. Pianoroll is a score-like matrix representing a piece of music. Note pitch and time are represented by the vertical and horizontal axes, respectively. The velocities of the notes are represented by the values. The time is generally quantized on a sub-beat level and each instrument track is represented by a separate pianoroll matrix. Dong et al. <ref type="bibr" target="#b14">[14]</ref> used this representation along with CNN-based GAN model for music generation. Another popular symbolic domain representation is the MIDI tag representation which we refer to as the ªserialized grid representation". In this method, the input is represented by a sequence of MIDI-like tags. Huang et al. <ref type="bibr" target="#b6">[6]</ref> used this MIDI tag representation with modified transformer architecture to generate long-duration piano music. Several modifications have also been proposed to this representation. Huang et al. <ref type="bibr" target="#b15">[15]</ref> proposed a revamped MIDI (REMI) which introduced DURATION, BAR and POSITION tags to improve the quaity of generated music. Ren et al. <ref type="bibr" target="#b16">[16]</ref> further modified this representation to include multi-track representation by introducing TRACK tag and used the Transformer-XL model to generate multitrack songs. Nuttall et al. <ref type="bibr" target="#b17">[17]</ref> modified the MIDI tags of nine percussion instruments to represent notes being played by a triplet of pitch, velocity, and start time, and used it with the Transformer-XL model to sequentially generate the drum pattern. Thorn et al. <ref type="bibr" target="#b18">[18]</ref> demonstrated three experiments with the Transformer-XL model with varying input and output representation and control. In two of the experiments, they tried to control the drum machine while in the third experiment they tried to generate the drum pattern directly.</p><p>While the Transformer-XL model facilitates the generation of longer duration (musical) sequences, they still suffer from the same issues of biases in dealing with the implicit data-imbalance that exists in the training dataset <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b20">20]</ref>. As the specific focus of this work is to find ways to capture the rare events in the generated output, i.e., fills and improvisations, we consider only the necessary context for an improvised bar in the form of 11 bar segments of the songs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">DATASET</head><p>In this work, we use the Lakh Pianoroll Dataset (LPD-5 cleansed) <ref type="bibr" target="#b14">[14]</ref>, derived from the Lakh Midi Dataset <ref type="bibr" target="#b21">[21]</ref> which is a collection of 21,425 multitrack pianorolls files consisting of following tracks: Piano, Guitar, Bass, Strings and Percussion. All the songs in this dataset are of 4/4-time signature i.e., all the songs contain 4 beats in a bar and the dimensionality of each bar in this dataset is 128 (pitch) x 96 (time steps) i.e. each beat is divided into 24 parts. Our input, which we call melodic accompaniment (MA), consists of notes played by the 4 melodic instruments and output is a percussion instrument pattern conditioned on the input which we call the percussion accompaniment (PA).</p><p>Evaluation of generative music systems faces harder challenges than that of image generation systems <ref type="bibr" target="#b22">[22]</ref>. We expect our system to replicate the rhythmic consistency and diversity of the dataset. Any drum beat generation system must have correct onset locations in a beat. If the onsets are not properly matched, it appears as if the drums are lagging/leading the melody. We show that our model is able learn this by capturing the onset location distribution.</p><p>To compare generated samples with original drums in the dataset, we use the following metric: Instrument Count -Number of distinct percussion instruments used in a bar. To evaluate our outputs in terms of rhythmic consistency, we use the following objective metric: Percussion pattern consistency in consecutive bars.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">METHOD</head><p>The overview of the proposed system is shown in Figure <ref type="figure" target="#fig_0">1</ref>. Details of each of the models are provided in subsequent sections. Our models are trained for 300 epochs with Adam optimization <ref type="bibr" target="#b23">[23]</ref> starting with a learning rate of 1e-4 and decaying it till 1e-6. All the setup was carried out using the Tensorflow <ref type="bibr" target="#b24">[24]</ref> framework. The following two modules are being used in all the models: 1. Embedding Module: As the pianoroll matrices are highly sparse, we pass them through 2 layers with 1024 and 128 ReLU <ref type="bibr" target="#b25">[25]</ref> activated dense layers to capture the inter instrument and inter pitch dependencies. For the decoder branch of Basic Drum Pattern Generation model, we use 128 dimensional token embedding layer. 2. Position Encoder: We concatenate the sinusoidal positional representations <ref type="bibr" target="#b1">[1]</ref> with the 128 dimensional vectors and use a dense layer to project them back in 128 dimension space.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Data Processing &amp; Representation</head><p>To compress the input and output representation in our work, we perform the following preprocessing steps: (i) trim the track for start and end silence bars; (ii) resample the beats to 8 parts per beat, making each bar 32 timesteps long; (iii) keep only active MIDI pitches in all melodic instruments, i.e. MIDI 21 to MIDI 83 (notes A0 to B5); (iv) combine similar instruments in the MIDI representation of the percussion track. For example, under the snare drum, MIDI 38, which corresponds to acoustic snare, and MIDI 40, which corresponds to electric snare, are clubbed together; (v) choose only 16 percussion instruments as they capture 85.3% of all the percussion instrument strokes: snare drum, open hi-hat, close hi-hat, kick drum, ride cymbal, crash cymbal, low-floor tom, high-floor tom, high tom, hi-mid tom, low tom, cowbell, pedal hihat, tambourine, cabasa, and maracas; (vi) to decrease the amount of training parameters, we binarize the percussion track for seq-2-seq models and exclude velocities; (vii) split the song in non-overlapping contiguous 11 bar samples. The finer grids are superior for representing drum audio and fills <ref type="bibr" target="#b26">[26]</ref>. We however opt for a quantized representation, capturing most of the significant musical events, allowing us to model longer duration dependencies by the compressed representation. It will be interesting to compare various representations as a future work.</p><p>We use a modified version of pianoroll representation for MA representation. We concatenate the pianorolls (Figure <ref type="figure">2a</ref>) of different instruments instead of adding them to different channels <ref type="bibr" target="#b14">[14]</ref>. As our input is quantized to 8 parts per beat, we represent each 1   8   th part of the beat by a 256-dimensional vector split amongst the 4 melodic in-struments. The first dimension of this 64-dimension vector is the silence state. This is a binary state representing if the instrument under consideration is silent. The rest of the 63 dimensions contain the velocities of the MIDI notes 21-83 being played.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Figure 2. Data representation methods used in this work</head><p>For the PA, we adopt a mixed representation. For our Basic Drum Pattern Generation model, which is a transformer seq-2-seq model, we take advantage of the language modeling tasks and use a serialized grid representation (Figure <ref type="figure">2b</ref>). In this representation, only the active percussion instruments which are being played are unfolded into a sequence of tokens. We add a silence state token and shift by one token making a total of 18 tokens for the percussion track. For the final model, the improvisation generation model, we give the MA and masked basic PA pattern as the inputs. We use the pianoroll representation for the PA representation for this model (Figure <ref type="figure">2c</ref>) as only a fixed number of timesteps needs to be masked in this representation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Train-Test Splits and Data Augmentation</head><p>We split the 21,425 songs in LPD-5 into 16,832 songs for training and 4,593 songs for the validation set. As the number of songs is limited, we use the validation set as the test set. We apply the following data augmentation strategies (inspired by sensor dropout methods in robotics <ref type="bibr" target="#b27">[27]</ref>) to all of our models' inputs to increase the robustness in the training process:</p><p>1. Random instrument masking: We randomly mask one of the instruments in MA for 40% of the samples in every epoch. This 40% is equally split between the four melodic instruments. Musically this implies that one of the instruments has stopped playing. This encourages the model to consider all the instruments in the MA while making a prediction.</p><p>2. Random timestep masking: We randomly mask 20% of the timesteps in every sample. Musically this leads to a small disruption in the rhythm of the song which helps in better generalization of the model.</p><p>For the improvised bar generation model, which takes in the MA and masked PA as inputs, (section 4.5), we use the following additional augmentation methods:</p><p>1. Input masking: We randomly drop one of the inputs (MA or PA) to the model in 20% of the input samples. This ensures that the model is not dependent on only one input for improvisation generation.</p><p>2. Drum noise: In the evaluation phase, the drum inputs are taken from the output of the basic drum pattern generation model. As this process could be prone to errors, we simulate this by adding the random noise to the drum samples while training. The random noise can either add new drum strokes or remove some old strokes. Our analysis showed that the PA has a very low density in the pianoroll format (average ≈ 5%). Hence we perturb the PA density by a maximum of 1% We use the Transformer encoder-decoder model <ref type="bibr" target="#b1">[1]</ref> to generate a basic drum pattern (Figure <ref type="figure">3a</ref>). This is done by giving the MA as the input to the encoder and the shifted PA tokens to the decoder branch. Both the inputs are first passed through the embedding module followed by the position encoder. The embedded inputs are passed through 2 layers of encoder/decoder module with 128 dimensional latent space and 8 attention heads. At the output, we have 18 neurons corresponding to the 16 drum instruments, silence token, and shift token.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.1">Sub-module Evaluation</head><p>We evaluate the above model with the negative loglikelihood (NLL) values over the train and the validation set. As the model outputs a distribution over the 18 output tokens, there are multiple ways to decode it. We test the greedy method of decoding, where the token with the maximum probability is selected at every step and simple sampling method. The model is trained using categorical cross-entropy loss, achieved a NLL of 0.108 and 0.112 on the train and validation split, respectively. In order to extract locations in the MA that warrant a fill, we propose the following method:</p><p>1. We use a 11-bar drum sample to calculate the Novelty value of center bar. The 5 bars on it's left and right are the context bar. The novelty value of a bar is calculated as the average weighted dissimilarity over all the context bars. We use the following equation to calculate the dissimilarity between 2 bars:</p><formula xml:id="formula_0">||bar i -bar j || 1 × k ||bar i || 1 + ||bar j || 1<label>(1)</label></formula><p>We utilize the hanning window to represent the weighting parameter k.</p><p>2. This calculation is done for all the bars across a track, except the first and the last 5 bars due to the lack of context bars. From Figure <ref type="figure" target="#fig_2">4</ref> it can be seen that the novelty function peaks at the bar with a drum fill. These bars are then extracted using a peak picking mechanism.</p><p>3. To generate the dataset for our task, we pick the bars with a local maxima as the positive samples. To filter out minor deviations, e.g., bar 18 in Figure <ref type="figure" target="#fig_2">4</ref>, we put a threshold of 0.1 on the peaks height difference from its neighbours. Maximum of 10% of total bars in a song with these characteristics are selected as the positive samples. Same number of bars from the rest of the non peak regions are selected as negative samples.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4.2">Model Architecture</head><p>We use a 2 layer BERT <ref type="bibr" target="#b28">[28]</ref> (Figure <ref type="figure">3b</ref>) to detect the location of improvisations. The input to this model is an 11-bar MA and the prediction is done for the middle bar. The MA is passed through an embedding layer followed by the positional encoder. The embedded inputs are then passed through 2 layers of transformer encoder with 64 dimension latent space and 12 attention heads, followed by 1024 neurons. These are finally passed to a 2 dimensional softmax activated dense layer which acts as a classification module. The above model is trained using Huber loss <ref type="bibr" target="#b29">[29]</ref>, as it is robust to outliers and less sensitive to noise.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4.3">Sub-module Evaluation</head><p>We monitored the accuracy, precision, and recall of the model in terms of detecting the improvised bars where the Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022 target is the original drum track. The final results can be found in Table <ref type="table" target="#tab_0">1</ref>. As the dataset is split equally between positive and negative samples, we have balanced precision and recall values. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Improvisation Generation</head><p>Figure <ref type="figure">5</ref>. Improvised Bar Generation Model The final step in our system is the generation of improvised bars. To achieve this we use the architecture shown in Figure <ref type="figure">5</ref>. We provide 11 bar MA and PA as the input to the model. During the training phase, the PA is the original percussion track, whereas, during the evaluation/generation phase, the percussion track generated by our first stage model (section 4.3) is used. The 6th bar in the percussion sample (middle bar) is the target bar and is masked while giving as the input. We generate a summary vector of both the MA and the PA inputs. Both are first passed through an embedding layer followed by a position encoder module. This is then passed through 2 layers of transformer encoders with 128 dimensional latent space and 8 attention heads. Even though larger/bigger models could potentially lead to better results, we have used the resources at our disposal. We note that any further improved performance will only apply to in-fill detection and synthesis.</p><p>We add skip connections to ease the flow of gradients <ref type="bibr" target="#b30">[30]</ref>. To generate the summary vector for each input, we use a global averaging technique. These two vectors are concatenated and passed through a decoder structure which looks at the concatenated vector to generate the improvised drum bar. We test the following decoder architectures with our model:</p><p>1. MLP: A 3-layer dense network with 2048-2048-512 neurons is used. The final layer is sigmoid activated. The outputs are reshaped to 32 (timesteps) × 16 (percussion instruments) to get the improvised bar.</p><p>2. MLP mixer: MLP mixers <ref type="bibr" target="#b31">[31]</ref> are simple alternatives to convolution and self-attention. They are based on multi-layered perceptrons applied across either temporal dimension or feature dimension.</p><p>3. Conv1d: A simple conv1d architecture with blocks of 2 layers of conv1d followed by upsampling.</p><p>We did not opt for an auto-regressive architecture, as this work does not assume causality, and we incorporate the right context as well as melody for the fill synthesis. There have been other works for improvisation synthesis, e.g. <ref type="bibr" target="#b32">[32]</ref>, also using the left and right context, even if only using drums</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.1">Sub-module Evaluation</head><p>We treat the prediction of the improvised bars as a regression problem. We similarly train it with Huber loss as it is less sensitive to outliers. We do not use cross-entropy loss for generation firstly purely as a design choice, and intuitively each of the time step token in the prediction within a bar lack probabilistic interpretation. We monitor and report the accuracy, precision, and recall of the models. As the distribution of 0s and 1s is not uniform in the predicted sample, F1 score provides a better insight in the performance of the models. From Table <ref type="table" target="#tab_2">2</ref> it can be seen that a simple 3 layered MLP decoder is able to perform better than the complex MLP mixer and Conv1D architecture.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">EVALUATION</head><p>To evaluate the quality of the generated PA pattern of the proposed system, we conduct both objective and subjective tests<ref type="foot" target="#foot_1">foot_1</ref> with: O: Original MIDI drum patterns from the dataset; P1: The basic drum pattern generated by our Basic Drum Pattern Generation model (section 4.3); P2: The final drum pattern with fills and improvisations generated by the complete system. We screen the generated samples to eliminate those with more than 4 silent bars and those where the variation of bar density is high as measured by the standard deviation of the bar density. After applying the mentioned filtering to 8192 P1 drum samples generated by simple sampling method, we are left with 3762 samples for further evaluation. A basic requirement that any drum pattern generation system must fulfill is the rhythmic positioning of onsets. Generally, in a bar of rock music, the first beat (downbeat) and the third beat have similar instrumentation, featuring a hi-hat and kick drum onset. Beats 2 and 4, commonly referred to as the backbeat, include a hi-hat and snare drum onset. While the quarter notes are accented across the bar, 8 th notes are accented within the beat interval. Figure <ref type="figure" target="#fig_3">6a</ref> shows the onset distribution present in the bar of both O and P1 samples. We can observe that most of the drum patterns are 8 th note patterns and we find a larger proportion of onsets at the accented locations within a beat interval. This is particularly intriguing because the model is given no explicit downbeat or subdivision information yet is still able to emphasis the subdivisions required for an 8 th note pattern.</p><p>We also do a one-to-one comparison of the P1 outputs against their target drum pattern to understand how closely the patterns match with the original drum sample based on the following metric: Instrument Count (IC) is defined as the total number of distinct instruments used in a bar. To see whether our model is able to replicate the behavior of multi-instrument dependency, we calculate the deviation of IC in the generated sample with reference to the original target drum track for the same MA. We observe that in 75.8% of the drum bars, we are able to replicate the IC, while in 99.3% of the bars our model was off by at most 1 instrument.</p><p>Another important aspect that needs to be considered while generating drum patterns is to have a rhythmic (pattern) consistency across bars. We evaluate this aspects of the generated drum pattern using the following metric: Pattern Consistency: For consecutive bar pair, we calculate the distance between the drum patterns using (1) keeping k = 1. The distribution of the bar distances is shown in Figure <ref type="figure" target="#fig_3">6b</ref>. We can see that the generated drum bars are more or less similar to each other with some minor deviations due to the sampling decoding method. The overlapping area of the two distributions is 80.4%.</p><p>Next, on the improvised O and P2 bars, we used the following evaluation methods to see how well our models captured the fills/improvisations: Onset Position: Figure <ref type="figure" target="#fig_4">7a</ref> shows the distribution of onset location of percussion instruments across the improvised bars. We observe a slightly higher proportion of 16 th note patterns in the improvised O bars as compared to onset dis-  <ref type="figure" target="#fig_3">6a</ref>. We can see that P2 system is largely able to capture this behavior as well. Instrument Count (IC) Change: Generally during a fill/improvisation, some additional instrument are being introduced. IC change is measures as the change in IC of improvised bar compared to its previous bar. Figure <ref type="figure" target="#fig_4">7b</ref> shows the distribution of IC change. The overlapping area of the two distributions is 87.9%, This shows that our model was able to capture the general trend of IC change.</p><p>Additionally, to evaluate the perceptual quality of the generated outputs, we present the generated samples to trained musicians. We created 3 pairs i.e. O &amp; P1; P1 &amp; P2; O &amp; P2 for each MA-PA track and presented them to two guitarists and a multi-instrumentalist with experience ranging from 5 to 10 years. They were asked to provide detailed comments on the drum pattern in terms of timing, appropriateness of fills and coherence of the PA with MA. A common comment from the musicians was regarding the monotonicity in P1 track. As a result when the O &amp; P1 pair was presented, majority of the times O was preferred, but when P1 &amp; P2 were presented, musicians were found to appreciate the fills as it provided a lively feel to the PA.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSION AND FUTURE WORK</head><p>We have successfully shown a method to produce coherent drums accompaniment with improvised bars by conditioning on a given melodic accompaniment. A novel BERT inspired infilling architecture is proposed, along with selfsupervised improvisation locator. By learning, where and how to improvise, our evaluations indicate improved generation quality. Thus with a two step approach, we mitigate the biases intrinsic with data-imbalance, and shortcomings that exists with current machine learning architectures. The system can further be improved by learning optimal sampling techniques, which still remains an open problem. As a future work, we could improve the detection performance by employing larger and deeper architectures. This work highlights a serious drawback of traditional language-based generators, which have shown promise in a lot of different fields, yet they fail to capture subtle musical signals, where they are often sparsely occurring in otherwise repetitive and common patterns.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. System Overview -Pipeline used for training (left half) of each individual module; combined pipeline (right half) for the evaluation phase.</figDesc><graphic coords="2,78.11,68.54,438.81,102.87" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>4. 3 Figure 3 .</head><label>33</label><figDesc>Figure 3. (a) Sequence to sequence model, used for basic drum pattern generation; (b) Improvisation Location Detection Model</figDesc><graphic coords="4,66.60,259.68,209.20,200.81" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 4 .</head><label>4</label><figDesc>Figure 4. Novelty Function plot for a given drum track In order to extract locations in the MA that warrant a fill, we propose the following method: 1. We use a 11-bar drum sample to calculate the Novelty value of center bar. The 5 bars on it's left and right are the context bar. The novelty value of a bar is calculated as the average weighted dissimilarity over all the context bars. We use the following equation to calculate the dissimilarity between 2 bars:</figDesc><graphic coords="4,310.11,114.74,232.45,126.90" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 6 .</head><label>6</label><figDesc>Figure 6. (a) Distribution of onset position in a bar (b) Distribution of Percussion Pattern Consistency</figDesc><graphic coords="6,54.98,68.54,232.44,101.85" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 7 .</head><label>7</label><figDesc>Figure 7. Improvised bars: Distribution of (a) onset location (b) change in instrument count (w.r.t. previous bar)</figDesc><graphic coords="6,310.11,68.54,232.45,99.01" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 .</head><label>1</label><figDesc>Performance of the Improvisation Location Detection model. All the values are in %.</figDesc><table><row><cell></cell><cell cols="4">Precision Recall Accuracy F1 Score</cell></row><row><cell>Train</cell><cell>92.3</cell><cell>92.3</cell><cell>92.3</cell><cell>92.3</cell></row><row><cell>Val</cell><cell>79.1</cell><cell>79.4</cell><cell>79.3</cell><cell>79.2</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 .</head><label>2</label><figDesc>Results for various decoders used in the Improvised Bar Generation model (all the values are in %)</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>Note:Additional objective evaluation methods are reported in the supplementary document https://bit.ly/2022ismirsuppProceedings of the</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">ªAttention is all you need,º Advances in neural information processing systems</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">È</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">30</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">ªA generative model for raw audio using transformer architectures</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Verma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Chafe</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2106.16036</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">ªLanguage models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Askell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Verma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Berger</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2105.00335</idno>
+		<title level="m">ªAudio transformers: Transformer architectures for large scale audio understanding. adieu convolutions,º</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Payne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2005.00341</idno>
+		<title level="m">ªJukebox: A generative model for music</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1809.04281</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Buys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Forbes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Choi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.09751</idno>
+		<title level="m">ªThe curious case of neural text degeneration,º</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ficler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1707.02633</idno>
+		<title level="m">ªControlling linguistic style aspects in neural language generation,º</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Dauphin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1805.04833</idno>
+		<title level="m">ªHierarchical neural story generation,º</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">ªRare words: A major problem for contextualized embeddings and how to fix it by attentive mimicking</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Schütze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="8766" to="8774" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">E</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K.-W</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Natarajan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Peng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.01326</idno>
+		<title level="m">ªThe woman worked as a babysitter: On biases in language generation,º</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">ªGenerating structured drum pattern using variational autoencoder and self-similarity matrix</title>
+		<author>
+			<persName><forename type="first">I.-C</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-W</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ISMIR</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="847" to="854" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ªDrum fills detection and generation</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Tamagnan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Symposium on Computer Music Multidisciplinary Research</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="91" to="99" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">ªMusegan: Multi-track sequential generative adversarial networks for symbolic music generation and accompaniment</title>
+		<author>
+			<persName><forename type="first">H.-W</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-Y</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L.-C</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ªPop music transformer: Beat-based modeling and generation of expressive pop piano compositions</title>
+		<author>
+			<persName><forename type="first">Y.-S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th ACM International Conference on Multimedia</title>
+		<meeting>the 28th ACM International Conference on Multimedia</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1180" to="1188" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Pop music accompaniment generation</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T.-Y</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th ACM International Conference on Multimedia</title>
+		<meeting>the 28th ACM International Conference on Multimedia</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1198" to="1206" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">ªTransformer neural networks for automated rhythm generation</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Nuttall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Haki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jorda</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">º 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">ªAi drummer-using learning to enhancearti cial drummer creativity</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Thörn</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">ªSemantics derived automatically from language corpora contain human-like biases</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Caliskan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">J</forename><surname>Bryson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Narayanan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Science</title>
+		<imprint>
+			<biblScope unit="volume">356</biblScope>
+			<biblScope unit="issue">6334</biblScope>
+			<biblScope unit="page" from="183" to="186" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">ªReducing sentiment bias in language models via counterfactual evaluation</title>
+		<author>
+			<persName><forename type="first">P.-S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Stanforth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Welbl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Rae</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Maini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yogatama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Kohli</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1911.03064</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Learning-based methods for comparing sequences, with applications to audio-to-midi alignment and matching</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+		<respStmt>
+			<orgName>Columbia University</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">J.-P</forename><surname>Briot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-D</forename><surname>Pachet</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1709.01620</idno>
+		<title level="m">ªDeep learning techniques for music generation±a survey,º</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<title level="m">ªAdam: A method for stochastic optimization,º</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">ªTensorflow: A system for large-scale machine learning,º in 12th {USENIX} symposium on operating systems design and implementation</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Abadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Barham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Davis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Devin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ghemawat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Irving</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Isard</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="265" to="283" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">F</forename><surname>Agarap</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1803.08375</idno>
+		<title level="m">ªDeep learning using rectified linear units (relu),º</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gillick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-E</forename><surname>Cella</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bamman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ªDrumroll please: Modeling multi-scale rhythmic gestures with flexible grids</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">4</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">ªMulti-modal deep reinforcement learning with a novel sensor-based dropout</title>
+		<author>
+			<persName><forename type="first">G.-H</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Siravuru</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Prabhakar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Veloso</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Kantor</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M.-W</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1810.04805</idno>
+		<title level="m">ªBert: Pre-training of deep bidirectional transformers for language understanding,º</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">ªRobust estimation of a location parameter,º in Breakthroughs in statistics</title>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">J</forename><surname>Huber</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1992">1992</date>
+			<publisher>Springer</publisher>
+			<biblScope unit="page" from="492" to="518" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">L</forename><surname>Pepino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Riera</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ferrer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2104.03502</idno>
+		<title level="m">ªEmotion recognition from speech using wav2vec 2.0 embeddings,º</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">ªMlp-mixer: An all-mlp architecture for vision</title>
+		<author>
+			<persName><forename type="first">I</forename><forename type="middle">O</forename><surname>Tolstikhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Houlsby</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kolesnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Beyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Unterthiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Steiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Keysers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Bamman, ªLearning to groove with inverse sequence transformations</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gillick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2269" to="2279" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">ªOn the evaluation of generative models in music</title>
+		<author>
+			<persName><forename type="first">L.-C</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd ISMIR Conference</title>
+		<title level="s">Neural Computing and Applications</title>
+		<meeting>the 23rd ISMIR Conference<address><addrLine>Bengaluru, India</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-12-04">2020. December 4-8, 2022</date>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="page" from="4773" to="4784" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

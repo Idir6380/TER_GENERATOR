@@ -1,0 +1,676 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">CHECKLIST MODELS FOR IMPROVED OUTPUT FLUENCY IN PIANO FINGERING PREDICTION</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Nikita</forename><surname>Srivatsan</surname></persName>
+							<email>nsrivats@cmu.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department">MLP I II III</orgName>
+								<orgName type="institution" key="instit1">Carnegie Mellon University</orgName>
+								<orgName type="institution" key="instit2">UC San Diego</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Taylor</forename><surname>Berg-Kirkpatrick</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">MLP I II III</orgName>
+								<orgName type="institution" key="instit1">Carnegie Mellon University</orgName>
+								<orgName type="institution" key="instit2">UC San Diego</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">CHECKLIST MODELS FOR IMPROVED OUTPUT FLUENCY IN PIANO FINGERING PREDICTION</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">95F3578CBDD092DC634D81C342975D5D</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:12+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>In this work we present a new approach for the task of predicting fingerings for piano music. While prior neural approaches have often treated this as a sequence tagging problem with independent predictions, we put forward a checklist system, trained via reinforcement learning, that maintains a representation of recent predictions in addition to a hidden state, allowing it to learn soft constraints on output structure. We also demonstrate that by modifying input representations Ð which in prior work using neural models have often taken the form of one-hot encodings over individual keys on the piano Ð to encode relative position on the keyboard to the prior note instead, we can achieve much better performance. Additionally, we reassess the use of raw per-note labeling precision as an evaluation metric, noting that it does not adequately measure the fluency, i.e. human playability, of a model's output. To this end, we compare methods across several statistics which track the frequency of adjacent finger predictions that while independently reasonable would be physically challenging to perform in sequence, and implement a reinforcement learning strategy to minimize these as part of our training loss. Finally through human expert evaluation, we demonstrate significant gains in performability directly attributable to improvements with respect to these metrics.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>While sheet music is often very specific as to what notes a musician must play, it can also be vague about how to play them. Composers generally write notation that focuses on describing the desired musical output, but leave the specifics of how to achieve this with their instrument up to the performer, as these details are outside the scope of their role in the creative process or in some cases beyond their expertise. The piano is an instrument which requires an extensive amount of decision-making on the performer's part. In order to perform a piece of music, a pianist must either consciously or intuitively select which finger to use to play every note in the song. Notes may overlap in du-Figure <ref type="figure">1</ref>. Visualization of the checklist model. Notes are embedded and then passed to a Bi-LSTM which outputs contextualized embeddings at each timestep. A checklist encodes where the fingers that have recently been used are located based on prior predictions. These are both fed into an MLP which predicts the next finger. ration or even have simultaneous onsets. Since any key on the piano can potentially be played by any finger, there are an exponential number of ways one could perform any given piece; of these however, the majority would be uncomfortable, difficult to play at full tempo, or even physically impossible <ref type="bibr" target="#b1">[1]</ref>. The challenge of deciding the most ergonomic fingering to use can be nontrivial for less experienced pianists, who would not yet have the ability to quickly map common musical patterns to conventional fingering strategies, and might produce more consistent and accurate performances if provided with them <ref type="bibr" target="#b2">[2]</ref>.</p><p>However recent work has shown that the use of machine learning techniques may be able to assist in this regard <ref type="bibr">[3±6]</ref>. Automatic piano fingering prediction is the task of inferring finger assignments for each note in a symbolic representation of a piano song, given knowledge of which hand is meant to play each note. Human players generally prefer fingerings that balance physical comfort and efficiency <ref type="bibr" target="#b2">[2]</ref>, yet these criteria are difficult to quantify and highly subjective <ref type="bibr">[7]</ref>. Decisions are simultaneously constrained by the current placement of the musician's fingers, and by how that decision may in turn affect possible options for the notes that follow. And while the spatial location of the notes on the keyboard is arguably the most salient factor, timing is also crucial; certain fingerings might be easy for a set of consecutive notes, but impossible if the same notes are in a chord.</p><p>Prior approaches to this task have largely treated it as a sequence tagging problem, where the input at each step is simply the pitch of the note and the output is a softmax over indices corresponding to each finger, and have employed methods analogous to those used for part of speech tagging such as LSTMs and HMMs. However, these techniques are limited in their capacity to model output dependencies, and also disregard the amount of elapsed time between notes which can greatly affect a prediction's performability.</p><p>We propose an autoregressive approach, where prior predictions are fed back into the network in order to encourage the model to produce fingerings that are not just accurate on average, but also locally fluent and therefore playable. We do this using a checklist which indicates which fingers have either recently been or are currently in use, and where they are on the keyboard relative to the note at the current timestep. By directly exposing this information, the model can more easily learn to restrict its predictions to fingers that are actually free, and also make decisions more directly influenced by the hand's physical placement. We also experiment with an approach that only feeds back in the most recent prediction, as well as an autoregressive tagger which maintains a neural representation of prior predictions using an encoder network.</p><p>Furthermore, the evaluation metrics used in prior work do not always correlate with what a pianist might intuitively perceive as ªgoodº predictions. In fact there are many types of desirable (or undesirable) patterns that may emerge in a model's output, which a simplistic metric such as labeling precision may not actually reflect. We demonstrate that it is possible for two models with nearly identical labeling precision to differ dramatically in the frequency of specific types of output subsequences that are physically challenging to play. Therefore, we evaluate on a battery of metrics that collectively convey a more holistic and interpretable overview of fingering quality.</p><p>Since these metrics are not always correlated with the labeling precision that a cross entropy loss optimizes, we also investigate incorporating them explicitly into our loss function at train time. While these scores are non-differentiable, we show that reinforcement learning techniquesÐwhich have previously seen success in sequence generation tasks outside of musicÐcan successfully optimize them. This, in conjunction with our checklist approach, ensures that the model not only has direct access to the information it would need to avoid undesirable output patterns, but is also encouraged to do so.</p><p>Finally, we conduct human evaluations and qualitative analysis which confirm that our approach improves predicted fingerings in ways consistent with our modeling choices, and also suggest directions for future work.</p><p>In summary our contributions are as follows: (1) We provide a comparison of various input representations for LSTM models (2) We put forward checklist based approaches which directly incorporate information from previous decisions (3) We introduce several additional metrics which track fluency of output, and demonstrate how to train directly on them using reinforcement learning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>While constraint-based models for automatic piano fingering have long existed <ref type="bibr" target="#b1">[1]</ref>, the standardization as a machine learning task which we follow was formalized by <ref type="bibr" target="#b3">[3]</ref>, which introduced the PIano fingerinG (PIG) dataset, put forward LSTM and HMM baselines (following prior work using HMMs <ref type="bibr" target="#b8">[8,</ref><ref type="bibr" target="#b9">9]</ref>), and has since been followed up on by others. <ref type="bibr" target="#b4">[4]</ref> demonstrated the value of pretraining on even a noisy automatically annotated dataset, although they focused on basic LSTM models and evaluated exclusively on labeling precision. <ref type="bibr" target="#b5">[5]</ref> put forward the idea of representing inputs based on relative difference in pitch rather than absolute pitch, and also showed improvements from the use of a constrained transition matrix, albeit one that was built off of prior knowledge of the task. <ref type="bibr" target="#b6">[6]</ref> recast fingering as an information retrieval problem, although they focused on the Czerny corpus instead of the PIG dataset.</p><p>Our work also draws from research into implicitly learning output structure by feeding prior decisions into the computation of future predictions. There are classic examples of graphical models that condition predictions both on inputs at the current timestep and outputs at the previous <ref type="bibr" target="#b10">[10]</ref>. Recent work on explicit checklists in neural settings, such as by <ref type="bibr" target="#b11">[11]</ref> found success using a structured agenda that tracked ingredient usage in conditional cooking recipe generation. Our checklists are however more transient; outputs can be removed from the checklist if enough time has passed. We also track not just the presence of outputs, but information about how they were used.</p><p>There is also much work on the use of REIN-FORCE <ref type="bibr" target="#b12">[12]</ref> for sequence generation tasks. While <ref type="bibr" target="#b13">[13]</ref> performed several tasks including summarization, translation, and image captioning, but required a critic model for stabilization, <ref type="bibr" target="#b14">[14]</ref> developed a self-critical method for captioning that did not require this additional network. <ref type="bibr" target="#b15">[15]</ref> applied a similar technique to abstractive news summarization. Reinforcement learning has also been applied in a musical setting <ref type="bibr" target="#b16">[16]</ref>, including the REINFORCE algorithm specifically <ref type="bibr" target="#b17">[17,</ref><ref type="bibr" target="#b18">18]</ref>, but most of these have focused on music generation rather than downstream prediction of performance-oriented attributes such as fingerings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">MODEL</head><p>We now describe the basic layout of the models we compare, and detail the specific variations between them. First, we will formalize the basic model contract and explain the basic architecture components that most of them share.</p><p>At a high level, each model takes in a MIDI-derived representation of either the left or right hand of a complete piano song, and outputs a predicted finger for each note. More formally, we are given an input sequence of notes x = {x 1 , ..., x N }, where each x i = (p i , t - i , t + i ) is a tuple consisting of a pitch p i ∈ {1, ..., 88} as well as a corresponding onset time t - i ∈ R ≥0 and offset time t + i &gt; t - i . From x we must predict a corresponding sequence y = {y 1 , ..., y N } where each y i ∈ {1, 2, 3, 4, 5} is an index representing the finger used to play x i from thumb to pinky respectively. To this end, each predictive model defines a distribution p(y|x; θ), generally parameterized by an LSTM variant. Under our non-checklist simple Bi-LSTM baseline, the individual y i are conditionally independent given x: p(y|x; θ) = N i=1 p(y i |x; θ). However for our autoregressive models, the likelihood factorizes according to chain rule: p(y|x; θ) = N i=1 p(y i |y &lt;i , x; θ) As shown in Figure <ref type="figure">1</ref>, the notes are first embedded, and then passed to a Bi-LSTM which outputs a contextualized representation. This contextualized representation is optionally concatenated with a d dimensional vector representation of the checklist c ∈ R N ×d before being passed to an MLP which outputs a softmax distribution over finger indices. We can think of the checklist as a function of the past and current notes as well as the past finger predictions c i (x ≤i , ŷ&lt;i ). The model is trained to optimize the cross entropy loss between this distribution and the true labels.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Input Representations</head><p>We now discuss four different strategies to encode the song into an input sequence of vector embeddings (illustrated in Figure <ref type="figure" target="#fig_0">2</ref>). These each expose different information to the model which can significantly affect performance.</p><p>Raw Pitch: This approach simply represents each note by its pitch p i , assigning a learnable embedding to each value. This was done by most previous neural implementations <ref type="bibr" target="#b3">[3,</ref><ref type="bibr" target="#b4">4]</ref>, and requires learning 88 vector embeddings.</p><p>Note ⊕ Octave: Given the fact that a piano keyboard's layout is identical across octaves, we might believe that more important than the exact key being played is the named note itself (e.g. knowing that the next note is a G# might be more useful in predicting which finger to use than knowing that it is the MIDI pitch 68). To this end we also evaluate the use of an input representation that consists of an embedding corresponding to the named note concatenated with an embedding corresponding to the octave.</p><p>Note ⊕ Relative Distance: If finger choice is primarily a function not of the note's pitch but of its location on the keyboard relative to the other notes in the song, then directly exposing that information saves the model from having to infer it. For this representation, we concatenate an embedding for the named note with one corresponding to the change in pitch p ip i-1 (see Figure <ref type="figure" target="#fig_0">2</ref>). Since large distances between notes require physically lifting the hand from the keys, an act which eliminates any sequential constraints, we cap step sizes at 15 semitones. <ref type="bibr" target="#b5">[5]</ref> used a similar approach without the named note embedding.</p><p>Lattice: We finally evaluate a ªlatticeº representation based on the one introduced by <ref type="bibr" target="#b3">[3]</ref> (note that this was only used in that work for HMMs and not neural models). As shown in Figure <ref type="figure" target="#fig_0">2</ref>, we can think of this as a twodimensional encoding of relative position, where the first dimension corresponds to the number of white keys between notes (i.e. the horizontal distance), and the second dimension indicates if we have moved from a white key to a black key or vice versa (i.e. the vertical distance). These dimensions are each embedded with corresponding vector embeddings, with a horizontal cutoff of 9 steps. This is the default representation where not otherwise specified.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Checklist Formulation</head><p>To encourage the model to produce fluent predictions, rather than simply choosing the most likely finger at each timestep independently, we also consider a series of extensions that feed recent predictions into the MLP alongside the contextualized embeddings produced by the LSTM, in the form of a vector embedding c i (x ≤i , ŷ&lt;i ) ∈ R d .</p><p>Autoregressive Tagger: We start with a baseline autoregressive variant of our simple Bi-LSTM model in which the forward half of the Bi-LSTM acts as an encoder over prior predictions as well as notes. In this setup, we do away with the Bi-LSTM over notes x, and instead replace it with a forward LSTM f (x, ŷ), and a backward LSTM b(x). At each timestep i, the MLP is fed the concatenated output of both LSTMs</p><formula xml:id="formula_0">f i (x &lt;i , y &lt;i ) ⊕ b i (x ≥i ).</formula><p>Prev Finger Embedding: As a precursor to a full checklist, we also experiment with a neural variant of a Maximum Entropy Markov Model (MEMM) <ref type="bibr" target="#b10">[10]</ref>. Under this setup, we map the predicted label of the previous timestep ŷi-1 to a corresponding vector embedding, and concatenate this with the contextualized embedding of x i produced by the Bi-LSTM, before passing the result to the MLP. This approach only takes into account the most recently used finger and ignores timing, but also requires the fewest additional model parameters.</p><p>Binary Checklist: This checklist embedding is a 5 dimensional vector, where each dimension corresponds to a finger. The ith dimension is set to 1 if that finger has recently been predicted for a note of a higher pitch than the current, a -1 if it has recently been predicted for a lower note, or a 0 otherwise. We empirically find that ªrecentº is best defined as within 100 milliseconds.</p><p>Distance Checklist: This representation is a concatenation of 5 vector embeddings, one for each finger. These finger embeddings use the lattice input representation strategy, where the first half corresponds to the horizontal distance between the note that that finger was recently predicted for and the current one, and the second half corresponding to the vertical distance. If a finger has not recently been used, its section in the checklist vector will be filled by a learnable ªdummyº embedding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">LEARNING AND EVALUATION</head><p>Next we will detail the additional metrics that we introduce, and show how by using reinforcement learning we can train our model to optimize some of them directly. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Fluency Metrics</head><p>We now describe the metrics we use to measure model performance. While research into pianists' fingering strategies shows that decisions are mostly motivated by minimizing ergonomically unfavorable patterns <ref type="bibr" target="#b2">[2,</ref><ref type="bibr">7]</ref>, prior work has primarily evaluated on per-note labeling precision averaged over annotators, referred to as M gen (albeit with some different strategies for handling disagreements between annotators <ref type="bibr" target="#b3">[3]</ref>). However, by simply checking if each prediction agrees with any annotator's label for that note in isolation, we miss whether the model's predictions are coherent with one another. For instance, a model may output two adjacent fingers which each agree with an annotator's label, but not the same one, creating a pattern that is harder to play than if it had solely aligned with one of them, despite these having the same M gen score. Also, a model may output a sequence that agrees with none of the annotators but is at least playable, and yet receives the same score as a physically impossible sequence. This is especially an issue for songs labeled by fewer annotators.</p><p>To address this, we expand the scope of our evaluation to include metrics that also measure how fluent model predictions are within themselves. To this end, we track statistics on the frequency of several types of output pattern that would increase the physical difficulty for a human performer, but may not be reflected in the raw labeling precision score. This allows us to more holistically compare models in ways that are both attentive to sustained agreement with annotators, and also expose the specific ways in which their predictions are more or less playable. Visual examples of these are provided in Figure <ref type="figure" target="#fig_1">3</ref> for clarity.</p><p>4-gram: Anchored 4-gram precision is the proportion of subsequences of four consecutive notes that were all predicted correctly with respect to a single annotator. This metric measures output coherence, but is still directly tied to the gold labels. Where M gen scores plateau as they approach the inter-annotator agreement of 71.4, 4-gram precision has more headroom and better stratifies models.</p><p>Thumb/Thumbless Crosses and Crossed Chords: Thumb crosses are where a note lower in pitch than the previous is played with a ªhigherº finger or vice versa, one of those two fingers being a thumb. These shift the hand up or down the keyboard without fully lifting off of the keys. We also track crosses where neither finger is a thumb, which is much less common due to their difficulty. We refer to cases where two fingers are crossed and the notes overlap in time as crossed chords. These are only performed under very specific circumstances, as most chords are not physi-cally playable with crossed fingers.</p><p>Hop: These are cases where one finger is used to play two different consecutive notes. While not intuitively difficult, these do not allow the player to rest their hand in a fixed spot, and make distances harder to accurately judge, limiting the maximum tempo of a piece, similar to how hunt-and-peck typing is generally slower.</p><p>Smear: In a smear, more than one note within a chord is played by a single finger. These are generally utilized when two adjacent keys are both in the chord, but because of the placement of the other notes it is hard to use two separate fingers. While these are extremely rare in our gold labels, naive baselines tend to produce them quite frequently.</p><p>Step/Chord Spread:</p><p>Step spread tracks how far the player must stretch their fingers apart while playing. Specifically, it is the average number of semitones per finger separating any two adjacent but not overlapping notes. For example, if a song contains an E followed by the B a fifth above it, the step spread would be 7 for a model that predicts playing them with fingers 1 and 2 respectively, but only a 3.5 for a model that predicts 1 and 3. We measure similar cases where the notes do overlap in time as chord spread. A large average chord spread is more challenging since it requires stretching the hand over a larger distance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Loss Functions</head><p>Having defined our model as above, we can train it on the cross entropy loss between the predicted distribution p(y|x; θ) and the gold labels by simply backpropagating to obtain parameter gradients and taking gradient descent updates on our training set. Autoregressive models are teacher forced at train time (i.e. conditioned on gold labels from prior timesteps in lieu of the model's own previous predictions), and we decode with beam search at test time.</p><p>However, while training on cross entropy can yield strong performance on labeling precision, we find that this is not consistently correlated with other non-differentiable metrics which we may also wish to optimize with respect to. We therefore also investigate using a supplemental loss function based on the REINFORCE algorithm <ref type="bibr" target="#b12">[12]</ref> which measures the frequency of undesirable fingering patterns in predicted outputs. While REINFORCE is traditionally associated with environment navigation, it has seen success in sequence generation tasks as well <ref type="bibr">[13±15]</ref>.</p><p>Under this framework, the loss function is formulated as an expected reward, which we approximate by sampling a sequence ỹ from our output distribution (using ancestral sampling) and weighting its reward by its likelihood.</p><formula xml:id="formula_1">L = (r -r(x, ỹ)) N N i=1 log p(ỹ i |ỹ &lt;i , x; θ)</formula><p>Where r is the rolling average reward over the past 50 examples, serving as our reward baseline. In order to ensure stronger signal during training, we also calculate the REINFORCE loss over 10 note chunks at a time, rather than over an entire song as this would make the attribution of reward to specific decisions less direct. In our experi- †This model is based specifically on the neural approach used in <ref type="bibr" target="#b3">[3]</ref>, but is our own implementation of it. It was similarly reimplemented by <ref type="bibr" target="#b4">[4]</ref> in their work. Units for most metrics are simple frequency counts, except for spreads which are in semitones per finger, and 4-gram and M gen which are accuracies.</p><p>ments, we set the reward to be a function of the number of hops and smears (see Section 4.1):</p><formula xml:id="formula_2">r(x, y) = exp( -#{i : x i ̸ = x i+1 , y i = y i+1 } -#{i : y i = y i+1 , t + i &gt; t - i+1 })</formula><p>Because training solely on the REINFORCE objective can lead the model towards degenerate solutions that trivially minimize undesirable patterns while compromising predictive accuracy, we take an approach similar to <ref type="bibr" target="#b15">[15]</ref> and <ref type="bibr" target="#b19">[19]</ref> where both loss functions are summed into a mixed training objective. This provides a reasonable tradeoff between the predictive signal of cross entropy, and the pressure towards fluent output given by REINFORCE. Mixed objective runs are warm-started on just the cross entropy loss to avoid degenerate solutions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">EXPERIMENTAL SETUP</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Implementation Details</head><p>We use 2 layer LSTMs and 2 layer MLPs with a hidden size of 1024, and a dropout of 0.2 in both of these networks. We use d=256 for our input embedding size. Beam search is performed to decode autoregressive models at test time using a beam size of 10. Models are trained using the Adam optimizer <ref type="bibr" target="#b20">[20]</ref> with a learning rate of 1e-4. Our code is implemented in PyTorch 1.8.1 <ref type="bibr" target="#b21">[21]</ref> and trains on an NVIDIA 2080ti GPU in roughly 12 hours.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Data</head><p>We train and evaluate on the PIano fingerinG dataset (PIG) <ref type="bibr" target="#b3">[3]</ref> which contains 150 piano songs written by 24 composers. Each song has up to 6 fingerings produced by human pianists, yielding 309 annotated songs in total. Because of the imbalance in the dataset's original splits, we use alternate splits created by <ref type="bibr" target="#b4">[4]</ref> which increase the relative size of the train and validation sets. As a baseline we compare to a reimplementation of the LSTM model of <ref type="bibr" target="#b3">[3]</ref> (which was also reimplemented by <ref type="bibr" target="#b4">[4]</ref> in their experiments), albeit with the same architecture of our other systems. We also show results from the third order HMM implementation of <ref type="bibr" target="#b3">[3]</ref>, although the more similar neural models are our primary point of direct comparison.</p><p>We employ similar preprocessing as prior work. Rather than modeling left and right hands separately, we reflect the pitches of all left hand parts and reverse the corresponding finger labels, thereby constructing a second ªright hand partº which we treat as an independent song. This prevents overfitting by halving the label space. To handle chords, i.e. multiple notes with identical onsets, we simply arpeggiate them from lowest to highest pitch. Otherwise, notes are ordered by onset. We do however retain the original timing information for constructing accurate checklists.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">RESULTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Input Representation Ablation</head><p>We start by investigating the effects of input representations on a simple Bi-LSTM baseline model that outputs independent prediction probabilities at each timestep. Table <ref type="table" target="#tab_0">1</ref> shows our results across all metrics. Overall the lattice representation does best, followed by note ⊕ octave. This matches our hypothesis that learning a separate embedding for each note on the keyboard leads to overparameterization, and that modular representations are more effective. We also see that relative distance based embeddings lead to fewer hops and smears specifically, which makes sense given that it allows the model to more easily observe when notes are or are not repeated, and therefore whether repeating the same finger would make sense.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Checklist Models</head><p>We see in Table <ref type="table">2</ref> that the checklist models tend to do best overall, with Binary Checklist using REINFORCE getting the highest 4-gram score among LSTMs. All the autoregressive systems significantly outperform the Bi-LSTM baselines, but with different tradeoffs in terms of the output patterns we measure. REINFORCE minimizes the number of hops and smears compared to just cross entropy, and in doing so can sometimes boost other metrics as well.</p><p>Note that M gen fails to fully reflect what are at times substantial differences in model output made apparent from the other metrics. For instance, the Prev Finger Embedding produces fewer hops, smears, and crossed chords than the Autoregressive tagger, likely indicating that it would be far easier for a human to perform despite having worse M gen . This is especially apparent when comparing the checklist models to the Bi-LSTM baselines. Also while Table <ref type="table">2</ref>. Results on PIG test set for various autoregressive setups, shown with and without using REINFORCE to minimize hops and smears (see Section 4.2). ‡ A third order HMM implementation by <ref type="bibr" target="#b3">[3]</ref> is also included ± while it ranks similarly as in prior work against LSTMs by M gen , it falls behind on other metrics. the HMM does strongly on M gen and 4-gram, we only see its deficits when we look at other metrics which reveal subtle issues such as an especially high finger spread and number of smears, and low utilization of thumb crosses. This figure shows the confusion matrix for predictions by the Binary Checklist model with REINFORCE. The distribution of misclassifications is fairly different for each finger; adjacent fingers are more likely to be confused than ones that are further apart, reflecting a degree of interchangeability in how pianists use them. We also see that thumb and pinky predictions are most accurate, perhaps because being at the ends of the hand makes them less versatile.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Label Confusion</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.4">Human Evaluation and Conclusion</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model Physical</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Comfort Mechanical Efficiency</head><p>Ease of Learning Bi-LSTM (MIDI) <ref type="bibr" target="#b3">[3]</ref> 1.6 1.4 1.6 Binary Checklist (+REINFORCE)</p><p>2.8 2.5 2.9</p><p>Table <ref type="table">3</ref>. Human evaluation ratings across various criteria.</p><p>Since the ultimate success criteria of our task is to produce fingerings that are well-suited to human performance, we also present results from a small scale round of human evaluation. Specifically, we recruited a college professor of piano with a doctorate in piano performance (who was not involved with the creation of the original dataset) to assess the outputs of two modelsÐthe Bi-LSTM (MIDI) <ref type="bibr" target="#b3">[3]</ref> and Binary Checklist with REINFORCEÐaccording to three main criteria: physical comfort, mechanical efficiency, and ease of learnability. The pianist was asked to score the models' outputs with respect to each of these categories on a scale of 1-3 for all 10 songs in the validation set (composed by Brahms, Mendelssohn, and Rachmaninoff).</p><p>We show the models' average ratings per category in Table <ref type="table">3</ref>. The strong contrast suggests that the checklist model is not just predicting gold label fingers more frequently (shown by M gen ) but also that it is producing more locally coherent outputs in a way that substantially improves performability. Furthermore, the correlation of human judgements with our proposed metrics indicates that they are meaningful measurements of output quality.</p><p>The pianist also provided qualitative observations which we summarize. He noted that both systems performed best on simpler, repetitive passages such as those found in Mendelssohn. Our model also reportedly produced fewer difficult stretches, which we expect as it is directly aware of interval distances in its input representation. Another observed issue was that the Bi-LSTM's fingerings did not consider tempo, often containing sections that would be impossible to play fast enough, especially for Rachmaninoff pieces. We suspect our model's advantage is from the checklist's dependence on absolute timing, not just the ordering of notes. The pianist also reported that our model more frequently used the same fingering for repeated notes and chords, whereas the Bi-LSTM would often change fingerings without reason, which can also likely be explained by our conditioning on recent predictions instead of decoding them independently. Quantitatively, we found that REINFORCE was able to reduce the number of hops and smears, which was confirmed by the pianist to have a significant impact on playability, emphasizing the importance of integrating these into the training loop instead of purely relying on a traditional likelihood loss.</p><p>Finally, he noted that the models particularly struggled on successive chords (as opposed to stepwise passages). Chord transitions require fingerings that are not just comfortable in isolation but also connect together. This requires the model to reason about voices within the same hand, something which may require moving beyond a framework that treats songs as linear sequences of individual notes, and is more sensitive to polyphony.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Examples of the input representations we compare. Note that the labels on the vectors are indices corresponding to sub-embeddings shared across notes.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. Fingering patterns tracked by our fluency metrics. Arrows and shading indicate sequential notes.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 .</head><label>1</label><figDesc>Results on PIG test set for Bi-LSTM model with different input representation schemes. The first row represents the value of each metric under the gold fingerings produced by human annotators. Values in bold are the closest to the gold labels' score for that metric.</figDesc><table><row><cell>Model</cell><cell>Thumb Cross (#)</cell><cell>Thumbless Cross (#)</cell><cell>Crossed Chord (#)</cell><cell>Hop (#)</cell><cell>Smear (#)</cell><cell>Step Spread (s/f)</cell><cell>Chord Spread (s/f)</cell><cell>4-gram (Acc)</cell><cell>Mgen (Acc)</cell></row><row><cell>Gold</cell><cell>331</cell><cell>58</cell><cell>28</cell><cell>155</cell><cell>7</cell><cell>2.78</cell><cell>2.64</cell><cell>100</cell><cell>100</cell></row><row><cell>Bi-LSTM (MIDI) [3] †</cell><cell>228</cell><cell>84</cell><cell>47</cell><cell cols="2">485 148</cell><cell>2.63</cell><cell>2.56</cell><cell>66.7</cell><cell>27.8</cell></row><row><cell>Bi-LSTM (Note ⊕ Octave)</cell><cell>257</cell><cell>90</cell><cell>36</cell><cell cols="2">394 135</cell><cell>2.69</cell><cell>2.61</cell><cell>67.0</cell><cell>28.3</cell></row><row><cell>Bi-LSTM (Note ⊕ Rel Dist)</cell><cell>218</cell><cell>87</cell><cell>52</cell><cell cols="2">390 101</cell><cell>2.65</cell><cell>2.59</cell><cell>69.1</cell><cell>32.2</cell></row><row><cell>Bi-LSTM (Lattice)</cell><cell>217</cell><cell>43</cell><cell>40</cell><cell>334</cell><cell>74</cell><cell>2.66</cell><cell>2.62</cell><cell>69.6</cell><cell>33.1</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0" />			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">ªAn ergonomic model of keyboard fingering for melodic fragments</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Parncutt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">A</forename><surname>Sloboda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Clarke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Raekallio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Desain</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Music Perception</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page" from="341" to="382" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">ªDeterminants of finger choice in piano sight-reading</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sloboda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Clarke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Parncutt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Raekallio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Experimental Psychology: Human Perception and Performance</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="page">2</biblScope>
+			<date type="published" when="1998">1998</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">ªStatistical learning and estimation of piano fingering</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Saito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Information Sciences</title>
+		<imprint>
+			<biblScope unit="volume">517</biblScope>
+			<biblScope unit="page" from="68" to="85" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">ªAt your fingertips: Automatic piano fingering detection</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Moryossef</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Elazar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Goldberg</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">ªEstimation of playable piano fingering by pitch-difference fingering match model</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Guan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">EURASIP Journal on Audio, Speech, and Music Processing</title>
+		<imprint>
+			<biblScope unit="volume">2022</biblScope>
+			<biblScope unit="page" from="1" to="13" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">ªExpected reciprocal rank for evaluating musical fingering advice</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">G</forename><surname>Barbara</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conference</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Ugenio</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conference</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">Adgerow</forename><surname>Justin</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conference</orgName>
+			</affiliation>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">ªTalking fingers: An interview study of pianists&apos; views on fingering</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Clarke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Parncutt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Raekallio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">A</forename><surname>Sloboda</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Musicae Scientiae</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="107" to="187" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">ªMergedoutput hmm for piano fingering of both hands</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Ono</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Sagayama</surname></persName>
+		</author>
+		<editor>IS-MIR</editor>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="531" to="536" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">ªAutomatic decision of piano fingering based on a hidden markov models</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yonebayashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Kameoka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Sagayama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IJCAI</title>
+		<imprint>
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">ªMaximum entropy markov models for information extraction and segmentation</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">C</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2000">2000</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">ªGlobally coherent text generation with neural checklist models</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Kiddon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Choi</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note>º in EMNLP</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">ªSimple statistical gradient-following algorithms for connectionist reinforcement learning</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Williams</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine Learning</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="229" to="256" />
+			<date type="published" when="2004">2004</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zaremba</surname></persName>
+		</author>
+		<idno>abs/1511.06732</idno>
+		<title level="m">ªSequence level training with recurrent neural networks,º CoRR</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">ªSelf-critical sequence training for image captioning</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">J</forename><surname>Rennie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Marcheret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mroueh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Goel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</title>
+		<imprint>
+			<date type="published" when="2017">2017. 2017</date>
+			<biblScope unit="page" from="1179" to="1195" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ªA deep reinforced model for abstractive summarization</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Paulus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Socher</surname></persName>
+		</author>
+		<idno>abs/1705.04304</idno>
+	</analytic>
+	<monogr>
+		<title level="j">ArXiv</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">ªGenerating music by fine-tuning recurrent neural networks with reinforcement learning</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Jaques</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">E</forename><surname>Turner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Deep Reinforcement Learning Workshop, NIPS</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yu</surname></persName>
+		</author>
+		<title level="m">ªSeqgan: Sequence generative adversarial nets with policy gradient,º in AAAI</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Aspuru-Guzik, ªObjective-reinforced generative adversarial networks (organ) for sequence generation models</title>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">L</forename><surname>Guimaraes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Sánchez-Lengeling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">L C</forename><surname>Farias</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename></persName>
+		</author>
+		<idno>abs/1705.10843</idno>
+	</analytic>
+	<monogr>
+		<title level="j">ArXiv</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Klingner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gouws</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Kato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kudo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Kazawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Stevens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Kurian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Young</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">R</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Riesa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Rudnick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hughes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dean</surname></persName>
+		</author>
+		<idno>abs/1609.08144</idno>
+	</analytic>
+	<monogr>
+		<title level="m">ªGoogle&apos;s neural machine translation system: Bridging the gap between human and machine translation</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<title level="m">ªAdam: A method for stochastic optimization,º ICLR</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Paszke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chintala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Chanan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Devito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Desmaison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Antiga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerer</surname></persName>
+		</author>
+		<title level="m">ªAutomatic differentiation in PyTorch,º in NIPS Autodiff Workshop</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

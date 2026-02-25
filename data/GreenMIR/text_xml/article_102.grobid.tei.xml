@@ -1,0 +1,1342 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MELODY TRANSCRIPTION VIA GENERATIVE PRE-TRAINING</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Chris</forename><surname>Donahue</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Stanford University</orgName>
+								<orgName type="institution" key="instit2">Stanford University</orgName>
+								<orgName type="institution" key="instit3">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">John</forename><surname>Thickstun</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Stanford University</orgName>
+								<orgName type="institution" key="instit2">Stanford University</orgName>
+								<orgName type="institution" key="instit3">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Stanford University</orgName>
+								<orgName type="institution" key="instit2">Stanford University</orgName>
+								<orgName type="institution" key="instit3">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MELODY TRANSCRIPTION VIA GENERATIVE PRE-TRAINING</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">2D10FC17794EDF328A1E5EC2A35ACF55</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Despite the central role that melody plays in music perception, it remains an open challenge in MIR to reliably detect the notes of the melody present in an arbitrary music recording. A key challenge in melody transcription is building methods which can handle broad audio containing any number of instrument ensembles and musical stylesÐ existing strategies work well for some melody instruments or styles but not all. To confront this challenge, we leverage representations from Jukebox [1], a generative model of broad music audio, thereby improving performance on melody transcription by 20% relative to conventional spectrogram features. Another obstacle in melody transcription is a lack of training dataÐwe derive a new dataset containing 50 hours of melody transcriptions from crowdsourced annotations of broad music. The combination of generative pre-training and a new dataset for this task results in 77% stronger performance on melody transcription relative to the strongest available baseline. 1 By pairing our new melody transcription approach with solutions for beat detection, key estimation, and chord recognition, we build Sheet Sage, a system capable of transcribing humanreadable lead sheets directly from music audio.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>In the Western music canon, melody is a defining characteristic of musical composition, and can even constitute the very identity of a piece of music within the collective consciousness. Because of the significance of melody to our music perception, the ability to automatically transcribe the melody notes present in an arbitrary recording could enable numerous applications in interaction <ref type="bibr" target="#b1">[2]</ref>, education <ref type="bibr" target="#b2">[3]</ref>, informatics <ref type="bibr" target="#b3">[4]</ref>, retrieval <ref type="bibr" target="#b4">[5]</ref>, source separation <ref type="bibr" target="#b5">[6]</ref>, and generation <ref type="bibr" target="#b6">[7]</ref>. Despite the potential benefits, reliable melody transcription remains an open challenge.</p><p>A closely-related problem that has received considerable attention from the MIR community is melody extraction <ref type="bibr">[8±11]</ref>, where the goal is to estimate the time-varying, continuous F0 trajectory of the melody in an audio mixture. In contrast, the goal of melody transcription is to out-  Our melody transcription approach involves (1) extracting audio representations from Jukebox <ref type="bibr" target="#b0">[1]</ref>, a generative model of music, (2) averaging these representations across time to their nearest sixteenth note (dashed outlineÐuses madmom <ref type="bibr" target="#b11">[12,</ref><ref type="bibr" target="#b12">13]</ref> for beat detection), and</p><p>(3) training a Transformer <ref type="bibr" target="#b13">[14]</ref> to detect note onsets (or absence thereof) per sixteenth note. Outputs can be rendered to MIDI (by mapping beats back to time) or a score.</p><p>put the notes of the melody, where a note is defined by an onset time, a pitch, and an offset time. While F0 trajectories are useful for several downstream tasks (e.g., query by humming) and more inclusive of music which does not use equal-tempered pitches, unlike notes, trajectories cannot be readily converted into formats like MIDI or scores which are more convenient for musicians.</p><p>The relative lack of progress on melody transcription is perhaps counterintuitive when compared to the considerable progress on seemingly more difficult tasks like piano transcription <ref type="bibr" target="#b14">[15,</ref><ref type="bibr" target="#b15">16]</ref>. This circumstance stems from two primary factors. First, unlike in piano transcription, melody transcription involves operating on broad audio mixtures from arbitrary instrument ensembles and musical styles. Second, there is a deficit of training data for melody transcription, which particularly impedes the deep learning approaches central to recent improvements on other transcription tasks. Moreover, collecting data for melody tran-scription is difficult compared to collecting data for tasks like piano transcription, where a Disklavier can be used to create aligned training data in real time.</p><p>To overcome the challenge of transcribing broad audio, in this work we leverage representations from Jukebox <ref type="bibr" target="#b0">[1]</ref>, a large-scale generative model of music audio pre-trained on 1M songs. In <ref type="bibr" target="#b16">[17]</ref>, Castellon et al. demonstrate that representations from Jukebox are useful for improving performance on a wide variety of MIR tasks. Here we show that, when used as input features to a Transformer model <ref type="bibr" target="#b13">[14]</ref>, representations from Jukebox yield 27% stronger performance on melody transcription (as measured by note-wise F1) relative to handcrafted spectrogram features conventionally used for transcription. To our knowledge, this is the first evidence that representations learned via generative modeling are useful for time-varying MIR tasks like transcription, as opposed to the song-level tasks (e.g. tagging, genre detection) examined in <ref type="bibr" target="#b16">[17]</ref>.</p><p>To address the data deficit for melody transcription, we release a new dataset containing 50 hours of melody annotations for broad audio which we derive from Hook-Theory. 2 The user-specified alignments between the audio and melody annotations in HookTheory are crudeÐ we refine these alignments using beat detection. To overcome remaining alignment jitter, we resample features to be uniformly spaced in beats (rather than time) and pass these beat-wise resampled features as input to melody transcription models. This procedure has a secondary benefit of enabling simple conversion from raw model outputs to human-readable scores (Figure <ref type="figure" target="#fig_1">1</ref>).</p><p>By training Transformer models on this new dataset using representations from Jukebox as input, we are able to improve overall performance on melody transcription by 70% relative to the strongest available baseline. A summary of our primary contributions follows:</p><p>• We show that representations from generative models can improve melody transcription (Section 6).</p><p>• We collect, align, and release a new dataset with 50 hours of melody and chord annotations (Section 4).</p><p>• We propose a method for training transcription models on data with imprecise alignment (Section 5.3).</p><p>• As a bonus application of our melody transcription approach, we build a system which can transcribe music audio into lead sheets (Section 7).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>Melody transcription is closely related to but distinct from the task of melody extraction, originally referred to as predominant fundamental frequency (F0) estimation <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b8">9]</ref>. Melody extraction has received significant interest from the MIR community over the last two decades (see <ref type="bibr" target="#b9">[10,</ref><ref type="bibr" target="#b10">11]</ref> for comprehensive reviews), and is the subject of an annual MIREX competition <ref type="bibr" target="#b17">[18]</ref>. Melody extraction may be  <ref type="bibr" target="#b24">25]</ref>Ðunfortunately none of these methods provide code, though <ref type="bibr" target="#b23">[24]</ref> provides example transcriptions which we use to facilitate direct comparison. A more recent effort uses ground truth chord labels as extra information to improve melody transcription <ref type="bibr" target="#b25">[26]</ref>Ðin contrast, our method does not require extra information. Another line of work seeks to transcribe solo vocal performances into notes [27±30]. As singing voice often carries the melody in popular music, we directly compare to a baseline which firsts isolates the vocals (using Spleeter <ref type="bibr" target="#b30">[31]</ref>) and then transcribes them.</p><p>Polyphonic music transcription is another related task which involves transcribing all of the notes present in a recording (not just the melody). This task has its own MIREX contest (Multiple Fundamental F0 Estimation) alongside a growing collection of supervised training data resources <ref type="bibr">[7, 32±34]</ref>. The similarity of the polyphonic and melody transcription problems motivates us to experiment with representations learned by a polyphonic systemÐ specifically, MT3 <ref type="bibr" target="#b34">[35]</ref>Ðfor melody transcription.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">TASK DEFINITION</head><p>In this work, melody transcription refers to the task of converting a music recording into a monophonic (nonoverlapping) sequence of notes which constitute its dominant melody. <ref type="foot" target="#foot_0">3</ref> More precisely, given a music waveform a of length T seconds, our task is to uncover the sequence of N notes y = [y 1 , . . . , y N ] that represent the melody of a. For many MIR tasks, including transcription, it can be convenient to work with features of audio X = Featurize(a), rather than waveforms. Hence, a melody transcription algorithm is a procedure that maps featurized audio to notes, i.e. y = Transcribe(X).</p><p>Canonically, a musical note consists of an onset time, a musical pitch, and an offset time. However, in this work we disregard offsets and define a note to be a pair y i = (t i , n i ) consisting of an onset time t i ∈ [0, T ) and discrete musical pitch n i ∈ V = {A0, . . . , C8}. We ignore offsets for two reasons. First, accurate offsets have been found to be considerably less important for human perception of transcription quality compared to accurate onsets <ref type="bibr" target="#b35">[36]</ref>. Second, in our dataset, a heuristically-determined offset is identical to the user-annotated offset for 89% of notes. <ref type="foot" target="#foot_1">4</ref>Formally, a musical audio recording of length T seconds sampled at rate f s is a vector a ∈ R T fs . A featurization of audio X ∈ R T f k ×d is a matrix of d-dimensional features of audio, sampled uniformly at some rate f k ≪ f s (for example, X could be a spectrogram). Intuitively, the function Featurize : R T fs → R T f k ×d defined by a → X maps raw audio to a feature representation more conducive to learning. A melody of length N is a sequence of notes y = [y 1 , . . . ,</p><formula xml:id="formula_0">y N ] ∈ Y N consisting of onset-pitch pairs y i = (t i , n i ) ∈ Y = R + × V where t i &lt; t j if i &lt; j.</formula><p>Given a featurization X, the melody transcription task is to construct a transcription algorithm Transcribe : R T f k ×d → Y N such that X → y.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Evaluation</head><p>To evaluate a melody transcription method Transcribe, we adopt a standard metric commonly used for evaluation in polyphonic music transcription tasks, namely, ªonsetonly note-wise F-measureº <ref type="bibr" target="#b35">[36]</ref>. This metric scores an estimated transcript Transcribe(X) by first matching its note onsets to those in the reference y with 50ms of tolerance (default in <ref type="bibr" target="#b36">[37]</ref>), and then computes a standard F1 score where an estimated note is treated as correct if it is the same pitch as its matched reference note. This ªnote-wiseº metric represents a departure from the ªframebasedº metrics typically used to evaluate melody extraction algorithmsÐYcart et al. demonstrate in <ref type="bibr" target="#b35">[36]</ref> that this particular note-wise metric correlates more strongly with human perception of transcription quality than any other common metric, including frame-based ones.</p><p>We make a slight modification to this note-wise metric specific to the melody transcription setting: an estimate Transcribe(X) may receive full credit if it is off by a fixed octave shift but otherwise identical to the reference. In downstream settings, melody transcriptions are likely to be used in an octave-invariant fashion, e.g., they may be shifted to read more comfortably in treble clef, or performed by singers with different vocal ranges. Hence, we modify the evaluation criteria by simply taking the highest score over octave shifted versions of the estimate:</p><formula xml:id="formula_1">max σ∈Z F1(OctaveShift(Transcribe(X), σ), y).</formula><p>Henceforth, we refer to this octave-invariant metric as F1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">DATASET OVERVIEW</head><p>A major obstacle to progress on melody transcription is the lack of a large volume of data for training. To the best of our knowledge, there are only two datasets available with annotations suitable for melody transcription: the RWC Music Database [38±40] (RWC-MDB), and a dataset labeled by Laaksonen <ref type="bibr" target="#b25">[26]</ref>. The former is larger but the annotations are inconsistentÐRyynänen and Klapuri note that only 8.7 hours (130 songs) are usable for melody transcription <ref type="bibr" target="#b23">[24]</ref>, while the latter only contains 1.5 hours.</p><p>We derive a suitably large dataset for melody transcription using crowdsourced annotations from HookTheory. <ref type="foot" target="#foot_2">5</ref> HookTheory is a platform where users can easily create and share musical analyses of particular recordings hosted on YouTube, with Wikipedia-style editing. The dataset contains annotations for 22k segments of 13k unique recordings totaling 50 hours of labeled audio. The audio content covers a wide range of genresÐthere is a skew towards pop and rock but many other genres are represented including EDM, jazz, and even classical. We create an artist-stratified 8:1:1 split of the dataset for training, validation, and testing. The dataset also includes chord annotations which may facilitate chord recognition research.</p><p>While HookTheory data has been used previously for MIR tasks like harmonization <ref type="bibr" target="#b40">[41,</ref><ref type="bibr" target="#b41">42]</ref>, chord recognition <ref type="bibr" target="#b42">[43]</ref>, and representation learning <ref type="bibr" target="#b43">[44]</ref>, making use of this platform for MIR is currently cumbersome. One obstacle is that the annotations are created via a ªfunctionalº interface, i.e., one which uses scale degrees and roman numerals relative to a key signature instead of absolute notes and chord names. In contrast, most MIR research favors absolute labels. Hence, we convert annotations from this functional format to a simple (JSON-based) absolute format. One caveat is that the HookTheory annotation interface uses a relative octave system, so there is no way to reliably map annotations to a ground truth octave. Thus, melodies in our dataset also contain only relative octave information, consistent with the octave-invariant evaluation proposed in Section 3.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">METHODS</head><p>Similar to state-of-the-art methodology used for polyphonic transcription <ref type="bibr" target="#b44">[45]</ref>, our approach to melody transcription involves training Transformer models <ref type="bibr" target="#b13">[14]</ref> to predict notes from audio features. However, to address the unique challenges of melody transcription, our approach differs in two distinct ways. First, because melody transcription involves operating on broad audio, we leverage representations from pre-trained models as drop-in replacements for the handcrafted spectrogram features used as inputs to other transcription systems. Secondly, because alignments in our dataset are approximate, we propose a new strategy for training transcription models under such conditions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Pre-trained representations</head><p>We explore representations from two different pre-trained models for use as input features to transcription models. In <ref type="bibr" target="#b16">[17]</ref>, Castellon et al. demonstrate that representations from Jukebox <ref type="bibr" target="#b0">[1]</ref>Ða generative model of music audio pre-trained on 1M songsÐconstitute effective features for many MIR tasks, though notably they do not experiment on transcription. We adopt their approach to extract features from Jukebox (f k ≈ 345 Hz, d = 4800), though we use a deeper layer <ref type="bibr" target="#b52">(53)</ref> than their default <ref type="bibr" target="#b35">(36)</ref> which improved transcription performance in our initial experiments.</p><p>We also explore features from MT3 <ref type="bibr" target="#b34">[35]</ref>, an encoderdecoder transcription model pre-trained on a multitude of different transcription tasks (though not melody transcription). For this model, we use the encoder's outputs as features (f k = 125 Hz, d = 512). The two models have different trade-offs with respect to our setting: Jukebox was pre-trained on audio similar to that found in our dataset but in a generative fashion, whereas MT3 is pre-trained on transcription but for different audio domains.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Refined alignment</head><p>User-specified alignment Figure <ref type="figure">2</ref>. We refine the crude user-specified alignments from HookTheory by using beat and downbeat tracking. The first segment beat is mapped to the detected downbeat nearest to the user-specified starting timestamp, and remaining beats are mapped to subsequent detected beats.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Refined Alignments</head><p>The alignments between audio and HookTheory annotations are crudeÐusers provide only an approximate starting and ending timestamp of their annotated segment within the audio. Because transcription methodology generally depends on precise alignments, we make an effort to refine the user-specified ones. To this end, we make use of the beat and downbeat detection algorithm from madmom <ref type="bibr" target="#b11">[12,</ref><ref type="bibr" target="#b12">13]</ref>. Specifically, our approach aligns the first beat of the segment to the detected downbeat which is nearest to the user-specified starting timestamp. Then, we align the remaining beats to the subsequent detected beats (see Figure <ref type="figure">2</ref> for an example). This provides a beat-level alignment for the entire segment, which we linearly interpolate to fractional subdivisions of the beat. Formally, we construct an alignment function Align : [0, B) → [0, T ) that assigns each of B beats in the metrical structure to a time t ∈ [0, T ) in the audio. In an informal listening test, this produced an improved alignment for 95 of 100 segments, where the primary failure mode in the remaining 5 segments occurred when madmom detected the wrong beat as the downbeat. We use these refined alignments for training and evaluation and release them alongside the dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Beat-wise resampling</head><p>Here we outline our approach for training transcription models in the presence of imprecise alignments. Existing transcription methods were largely designed for domains where perfect alignments are readily available, e.g., piano transcription data captured by a Disklavier. Despite our best efforts, the refined HookTheory alignments are still imprecise when compared to alignments in the datasets used to develop existing methods. Consequently, in initial experiments, we found that naively adopting existing methods (specifically, <ref type="bibr" target="#b15">[16,</ref><ref type="bibr" target="#b44">45]</ref>) resulted in poor performance on our dataset and task. Additionally, initial experiments on training models with an alignment-free approach <ref type="bibr" target="#b45">[46]</ref> also resulted in poor performance.</p><p>Accordingly, to sidestep small alignment deviations, we perform a beat-wise resampling of audio features X ∈ R T f k ×d to yield features that are uniformly spaced in subdivisions of the beat (using AlignÐsee Section 5.2) rather than in time. For an audio recording with B beats, we sample features X ∈ R 4B×d at sixteenth-note intervals. The value Xi is constructed by averaging all feature vectors in X that are nearest to the i'th sixteenth note into a single vector which acts as a proxy feature. For example, if a recording has a tempo of 120 BPM, a sixteenth note represents 125 ms of time, which would entail averaging across 43 feature vectors from Jukebox (f k ≈ 345 Hz). The intuition is that, while our alignments may not be precise enough to identify which of those 43 frames contains an onset, we can be reasonably confident that it occurs somewhere within them, and thus the relevant frame will be incorporated into the proxy. A similar approach was previously explored for song structure analysis in <ref type="bibr" target="#b46">[47]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Modeling</head><p>Together with the beat-wise resampling X ∈ R 4B×d , we convert the sparse task labels y ∈ (R + × V) N into a dense sequence ỹ ∈ {{∅} ∪ V} 4B , which indicates whether or not an onset occurs at each sixteenth note. <ref type="foot" target="#foot_4">6</ref> Formally, ỹi = n j if Align( i 4 ) = t j for some note y j , ∅ otherwise.</p><p>We formulate melody transcription as an aligned sequenceto-sequence modeling problem and attempt to predict the sequence ỹ given X. Specifically, we train models of the form f θ : R 4B×d → R 4B×(|V|+1) , which parameterize probability distributions p θ (ỹ i | X) = SoftMax(f θ ( X) i ) over elements of the sequence ỹ. One unique aspect of our dataset is that absolute octave information is absent (see Section 4). Hence, we construct an octave-tolerant cross-entropy loss by identifying the octave shift amount that minimizes the standard cross-entropy loss (denoted CE) when applied to the labels:</p><formula xml:id="formula_2">min σ∈Z 4B-1 i=0 CE(p θ (ỹ i | X), OctaveShift(ỹ i , σ)).</formula><p>We require a thresholding scheme to convert the dense sequence of soft probability estimates p θ (ỹ i | X) into a sparse sequence of notes required by our task (see Section 3). Given a threshold τ ∈ R (in practice, tuned on validation data), we define a sorted onset list</p><formula xml:id="formula_3">I = Sort({i ∈ {0, . . . , 4B -1} : p θ (ỹ i = ∅| X) &lt; τ }).</formula><p>This should be interpreted as a list of N metrical positions where an onset likely occurs. The timings of these onsets are given by the alignment, and we will predict the notevalue with the highest probability. The sparse melody transcription is thus defined for j = 1, . . . , N by Transcribe( X) j = (t j , n j ), where  <ref type="bibr">(bottom)</ref>. Features are complementaryÐcombining all three yields highest performanceÐbut marginally so compared to Jukebox alone.</p><formula xml:id="formula_4">t j = Align I j 4 , n j = arg max v∈V p θ (ỹ Ij = v| X).</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Features</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">EXPERIMENTS</head><p>Here we describe our experimental protocol for training melody transcription models on the HookTheory dataset. The purpose of these experiments is two-fold. First, we compare representations from different pre-trained models to handcrafted spectrogram features to determine if pretraining is helpful for the task of melody transcription (Section 6.1). Second, we compare our trained models holistically to other melody transcription baselines (Section 6.2).</p><p>All transcription models are encoder-only Transformers with the default hyperparameters from <ref type="bibr" target="#b13">[14]</ref>, except that we reduce the number of layers from 6 to 4 to allow models to be trained on GPUs with 12GB of memory. During training, we select random slices from the annotated segments of up to 96 beats or 24 seconds in length (whichever is shorter). We train using our proposed loss function from Section 5.4 and perform early stopping based on max F1 score across thresholds τ on the validation set, using the best validation τ for testing. All models converge within 15k steps or about a day on a single K40 GPU.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Comparing input features</head><p>We compare representations from Jukebox <ref type="bibr" target="#b0">[1]</ref> and MT3 <ref type="bibr" target="#b34">[35]</ref> (see Section 5.1) to handcrafted spectrogram features, which are commonly used by existing transcription methods.</p><p>Specifically, we compare to log-amplitude Mel spectrograms using the formulation from <ref type="bibr" target="#b15">[16]</ref> (f k ≈ 31, d = 229). Because features may contain complementary information, we also experiment with all combinations of these three features. Note that our beat-wise resampling strategy allows for trivial combination of these features (by concatenation) despite their differing rates. In Table <ref type="table" target="#tab_1">1</ref>, we report F1 (as described in Section 3.1) on the HookTheory test set for all input features.</p><p>Overall, using representations from Jukebox as input features results in stronger melody transcription performance than using either representations from MT3 or conventional handcrafted features. Representations from both MT3 and Jukebox outperform conventional handcrafted features, implying that both pre-training strategies are helpful for melody transcription. Qualitatively speaking, there is a noticeable difference in performance across the three different input features which correlates with quantitative performance (see footnote 1 for sound examples). Using representations from Jukebox tends to result in fewer wrong notes than the other features, and substantially reduces the number of egregiously wrong notes (e.g., notes outside of the key signature). Representations from Jukebox also appear to aid in the detection of more nuanced rhythmic patterns. Moreover, using handcrafted features will often result in several repeated onsets during a longer sustained melody noteÐ in contrast, using representations from Jukebox appears to mitigate this failure mode.</p><p>Different features also appear to complement one another to a degree. The strongest performance overall is obtained by combining all three features, though the improvement over Jukebox alone is marginal. The practical downsides of combining all features outweigh the marginal benefitsÐrunning both pre-trained models effectively doubles the overall runtime, and the models have incompatible software dependencies. Hence, in the remainder of this paper we focus on models trained on individual features.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Comparison to melody transcription baselines</head><p>We compare overall performance of our proposed melody transcription approach to several baselines. We evaluate all methods on a small subset of 10 songs from RWC-MDB [38±40], another dataset which includes melody transcription labels. We chose this specific subset in an effort to compare to early DSP-based work on melody transcriptionÐnone of the early approaches [22± 25] shared code, however <ref type="bibr" target="#b23">[24]</ref> shared melody transcriptions for this 10-song subset.</p><p>In addition to <ref type="bibr" target="#b23">[24]</ref>, we also compare to a baseline which applies a note segmentation heuristic <ref type="bibr" target="#b18">[19]</ref> to a melody extraction algorithm <ref type="bibr" target="#b47">[48]</ref>. We additionally compare to MT3 in a zero-shot fashionÐthis model was not trained on melody transcription but was trained on some tasks which incorporate vocal transcription. Finally, because the vo- Inference procedure for Sheet Sage, our proposed system which transcribes any Western music audio into lead sheets (scores which depict melody as notes and harmony as chord names). The green, blue, and yellow boxes respectively take audio, features, and symbolic music data as input. Green boxes are modules that we built as part of this workÐboth are Transformers <ref type="bibr" target="#b13">[14]</ref> trained on their respective tasks using audio features from Jukebox <ref type="bibr" target="#b0">[1]</ref> and data from HookTheory <ref type="bibr" target="#b48">[49]</ref>. cals often carry the melody in popular music, we compare to a baseline of running the Tony <ref type="bibr" target="#b27">[28]</ref> monophonic transcription software on source-separated vocals isolated with Spleeter <ref type="bibr" target="#b30">[31]</ref>. Because this approach will only work for vocals, we also separately report performance on a subset of our evaluation set where the vocals represent the melody. Scores for all methods and baselines appear in Table <ref type="table" target="#tab_2">2</ref>.</p><p>Overall, our approach to training Transformers with features from Jukebox significantly outperforms the strongest baseline in both the vocals-only and unrestricted settings (p &lt; 0.01 using a two-sided t-test for paired samples). Qualitatively speaking, the stronger baselines produce transcriptions where a reasonable proportion of the notes are the correct pitches, but they have poor rhythmic consistency with respect to the ground truth. In contrast, our best model produces the correct pitches more often and with a higher degree of rhythmic consistency.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.">SHEET SAGE</head><p>As a bonus demo, here we describe Sheet Sage, a system we built to automatically convert music audio into lead sheets (see footnote on first page for examples), powered by our Jukebox-based melody transcription model. In Western music, a piece can often be characterized by its melody and harmony. When engraved as a lead sheetÐa musical score containing the melody as notes on a staff and the harmony as chord namesÐmelody and harmony can be readily interpreted by musicians, enabling recognizable performances of existing pieces. Hence, for some music, a lead sheet represents the essence of its underlying composition. Existing services like Chordify <ref type="bibr" target="#b49">[50]</ref> can already detect a subset of the information needed to produce lead sheets (specifically, chords, beats, and keys) for broad music audio. However, despite past research efforts <ref type="bibr" target="#b23">[24,</ref><ref type="bibr" target="#b24">25]</ref>, no user-facing service yet exists which can convert broad music audio into lead sheets, presumably due to the poor performance of existing melody transcription systems.</p><p>To build Sheet Sage, we also train a Jukebox-based chord recognition model on the HookTheory data, using the same methodology that we propose for melody transcription (we simply replace the target vocabulary of onset pitches with one containing chord labels). Passing audio through our Jukebox-based melody transcription and chord recognition models results in a score like format containing raw note names and chord labels per sixteenth note. Engraving this information as a lead sheet requires additional information: the key signature and the time signature. We estimate the former using the Krumhansl-Schmuckler algorithm <ref type="bibr" target="#b50">[51,</ref><ref type="bibr" target="#b51">52]</ref>, which takes the symbolic melody and chord information as input. For the latter, we use madmom <ref type="bibr" target="#b11">[12,</ref><ref type="bibr" target="#b12">13]</ref>. Finally, we engrave a lead sheet using Lilypond <ref type="bibr" target="#b52">[53]</ref>. See Figure <ref type="figure" target="#fig_2">3</ref> for a full schematic.</p><p>Subjectively speaking, Sheet Sage often produces highquality lead sheets, especially for the chorus and verse segments of pop music which have more prominent melodies. Performance is fairly robust across styles and instruments, even those which are less represented in the training dataÐ one user reported particularly strong success on Bollywood music. However, the system occasionally struggles, especially with quieter vocals, layered harmonies, unusual time signatures, or poor intonation. Sheet Sage is also limited to fixed time and key signatures due to limitations of its downbeat detection and key estimation modules.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8.">CONCLUSION</head><p>We present a new method and dataset which together improve melody transcription on broad music audio. Our method benefits from the rich representations learned by generative models pre-trained on broad audio. This suggests that further improvement in melody transcription may be possible without additional data, i.e., by scaling up or otherwise improving the pre-training procedure. By open sourcing our models and dataset, we hope to spark renewed interest for melody transcription in the MIR community, which may in turn reduce the gap between human perception and machine recognition of a fundamental aspect of music.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9.">ETHICAL CONSIDERATIONS</head><p>Our definition of melody transcription incorporates equal temperament, a Western-centric tuning system. This could lead to disparate treatment of non equal-tempered music, e.g., if a streaming service were to use melody transcriptions for recommendation. We therefore advocate for the deployment of transcription only in contexts where users are self-selecting music to listen or play along to. Transcription may also be used to create training data for generationÐas with any work on generation, there are risks of plagiarism and labor displacement. We recommend that any work on generation involve careful auditing and mitigation of plagiarism. Due to the incomplete nature of a melody, we argue that melody generation tools are more likely to be incorporated into co-creation workflows (see <ref type="bibr" target="#b53">[54]</ref>) rather than used to displace musicians.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>1</head><label></label><figDesc>Examples: https://chrisdonahue.com/sheetsage Code: https://github.com/chrisdonahue/sheetsage © C. Donahue, J. Thickstun, and P. Liang. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: C. Donahue, J. Thickstun, and P. Liang, ªMelody transcription via generative pre-trainingº, in Proc. of the 23rd Int. Society for Music Information Retrieval Conf., Bengaluru, India, 2022.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. Our melody transcription approach involves (1) extracting audio representations from Jukebox [1], a generative model of music, (2) averaging these representations across time to their nearest sixteenth note (dashed outlineÐuses madmom<ref type="bibr" target="#b11">[12,</ref><ref type="bibr" target="#b12">13]</ref> for beat detection), and (3) training a Transformer<ref type="bibr" target="#b13">[14]</ref> to detect note onsets (or absence thereof) per sixteenth note. Outputs can be rendered to MIDI (by mapping beats back to time) or a score.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 .</head><label>3</label><figDesc>Figure3. Inference procedure for Sheet Sage, our proposed system which transcribes any Western music audio into lead sheets (scores which depict melody as notes and harmony as chord names). The green, blue, and yellow boxes respectively take audio, features, and symbolic music data as input. Green boxes are modules that we built as part of this workÐboth are Transformers<ref type="bibr" target="#b13">[14]</ref> trained on their respective tasks using audio features from Jukebox<ref type="bibr" target="#b0">[1]</ref> and data from HookTheory<ref type="bibr" target="#b48">[49]</ref>.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 .</head><label>1</label><figDesc>HookTheory test set performance for Transformers trained with different features (top) and combinations</figDesc><table><row><cell></cell><cell>d</cell><cell>F1</cell></row><row><cell>Mel</cell><cell>229</cell><cell>0.514</cell></row><row><cell>MT3</cell><cell>512</cell><cell>0.550</cell></row><row><cell>Jukebox</cell><cell cols="2">4800 0.615</cell></row><row><cell>Mel, MT3</cell><cell>741</cell><cell>0.548</cell></row><row><cell>Mel, Jukebox</cell><cell cols="2">5029 0.617</cell></row><row><cell>MT3, Jukebox</cell><cell cols="2">5312 0.622</cell></row><row><cell cols="3">Mel, MT3, Jukebox 5541 0.623</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 .</head><label>2</label><figDesc>Note that these two pre-training approaches are compared holisticallyÐthese Performance of different approaches on a subset of RWC-MDB [38±40]. The bottom three approaches were trained on the HookTheory dataset. For fair comparison to vocal transcription baselines, we also separately report performance on the vocal portions of this dataset. models differ on several axes (number of parameters, pretraining data semantics, pre-training task), and thus it is impossible to disentangle the individual contributions of these different factors without retraining the models.</figDesc><table><row><cell>Approach</cell><cell cols="2">F1 (All) F1 (Vocal)</cell></row><row><cell>MT3 Zero-shot [35]</cell><cell>0.133</cell><cell>0.085</cell></row><row><cell>Melodia [48] + Segmentation</cell><cell>0.201</cell><cell>0.268</cell></row><row><cell>Spleeter [31] + Tony [28]</cell><cell>0.341</cell><cell>0.462</cell></row><row><cell>DSP + HMM [24]</cell><cell>0.420</cell><cell>0.381</cell></row><row><cell>Mel + Transformer</cell><cell>0.631</cell><cell>0.621</cell></row><row><cell>MT3 + Transformer</cell><cell>0.701</cell><cell>0.659</cell></row><row><cell>Jukebox + Transformer</cell><cell>0.744</cell><cell>0.786</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_0"><p>Melody is difficult to precisely defineÐhere we adopt an implicit definition based on a dataset of crowdsourced melody annotations.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_1"><p>The specific heuristic that we use sets the offset of one note equal to the onset of the next, i.e., it assumes the melody is legato.Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_2"><p>HookTheory annotations are published under a CC BY-NC-SA 3.0 license, which our dataset inherits.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_3"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_4"><p>This requires quantizing labels to the nearest sixteenth note. In practice, less than 1% of notes in our dataset are affected by this quantization.Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="10.">ACKNOWLEDGEMENTS</head><p>Thanks to <rs type="person">Annie Hui-Hsin Hsieh</rs>, <rs type="person">John Hewitt</rs>, <rs type="person">Maggie Henderson</rs>, <rs type="person">Megha Srivastava</rs>, <rs type="person">Nelson Liu</rs>, <rs type="person">Pang Wei Koh</rs>, <rs type="person">Rodrigo Castellon</rs>, <rs type="person">Sam Ainsworth</rs>, and <rs type="person">Zachary C. Lipton</rs> for helpful discussions, support, and advice. We thank all reviewers for their helpful comments.</p></div>
+			</div>			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Payne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2005.00341</idno>
+		<title level="m">ªJukebox: A generative model for music</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">ªAccompaniment separation and karaoke application based on automatic melody transcription</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ryynänen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Virtanen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Paulus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Klapuri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Multimedia and Expo</title>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">ªMusic preference and music education: A review of literature,º Applications of Research in Music Education</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Droe</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bainbridge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">G</forename><surname>Nevill-Manning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><forename type="middle">H</forename><surname>Witten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Mcnab</surname></persName>
+		</author>
+		<title level="m">ACM Conference on Digital Libraries</title>
+		<imprint>
+			<date type="published" when="1999">1999</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">ªQuery by humming: Musical information retrieval in an audio database</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ghias</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Logan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Chamberlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">C</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACM International Conference on Multimedia</title>
+		<imprint>
+			<date type="published" when="1995">1995</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Plumbley, ªScore-informed source separation for musical audio recordings: An overview</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ewert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Pardo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Muller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Signal Processing Magazine</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">ªEnabling factorized piano music modeling and generation with the MAESTRO dataset</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Stasyuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Elsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>º in ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">ªA real-time music scene description system: Detecting melody and bass lines in audio signals</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hayamizu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Joint Conference on Artificial Intelligence Workshop on Computational Auditory Scene Analysis</title>
+		<imprint>
+			<date type="published" when="1999">1999</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">ªA real-time music-scene-description system: Predominant-F0 estimation for detecting melody and bass lines in real-world audio signals</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<publisher>Speech Communication</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">ªMelody extraction from polyphonic music signals: Approaches, applications, and challenges</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Gómez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+		<respStmt>
+			<orgName>IEEE Signal Processing Magazine</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">ªMelody extraction from polyphonic music by deep learning approaches: A review</title>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">S</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">P</forename><surname>Das</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2202.01078</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">ªJoint beat and downbeat tracking with recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Krebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">ªmadmom: A new python audio and music signal processing library</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Korzeniowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schlüter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Krebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Multimedia</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">È</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note>ªAttention is all you need,º in NeurIPS</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">ªAn end-to-end neural network for polyphonic piano music transcription</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Sigtia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">ªOnsets and frames: Dual-objective piano transcription</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Elsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">ªCodified audio language modeling learns useful representations for music information retrieval</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Castellon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">S</forename><surname>Downie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">H</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">J</forename><surname>Cunningham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Hao</surname></persName>
+		</author>
+		<title level="m">ªTen years of MIREX: reflections, challenges and opportunities</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<ptr target="https://github.com/justinsalamon/audio_to_midi_melodia" />
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">ªMusical note estimation for F0 trajectories of singing voices based on a Bayesian semi-beat-synchronous HMM</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Nishikimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Itoyama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">ªScale-and rhythm-aware musical note estimation for vocal F0 trajectories based on a semi-tatumsynchronous hierarchical hidden semi-markov model</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Nishikimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Itoyama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ªAn auditory model based approach for melody detection in polyphonic musical recordings</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">P</forename><surname>Paiva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Mendes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Cardoso</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Symposium on Computer Music Modeling and Retrieval</title>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">ªOn the detection of melody notes in polyphonic audio</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">P</forename><surname>Paiva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Mendes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Cardoso</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ªAutomatic transcription of melody, bass line, and chords in polyphonic music</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">P</forename><surname>Ryynänen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">P</forename><surname>Klapuri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Music Journal</title>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">ªAutomatic generation of lead sheets from polyphonic music signals</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Weil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Sikora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-L</forename><surname>Durrieu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+		<editor>ISMIR</editor>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">ªAutomatic melody transcription based on chord transcription</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Laaksonen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Singing transcription based on hysteresis defined on the pitch-time curve</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Molina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">J</forename><surname>Tardón</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Barbancho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Barbancho</surname></persName>
+		</author>
+		<author>
+			<persName><surname>ªsipth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">ªComputer-aided melody note transcription using the Tony software: Accuracy and efficiency</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mauch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Cannam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fazekas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Technologies for Music Notation and Representation</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">ªBayesian singing transcription based on a hierarchical generative model of keys, musical notes, and F0 trajectories</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Nishikimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Itoyama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">ªAudio-to-score singing transcription based on a CRNN-HSMM hybrid model</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Nishikimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">APSIPA Transactions on Signal and Information Processing</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Moussallam, ªSpleeter: a fast and efficient music source separation tool with pre-trained models</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Hennequin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Khlif</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Voituret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Open Source Software</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">ªAutomatic music transcription: challenges and future directions</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Giannoulis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Kirchhoff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Klapuri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Intelligent Information Systems</title>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">ªLearning features of music from scratch</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Thickstun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Harchaoui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kakade</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note>º in ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">ªCutting music source separation some Slakh: A dataset to study the impact of training data quality and quantity</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Manilow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Wichern</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Seetharaman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">Le</forename><surname>Roux</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Workshop on Applications of Signal Processing to Audio and Acoustics</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Multi-task multitrack music transcription</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Manilow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">3</biblScope>
+		</imprint>
+	</monogr>
+	<note>º in ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">ªInvestigating the perceptual validity of evaluation metrics for automatic piano music transcription,º TISMIR</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ycart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Pearce</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">ªmir_eval: A transparent implementation of common MIR metrics</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Humphrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Nieto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Ellis</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note>º in IS-MIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">ªRWC Music Database: Popular, classical and jazz music databases</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Hashiguchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Nishimura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Oka</surname></persName>
+		</author>
+		<editor>ISMIR</editor>
+		<imprint>
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">ªRWC Music Database: Music genre database and musical instrument sound database</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Hashiguchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Nishimura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Oka</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<title level="m">ªDevelopment of the RWC Music Database,º in International Congress on Acoustics</title>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">ªSurpriseNet: Melody harmonization conditioning on user-controlled surprise contours</title>
+		<author>
+			<persName><forename type="first">Y.-W</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H.-S</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H.-M</forename><surname>Wang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y.-C</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-Y</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Fukayama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kitahara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Genchel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H.-M</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H.-W</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Leong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<title level="m">ªAutomatic melody harmonization with triad chords: A comparative study,º Journal of New Music Research</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">ªMIREX 2019 submission: Crowd annotation for audio key estimation</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">G</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">B</forename><surname>Carlton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">MIREX</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">G</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">B</forename><surname>Carlton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">N</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">H</forename><surname>Miyakawa</surname></persName>
+		</author>
+		<title level="m">ªTransformerVAE: A hierarchical model for structure-aware and interpretable music representation learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>º in ICASSP</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<title level="m" type="main">ªSequence-to-sequence piano transcription with transformers</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Swavely</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Manilow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">Schmidhuber, ªConnectionist temporal classification: labelling unsegmented sequence data with recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Fernández</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+	<note>º in ICML</note>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">ªAnalyzing song structure with spectral clustering</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Ellis</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">ªMelody extraction from polyphonic music signals using pitch contour characteristics</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Gómez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">C</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Carlton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Miyakawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Schwachhofer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">B</forename><surname>ªhooktheory Theorytab</surname></persName>
+		</author>
+		<ptr target="https://www.hooktheory.com/theorytab" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<author>
+			<persName><forename type="first">B</forename><surname>Haas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Magalhaes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Ten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Heggeler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Bekenkamp</surname></persName>
+		</author>
+		<title level="m">ªChordify: Chord transcription for the masses,º in ISMIR Late-Breaking Demos</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<monogr>
+		<title level="m" type="main">Cognitive foundations of musical pitch</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">L</forename><surname>Krumhansl</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1990">1990</date>
+			<publisher>Oxford University Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<title level="m" type="main">ªWhat&apos;s key for key? The Krumhansl-Schmuckler key-finding algorithm reconsidered,º Music Perception</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Temperley</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1999">1999</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<author>
+			<persName><forename type="first">H.-W</forename><surname>Nienhuys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nieuwenhuizen</surname></persName>
+		</author>
+		<title level="m">Colloquium on Musical Informatics</title>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<monogr>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">V</forename><surname>Koops</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Newton-Rex</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">J</forename><surname>Cai</surname></persName>
+		</author>
+		<title level="m">ªAI Song Contest: Human-AI co-creation in songwriting,º in ISMIR</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<monogr>
+		<title level="m">Proceedings of the 23rd ISMIR Conference</title>
+		<meeting>the 23rd ISMIR Conference<address><addrLine>Bengaluru, India</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">December 4-8, 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>
