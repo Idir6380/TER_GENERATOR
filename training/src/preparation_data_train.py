@@ -13,7 +13,7 @@ def decomposition_en_phrase(text):
     text = re.sub(r'\s*,\s*', ' , ', text)
     text = re.sub(r'\s*<\s*', ' <', text)
     text = re.sub(r'\s*>\s*', '> ', text)
-    text= re.sub(r'\s*([;:])\s*', r' \1 ', text)
+    text= re.sub(r'\s*([;:)(.])\s*', r' \1 ', text)
     phrases = re.split(r'(?<!\d)[.!?]+(?!\d)', text)
     phrases = [p.strip()+" ." for p in phrases if p.strip()]
     return phrases

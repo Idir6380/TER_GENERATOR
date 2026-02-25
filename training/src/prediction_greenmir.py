@@ -3,7 +3,7 @@ from pred import *
 import json
 
 def create_path(global_path,i):
-    return f"{global_path}data/GreenMIR/text_nettoyer/article{i + 1}.txt"
+    return f"{global_path}data/GreenMIR/texts/article_{i}.txt"
 
 
 def lire_et_nettoyage_file(file_name):
@@ -84,15 +84,15 @@ def predict_label_greenmir(global_path):
     model, tokeniser,inv_vocab= initialisation_for_test(global_path)
     model.eval()
     for i in range(113):
-        file=create_path(global_path,i)
+        file=create_path(global_path,i+1)
         features= lire_et_nettoyage_file(file)
         labels_pred= recontruction(model,tokeniser,features,inv_vocab)
-        dic= create_dic(features, labels_pred, i)
+        dic= create_dic(features, labels_pred, i+1)
         list_valeur_predict.append(deduplicate_information(dic))
     return list_valeur_predict
         
 
 global_path="/Users/vanessaguerrier/Downloads/projet_TER_M2/"
 valeur= predict_label_greenmir(global_path)
-with open( "/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/greenmir_pred.json", 'w', encoding='utf-8') as fichier:
+with open( "/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/greenmir_pred_1.json", 'w', encoding='utf-8') as fichier:
     json.dump(valeur, fichier, ensure_ascii=False, indent=4)
