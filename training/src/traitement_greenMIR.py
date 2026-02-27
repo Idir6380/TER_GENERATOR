@@ -84,7 +84,6 @@ def traitement_(gpu_count,fonction=convert_gpu_count):
     if len(gpu_count)==0:
         return None
     elif len(gpu_count)==1:
-        print(gpu_count[0])
         return fonction(gpu_count[0])
     else:
         val= []
