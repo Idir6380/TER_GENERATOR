@@ -1,0 +1,970 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">SINTRA: LEARNING AN INSPIRATION MODEL FROM A SINGLE MULTI-TRACK MUSIC SEGMENT</title>
+				<funder ref="#_r2TKDpp">
+					<orgName type="full">National Natural Science Foundation of China</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Qingwei</forename><surname>Song</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">College of Electronic Engineering</orgName>
+								<orgName type="institution">Ocean University of China</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Qiwei</forename><surname>Sun</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">School of Microelectronics</orgName>
+								<orgName type="institution">Xi&apos;an Jiaotong University</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Dongsheng</forename><surname>Guo</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">College of Electronic Engineering</orgName>
+								<orgName type="institution">Ocean University of China</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Haiyong</forename><surname>Zheng</surname></persName>
+							<email>zhenghaiyong@ouc.edu.cn</email>
+							<affiliation key="aff0">
+								<orgName type="department">College of Electronic Engineering</orgName>
+								<orgName type="institution">Ocean University of China</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">SINTRA: LEARNING AN INSPIRATION MODEL FROM A SINGLE MULTI-TRACK MUSIC SEGMENT</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">E108C535F1D16943C89044DE7A52CB7A</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:15+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>In this paper, we propose SinTra, an auto-regressive sequential generative model that can learn from a single multi-track music segment, to generate coherent, aesthetic, and variable polyphonic music of multi-instruments with an arbitrary length of bar. For this task, to ensure the relevance of generated samples and training music, we present a novel pitch-group representation. SinTra, consisting of a pyramid of Transformer-XL with a multi-scale training strategy, can learn both the musical structure and the relative positional relationship between notes of the single training music segment. Additionally, for maintaining the inter-track correlation, we use the convolution operation to process multi-track music, and when decoding, the tracks are independent to each other to prevent interference. We evaluate SinTra with both subjective study and objective metrics. The comparison results show that our framework can learn information from a single music segment more sufficiently than Music Transformer. Also the comparison between SinTra and its variant, i.e., the single-stage SinTra with the first stage only, shows that the pyramid structure can effectively suppress overly-fragmented notes.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>The current development trend of music generation is to generate harmonious multi-track music with longer-term dependency. However, in the composition of real life, the inspiration is the beginning of a song, and the composer usually creates a music based on a single music segment that comes to mind. Thus, it's more important to find ideas that are relevant to the inspiration.</p><p>As for composers, the composition process can be divided into two stages. The first stage is to generate a large number of ideas that provide inspiration for subsequent creation. The second stage is about idea convergency. Composers need to find ideas that can express their feelings and emotions to the audience from a large number of ideas, then expand, repeat and arrange them, and © Q. Song, Q. Sun, D. Guo, and H. Zheng. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Q. Song, Q. Sun, D. Guo, and H. Zheng, "SinTra: Learning an inspiration model from a single multi-track music segment", in Proc. of the 22nd Int. Society for Music Information Retrieval Conf., Online, 2021. finally end up with a song. At the first stage, generated ideas constitute small segments of music, from which to compose more similar segments can provide more inspiration for composers. Therefore, as to music generation, it's significant to learn an inspiration model, that is, a generative model to generate music, inspiring the composers for creating a song according to a single music segment.</p><p>Recently, music generation has witnessed great progress due to the development of deep learning technologies. The mainstream methods are modeling the note sequences by drawing lessons from language models in natural language processing (NLP), which require a large number of MIDIs as training set to learn the distribution of notes. Generally, the training period is long, and the randomness of generated music is relatively high. However, if only a single music segment is available for training, it's hard for previous models to acquire enough information for leaning reasonable musical structure and relation position relationship between notes, resulting in chaotic and aesthetically unpleasant music (refer to Section 6).</p><p>At present, some one-shot generation works <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b2">2]</ref> followed the multi-scale training mechanism and achieved compelling results, which allow the network to learn the information from single training data in different scales more sufficiently. Besides, recent works in music gener-ation <ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref> adopted the Transformer-XL <ref type="bibr" target="#b6">[6]</ref>, an improved variant of the Transformer <ref type="bibr" target="#b7">[7]</ref>, to introduce recurrence to the architecture, as the backbone sequence model.</p><p>In this paper, we leverage the multi-scale training scheme and the Transformer-XL architecture, to tackle the more challenging and meaningful one-shot music generation, that is, generating music from a single multi-track music segment. To ensure the relevance of generated music and training segment, we present a novel pitch-group representation to contain all pitch group types of the single training music segment. Besides, in order to deal with more complex multi-track music, we design three modules in each stage (scale) of our multi-scale training.</p><p>To summarize, SinTra can actually be regarded as an inspiration model for music composition. When the composer is lacking in inspiration, or in creation, it would be very repetitive to make detailed adjustments at the structure level, and SinTra can help. Certainly, the subsequent fine-tuning still needs to be done by humans. We make four contributions: (1) A novel pitch-group representation is presented to model polyphonic music of single instrument into a sequence; (2) A novel inspiration model, namely SinTra, is devised to generate meaningful music from only a single music segment; (3) Three modules based on Transformer-XL are designed for each stage of multi-scale training to process multi-track music. (4) The source code 1 and music data are made publicly available.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Music Generation</head><p>Music generation, as a niche research task of music information retrieval (MIR), has a long history and has attracted great attention in both industrial and art communities recently.</p><p>As a traditional method, Markov models are often used in the field of MIR, such as the work from Simon et al. <ref type="bibr" target="#b8">[8]</ref> and Tsushima et al. <ref type="bibr">[9]</ref>. Chuan et al. <ref type="bibr" target="#b10">[10]</ref> have also used support vector machine (SVM) to select chord tones from given melodies. Then, recurrent neural network (RNN) <ref type="bibr" target="#b11">[11]</ref> with long short-term memory (LSTM) <ref type="bibr" target="#b12">[12]</ref> and gated recurrent unit (GRU) <ref type="bibr" target="#b13">[13]</ref>, variational autoencoder (VAE) <ref type="bibr" target="#b14">[14]</ref>, and generative adversarial network (GAN) <ref type="bibr" target="#b15">[15]</ref>, are common deep learning frameworks used for modeling music sequence. MuseGAN <ref type="bibr" target="#b16">[16]</ref> generated music as an image (converting MIDI into pianoroll) with GANs, and used an inter-track latent vector to make the generated multi-track music coherent. To overcome the binarization issue, the upgraded version of MuseGAN, Binary MuseGAN <ref type="bibr" target="#b17">[17]</ref> proposed an additional refiner network, which enables generator to directly generate binary-valued piano-rolls at test time. Moreover, two types of binary neurons (BNs) considered features fewer overly-fragmented notes as compared to MuseGAN. MIDI-Sandwich2 <ref type="bibr" target="#b18">[18]</ref>, which also used piano-roll, applied a hierarchical multi-modal fusion generative VAE network 1 <ref type="url" target="https://github.com/qingweisong/SinTra">https://github.com/qingweisong/SinTra</ref>    </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Track1</head><p>Track1 key value 0 0 0 based on RNN to collaboratively generate multi-track symbolic music. XiaoIce Band <ref type="bibr" target="#b19">[19]</ref>, a melody and arrangement generation framework for pop music, introduced cooperate GRUs between each generation track to generate melody and multi-track music arrangement. DeepJ <ref type="bibr" target="#b20">[20]</ref>, based on Bi-LSTM <ref type="bibr" target="#b21">[21]</ref>, was trained using piano-roll for style-specific music generating (baroque, classical, and romantic). Different from previous music generation models, our work devotes to learning a model to generate music from only a single segment.</p><formula xml:id="formula_0">1 1 1 1 1 1 0 0 0 1 1 1 1 1 1 1 0 1 0 1 0 0 0 1 0 0 1 1</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Transformer and Multi-scale Training</head><p>Compared to LSTM or GRU, Transformer, a sequence model based on multi-head self-attention mechanism, is more parallelizable for both training and inferring, and more interpretable <ref type="bibr" target="#b7">[7]</ref>. Transformer has achieved compelling results in tasks that require maintaining long-range dependencies, such as neural machine translation <ref type="bibr" target="#b7">[7]</ref>, pre-training language models <ref type="bibr" target="#b22">[22]</ref>, text-to-speech synthesis <ref type="bibr" target="#b23">[23]</ref>, and speech recognition <ref type="bibr" target="#b24">[24]</ref>. For music generation, Music Transformer <ref type="bibr" target="#b25">[25]</ref> was the first work that applies the Transformer to symbolic music generation, Huang et al. used relative positional encoding <ref type="bibr" target="#b26">[26]</ref> within the original Transformer architecture to capture relative timing information. MuseNet <ref type="bibr" target="#b27">[27]</ref> used sparse kernels <ref type="bibr" target="#b28">[28]</ref> to remember the long-term structure in the composition. More recent works <ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref> adopted Transformer-XL <ref type="bibr" target="#b6">[6]</ref> that uses recurrent memory to enable the model to attend beyond a fixed context. In this work, we also leverage the powerful long-term dependency modeling of Transformer-XL for one-shot music generation.</p><p>Notably, SinGAN <ref type="bibr" target="#b1">[1]</ref> has achieved compelling results on the task of unconditional generation from a single natural image, via a pyramid of fully convolutional light-weight GANs in a coarse-to-fine fashion. Then TOAD-GAN <ref type="bibr" target="#b2">[2]</ref> was proposed for coherent style level generation following the one-shot training approach of SinGAN. Our work also involves the multi-scale training scheme into our SinTra model for better training from a single music segment. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">DATA REPRESENTATION</head><p>We use the method of language modeling to train the generation models for symbolic music. Therefore, by serializing polyphonic music into a single sequence, we express music as a series of discrete symbols determined by the data in music. For music generation learning from a single music segment, we present a novel pitch-group representation, which uses the index to represent various pitch group types by flexibly building a pitch-group dictionary of key-value pairs. The principle of pitch-group representation and the construction of pitch-group dictionary are shown in Figure <ref type="figure">2</ref>. For a segment of music, the dictionary of pitch-group representation will not be very complex, so this representation method is feasible.</p><p>We treat all types of pitch group in each time step as elements, such as harmony, single tone and interval, which can use 1-dim sequence to represent polyphonic music. And the pitch-group representation can be regarded as an upgraded representation of pitch-based representation (support only monophonic music). However, this method is a double-edged sword, which will limit the output space and affect the diversity of generated music.</p><p>Piano-roll and event-based are the two most commonly data representations. Piano-roll representation used in DeepJ <ref type="bibr" target="#b20">[20]</ref>, MuseGAN <ref type="bibr" target="#b16">[16]</ref>, Binary MuseGAN <ref type="bibr" target="#b17">[17]</ref>, MIDI-Sandwich2 <ref type="bibr" target="#b18">[18]</ref>, and Music Transformer <ref type="bibr" target="#b25">[25]</ref>, is a 5-dim matrix representation of music where the vertical and horizontal axes respectively represent note pitch and time step. However, the piano-roll matrix is sparse since there are many zeros, only a few notes are attacked during each time step. Gale et al. <ref type="bibr" target="#b29">[29]</ref> proved that sparse matrix has great computational potential. Treating piano-roll directly as dense matrix processing will waste computing resources.</p><p>Event-based representation used in Music Transformer <ref type="bibr" target="#b25">[25]</ref> and LakhNES <ref type="bibr" target="#b3">[3]</ref>, means that the MIDI note events are converted into a sequence of tokens by a vocabulary containing 388 events. A one-minute song may need about 900 tokens in event-based representation. When the temporal resolution is 16th note and the tempo is 120 bpm, the piano-roll is a matrix whose shape is (480, 128) and the pitch-group is a sequence whose length is 480. It means that the length of the event-based is twice that of the other two methods. Besides, although events are generated in probability order, when there is not enough training data, it's easy to generate unreasonable note (e.g., Note_on event of the same note is generated before the Note_off event or super long note). In addition, TIME_SHIFT can possibly cause the confusion of time value information as proposed by Wu et al. <ref type="bibr" target="#b5">[5]</ref>.</p><p>Since traditional representation considers the universality of music representation, the coding space utilization is low when representing the information of a specific segment of music. For example, a segment of music only uses 20 pitches but still needs to use 128 pitch coding spaces. Or only 80 events appeared, but the encoding space of 388 events still needs to be used.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">MUSIC GENERATION LEARNED FROM A SINGLE MUSIC SEGMENT</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Pyramid of Transformer-XL Model</head><p>For learning reasonable musical structure and relative position relationship between pitch-group indexes of a single music segment, we adopt the multi-scale training mechanism to design a pyramid of Transformer-XLs {T 0 , • • • , T N }. Figure <ref type="figure" target="#fig_3">3</ref> shows the pipeline of SinTra for the generation of music samples. SinTra is trained with a sequence pyramid of each stage's real music R:</p><formula xml:id="formula_1">{R 2 x 0 , • • • , R 2 x N</formula><p>} by the Negative Log Likelihood (NLL) loss, where R<ref type="foot" target="#foot_1">foot_1</ref> xn is a downsampled version of R 2 x 0 . Each Transformer-XL T n is responsible of producing music samples P 2 n with the corresponding scale of R 2 xn . The generation of a music sample starts at the coarsest scale and sequentially passes through all models up to the finest scale. The Transformer-XLs have the different processing length and thus capture more details as we go up the generation process.</p><p>In order to get the sequence pyramid of R for each stage, we use different note-values to sample the original sequence. This kind of down-sampling method preserves the coarse-grained music structure information of the training music. We artificially define the note-value of each stage as 2 xn th, and the scale of the corresponding stage is N 2 x 0 -xn . For our training, the 16th note sequence of N length is sampled down to N 2 and N 4 by the 8th note and the 4th note respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Processing of Multi-track Sequences</head><p>All the models of each scale have a similar architecture, as depicted in Figure <ref type="figure" target="#fig_2">4</ref>. For maintaining the inter-track correlation, we use convolution operation to process multi-track music, and when decoding, the tracks are independent of each other to prevent interference. The Track_multi2one module is used to map multi-track sequence into a single sequence, and the Track_one2multi is the inverse process of Track_multi2one. The Track-wise Decoder module is used to decode each track independently.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Training and Inference</head><p>The first transformer generates bar by bar sequentially and the others refine each bar in a coarse-to-fine manner. In the 1 st scale of training, the sequence sampled by the 4th note of the t th bar R 4  t is fed into the model, and the (t+1) th bar R 4 t+1 is taken as training target with NLL loss. In the 2 nd scale of training, to get the 8th sequence F 8 t+1 , the output P 4 t+1 to the previous scale needs to be upsampled, and the model will be trained with R 8 t+1 as output. In the same way, the 3 rd scale needs F 16 t+1 as input and to be trained with output R 16 t+1 . And the final output is P 16 t+1 from the 3 rd scale. The overall training process is shown in Eqn (1). </p><formula xml:id="formula_2">1st : P 4 t+1 = M odel 1 st (R 4 t ) loss 1 st = N LL(P 4 t+1 , R<label>4</label></formula><p>In the inference of the NLP model, if the highest probability result is used as the prediction result every time, the Via the Track-wise Decoder, the final output token sequence shape is (1, T rack, T ). generated content will repeat easily, this method is called Top1. Hence, we adopt the Topp method proposed by Holtzman et al. <ref type="bibr" target="#b30">[30]</ref>, that is, the model will sample the predicted results from several of the most likely results. In our inference process, the 1 st scale is used to predict the next bar, so we can set a larger p = 0.9 to increase the diversity of the generated samples. However, the latter two scales are used to enhance the details, if the variety is robust, the generated content will become overly-fragmented, so we set a smaller p = 0.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">EXPERIMENT SETUPS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Data</head><p>We test our method both qualitatively and quantitatively on a variety of music files in MIDI format, containing wellknown works of multiple styles of music. The MIDIs that we used are taken from the JSB Chorale dataset <ref type="bibr" target="#b31">[31]</ref>, classical music used in C-RNN-GAN <ref type="bibr" target="#b32">[32]</ref> from the website 2 . We only use the JSB Chorale dataset for objective evaluation, because Music Transformer only supports singletrack music. And we use all the MIDIs for subjective study.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Model Configurations &amp; Training Setup</head><p>We performed our experiments under an NVIDIA GeForce GTX TITAN X graphics card, with PyTorch 1.4.0 running under CUDA 11.2. We implemented our multi-scale training framework (Figure <ref type="figure" target="#fig_3">3</ref>) based on the Transformer-XL encoder. The encoder has 6 layers and the number of heads is 8 with a dimension of 32. The dimension of the embedding layer is 256 and the hidden layer dimension is 1024. The dropout ratio is set at 0.09. The length of training input tokens (processing length) and the memory length of 3 stages are 4, 8, 16, respectively.</p><p>Considering downsampling, to make SinTra learn the single training segment sufficiently, it is necessary to choose the note-value of each scale reasonably. The shorter notes appear in the training music segment, the smaller note-value used for sampling needs to be set in the finest scale, and the number of stages required for training is larger. Besides, the note-values of the adjacent scale are preferably a 2-fold relationship. Formally, the note-value of the finest scale is set to the shortest note that appears, the note-value of the 1 st stage is set to the 4th note value (standard time unit in music).</p><p>We choose Music Transformer 3 and our variant, the model with only the first stage named single-stage SinTra, whose temporal resolution is set to the 16th note value, for comparison. We use Adam optimizer with β 1 = 0.5, β 2 = 0.999, ǫ = e -8 and follow the same learning rate schedule in Transformer-XL <ref type="bibr" target="#b6">[6]</ref>. We set the number of input bars as 12 and the number of generated bars as 32.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Subjective Study</head><p>We set up a blind listening test for human evaluation in which test-takers listen to 7 segments of music, one from the real music, three from SinTra and three from Music Transformer. In the test, test-takers will be asked the same set of questions after listening to each of the two test groups, namely, to rate them on a five-point scale about the following aspects:</p><p>• Quality (Q): Does the generated music sound pleasing overall? • Relevance (R): Whether the generated music give you the same feeling as the real music? • Diversity (D): Does the generated music have new arrangement that impresses you?</p><p>Finally, we collect responses from 50 subjects, of which 20 are classified as professional composers for their musical background. The 20 professions were asked to rate each music segment they heard from the music composition theory aspect, while 30 non-composers were asked to rate their subjective feelings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Objective Evaluation</head><p>Objective evaluation in music generation is still an open question, though various metrics have been proposed, the feeling of music varies from person to person, it's hard to measure the quality of generated music. To quantitatively compare the performance differences between the three models, we use the following metrics to measure the similarity and diversity between generated music samples and the realistic single music segment. 3 Since the official code is highly coupled with Magenta, data processing and training scripts are not shown explicitly. We thus used a third-party implementation (<ref type="url" target="https://github.com/jason9693/">https://github.com/jason9693/</ref> MusicTransformer-pytorch) instead.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Quality</head><p>Relevance Diversity SinTra 3.20/5.00 3.66/5.00 2.86/5.00 Music Trans. 2.34/5.00 2.38/5.00 2.54/5.00</p><p>Table <ref type="table">1</ref>. Results of subjective study in a five-point scale.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4.1">KL Divergence</head><p>KL divergence measures the distance between two distributions. In this paper, pitch group indexes are used as the essential element for calculating the music distribution. The way we measure similarity is by calculating KL divergence between distributions of pitch group:</p><formula xml:id="formula_4">D kl (P ||Q) = 1 N sample N sample j=0 Ntype i=0 P (i)log 2 ( P (i) Q(i) ),<label>(2)</label></formula><p>where N sample means the number of generated samples, N type means the number of pitch group types, P (i) means the i th pitch group type of the generated samples, Q(i) means the i th pitch group type of the original music. The smaller the KL divergence, the closer the two distributions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4.2">Pitch Group Overlap</head><p>Referring to the idea of IoU (Intersection over Union), we design a metric named pitch group overlap:</p><formula xml:id="formula_5">Overlap = N j=0 len(set(P ) ∩ set(Q)) N * len(set(P ) ∪ set(Q)) ,<label>(3)</label></formula><p>where set(P ) means a set contains all pitch group types appearing in the sample, set(Q) means a set contains all types appearing in the real music segment. Overlap means the length of intersection between set(P ) and set(Q) divided by the length of the union. Compared to KL divergence, the overlap can measure the difference between P and Q distributions at a coarser granularity. The larger the overlap, the more similar the pitch group types of two songs.</p><p>It should be noted that both KL divergence and overlap can only roughly measure the similarity between the two pieces of music. In the music generation task, if the similarity is too high, the diversity will be low. Conversely, if the similarity is too low, the correlation with real music will not be ideal. Therefore, to balance diversity and relevance, it is necessary to find a suitable similarity interval.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">RESULTS AND ANALYSIS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Results of Subjective Study</head><p>The results shown in Table <ref type="table">1</ref> indicate that our SinTra receives commendable scores, especially in relevance (R). After communicating with the subjects, they reflected that there were several fluent segments in samples, but the occasional messy notes led to the decline of the overall auditory perception. The output space dictionary constructed in the pitch-group representation ensures the correlation between generated music and real music. Besides, the coarse-to-fine fashion introduced by the pyramid structure enables the model to fully learn the features of training data. Although we introduce randomness at each stage in terms of diversity (D), the results show that the generated music is still close under a single training music.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Comparison with Previous Work</head><p>We compare music generation quality of SinTra with Music Transformer by: 1) we conduct experiments in the same one-shot learning condition, and since Music Transformer only supports single-track music, we use JSB Chorale dataset to evaluate the performance; 2) both models are asked to generate 10 segments in about 1 minute; 3) we set the velocity of all notes in musical pieces generated by models to a reasonable value (100). The comparison results are shown in Table <ref type="table" target="#tab_3">2</ref> and the local detail of the generate music is demonstrated in Figure <ref type="figure">5</ref>. The convergence values of NLL loss shown in Table <ref type="table" target="#tab_4">3</ref> also validate that Music Transformer does not fit the training music well. The music generated by SinTra is more realistic and fits more closely with real music.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Method Analysis</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3.1">Analysis on Pyramid Structure</head><p>To verify the effectiveness of the pyramid structure, we build the single-stage SinTra. As depicted in Figure <ref type="figure">5</ref>  Figure <ref type="figure">6</ref>. The effect of detail enhancement at each stage of SinTra. In the stage of the 4th note-value, simple notes will be generated but lack details, while in the 8th and 16th stages, the model refines some details.</p><p>we can see that the embryonic form of melody appears in single-stage SinTra, but is overly-fragmented and noisy.</p><p>The KL divergence (27.84) and overlap (55%) shown in Table <ref type="table" target="#tab_3">2</ref> are not ideal because of overly-fragmented notes.</p><p>The comparison results show that SinTra can effectively suppress messy notes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3.2">Analysis on Multi-stage Output</head><p>Figure <ref type="figure">6</ref> shows the output effect of SinTra at each stage. In the 1 st stage (the 4th note-value), the model generates simple notes, ignores local details, and sketches roughly the outline of songs. Then the 2 nd and 3 rd stages enrich the contour in turn, bringing local detail changes. This model structure can effectively solve the problem of music generated by single-stage SinTra, while ensuring the generation quality, which can introduce randomness in each stage.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.">CONCLUSION AND FUTURE WORK</head><p>In this work, we propose SinTra, an inspiration generation framework to complete the task of one-shot learning in music generation. SinTra, consisting of a pyramid of Transformer-XL with a multi-scale training strategy, can learn both the musical structure and the relative positional relationship between notes of the single training music segment. Moreover, we present a novel pitch-group representation to ensure the relevance of generated samples and training music. The results of subjective study and objective evaluation show the effectiveness of SinTra for learning from single training data, generating music samples with a strong correlation with the training music. However, there is still room for improvement in the quality and diversity of generated music.</p><p>In the future, we will study controllable music generation that can integrate emotion-and style-controlled generations into SinTra. We will also consider large-scale generative pre-training to improve generation quality. We hope SinTra can be leveraged to enhance musicians' productivity and inspire them to compose higher quality music.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. One sample of four-track piano-roll (right) with 32-bar length (each block represents a bar), generated by our SinTra model trained from a single music segment (left). The y-axis and x-axis represent note pitch (range from 0 to 127) and time step T , respectively.</figDesc><graphic coords="1,390.48,223.60,151.48,143.77" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>4</head><label>4</label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. SinTra's multi-scale pipeline. Our model consists of a pyramid of Transformer-XLs, where both training and inference are done in a coarse-to-fine fashion. At each scale, T n learns the information of target R 2 xn by NLL loss, 2 xn th sequence means the sequence sampled by the 2 xn th note (visualize the sequence into piano-roll, 2 x0 &gt; • • • &gt; 2 x N 4). The input F 2 xn to T n from the previous output P 2 x n+1 , upsampled to the current temporal resolution (except for the coarsest stage which comes from B, a downsampled version of the real music). The generation process at stage n involves all Transformer-XLs {T N , • • • , T n } up to this level.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 .</head><label>4</label><figDesc>Figure 4. Network structure of each scale T n (left) and three modules related to multi-track sequence processing (right). After the process of Track_multi2one, the shape of input sequence (1, track, T ) becomes to (1, T ). The shape of the Transformer-XL encoder output (1, T, F eature) becomes to (1, T rack, T, F eature) after Track_one2multi.Via the Track-wise Decoder, the final output token sequence shape is (1, T rack, T ).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>, Music Trans. Single-stage SinTra NLL ∼ 1.0 10 -3 ∼ 10 -4 10 -3 ∼ 10 -4</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 .</head><label>2</label><figDesc>Samples generated by the three models. Each model lists 4 samples. All models are trained under the same training data. Results of objective metrics by Music Transformer, single-stage SinTra and SinTra on JSB Chorale dataset. The metrics of SinTra are marked in bold.</figDesc><table><row><cell></cell><cell>Training Data</cell><cell></cell></row><row><cell cols="2">Music Transformer</cell><cell></cell></row><row><cell>Single-Stage</cell><cell>SinTra</cell><cell></cell></row><row><cell cols="2">SinTra</cell><cell></cell></row><row><cell cols="4">Figure 5. Music Trans. Single-stage SinTra</cell></row><row><cell></cell><cell>KL-Div 40.53</cell><cell>27.84</cell><cell>21.67</cell></row><row><cell></cell><cell>Overlap 5%</cell><cell>55%</cell><cell>79%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 .</head><label>3</label><figDesc>Results of NLL loss by Music Transformer, single-stage SinTra and SinTra on JSB Chorale dataset when model converges. Both variants of SinTra can converge in 10 -3 ∼ 10 -4 while Music Transformer can't.</figDesc><table><row><cell>4th</cell><cell>8th</cell><cell>16th</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 22nd ISMIR Conference, Online,<ref type="bibr" target="#b33">November 7-12, 2021</ref> </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://www.classicalarchives.com/ Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="8.">ACKNOWLEDGEMENTS</head><p>This paper was supported by the <rs type="funder">National Natural Science Foundation of China</rs> under Grant Number <rs type="grantNumber">61771440</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_r2TKDpp">
+					<idno type="grant-number">61771440</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">SinGAN: Learning a generative model from a single natural image</title>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">R</forename><surname>Shaham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Dekel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Michaeli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF International Conference on Computer Vision</title>
+		<meeting>the IEEE/CVF International Conference on Computer Vision<address><addrLine>Seoul, Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4570" to="4580" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">TOAD-GAN: Coherent style level generation from a single example</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Awiszus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Schubert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Rosenhahn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence and Interactive Digital Entertainment</title>
+		<meeting>the AAAI Conference on Artificial Intelligence and Interactive Digital Entertainment</meeting>
+		<imprint>
+			<publisher>Online</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="10" to="16" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">LakhNES: Improving multi-instrumental music generation with cross-domain pre-training</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">H</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">E</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">W</forename><surname>Cottrell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Mcauley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th Conference of the International Society for Music Information Retrieval</title>
+		<meeting>the 20th Conference of the International Society for Music Information Retrieval<address><addrLine>Delft, Netherlands</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Pop Music Transformer: Beat-based modeling and generation of expressive pop piano compositions</title>
+		<author>
+			<persName><forename type="first">Y.-S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th ACM International Conference on Multimedia</title>
+		<meeting>the 28th ACM International Conference on Multimedia<address><addrLine>Seattle, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1180" to="1188" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Transformer-XL based music generation with multiple sequences of timevalued notes</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Lei</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2007.07244</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Transformer-XL: Attentive language models beyond a fixed-length context</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">G</forename><surname>Carbonell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2978" to="2988" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ł</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st Annual Conference on Neural Information Processing Systems</title>
+		<meeting>the 31st Annual Conference on Neural Information Processing Systems<address><addrLine>Long Beach, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">MySong: Automatic accompaniment generation for vocal melodies</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Morris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Basu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the SIGCHI Conference on Human Factors in Computing Systems</title>
+		<meeting>the SIGCHI Conference on Human Factors in Computing Systems<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+			<biblScope unit="page" from="725" to="734" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Function-and rhythm-aware melody harmonization based on tree-structured parsing and split-merge sampling of chord sequences</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Tsushima</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Itoyama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th Conference of the International Society for Music Information Retrieval</title>
+		<meeting>the 18th Conference of the International Society for Music Information Retrieval<address><addrLine>Suzhou, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="502" to="508" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">A hybrid system for automatic generation of style-specific accompaniment</title>
+		<author>
+			<persName><forename type="first">C.-H</forename><surname>Chuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Chew</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 4th International Joint Workshop on Computational Creativity</title>
+		<meeting>the 4th International Joint Workshop on Computational Creativity<address><addrLine>London, United Kingdom</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007">2007</date>
+			<biblScope unit="page" from="57" to="64" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Recurrent neural network based language model</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Karafiát</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Burget</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Černockỳ</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Khudanpur</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th Annual Conference of the International Speech Communication Association</title>
+		<meeting>the 11th Annual Conference of the International Speech Communication Association<address><addrLine>Chiba, Japan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Learning phrase representations using RNN Encoder-Decoder for statistical machine translation</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 19th Conference on Empirical Methods in Natural Language Processing<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="1724" to="1734" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Auto-encoding variational bayes</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Welling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd International Conference on Learning Representations</title>
+		<meeting>the 2nd International Conference on Learning Representations<address><addrLine>Banff, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">I</forename><forename type="middle">J</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pouget-Abadie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mirza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Warde-Farley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ozair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th Annual Conference on Neural Information Processing Systems</title>
+		<meeting>the 28th Annual Conference on Neural Information Processing Systems<address><addrLine>Montreal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">MuseGAN: Multi-track sequential generative adversarial networks for symbolic music generation and accompaniment</title>
+		<author>
+			<persName><forename type="first">H.-W</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-Y</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L.-C</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence<address><addrLine>New Orleans, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Convolutional generative adversarial networks with binary neurons for polyphonic music generation</title>
+		<author>
+			<persName><forename type="first">H.-W</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 19th International Society for Music Information Retrieval Conference<address><addrLine>Paris, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">MIDI-Sandwich2: RNNbased hierarchical multi-modal fusion generation VAE networks for multi-track symbolic music generation</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.03522</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">XiaoIce band: A melody and arrangement generation framework for pop music</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><forename type="middle">J</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 24th ACM SIGKDD International Conference on Knowledge Discovery &amp; Data Mining</title>
+		<meeting>the 24th ACM SIGKDD International Conference on Knowledge Discovery &amp; Data Mining<address><addrLine>London, United Kingdom</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2837" to="2846" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">DeepJ: Stylespecific music generation</title>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">H</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Cottrell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th IEEE International Conference on Semantic Computing</title>
+		<meeting>the 12th IEEE International Conference on Semantic Computing<address><addrLine>California, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="377" to="382" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Generating polyphonic music using tied parallel networks</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">D</forename><surname>Johnson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 6th International conference on Evolutionary and Biologically Inspired Music and Art</title>
+		<meeting>the 6th International conference on Evolutionary and Biologically Inspired Music and Art<address><addrLine>Amsterdam</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="128" to="143" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M.-W</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1810.04805</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Neural speech synthesis with Transformer network</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence<address><addrLine>Hawaii, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6706" to="6713" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Transformers with convolutional context for ASR</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Okhonko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.11660</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Music Transformer: Generating music with long-term structure</title>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<publisher>Conference of International Society for Music Information Retrieval</publisher>
+			<pubPlace>Paris, France</pubPlace>
+		</imprint>
+	</monogr>
+	<note>in Proceedings of the 19th</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Self-attention with relative position representations</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Shaw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Human Language Technology Conference of the NAACL</title>
+		<meeting>the Human Language Technology Conference of the NAACL<address><addrLine>New Orleans, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">OpenAI Blog</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Payne</surname></persName>
+		</author>
+		<ptr target="https://openai.com/blog/musenet" />
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>MuseNet</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Generating long sequences with sparse Transformers</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.10509</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Sparse GPU kernels for deep learning</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Gale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zaharia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Young</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Elsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference for High Performance Computing, Networking, Storage and Analysis</title>
+		<meeting>the International Conference for High Performance Computing, Networking, Storage and Analysis<address><addrLine>Atlanta, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1" to="14" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">The curious case of neural text degeneration</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Buys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Forbes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations<address><addrLine>New Orleans, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Modeling temporal dependencies in highdimensional sequences: application to polyphonic music generation and transcription</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Boulanger-Lewandowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Vincent</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th International Coference on International Conference on Machine Learning</title>
+		<meeting>the 29th International Coference on International Conference on Machine Learning<address><addrLine>Wisconsin, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="page" from="1881" to="1888" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">C-RNN-GAN: Continuous recurrent neural networks with adversarial training</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Mogren</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.09904</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m">Proceedings of the 22nd ISMIR Conference</title>
+		<meeting>the 22nd ISMIR Conference<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">November 7-12, 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

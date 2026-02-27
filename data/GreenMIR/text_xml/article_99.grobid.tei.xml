@@ -1,0 +1,1126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">LATENT FEATURE AUGMENTATION FOR CHORUS DETECTION</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Xingjian</forename><surname>Du</surname></persName>
+							<email>duxingjian.real@bytedance.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">ByteDance AI Lab</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Huidong</forename><surname>Liang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">ByteDance AI Lab</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yuan</forename><surname>Wan</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">ByteDance AI Lab</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yuheng</forename><surname>Lin</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">ByteDance AI Lab</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ke</forename><surname>Chen</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">University of California San Diego</orgName>
+								<address>
+									<settlement>San Diego</settlement>
+									<country key="US">United States</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Bilei</forename><surname>Zhu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">ByteDance AI Lab</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Zejun</forename><surname>Ma</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">ByteDance AI Lab</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">LATENT FEATURE AUGMENTATION FOR CHORUS DETECTION</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">2DC5E7BE29B512C7BD990A0174749A9B</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>In this paper, we introduce LA-Chorus, a chorus detection model based on Latent feature Augmentation and ResNet-FPN architecture. We make three contributions. Firstly, we propose a method for implicitly augmenting chorus data in the latent space during the training stage. Compared to augmentations on audio surfaces such as time stretching and pitch shifting, latent augmentations indicate changes at a higher level in original audio, thereby increasing the diversity and sufficiency in training. Second, we apply Feature Pyramid Network (FPN) to generate additional embeddings from low dimension to high dimension, consequently achieving a multi-scale training paradigm. Lastly, we release Di-Chorus, a new diversified dataset of 13 genres and 14 languages for the community of music structure analysis. In conjunction with other public datasets, we conduct comprehensive experiments to evaluate the performance of our proposed method compared to other state-ofthe-art models, where LA-Chorus outperforms other SO-TAs by a considerable margin, meanwhile the proposed latent audio augmentation shows dominant advantages over traditional augmentation methods.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Chorus detection, aiming for identifying the most ªcatchyº or ªmemorableº part of a song, is one of the fundamental tasks in music structure analysis (MSA) <ref type="bibr" target="#b1">[1]</ref>. Chorus detection essentially helps better understand music compositions with computational modelling methods and has various applications, such as automatic chorus preview functions in music software that allow users to efficiently select songs from a large library according to their preference <ref type="bibr" target="#b2">[2]</ref>.</p><p>Currently, chorus detection models are based on deep neural network (DNN) architectures with a supervised MSA method, where annotations of different segments are used as target variables during the training stage <ref type="bibr">[3±5]</ref>. The common approach is to regard chorus detection as a binary classification task, where each frame (or several frames) is assigned with a class label according to the corresponding segment annotation, and the model is trained to classify these labels <ref type="bibr">[6]</ref>.</p><p>To better perform this classification task, we identify two critical questions: <ref type="bibr" target="#b1">(1)</ref> how to locate chorus with high precision as the resolution of feature maps decreases when model goes deeper, and (2) how to learn sufficient variations of chorus characteristics. The first issue requires incorporating chorus positional information into the latent representations learned by models, resembling the task of object detection in computer vision that aims to find the boundaries of target objects <ref type="bibr" target="#b7">[7]</ref>. Nevertheless, as the network goes deeper, latent representations begin to lose positional meanings because of the reduced-sized feature maps (i.e. the resolution decreases) <ref type="bibr" target="#b8">[8]</ref>. To address the problem of shrinking resolution in feature maps, previous chorus detection methods first used neural network architectures as backbones to generate audio embeddings, and then applied positional modifications on the networks. For example, <ref type="bibr" target="#b3">[3]</ref> introduced a multi-task model that jointly detects chorus segments and their boundaries using convolutional neural network (CNN) to increase positioning precision, and <ref type="bibr" target="#b5">[5]</ref> proposed a multi-scale CNN model that upsamples/down-samples the original audio features to better capture both global and local information. In this paper, we incorporate Feature Pyramid Networks (FPN) <ref type="bibr" target="#b8">[8]</ref>, a popular framework for object detection from computer vision, into a standard ResNet <ref type="bibr" target="#b9">[9]</ref> as our model's backbone. It is designed specifically to tackle the problem of feature maps' decreasing resolutions by appending a network of reversed size order for each feature map with lateral connection, which will be discussed in Section 3.</p><p>The second issue, as learning sufficient chorus characteristics, can be addressed by using a diversified training dataset to feed the model such that it will generalize well at testing time. Nevertheless, despite the promising progress of emerging music annotations such as Isophonics <ref type="bibr" target="#b10">[10]</ref>, SALAMI <ref type="bibr" target="#b11">[11]</ref>, and Harmonics <ref type="bibr" target="#b12">[12]</ref>, the scarcity of labeled data (as they are costly to retrieve) and the deficiency of data diversity have always been challenging for music information retrieval (MIR) and other machine learning fields. To combat this problem, some traditional augmentation techniques have been proposed on the original inputs, such as rotating or flipping the images in computer vision <ref type="bibr" target="#b13">[13]</ref>, or time stretching <ref type="bibr" target="#b14">[14]</ref> and pitch shifting <ref type="bibr" target="#b15">[15]</ref> in audio signal processing. Recently, implicit augmentation methods, which focus on the augmentation in latent space, have shown remarkable performance over the pre- vious ªshallowº methods in computer vision <ref type="bibr" target="#b16">[16,</ref><ref type="bibr" target="#b17">17]</ref>. The motivation is that latent representations may carry semantic meanings of original images (e.g. human age, gender, facial expressions) <ref type="bibr" target="#b18">[18]</ref>. Such discoveries are also consistent with some works in audio signal processing, where latent audio representations have been found to capture distinctive audio features <ref type="bibr" target="#b19">[19]</ref>. For example, <ref type="bibr" target="#b20">[20]</ref> investigated the latent spaces of timbre and pitch of various instrument sounds encoded by a GM-VAE model; <ref type="bibr" target="#b21">[21]</ref> introduced a Cycle-GAN based model for musical timbre transfer; and <ref type="bibr" target="#b22">[22]</ref> disentangled pitch and rhythm representations to produce music analogies. According to these previous works, the latent features of audio correspond to semantic meaning of music and acoustic, such as timbre, rhythm pattern, etc. Therefore, augmentations in the latent space would correspond to changes of semantic features in the input audio segments, which leads to more variations than that of the augmentations in the shallow space. To our best knowledge, there is currently no application of latent augmentations in audio signal processing. In this paper, we illustrate this intuition by an MSA example in Figure <ref type="figure">1</ref>. Thus, we propose LA-Chorus, a supervised chorus detection model based on ResNet-FPN architecture that leverages implicit audio augmentations on latent features, which can better locate chorus positions and meanwhile enrich variations in training samples with semantic mean-ings. Moreover, since songs for most of the public datasets are not easy to retrieve, we further release a diversified collection of songs on YouTube for our MSA community, namely Di-Chorus, which contains 237 songs from 13 genres in 14 languages with annotations by experts. The rest of the paper is structured as follows: the next section introduces related works in chorus detection and latent augmentations, after which we discuss model structure and inference method. The experiment section presents LA-Chorus's performance on public datasets as well as Di-Chorus compared against other state-of-the-art models, followed by an ablation study showing the effectiveness of latent augmentations. Finally, the last section concludes our findings and contributions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK 2.1 Chorus Detection</head><p>The origin of chorus detection tightly relates to thumbnailing, which aims to find a short preview (thumbnail) as a meaningful representation of a song <ref type="bibr" target="#b23">[23]</ref>. Common approaches for thumbnailing includes evaluating the repeated sections of the audio waveform based on chroma transformation <ref type="bibr" target="#b24">[24]</ref>, selecting segments with the most repetition <ref type="bibr" target="#b25">[25]</ref>, and detecting significant change points with selfsimilarity matrix <ref type="bibr" target="#b26">[26]</ref>. On the other hand, MSA assumes that songs contain different types of segments (e.g. chorus, verse, bridge, etc.) with certain structures <ref type="bibr" target="#b27">[27]</ref>. Based on the assumption, many chorus detection algorithms in MSA took an unsupervised fashion in the early stage: <ref type="bibr" target="#b28">[28]</ref> used heuristics to predict segment labels based on a restricted template for song structures; <ref type="bibr" target="#b29">[29,</ref><ref type="bibr" target="#b30">30]</ref> both applied Hidden Markov Model to derive different song sections; and <ref type="bibr" target="#b31">[31]</ref> performed spectral clustering on the co-occurrence matrix generated from k-nearest neighbors.</p><p>With the advancement of deep learning in computer vision and natural language processing, DNN gradually makes its presence in MIR, among which ResNet <ref type="bibr" target="#b9">[9]</ref>, a CNN-based model with residual connections, becomes one of the most popular DNN architectures in recent MIR literature <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b32">32]</ref>. At the same time, the emergence of labeled databases such as SALAMI <ref type="bibr" target="#b11">[11]</ref> and Harmonix <ref type="bibr" target="#b12">[12]</ref> make supervised learning gradually attractive for chorus detection, leading to the current paradigm of supervised chorus detection based on deep learning: <ref type="bibr" target="#b33">[33]</ref> introduced a hybrid generative model with LSTM to directly predict segment labels; <ref type="bibr" target="#b3">[3]</ref> proposed a multi-task method that jointly detects chorus segments and their boundaries; and <ref type="bibr" target="#b5">[5]</ref> further proposed a multi-scale network with self-attention convolution to extract latent features of song segments, generating the current state-of-the-art results for chorus detection. In LA-Chorus, we will incorporate Feature Pyramid Network (FPN) <ref type="bibr" target="#b8">[8]</ref>, a top-down network that dedicates to the object positioning task, into ResNet as our model's backbone. The proposed framework is able to generate latent features with rich positional information and semantic meanings for later augmentation process, which will be discussed in detail in Section 3. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Audio Data Augmentation</head><p>To enhance the diversity and variation in original audio features, traditional audio augmentation techniques such as time stretching, pitch shifting, noise perturbing and SpecAugment <ref type="bibr" target="#b34">[34]</ref> are often implemented when transforming audio signals into spectrograms <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b15">15]</ref>. In this paper, we take a different perspective: augmenting latent representations instead of original audio signals, motivated by the recent advancement of implicit augmentation methods in computer vision, represented by implicit semantic data augmentation (ISDA) and its variants <ref type="bibr" target="#b16">[16,</ref><ref type="bibr" target="#b17">17]</ref>. The ISDA model first used a backbone network to encode input images into latent space with semantic meaning, and then formulated a multi-variate Gaussian distribution for latent features in each class, which was estimated by their mean and covariance within the class via direct calculation. Then augmentations were sampled from the estimated distribution, and the model was later optimized by a novel cross-entropy loss tailored for latent augmentations. In this paper, we will demonstrate how this implicit augmentation method is utilized in audio to improve chorus detection.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">PROPOSED METHOD</head><p>The structure of our proposed model is illustrated in Figure <ref type="figure" target="#fig_0">2</ref>. We first use ResNet architecture to encode audio spectrograms into latent embeddings, Then, we apply the latent augmentation by sampling from estimated latent distributions for frames in the ªchorus" class and the ªnon-chorusº (other) class respectively. Finally, the augmented representations are sent to a fully-connected layer to generate probability predictions. At learning and inference stages, we adopt a special cross-entropy loss that handles infinite number of latent augmentations via an upper bound, which saves the cost of sampling procedure.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">ResNet-FPN</head><p>We first obtain the constant Q transform (CQT) spectrograms with F frequency bins and T frames in time domain after padding. Then a ResNet-50 architecture is implemented as the embedding extractor G θ to extract latent embedding. Specifically, the ResNet consists of four stages that contains 3, 4, 6 and 3 residual CNN blocks respectively, where 64 convolution filters of 7 × 7 kernel size and a max-pooling layer of 3 × 3 kernel size are designed prior to these residual blocks to process the inputs.</p><p>With the size of each feature map reducing as CNN goes deeper, semantic information in deep audio features increases <ref type="bibr" target="#b8">[8]</ref>. However, at the same time, the resolution of the feature map decreases and undermines the precision of chorus positioning. To solve this problem, we modify the backbone G θ by incorporating a Feature Pyramid Network (FPN) <ref type="bibr" target="#b8">[8]</ref> into our ResNet architecture to construct latent features of high resolution from latent features with semantic information but of low resolution,as shown in Figure <ref type="figure" target="#fig_0">2</ref>. The FPN design, different from the bottom-up ResNet part, takes a top-down approach that comprises four 1 × 1 convolutional layers that corresponds to four residual blocks of ResNet, which maps the lowdimensional outputs of ResNet to high-dimensional latent features with lateral connections.</p><p>As a result, the final latent representation A is of shape T ×D, where T is the number of frames and D is the number of latent dimensions. Because of the CNN and FPN designs in our backbone, latent embeddings not only contain both temporal and frequent information of the input audio, but also integrate feature maps of multiple resolutions to better locate chorus segments, further benefiting the latent augmentations later.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Latent Augmentations on Audio Features</head><p>To enrich variations, we apply latent augmentations on each representation a i ∈ R D in the song, where a i denotes the i th row in A. Similar to other latent variable models such as VAE variants <ref type="bibr" target="#b35">[35]</ref> and flow-based models <ref type="bibr" target="#b36">[36]</ref>, we make a fundamental assumption that latent features within the same class follow the same latent distribution. Specifically, a latent augmentation ãi ∈ R D for latent feature a i follows a multi-variate Gaussian distribution N (a i , Σ yi ), where y i indicates the label class (ªchorusº or ªotherº) for frame i, and Σ yi ∈ R D×D + represents the covariance matrix for class y i . Then, we can sample from the distribution regarding to each a i to get latent augmentations. In practice, a hyperparameter λ &gt; 0 is imposed on the covariance matrix Σ yi to control the deviation of augmentations, Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022 which leads to the final distribution of augmented latent representation ãi : ãi ∼ N (a i , λΣ yi ).</p><p>(1)</p><p>To estimate the covariance matrix Σ for different classes, we mathematically calculate the covariance matrix estimate Σc for class c (c is either ªchorusº or ªotherº) within the dataset:</p><formula xml:id="formula_0">Σc = 1 N c Nc i=1 (a i -ā)(a i -ā) T ,<label>(2)</label></formula><p>where ā = 1/N c Nc i=1 a i is the mean of latent features in class c, and N c is the number of frames belong to class c. This covariance estimate is updated at each iteration after the generation of new latent features during training stage.</p><p>Finally, the augmented latent features Ã are sent to a fully connected layer with weight W ∈ R D×C and bias b ∈ R C to generate the probability predictions, with ã being row-vectors in Ã:</p><formula xml:id="formula_1">ŷ = F φ ( Ã) = ÃW + b.<label>(3)</label></formula><p>In the next section, we will show an computationally efficient method for learning, which considers infinite augmentations but requires no explicit calculation of the augmented features Ã.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Inference and Learning</head><p>Given a dataset of size N , a basic approach to formulate a loss function that treats each augmented latent features as a new sample point, and sample M augmentations for each latent feature, which results in an augmented dataset of N × (M + 1) samples. Then we use cross-entropy loss function to train the model. This method is effective when M is relatively large, however, it is computationally expensive as we need to compute extra loss values for N × M augmentations. Instead of computing the loss function with discrete augmentations, we adopt the loss function from <ref type="bibr" target="#b16">[16]</ref> that incorporates latent augmentations from the continuous domain. For the final fully-connected layer, we denote w c as the column vector in W and b c as the bias element in b for class c, then the limit of the cross-entropy loss for M augmentations when M approaches to infinity equals:</p><formula xml:id="formula_2">lim M →∞ - 1 N N i=1 1 M M j=1 log exp(w T yi a (j) i + b yi ) C c=1 exp(w T c a (j) i + b c )<label>(4</label></formula><p>) which is equivalent to calculating the expectation w.r.t. ãi :</p><formula xml:id="formula_3">L = - 1 N N i=1 E ãi log exp(w T yi ãi + b yi ) C c=1 exp(w T c ãi + b c ) (5) = 1 N N i=1 E ãi log C c=1 exp( ξ)<label>(6)</label></formula><p>where</p><formula xml:id="formula_4">ξ = (w c -w yi ) T ãi + (b c -b yi ).</formula><p>Since log() is a concave function, from Jensen's inequality, we can show:</p><formula xml:id="formula_5">L upper = 1 N N i=1 log E ãi C c=1 exp( ξ)<label>(7)</label></formula><p>≥ L.</p><p>As ãi follows N (a i , λΣ yi ) in Eqn. (1), and ξ is a linear transformation of ãi , then ξ will also follow a Gaussian distribution:</p><formula xml:id="formula_7">ξ ∼ N ξ , ∆ ,<label>(9)</label></formula><p>where ξ = (w cw yi )</p><formula xml:id="formula_8">T a i + (b c -b yi ) and ∆ = λ(w c - w yi ) T Σ yi (w c -w yi ).</formula><p>Given the moment generating equation E[exp(tx)] = exp(tµ + 1 2 σ 2 t 2 ) for x ∼ N (µ, σ 2 ), we can express Eqn. ( <ref type="formula" target="#formula_5">7</ref>) as follows:</p><formula xml:id="formula_9">L upper = 1 N N i=1 log C c=1 exp(ξ + 1 2 ∆) (10) = - 1 N N i=1 log exp(w T yi a i + b yi ) C c=1 exp(w T c a i + b c + 1 2 ∆) ,<label>(11)</label></formula><p>which gives us a tractable upper-bound of Eqn. ( <ref type="formula" target="#formula_3">6</ref>) Therefore, we do not need to explicitly sample augmentations from its distribution in Eqn <ref type="bibr" target="#b1">(1)</ref>. Instead, only the covariance matrix Σ c of latent features for each class requires update at each iteration, which speeds up the convergence compared to discrete estimation.</p><p>The algorithm for learning the embedding extractor G θ and the fully-connected layer F φ is demonstrated in Algorithm 1 below. Because the model is underfitted at beginning epochs, the hyperparameter λ for controlling augmentation deviation is set to be λ 0 × epoch total epoch to alleviate the impact of augmentation at the starting stage of training. </p><formula xml:id="formula_10">{a i } T i=1 via ResNet-FPN extractor G θ 5:</formula><p>Update G θ and F φ by computing: Table <ref type="table">1</ref>. Key statistics of Di-Chorus.</p><p>the-art (SOTA) methods in chorus detection. We first introduce the experimental setups, where details of our newly released dataset Di-Chorus and hyperparameter settings in LA-Chorus are discussed. Then we present the results of chorus detection by LA-Chorus and other methods on popular public datasets, followed by an ablation study that demonstrates the effectiveness of different modules in our proposed method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental Setup</head><p>For a fair comparison purpose, we conduct our experiment under the same settings in <ref type="bibr" target="#b5">[5]</ref> with a cross-dataset paradigm (i.e. testing on different datasets that are not used in training). Specifically, we use 890 songs that contain chorus segments in Harmonix <ref type="bibr" target="#b12">[12]</ref>, along with 38 songs of Michael Jackson and 83 songs of The Beatles in Isophonics set <ref type="bibr" target="#b10">[10]</ref> for training and validation. At testing time, we use three public datasets and our released dataset Di-Chorus to evaluate our model and other methods. The public datasets used for testing are: 100 ªPopularº songs from RWC <ref type="bibr" target="#b37">[37,</ref><ref type="bibr" target="#b38">38]</ref>, 210 ªPopularº songs (denoted as SP) and 198 ªLiveº songs (denoted as SL) from SALAMI <ref type="bibr" target="#b11">[11]</ref>, which are chosen in consistence with the testing sets in <ref type="bibr" target="#b5">[5]</ref>.</p><p>Our newly released dataset, Di-Chorus<ref type="foot" target="#foot_1">foot_1</ref> (denoted as DC), contains 237 music annotations of songs on YouTube labeled by experts. Compared to previous datasets mentioned above, songs in Di-Chorus are more easy-to-access from the appended YouTube URLs, and are more diversified since it consists of musics tracks in 14 languages as opposed to other existing datasets that are mostly in English (e.g., Harmonics) or just two or three languages (e.g., RWC and SALAMI). In addition, we also include three different recording qualities to improve the variation within dataset: Studio, Live and Original Sound Track (OST) which contains non-music segments. The key statistics are summarized in Table <ref type="table">1</ref> below.</p><p>To demonstrate the performance of our proposed model on the above datasets, we compare LA-Chorus against the following methods:</p><p>• CNMF <ref type="bibr" target="#b39">[39]</ref>: an unsupervised matrix factorization method from MSAF <ref type="bibr" target="#b40">[40]</ref>.</p><p>• SCluster <ref type="bibr" target="#b31">[31]</ref>: a spectral clustering method based on frame co-occurrence matrix from MSAF <ref type="bibr" target="#b40">[40]</ref>.</p><p>• Highlighter <ref type="bibr" target="#b41">[41]</ref>: an CNN model that takes an unsupervised approach to detect emotional highlights as chorus segments. • Multi2021 <ref type="bibr" target="#b3">[3]</ref>: a CNN model based on a multi-task learning objective that jointly predicts chorus segments and their boundaries.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Models</head><p>• DeepChorus <ref type="bibr" target="#b5">[5]</ref>: a CNN model based on multi-scale networks and self-attention, which is the current stateof-the-art method for chorus detection.</p><p>Then, we validate the prediction results by AUC score (Area Under Curve) and F1 score. To evaluate these two metrics, we first create a sequence of the song length from the original annotation, with each element indicating the class of the corresponding segment. Then we can calculate AUC and F1 score for each song independently and take the average over them as the final result.</p><p>For the training details, we resample the audio at 22050 Hz and use CQT as our input feature with 12 bins per octave, where Han windowing function is applied with a hop size of 512 for extraction. The model is trained for 100 epochs with a batch size of 32 and a learning rate of 10 -4 with a cosine decay scheduler. The code is implemented in PyTorch and run at a Tesla-V100-SXM2-32GB GPU.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Chorus Detection</head><p>We retain the experiment results for the chosen SOTAs on RWC, SP and SL from <ref type="bibr" target="#b5">[5]</ref>, and test them on Di-Chorus with the default settings in their papers, as shown in Table <ref type="table" target="#tab_1">2</ref> and Table <ref type="table" target="#tab_2">3</ref> by AUC score and F1-score respectively. Note we do not test Multi2021 <ref type="bibr" target="#b3">[3]</ref> on Di-Chorus, since their code is not open-sourced.</p><p>For AUC metric, LA-Chorus outperforms other SOTAs on all datasets by a big margin. Compared to DeepChorus <ref type="bibr" target="#b5">[5]</ref>, which is considered as the current best method for chorus detection, our method improves the performance by over 0.06 across all datasets. The performances on F1-score also exhibit a similar pattern, where LA-Chorus generates better predictions over other models with a considerable improvement on each dataset. In particular, our model performs exceptionally well on the widely used RWC dataset that reaches to an AUC score of 0.906 and an F1-score 0.728. We give most of the credits to the implicit augmentation design in our model, and we illustrate this perspective in the ablation study section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Ablation Study</head><p>To analyze the effectiveness of FPN and latent augmentation, we test our LA-Chorus by separate modules: 1) ResNet backbone only, 2) ResNet with FPN, and 3) ResNet with latent augmentation (denoted as + LA). To demonstrate the efficacy of applying latent augmentations over traditional audio augmentation techniques in the input space, we further show the results of applying 4) time stretching (denoted as + TS) and 5) pitch shifting (denoted as + PS) to the ResNet backbone, with the results summarized in Table <ref type="table" target="#tab_3">4</ref> for AUC and Table <ref type="table" target="#tab_4">5</ref> for F1-score below (Note we do not apply TS or PS in our proposed method).</p><p>From the results, we can observe that by incorporating FPN, we improve the vanilla ResNet backbone by a remarkable increase of over 0.05 on most of the datasets under both AUC and F1-score metrics, expect for SALAMI-Live where the result remains the same. Such findings indicate that FPN is an effective method to locate music segments by increasing the resolution of feature maps, which, without any augmentation, can already generate predictions that are comparative to DeepChorus.</p><p>On the other hand, when we apply implicit augmentations to latent features generated by ResNet (without FPN), significant improvements of over 0.10 are witnessed for both AUC and F1 scores on most datasets. The results are even notably better than that of the ResNet+FPN combination who contains important positional information, implying the dominant role of latent augmentation in the strong performance of LA-Chorus. The results from ResNet+TS and ResNet+PS further corroborate the benefit of leveraging latent augmentations for chorus detection. Although there are some effects after adopting these two traditional augmentation methods, their improvements on the original model seem incremental compared to that of ResNet+LA. Instead, the implicit augmentation method outperforms traditional augmentation methods by a significant margin for both metrics on each dataset, which implies a clear advantage for adopting latent augmentations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Discussion of Limitation</head><p>Despite of the prominent performance of LA-Chorus, we believe there are still some potential limitations for future explorations. First, further investigation is needed to verify that the latent augmentations are realistic to human when transforming them back to input domain. way is to train a reversed model (such as a decoder or flowbased model) that reconstructs latent features to the original inputs. Second, the AUC and F1 metrics might not measure whether the output is overfragmented or underfragmented. It's needed to design metrics that are more perceptually relevant for chorus detection task. Finally, we only focus on detecting chorus segments in this paper, whereas in MSA, there are other annotation types (e.g. verse, bridge, etc.) to be modeled <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b33">33]</ref>. We believe LA-Chorus only requires minor modifications in the class dimension of latent augmentations (i.e. augmenting chorus, verse, bridge, etc.) before being applied to predict other label types in music structure analysis.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>In this paper, we introduced a novel chorus detection model based on ResNet-FPN architecture with latent augmentations on audio features. The proposed method, different from traditional augmentation algorithms focusing on the input space, augments audio features in the latent space to explore semantic changes in audio data. Besides, we released a new diversified dataset, Di-Chorus, with expert annotations, which contains songs with 13 genres in 14 languages and 3 qualities. Comprehensive experiments have been conducted on public datasets and Di-Chorus, where LA-Chorus shows superior performance against other methods. Lastly, the effectiveness of different modules in LA-Chorus are validated by an ablation study.</p><p>In the future, we plan to investigate more details on the semantic changes of audio data via latent augmentations and the extensibility of LA-Chorus to other MIR tasks.</p><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Model structure for LA-Chorus. The solid line represents the model generation processes in the forward pass, while the dashed line represents the inference (i.e. not explicitly generated in the forward pass).</figDesc><graphic coords="3,56.22,68.54,487.58,125.05" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Algorithm 1 3 :</head><label>13</label><figDesc>Algorithm for training LA-Chorus Require: Padded CQTs batches; ResNet extractor G θ ; A fully connected layer F φ ; Initial covariance matrix Σ c for each class; Initial λ 0 for scaling augmentation 1: for epoch = 1, 2, ..., I do 2: for batch = 1, 2, ..., K do Encode the CQT batch into latent features 4:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>λ</head><label></label><figDesc>← λ 0 × epoch/I 10: end for 11: return G θ and F φ4. EXPERIMENTSIn this section, we conduct comprehensive experiments to evaluate LA-Chorus's performance against other state-of-</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Latent Embedding DNN Laten Space with Semantic Meaning Verse LA Chorus LA Input Space</head><label></label><figDesc></figDesc><table><row><cell>Chorus</cell><cell>Verse</cell></row><row><cell>ℙ 𝒗</cell><cell>ℙ</cell></row><row><cell></cell><cell>Latent Augmentation</cell></row></table><note><p><p><p><p><p><p>𝒄</p>Figure</p>1</p>. Illustration for implicit audio augmentation in MSA with two annotation types (verse and chorus) from a constant Q transformation (CQT) spectrogram excerpt of ªSmooth Criminalº in Isophonics</p><ref type="bibr" target="#b10">[10]</ref></p>. The spectrogram is first encoded into latent embeddings by frame, where chorus embedding and verse embedding follow latent distributions P c and P v respectively. Then latent augmentations are sampled around embeddings of verse/chorus segments, which correspond to augmented verse/chorus segments in the input space (represented by dashed lines, meaning they are NOT shown explicitly in the input space).</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 .</head><label>2</label><figDesc>AUC results for chorus detection in various models.</figDesc><table><row><cell></cell><cell cols="4">AUC on Different Datasets</cell></row><row><cell></cell><cell>RWC</cell><cell>SP</cell><cell>SL</cell><cell>DC</cell></row><row><cell>CNMF</cell><cell>.526</cell><cell>.543</cell><cell>.478</cell><cell>.488</cell></row><row><cell>SCluster</cell><cell>.533</cell><cell>.545</cell><cell>.551</cell><cell>.568</cell></row><row><cell>Highlighter</cell><cell>.804</cell><cell>.703</cell><cell>.671</cell><cell>.553</cell></row><row><cell>Multi2021</cell><cell>.819</cell><cell>.675</cell><cell>.633</cell><cell>-</cell></row><row><cell>DeepChorus</cell><cell>.842</cell><cell>.780</cell><cell>.765</cell><cell>.811</cell></row><row><cell>LA-Chorus</cell><cell>.906</cell><cell>.887</cell><cell>.831</cell><cell>.872</cell></row><row><cell>Models</cell><cell cols="4">F1-score on Different Datasets RWC SP SL DC</cell></row><row><cell>CNMF</cell><cell>.403</cell><cell>.422</cell><cell>.340</cell><cell>.332</cell></row><row><cell>SCluster</cell><cell>.427</cell><cell>.448</cell><cell>.392</cell><cell>.603</cell></row><row><cell>Highlighter</cell><cell>.407</cell><cell>.303</cell><cell>.251</cell><cell>.283</cell></row><row><cell>Multi2021</cell><cell>.643</cell><cell>.473</cell><cell>.380</cell><cell>-</cell></row><row><cell>DeepChorus</cell><cell>.675</cell><cell>.611</cell><cell>.501</cell><cell>.662</cell></row><row><cell>LA-Chorus</cell><cell>.728</cell><cell>.619</cell><cell>.526</cell><cell>.707</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 .</head><label>3</label><figDesc>F1-score results for chorus detection in various models.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 4 .</head><label>4</label><figDesc>One possible AUC results for ablation study.</figDesc><table><row><cell>Ablations</cell><cell cols="4">AUC on Different Datasets RWC SP SL DC</cell></row><row><cell>ResNet</cell><cell>.801</cell><cell>.773</cell><cell>.767</cell><cell>.751</cell></row><row><cell>ResNet + FPN</cell><cell>.865</cell><cell>.830</cell><cell>.767</cell><cell>.807</cell></row><row><cell>ResNet + LA</cell><cell>.882</cell><cell>.854</cell><cell>.824</cell><cell>.847</cell></row><row><cell>ResNet + TS</cell><cell>.818</cell><cell>.787</cell><cell>.765</cell><cell>.762</cell></row><row><cell>ResNet + PS</cell><cell>.822</cell><cell>.777</cell><cell>.789</cell><cell>.766</cell></row><row><cell>LA-Chorus</cell><cell>.906</cell><cell>.887</cell><cell>.831</cell><cell>.872</cell></row><row><cell>Ablations</cell><cell cols="4">F1-score on Different Datasets RWC SP SL DC</cell></row><row><cell>ResNet</cell><cell>.592</cell><cell>.415</cell><cell>.418</cell><cell>.588</cell></row><row><cell>ResNet + FPN</cell><cell>.648</cell><cell>.473</cell><cell>.478</cell><cell>.608</cell></row><row><cell>ResNet + LA</cell><cell>.692</cell><cell>.540</cell><cell>.516</cell><cell>.687</cell></row><row><cell>ResNet + TS</cell><cell>.576</cell><cell>.394</cell><cell>.365</cell><cell>.553</cell></row><row><cell>ResNet + PS</cell><cell>.590</cell><cell>.378</cell><cell>.395</cell><cell>.545</cell></row><row><cell>LA-Chorus</cell><cell>.728</cell><cell>.619</cell><cell>.526</cell><cell>.707</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 5 .</head><label>5</label><figDesc>F1-score results for ablation study.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>We provide some demos of Di-Chorus in the supplementary material. Di-Chorus will be made publicly available upon acceptance for retrieval.</p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">ªAn analysis of chorus features in popular song</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Van Balen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">A</forename><surname>Burgoyne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wiering</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">C</forename><surname>Veltkamp</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th Society of Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 14th Society of Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">ªA chorus-section detecting method for musical audio signals</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2003 IEEE International Conference on Acoustics, Speech, and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2003">2003. 2003</date>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page">437</biblScope>
+		</imprint>
+	</monogr>
+	<note>Proceedings.(ICASSP&apos;03)</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">ªSupervised chorus detection for popular music using convolutional neural network and multi-task learning</title>
+		<author>
+			<persName><forename type="first">J.-C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">B</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">º in ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="566" to="570" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">ªSupervised metric learning for music structure feature</title>
+		<author>
+			<persName><forename type="first">J.-C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">B</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-T</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Song</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Society for Music Information Retrieval Conference</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">ªDeepchorus: A hybrid model of multi-scale convolution and selfattention for chorus detection</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2022-2022 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">ªBoundary detection in music structure analysis using convolutional neural networks</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Ullrich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schlüter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Grill</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 15th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">ªRich feature hierarchies for accurate object detection and semantic segmentation</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Girshick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Darrell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Malik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE</title>
+		<meeting>the IEEE</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="580" to="587" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">ªFeature pyramid networks for object detection</title>
+		<author>
+			<persName><forename type="first">T.-Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dollár</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Girshick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Hariharan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Belongie</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="2117" to="2125" />
+		</imprint>
+	</monogr>
+	<note>º in Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">ªDeep residual learning for image recognition</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sun</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="770" to="778" />
+		</imprint>
+	</monogr>
+	<note>º in Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mauch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Cannam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Harte</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kolozali</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Tidhar</surname></persName>
+		</author>
+		<title level="m">ªOmras2 metadata project 2009,º in In Late-breaking session at the 10th International Conference on Music Information Retrieval</title>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+	<note>IS-MIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">ªDesign and creation of a large-scale database of structural annotations</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">B L</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">A</forename><surname>Burgoyne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Fujinaga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>De Roure</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">S</forename><surname>Downie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">º in ISMIR</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="page" from="555" to="560" />
+			<date type="published" when="2011">2011</date>
+			<pubPlace>Miami, FL</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">ªThe harmonix set: Beats, downbeats, and functional segment annotations of western popular music</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Nieto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Robertson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Stark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Egozy</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="565" to="572" />
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ªA survey on image data augmentation for deep learning</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Shorten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">M</forename><surname>Khoshgoftaar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of big data</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1" to="48" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">ªAudio augmentation for speech recognition</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Ko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Peddinti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Povey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Khudanpur</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+	<note>º in Sixteenth annual conference of the international speech communication association</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ªDeep convolutional neural networks and data augmentation for environmental sound classification</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Signal processing letters</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="279" to="283" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">ªImplicit semantic data augmentation for deep networks</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="s">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">ªMetasaug: Meta semantic augmentation for long-tailed visual recognition</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">H</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Cheng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="5212" to="5221" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">ªTowards visually explaining variational autoencoders</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Karanam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Bhanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Radke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Camps</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</meeting>
+		<imprint>
+			<date type="published" when="2020-06">June 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">ªInterpretable representation learning for speech and audio signals based on relevance weighting</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ganapathy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="2823" to="2836" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">ªLearning disentangled representations of timbre and pitch for musical instrument sounds using gaussian mixture variational autoencoders</title>
+		<author>
+			<persName><forename type="first">Y.-J</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Agres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Herremans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th Society of Music Information Retrieval Conference</title>
+		<meeting>the 20th Society of Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="405" to="410" />
+		</imprint>
+	</monogr>
+	<note>IS-MIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ªTimbretron: A wavenet (cyclegan (cqt (audio))) pipeline for musical timbre transfer</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Anil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">B</forename><surname>Grosse</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">ªDeep music analogy via latent representation disentanglement</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ªMusic thumbnailing via structural analysis</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Vercoe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the eleventh ACM international conference on Multimedia</title>
+		<meeting>the eleventh ACM international conference on Multimedia</meeting>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+			<biblScope unit="page" from="223" to="226" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">ªTo catch a chorus: Using chroma-based representations for audio thumbnailing</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">A</forename><surname>Bartsch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">H</forename><surname>Wakefield</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2001 IEEE Workshop on the Applications of Signal Processing to Audio and Acoustics</title>
+		<meeting>the 2001 IEEE Workshop on the Applications of Signal Processing to Audio and Acoustics</meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2001">2001</date>
+			<biblScope unit="page" from="15" to="18" />
+		</imprint>
+	</monogr>
+	<note>Cat. No. 01TH8575</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">ªA robust fitness measure for capturing repetitions in music recordings with applications to audio thumbnailing,º IEEE Transactions on audio, speech, and language processing</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Muller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Grosche</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="page" from="531" to="543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">ªAutomatic music summarization via similarity analysis.º in ISMIR</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Cooper</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Foote</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2002">2002</date>
+			<publisher>Citeseer</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Paulus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Klapuri</surname></persName>
+		</author>
+		<title level="m">ªState of the art report: Audio-based music structure analysis.º in Ismir</title>
+		<meeting><address><addrLine>Utrecht</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="page" from="625" to="636" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">ªContent-based music structure analysis with applications to music semantics understanding</title>
+		<author>
+			<persName><forename type="first">N</forename><forename type="middle">C</forename><surname>Maddage</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">S</forename><surname>Kankanhalli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Shao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th annual ACM international conference on Multimedia</title>
+		<meeting>the 12th annual ACM international conference on Multimedia</meeting>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="112" to="119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">ªToward automatic music audio summary generation from signal analysis,º in ISMIR</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Peeters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">La</forename><surname>Burthe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Rodet</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="page" from="1" to="1" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">ªImproving markov model based music piece structure labelling with acoustic information</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Paulus</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="page" from="303" to="308" />
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">ªAnalyzing song structure with spectral clustering</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Ellis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Society of Music Information Retrieval Conference (IS-MIR)</title>
+		<meeting>the 15th Society of Music Information Retrieval Conference (IS-MIR)</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="405" to="410" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">X</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ma</surname></persName>
+		</author>
+		<title level="m">ªBytecover: Cover song identification via multi-loss training,º in ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="551" to="555" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">ªMusic structure analysis based on an lstm-hsmm hybrid model</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Shibata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Nishikimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Society for Music Information Retrieval Conference</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="15" to="22" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">S</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-C</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">D</forename><surname>Cubuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.08779</idno>
+		<title level="m">A simple data augmentation method for automatic speech recognition,º arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Welling</surname></persName>
+		</author>
+		<title level="m">ªAuto-encoding variational Bayes,º in International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">ªVariational inference with normalizing flows</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Rezende</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mohamed</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="1530" to="1538" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">ªRwc music database: Popular, classical and jazz music databases</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Hashiguchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Nishimura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Oka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Ismir</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="287" to="288" />
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">ªAist annotation for the rwc music database</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="page" from="359" to="360" />
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">ªConvex non-negative matrix factorization for automatic music structure identification</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Nieto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Jehan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2013 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="236" to="240" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">ªSystematic exploration of computational music structure research</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Nieto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 17th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y.-S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S.-Y</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<title level="m">ªPop music highlighter: Marking the emotion keypoints,º Transactions of the International Society for Music Information Retrieval</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

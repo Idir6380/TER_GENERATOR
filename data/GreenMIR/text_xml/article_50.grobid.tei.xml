@@ -1,0 +1,938 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">NEURAL LOOP COMBINER: NEURAL NETWORK MODELS FOR ASSESSING THE COMPATIBILITY OF LOOPS</title>
+				<funder ref="#_r3YfB39">
+					<orgName type="full">Ministry of Science and Technology, Taiwan</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Bo-Yu</forename><surname>Chen</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Academia Sinica</orgName>
+								<address>
+									<country key="TW">Taiwan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Jordan</forename><forename type="middle">B L</forename><surname>Smith</surname></persName>
+							<email>jordan.smith@tiktok.com</email>
+							<affiliation key="aff1">
+								<orgName type="institution">TikTok</orgName>
+								<address>
+									<settlement>London</settlement>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yi-Hsuan</forename><surname>Yang</surname></persName>
+							<email>yang@citi.sinica.edu.tw</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Academia Sinica</orgName>
+								<address>
+									<country key="TW">Taiwan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">NEURAL LOOP COMBINER: NEURAL NETWORK MODELS FOR ASSESSING THE COMPATIBILITY OF LOOPS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">9CAD0891171DE2B431585ACD5EF15C6B</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Music producers who use loops may have access to thousands in loop libraries, but finding ones that are compatible is a time-consuming process; we hope to reduce this burden with automation. State-of-the-art systems for estimating compatibility, such as AutoMashUpper, are mostly rule-based and could be improved on with machine learning. To train a model, we need a large set of loops with ground truth compatibility values. No such dataset exists, so we extract loops from existing music to obtain positive examples of compatible loops, and propose and compare various strategies for choosing negative examples. For reproducibility, we curate data from the Free Music Archive. Using this data, we investigate two types of model architectures for estimating the compatibility of loops: one based on a Siamese network, and the other a pure convolutional neural network (CNN). We conducted a user study in which participants rated the quality of the combinations suggested by each model, and found the CNN to outperform the Siamese network. Both model-based approaches outperformed the rule-based one. We have opened source the code for building the models and the dataset.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>The emergence of digital audio editing techniques and software such as digital audio workstations (DAWs) has changed the way people make music. In a DAW, producers can easily produce music by making use of preexisting audio as loops. Loops are used in many styles, especially Electronic and Hip-Hop music. Perhaps noticing the business value of such loop-based music, many companies such as Splice and LANDR have built up databases of loops. Community efforts have flourished too, including Looperman, an audio community that provides free loops for music producers to use. But having so many resources to choose from leaves a separate problem: how to navigate the library efficiently and how to choose which loops to combine. These tasks require human practise, expertise, and patience: to recognize the characteristics of the c Bo-Yu Chen, Jordan B. L. Smith, Yi-Hsuan Yang. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Bo-Yu Chen, Jordan B. L. Smith, Yi-Hsuan Yang, "Neural Loop Combiner: Neural Network Models for Assessing the Compatibility of Loops", in Proc. of the 21st Int. Society for Music Information Retrieval Conf., Montréal, Canada, 2020. loop and to determine whether it is suitable for their song. However, thanks to recent advances in music information retrieval (MIR), we believe it is possible to make loop selection from large-scale loops database easier.</p><p>A few existing systems could potentially solve this problem. Kitahara et al. <ref type="bibr" target="#b1">[1]</ref> presented an intelligent loop sequencer that chooses loops to fit a user-defined 'excitement' curve, but, excitement only accounts for part of what makes two loops compatible. The AutoMashUpper system <ref type="bibr" target="#b2">[2]</ref> could also be applied to the loop selection process: it involves estimating the 'mashability' of two songs (i.e., how compatible they would be if played at the same time). It is a rule-based system that computes the harmonic and rhythmic similarity and spectral balance, and it has proven useful in other applications <ref type="bibr" target="#b3">[3,</ref><ref type="bibr" target="#b4">4]</ref>. However, AutoMashUpper has two limitations that could be improved by current machine learning methods. First, it regards the harmonic and rhythmic similarity as part of mashability, while it is actually possible that two music segments match perfectly despite having different harmonies and rhythms. Second, hand-crafted representations cannot fully describe all features in the music segment.</p><p>To capture the more complicated compatible relationship between two music segments, we propose to employ modern machine learning models to learn to predict the compatibility of loops. A major obstacle preventing the development of such a model is the lack of a dataset with sufficient labelled data. While there are many datasets of loops, none provide ground truth compatibility values.</p><p>We make two main contributions. First, we propose a data generation pipeline that supplies labelled data for model-based compatibility estimation (see Section 3). This is done by using an existing loop extraction algorithm <ref type="bibr" target="#b5">[5]</ref> to yield positive examples of loops that have been used together in real loop-based music. We also propose procedures to ensure the quality of the positive data, and investigate different strategies to mine negative data from the result of loop separation.</p><p>Second, we develop and evaluate two neural network based models for loop compatibility estimation (see Section 4), one based on convolutional neural network (CNN) and the other Siamese neural network (SNN) <ref type="bibr" target="#b6">[6]</ref>. The two approaches perform loop compatibility estimation using different approaches: the CNN directly evaluates the combination of loops in a time-frequency representation, whereas SNN processes the two loops to be evaluated for compatibility separately. We report both objective and sub-jective evaluations (see <ref type="bibr">Section 5)</ref> to study the performance of these approaches, and to compare the model-based approaches with AutoMashUpper.</p><p>The audio data we employ to build the neural network is from the Free Music Archive (FMA) <ref type="bibr" target="#b7">[7]</ref> (see Section 3.1), which make data re-distribution easier. Moreover, we have open-sourced the code implementing the proposed CNN and SNN models at <ref type="url" target="https://github">https://github</ref>. com/mir-aidj/neural-loop-combiner.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>Along with the growing interest in loop-based music, academic studies focusing on assisting loop-based music production have become popular. An early study <ref type="bibr">[8]</ref> proposed two ways to help create loop-based music: automatic loop extraction and assisted loop selection. This laid the foundation for this field.</p><p>For loop extraction, Shi and Mysore <ref type="bibr" target="#b9">[9]</ref> proposed an interface with automatic and semi-automatic modes for the producer to find the most suitable segment in a piece of music to excerpt and use as a loop, by cropping directly. These algorithms estimate similarity with handcrafted features: harmony, timbre, and energy <ref type="bibr">[8,</ref><ref type="bibr" target="#b9">9]</ref>. However, the segments are excerpted without any attempt to isolate one part of a potentially multi-part piece of music. One solution to this used a common quality of loop-based musicthat loops are often introduced one at a time-to recover the source tracks <ref type="bibr" target="#b10">[10]</ref>, but not all pieces have this form. To tackle both problems, Smith et al. <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b11">11]</ref> proposed to extract loops by taking into account how they repeat. The algorithm they proposed can directly extract the loops from songs using nonnegative tensor factorization (NTF).</p><p>For loop selection, Kitahara et al. <ref type="bibr" target="#b1">[1]</ref> proposed to select the loops according to the level of excitement entered by the user. However, we see three limitations in this work. First, the study focuses on Techno music only-while excitement is certainly highly relevant to this genre, the approach may not generalize well to other genres. Second, the level of excitement has to be manually entered by a user, which limits its usability. Third, the study does not take compatibility into consideration. As a result, even though a user can find loops with the desired excitement level, the loops may not be compatible with one another.</p><p>To the best of our knowledge, the work of Davies et al. <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b12">12]</ref> represents the first study to investigate mashability estimation. Their AutoMashUpper system represents each music segment (not necessarily a loop) with a chromagram, a rhythmic representation, and a spectral band representation, each made to be beat-synchronous. Given two songs, it computes the similarity between the chromagrams and the rhythmic representations, and the spectral balance between the songs, to obtain the final mashability estimate. While AutoMashUpper is developed for general mashability estimation of longer music pieces, it can also be applied to loop selection.</p><p>Lee et al. <ref type="bibr" target="#b13">[13]</ref>   <ref type="bibr" target="#b7">[7]</ref> using the data generation pipeline shown in Figure <ref type="figure" target="#fig_0">1</ref>.</p><p>ated mashups that were preferred by listeners to the output of AutoMashUpper, but they focused on a particular type of mash-up (combinations of vocal and backing tracks) whereas we focus on general loop compatibility. Bernardes et al. <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b15">15]</ref> proposed several harmonic mixing approaches based on psychoacoustic principles and "tonal interval space indicators." Xing et al. <ref type="bibr" target="#b16">[16]</ref> used paired audio, MIDI, and lyrics data for mashability estimation, taking into account similarity in melody, rhythm, and rhyming lyrics. Among these works, AutoMashUpper stands out as a general-purpose system requiring only audio data, so we consider it as our baseline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">DATA GENERATION PIPELINE</head><p>To create the labeled data needed for training our models, we obtained a dataset of loop-based music and used loop extraction <ref type="bibr" target="#b5">[5]</ref> to obtain audio loops. We use a new loop refinement procedure to reduce the number of duplicate loops per song, and a loop pairing procedure to get pairs of loops that co-occur in songs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Dataset</head><p>To extract a collection of loops, we first need a large set of songs that use loops. We chose to use music from the Free Music Archive (FMA) <ref type="bibr" target="#b7">[7]</ref> so that we could redistribute the audio data. We restricted ourselves to the genre of Hip-Hop for three reasons: First, we could not manually verify whether each song used loops, so we needed to use a genre known for using loops. Second, for the loop extraction step to work, we needed the music to have a steady tempo. Third, we expected that a Hip-Hop subset would provide a useful variety of loops since the genre is known for incorporating loops from many other genres We collected 6,868 Hip-Hop songs in total from FMA by searching for the tag "Hip-Hop." We passed these songs through the proposed data generation pipeline, and kept the 3,508 songs from which we could find at least one valid loop pair. Specifically, from these 3,508 songs, we obtained 11,603 valid loops and 16,069 valid loop pairs. From the full set of loops, we reserved 200 loops (1 pair each from 100 different songs) for the evaluations (see Section 5), and then split the rest into train and validation sets in a 4-to-1 ratio (see Table <ref type="table" target="#tab_0">1</ref>).<ref type="foot" target="#foot_0">foot_0</ref>  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Data Generation</head><p>Figure <ref type="figure" target="#fig_0">1</ref> depicts the overall data generation pipeline. We firstly use the algorithm proposed by Smith and Goto <ref type="bibr" target="#b5">[5]</ref> for loop extraction. The algorithm uses NTF to model a song as a set of sound templates and rhythm templates, a set of "recipes" for combining these templates to recreate the loop spectrograms, and a loop layout that defines when each loop occurs in the song. In later work, the authors described how to choose the best instance of a loop to extract from a piece, and a second factorization step that can be applied to reduce the redundancy of the loops <ref type="bibr" target="#b11">[11]</ref>. As a result of this process, we get out of a song the loop layout, the reconstructed spectrograms, and the audio files of loops, as depicted in the first half of Fig. <ref type="figure" target="#fig_0">1</ref>.</p><p>Despite this extra step, we still found many redundant, similar-sounding loops from the Hip-Hop dataset. To further deduplicate the loops, we introduce a new loop refinement step. The main idea is to consider the reconstructed spectrograms obtained from the loop extraction algorithms as an image, and apply the average hash algorithm <ref type="bibr" target="#b17">[17]</ref> used in the identification or integrity verification of images to detect the duplicate loops. We first construct the hash from each spectrogram extracted from the same song, then count the number of bit positions that are different in every pair of spectrograms. If a pair of spectrograms has fewer than five bit positions that are different, we regard them as duplicates and remove one of them.</p><p>After this, we refine the loop layout by two steps. First, we combine all activation values from the duplicate loop in the loop layout into a single activation value. Second, we normalize all the activation values in each bar. This leads a valid loop layout that is ready for loop pairs creation.</p><p>Finally, we have to process the real-valued loop layout to obtain pairs of loops that do co-occur. A straightforward approach is to threshold the loop layout; we found strictions, the songs are associated with 7 different Creative Commons licenses with various degree of freedom in data manipulation and redistribution. We will therefore build up our dataset into 7 groups, one for each unique license, before distributing the loops. a threshold of 0.2 to work reasonably well. Please note that, to make all the loops in our dataset comparable, we time-stretch each to be 2 seconds long.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">PROPOSED LEARNING METHODS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Negative Sampling Strategies</head><p>We get abundant positive data after the data generation pipeline. However, we also need negative examples (pairs of clips known to not match well) to train our mashability predictor. While there are straightforward ways to collect such examples, proper and domain-specific negative sampling has been shown to be important <ref type="bibr" target="#b18">[18]</ref><ref type="bibr" target="#b19">[19]</ref><ref type="bibr" target="#b20">[20]</ref><ref type="bibr" target="#b21">[21]</ref><ref type="bibr" target="#b22">[22]</ref>. We experiment with the two types of methods of negative sampling. See Figure <ref type="figure" target="#fig_1">2</ref> for an overview of such methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.1">Between-Song Negative Sampling</head><p>A naive approach to negative sampling, dubbed the random method, is to take any two loops from two different songs, and call that a negative pair. But, it is hard to ensure the loops collected in this way clash with one another.</p><p>We therefore also study a slightly more sophisticated method that takes instrumentation into account, dubbed the selected method. Specifically, we noted that many loops are pure drum or pure bass loops, and they tend to be compatible with any loops. Therefore, we use <ref type="bibr" target="#b23">[23]</ref> to detect pure drum or bass loops and avoid selecting them in the process of random negative sampling. This way may help emphasize the harmonic compatibility of the loops. With this strategy, we can experiment whether putting more emphasis on harmonic compatibility can indeed improve the result, or other feature's compatibility is still crucial.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.2">Within-Song Negative Sampling</head><p>Negative data can also be created by editing a loop in a positive loop pair. We come up with three methods for making conflicting loop pairs: 'reverse,' 'shift,' and 'rearrange.' Given a positive loop pair, we view one of them as the source loop, and the other as the target loop. With the reverse method, the target loop is played backward to create the rhythmically and harmonically conflict. The shift method cycle-shifts a target loop by 1 to 3 beats at random to make the source loop and manipulated target loop unbalanced. The rearrange method cuts the target loop into beats and reorders them randomly. The combination of the source loop and the manipulated target loop is considered as a negative loop pair. See Figure <ref type="figure" target="#fig_1">2</ref> for illustrations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Model and Training</head><p>Figure <ref type="figure" target="#fig_2">3</ref> shows the two models (CNN and SNN) proposed to learn the compatibility of two loops. To make a fair performance comparison, we train them with the same skeleton in a different way. Therefore, we first introduce the skeleton model and then explain how it is incorporated into the specific model architectures for the training process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">Skeleton model</head><p>A two-layer 2-D convolutional neural network (CNN) and 3-layer fully connected neural network is the skeleton of networks used in this paper. There are 16 filters (with kernel size 3) and 4 filters (also with kernel size 3) in the first and second convolutional layers. The 3-Layer fullyconnected neural network is constructed by 256, 128, 16 output features, respectively. Furthermore, batch normalization <ref type="bibr" target="#b24">[24]</ref>, 10% dropout <ref type="bibr" target="#b25">[25]</ref>, and PReLU <ref type="bibr" target="#b26">[26]</ref> are applied to all convolutional and fully-connected layers. All the models are trained using stochastic gradient descent with batch size 128. The input for the skeleton model is a 2-second loop audio. We compute the spectrograms by sampling the songs at 44k Hz and using a 2,048-point Hamming window and 512-point hop size. We then transform the spectrograms into 128-bin log mel-spectrograms. The resulting input has shape 173 frames by 128 bins.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.2">CNN Model</head><p>A convolutional neural network is well-known for its ability as feature extraction. In our system, in order to learn the compatibility of two loops, we propose to use a CNN as a classifier by combining two loops into a single input, and then train the CNN model to learn to distinguish whether loop combinations would sound harmonious (high compatibility) or incompatible (low compatibility). For the classification purpose, we stack the skeleton model with a fully-connected output layer to get a single value as the output. Then, we compute the binary cross entropy loss (BCELoss) to update the parameters of the whole model. We note that its output is a value between 0 and 1, with values closer to 1 indicating a higher probability that the pair of loops are compatible, and closer to 0 when they are not. Therefore, we can later use its output to estimate the compatibility of any two loops.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.3">Siamese Model</head><p>A Siamese neural network (SNN) <ref type="bibr" target="#b6">[6]</ref> consists of twin networks that share weights and configurations. SNN has been shown effective in image retrieval <ref type="bibr" target="#b27">[27]</ref> and various MIR tasks alike <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b28">[28]</ref><ref type="bibr" target="#b29">[29]</ref><ref type="bibr" target="#b30">[30]</ref><ref type="bibr" target="#b31">[31]</ref><ref type="bibr" target="#b32">[32]</ref>. Aiming to test its applicability to loop compatiblity estimation, we train an SNN using the labeled data we created through the data generation pipeline as follows. The outcome of an SNN is a mapping function from the input features to the output vectors in an embedding space. During the training process, our SNN first transforms the input Mel-spectrograms into a vector by a skeleton model and then optimize in contrastive loss <ref type="bibr" target="#b33">[33]</ref> directly. After training, we have a mapping function that can map any loop to the embedding space. To select the compatible loops, we compute the Euclidean distance between two loops in that embedding space. If the distance for two loops is close, then we assume they may be compatible, and vice versa.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">EXPERIMENTS AND EVALUATION</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Objective Evaluation</head><p>In the objective evaluation, we aim to evaluate the performance of different combinations of model architectures (i.e., CNN and SNN) and negative sampling methods. In doing so, we consider two types of objective metrics.</p><p>The first type of evaluation entails a classification task. It assesses a model's ability to distinguish compatible loops from incompatible ones. To create a test set for this evaluation, we used the positive data from the validation data and collected the negative data by using all the negative sampling methods equally, in order not to favor any of them in this evaluation. To make the test set balanced, we set the ratio of negative to positive data to 1:1.</p><p>The second type of evaluation, on the other hand, involves a ranking task. Given a query loop and a certain number of candidate loops, a model has to rank the candidate loops in descending order of compatibility with the query. We created the set of candidate loops for a query loop such that we knew one and only one of the candidate loops formed a positive loop pair with the query loop. We could then evaluate the performance of a model by checking the position of this "target loop" in the ranked list. The closer the rank is to 1, the better. This evaluation task aligns well with the real-world use case of the proposed model: to find loops compatible with a query loop from a pool of loop libraries. However, we note that it may not be always possible to rank the target loop high in this evaluation, because the other loops in the candidate pool may also be compatible with the query.</p><p>In our experiment, we set the number of candidate loops to 100. We computed four metrics for the ranking task: top-10 accuracy, top-30 accuracy, and top-50 accuracy-which evaluate whether the target loop was placed in the top-10, top-30, and top-50 of the ranked list, respectively-as well as the average rank. We report the average of these values for the 100 different query loops.</p><p>Classification Result-Table <ref type="table" target="#tab_1">2</ref> shows that, regardless of the negative sampling method, the CNN models outperform the SNN models for the classification-based metrics. While the CNN learns to rate the compatibility of the loop combinations directly, the SNN learns to place the loops in a space, with nearby loops being more compatible. The training data were the same, so the difference in performance suggests that the space learned was not effective for the classification task.</p><p>Ranking Result-Table <ref type="table" target="#tab_1">2</ref> also shows CNN and SNN models seem to perform comparably with respect to the ranking-based metrics. Yet, the best scores in the four ranking-based metrics are all obtained by SNN with 'random' negative sampling. When an SNN is used, there appears to be a large performance gap between 'random' and all the other negative sampling methods. This suggests that focusing on harmonic compatibility alone (e.g., as done by using the 'selected' negative sampling method) is not optimal; compatibility in other dimensions of music is also important. On the other hand, when a CNN is used, 'reverse' appears to perform the best among the five negative sampling methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Subjective Listening Test</head><p>We note that even if a model obtains the highest classification or ranking result, we still cannot guarantee that the model also works well in real-world applications. Accordingly, we deployed a user study by releasing an online questionnaire to get user feedback. As the users' time is precious, it is not possible to test the result of all combinations of the models and negative sampling methods. Therefore, we considered the result of the objective evaluation and picked five methods for subjective evaluation:</p><p>• 'CNN + reverse', 'SNN + random,' and 'SNN + reverse,' three instances of the proposed methods that performed well in the objective evaluation; • 'AutoMashUpper' <ref type="bibr" target="#b2">[2]</ref>, as it represents the state-ofthe-art for the task. Our implementation is based on the open source code from <ref type="url" target="https://github">https://github</ref>. com/migperfer/AutoMashupper. As the rhythmic compatibility part of <ref type="bibr" target="#b2">[2]</ref> is missing in this repo, we implement it ourselves following <ref type="bibr" target="#b2">[2]</ref>. • 'Original,' which stands for the real loop combinations observed in FMA and extracted by the procedures described in Section 3.2. Specifically, an 'original' loop combination is one of the 100 positive loop pairs from the 'test set' listed in Table <ref type="table" target="#tab_0">1</ref>.</p><p>The loop combinations, or test clips, presented to users for evaluation are created as follows. As in Section 4.1.2, for each positive loop pair, we view one as the source loop, and the other as the target loop. Accordingly, we have 100 source loops and 100 target loops in the test set. A test clip is a combination of two loops. For the 'original' method, we pair the source loop with its true target. For the other methods, the 99 target loops (excluding the true target) are ranked, and the one predicted to match the source best is combined with it to form a test clip. The 5 resulting test clips for each source loop were considered as a group. This way, we have 100 groups in total. Among them, we picked 6 groups for evaluation: they have 2 vocal loops, 2 drum loops, and 2 loops of instrumental melody as the source loop, respectively.</p><p>We designed a subjective listening test that could be administered to users through an anonymous online questionnaire, and advertised it on social media websites related to EDM and Hip-Hop. A participant was randomly directed to a questionnaire containing one group of test clips, and was then asked to listen to the 5 test clips and rate each clip, on a 5-point Likert scale, in terms of: i) whether they sounded matched, ii) whether they were an innova-Figure <ref type="figure">4</ref>: The subjective evaluation results of comparing the preference, musical feature and musical element among 5 methods. A method is considered to show low abilities to manipulate loops if its MOS is under 3 in (A) 'using preference'related and (C) 'musical elements'-related metrics, and under 2 in (B) 'musical feature'-related metrics.</p><p>tive combination, iii) and whether they were usable in future compositions (see Figure <ref type="figure">4A</ref>). They were also asked to indicate whether the loops matched according to 3 musical features: rhythm, harmony, and timbre (see Figure <ref type="figure">4B</ref>). Finally, to see how consistent the models are at recommending loops given different query types, Figure <ref type="figure">4C</ref> breaks down the results for Matchness (Figure <ref type="figure">4A</ref>(i)) according to source loop type: drum, vocal or melody loop.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.1">Subjective Evaluation Result</head><p>Data from 116 Taiwanese participants were collected, and all of them were included for analysis. The participants self-reported the gender they identified with (36 female, 80 male) and age <ref type="bibr" target="#b19">(19)</ref><ref type="bibr" target="#b20">(20)</ref><ref type="bibr" target="#b21">(21)</ref><ref type="bibr" target="#b22">(22)</ref><ref type="bibr" target="#b23">(23)</ref><ref type="bibr" target="#b24">(24)</ref><ref type="bibr" target="#b25">(25)</ref><ref type="bibr" target="#b26">(26)</ref><ref type="bibr" target="#b27">(27)</ref><ref type="bibr" target="#b28">(28)</ref><ref type="bibr" target="#b29">(29)</ref><ref type="bibr" target="#b30">(30)</ref><ref type="bibr" target="#b31">(31)</ref><ref type="bibr" target="#b32">(32)</ref><ref type="bibr" target="#b33">(33)</ref>. 50% said they listened to loopbased music more than 5 days a week, 54% had classical musical training, and 42% had experience composing loop-based music. Overall, the responses indicated an acceptable level of reliability (Cronbach's α = 0.778).</p><p>Figure <ref type="figure">4</ref> indicates the mean opinion score (MOS). A Wilcoxon signed-rank test was conducted to statistically evaluate the comparative ability of the 5 methods.</p><p>Overall, we observe that AutoMashUpper performs least well in almost all the evaluation metrics. Outside of the Innovation (Figure <ref type="figure">4A</ref>) and Drum metrics (Figure <ref type="figure">4C</ref>), AutoMashUpper is significantly worse than almost all the other methods. This suggests that, in loop selection, considering only loop similarity and spectral balance (as assumed by AutoMashUpper) is not enough-perceptually compatible loops are not necessarily similar in content.</p><p>On the other hand, we note that 'CNN with reverse negative sampling' performs the best in almost all of the evaluation metrics. To our surprise, the loop combinations picked by the CNN are preferred even to the original loop combinations extracted from FMA songs. The performance difference between 'CNN + reverse' and 'Original' is significant (p-value &lt; 0.001) in terms of several metrics, including Matchness and Usability. In contrast, there is no significant performance difference between 'Original' and the two SNN models.</p><p>One finding was surprising: The MOS obtained by 'CNN + reverse' for Matchness is 4.0, higher even than the MOS of 3.15 obtained by 'Original.' I.e., the loop combinations proposed by the system were found to match better than the original combinations. We are not sure how to ac-count for this success. One might conjecture that the quality of the 'Original' pair suffers from the imperfect loop extraction algorithm, but since all the loops were extracted the same way, they should be on equal footing. Alternatively, the novelty of the non-original mash-ups could be more interesting to the listeners than the originals; however, there was no clear difference among the systems in terms of 'Innovation.' We can only conjecture that 'CNN + reverse' found better loop combinations than human-made ones because the model-based method could examine all the possible loop combinations, while humans cannot.</p><p>We found that SSN methods, despite their performing better in ranking-based objective metrics than the CNN method, did not create perceptually-better loop combinations. This suggests a discrepancy between the objective and subjective metrics. And lastly, while it seems fair to say that CNNs outperform SNNs in the subjective evaluation, it is hard to say whether 'reverse' is the most effective negative sampling, because we were not able to evaluate all the possible methods here. This is left as a future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSION AND FUTURE WORK</head><p>In this paper, we have proposed a data generation pipeline and several negative sampling strategies to address the need of ground-truth labels for building a machine learning model for estimating the compatibility of loops. We have also implemented and evaluated two different network architectures (CNN and SNN) to build such models. Our objective evaluation shows that a CNN does well in classifying incompatible loop pairs and an SNN is good at imitating how producers combined loops, and our subjective evaluation suggests the loop combinations created by a CNN are favored over those created by an SNN and even, in some aspects, real data from FMA. Both CNNs and SNNs outperform the rule-based system AutoMashUpper.</p><p>We have two plans in place for future work. First, as we see some inconsistency between the results of objective and subjective evaluations, we plan to investigate other objective metrics for performance evaluation. Second, we plan to exploit the loop layouts estimated by the loop extraction algorithm <ref type="bibr" target="#b5">[5]</ref> to study further the relationship between loops and their arrangement, which may aid in the automatic creation of loop-based music.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: The proposed data generation pipeline for creating positive loop pairs.</figDesc><graphic coords="3,72.00,48.72,198.43,182.53" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Illustration of various loop-pair 'negative sampling' (NS) strategies explored in the paper.</figDesc><graphic coords="3,321.28,48.72,198.41,151.78" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Architectures of the CNN and SNN models studied in this paper. The CNN takes a pair of loops (in the time domain) as the input, whereas the SNN takes the two loops as separate inputs and concatenate the intermediate abstractions only in the middle of its network.</figDesc><graphic coords="4,54.83,48.72,226.76,158.43" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="6,42.71,48.72,510.24,107.39" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Statistics of the dataset, which is derived from Hip-Hop songs in the Free Music Archive (FMA)</figDesc><table><row><cell>extended AutoMashUpper, proposing</cell></row><row><cell>that two parts should be more compatible if they have com-</cell></row><row><cell>plimentary amounts of harmonic instability. They gener-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Objective evaluation result of different combinations of models (CNN or SNN; see Section 4.2) and negative sampling strategies (see Section 4.1). We highlight the best result for each metric in bold.</figDesc><table><row><cell>Model</cell><cell cols="3">Negative sampling Accuracy Classification-based metric F1 score</cell><cell cols="4">Ranking-based metric Avg. rank Top 10 Top 30 Top 50</cell></row><row><cell></cell><cell>Random</cell><cell>0.60</cell><cell>0.59</cell><cell>43.0</cell><cell>0.13</cell><cell>0.35</cell><cell>0.59</cell></row><row><cell></cell><cell>Selected</cell><cell>0.59</cell><cell>0.59</cell><cell>43.1</cell><cell>0.13</cell><cell>0.29</cell><cell>0.62</cell></row><row><cell>CNN</cell><cell>Reverse</cell><cell>0.63</cell><cell>0.62</cell><cell>41.2</cell><cell>0.19</cell><cell>0.42</cell><cell>0.62</cell></row><row><cell></cell><cell>Shift</cell><cell>0.57</cell><cell>0.56</cell><cell>49.0</cell><cell>0.11</cell><cell>0.34</cell><cell>0.54</cell></row><row><cell></cell><cell>Rearrange</cell><cell>0.57</cell><cell>0.57</cell><cell>47.7</cell><cell>0.10</cell><cell>0.31</cell><cell>0.57</cell></row><row><cell></cell><cell>Random</cell><cell>0.51</cell><cell>0.47</cell><cell>34.2</cell><cell>0.27</cell><cell>0.52</cell><cell>0.74</cell></row><row><cell></cell><cell>Selected</cell><cell>0.52</cell><cell>0.47</cell><cell>42.8</cell><cell>0.18</cell><cell>0.39</cell><cell>0.59</cell></row><row><cell cols="2">Siamese NN Reverse</cell><cell>0.53</cell><cell>0.48</cell><cell>42.7</cell><cell>0.16</cell><cell>0.37</cell><cell>0.62</cell></row><row><cell></cell><cell>Shift</cell><cell>0.53</cell><cell>0.52</cell><cell>43.0</cell><cell>0.16</cell><cell>0.41</cell><cell>0.65</cell></row><row><cell></cell><cell>Rearrange</cell><cell>0.53</cell><cell>0.53</cell><cell>44.2</cell><cell>0.16</cell><cell>0.40</cell><cell>0.60</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>To facilitate follow-up research, we plan to share publicly the loops we extracted from FMA songs. While FMA has looser copyright re-</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><p>This research was in part funded by a grant from the <rs type="funder">Ministry of Science and Technology, Taiwan</rs> (<rs type="grantNumber">MOST107-2221-E-001-013-MY2</rs>).</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_r3YfB39">
+					<idno type="grant-number">MOST107-2221-E-001-013-MY2</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">A loop sequencer that selects music loops based on the degree of excitement</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kitahara</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Iijima</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Okada</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yamashita</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Tsuruoka</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Sound and</title>
+		<meeting>Int. Sound and</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">AutoMashUpper: Automatic creation of multi-song music mashups</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E P</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Hamel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Trans. Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page" from="1726" to="17370" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">CrossSong Puzzle: Generating and unscrambling music mashups with real-time interactivity</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">B L</forename><surname>Smith</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Percival</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kato</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Fukayama</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Sound and</title>
+		<meeting>Int. Sound and</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Learning a joint embedding space of monophonic and mixed music signals for singing voice</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<meeting>Int. Soc. Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Nonnegativetensor factorization for source separation of loops in audio</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">B L</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Int. Conf. Acoustics, Speech and Signal Processing</title>
+		<meeting>IEEE Int. Conf. Acoustics, Speech and Signal essing</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bromley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Guyon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Sckinger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Shah</surname></persName>
+		</author>
+		<title level="m">Signature verification using a &quot;siamese&quot; time delay neural network,&quot; in In Proc. Annual Conf. Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="1994">1994</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">FMA: A dataset for music analysis</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Defferrard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Benzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Vandergheynst</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Bresson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<meeting>Int. Soc. Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A music loop explorer system</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Streich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">S</forename><surname>Ong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Computer Music Conf</title>
+		<meeting>Int. Computer Music Conf</meeting>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">LoopMaker: Automatic creation of music loops from pre-recorded music</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">J</forename><surname>Mysore</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. SIGCHI Int. Conf. Human Factors in Computing Systems</title>
+		<meeting>SIGCHI Int. Conf. Human Factors in Computing Systems</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Simultaneous separation and segmentation in layered music</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Seetharaman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Pardo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<meeting>Int. Soc. Music Information Retrieval Conf<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="495" to="501" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Unmixer: An interface for extracting and remixing loops</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">B L</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Kawasaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<meeting>Int. Soc. Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">AutoMashUpper: An automatic multi-song mashup system</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E P</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Hamel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Automatic mashup creation by considering both vertical and horizontal mashabilities</title>
+		<author>
+			<persName><forename type="first">C.-L</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-T</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z.-R</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-Y</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-L</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc</title>
+		<meeting>null</meeting>
+		<imprint>
+			<publisher>Int. Soc. Music Information Retrieval Conf</publisher>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Psychoacoustic approaches for harmonic music mixing</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Bernardes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E P</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Guedes</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Applied Science</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A perceptually-motivated harmonic compatibility method for music mixing</title>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Symp. Computer Music Multidisciplinary Research</title>
+		<meeting>Int. Symp. Computer Music Multidisciplinary Research</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="105" to="115" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Popmash: an automatic musical-mashup system using computation of musical and lyrical agreement for transitions</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Xing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Sun</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<publisher>Multimedia Tools and Applications</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Implementation and benchmarking of perceptual image hash functions</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zauner</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+		<respStmt>
+			<orgName>University of Applied Sciences Upper Austria</orgName>
+		</respStmt>
+	</monogr>
+	<note>master Thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Discriminative learning of deep convolutional feature point descriptors</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Simo-Serra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Trulls</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ferraz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Kokkinos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Fua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Moreno-Noguer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Int. Conf. Computer Vision</title>
+		<meeting>IEEE Int. Conf. Computer Vision</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Facenet: A unified embedding for face recognition and clustering</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Schroff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kalenichenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Philbi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Conf. Computer Vision and Pattern Recognition</title>
+		<meeting>IEEE Conf. Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Sampling matters in deep embedding learning</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Schroff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kalenichenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Philbin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Int. Conf. Computer Vision</title>
+		<meeting>IEEE Int. Conf. Computer Vision</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Sampling strategies in siamese networks for unsupervised speech representation learning</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Riad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Dancette</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Karadayi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">S N</forename><surname>Zeghidour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Dupoux</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Interspeech</title>
+		<meeting>Interspeech</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Disambiguating music artists at scale with audio metric learning</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Royo-Letelier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Hennequin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Anhtran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Moussallam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<meeting>Int. Soc. Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Spleeter: A fast and state-of-the art music source separation tool with pre-trained models</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Hennequin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Khlif</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Voituret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Moussallam</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<publisher>Late-Breaking/Demo ISMIR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Batch normalization: Accelerating deep network training by reducing internal covariate shift</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ioffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Szegedy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Machine Learning</title>
+		<meeting>Int. Conf. Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Dropout: A simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Delving deep into rectifiers: Surpassing human-level performance on imagenet classification</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Int. Computer Vision</title>
+		<meeting>IEEE Int. Computer Vision</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Siamese neural networks for one-shot image recognition</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Koc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Zemel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Machine Learning, ICML Deep Learning Workshop</title>
+		<meeting>Int. Conf. Machine Learning, ICML Deep Learning Workshop</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Representation learning of music using artist labels</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-W</forename><surname>Ha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<meeting>Int. Soc. Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Generating music medleys via playing music puzzle games</title>
+		<author>
+			<persName><forename type="first">Y.-S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S.-Y</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Artificial Intelligence</title>
+		<meeting>Int. Conf. Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Learning contextualized music semantics from tags via a Siamese neural network</title>
+		<author>
+			<persName><forename type="first">U</forename><surname>Sandouk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Trans. Intelligent Systems and Technology</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Content-based representations of audio using siamese neural networks</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Manocha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Badlani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Elizalde</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Raj</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Int. Conf. Acoustics, Speech and Signal Processing</title>
+		<meeting>IEEE Int. Conf. Acoustics, Speech and Signal essing</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="3136" to="3140" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Hit song prediction for Pop music by Siamese CNN with ranking loss</title>
+		<author>
+			<persName><forename type="first">L.-C</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-N</forename><surname>Hung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-A</forename><surname>Chen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1710" to="10814" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Dimensionality reduction by learning an invariant mapping</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Hadsell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lecun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Conf. Computer Vision and Pattern Recognition</title>
+		<meeting>IEEE Conf. Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

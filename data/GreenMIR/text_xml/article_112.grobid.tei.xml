@@ -1,0 +1,1292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MUSIC REPRESENTATION LEARNING BASED ON EDITORIAL METADATA FROM DISCOGS</title>
+				<funder>
+					<orgName type="full">Agencia Estatal de Investigación</orgName>
+				</funder>
+				<funder ref="#_QpsbgR7">
+					<orgName type="full">Spanish Ministerio de Ciencia e Innovación</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Pablo</forename><surname>Alonso-Jiménez</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">Music Technology Group Universitat Pompeu Fabra</orgName>
+								<orgName type="department" key="dep2">Music Technology Group Universitat Pompeu Fabra</orgName>
+								<orgName type="department" key="dep3">Music Technology Group Universitat Pompeu Fabra</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xavier</forename><surname>Serra</surname></persName>
+							<email>xavier.serra@upf.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">Music Technology Group Universitat Pompeu Fabra</orgName>
+								<orgName type="department" key="dep2">Music Technology Group Universitat Pompeu Fabra</orgName>
+								<orgName type="department" key="dep3">Music Technology Group Universitat Pompeu Fabra</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Dmitry</forename><surname>Bogdanov</surname></persName>
+							<email>dmitry.bogdanov@upf.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">Music Technology Group Universitat Pompeu Fabra</orgName>
+								<orgName type="department" key="dep2">Music Technology Group Universitat Pompeu Fabra</orgName>
+								<orgName type="department" key="dep3">Music Technology Group Universitat Pompeu Fabra</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MUSIC REPRESENTATION LEARNING BASED ON EDITORIAL METADATA FROM DISCOGS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">A3A58E7166ED349B4BD8DC46BAE666A5</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>This paper revisits the idea of music representation learning supervised by editorial metadata, contributing to the state of the art in two ways. First, we exploit the public editorial metadata available on Discogs, an extensive community-maintained music database containing information about artists, releases, and record labels. Second, we use a contrastive learning setup based on COLA, different from previous systems based on triplet loss. We train models targeting several associations derived from the metadata and experiment with stacked combinations of learned representations, evaluating them on standard music classification tasks. Additionally, we consider learning all the associations jointly in a multi-task setup. We show that it is possible to improve the performance of current self-supervised models by using inexpensive metadata commonly available in music collections, producing representations comparable to those learned on classification setups. We find that the resulting representations based on editorial metadata outperform a system trained with music style tags available in the same large-scale dataset, which motivates further research using this type of supervision. Additionally, we give insights on how to preprocess Discogs metadata to build training objectives and provide public pre-trained models.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Developing robust representations is crucial to improving the performance of existing supervised Music Information Retrieval (MIR) tasks on datasets with few annotations. While conventional approaches are based on classification [1±3], other directions include self-supervised strategies [4±9] including leveraging generative models <ref type="bibr" target="#b10">[10]</ref>, supervision by editorial metadata [11±15], playlist coocurrences <ref type="bibr" target="#b16">[16]</ref>, co-listen statistics <ref type="bibr" target="#b15">[15]</ref>, natural language text <ref type="bibr" target="#b17">[17]</ref>, or combinations of them <ref type="bibr">[10,14±16]</ref>. While selfsupervised systems are narrowing the performance gap with the supervised approaches, the latter seem to be reaching a performance ceiling in the academic research, partially due to the tremendous difficulty to collect larger annotated datasets.</p><p>Using editorial metadata as a source of supervision was already considered in other domains, for example, in scientific publication classification <ref type="bibr" target="#b18">[18]</ref> or film recommendation <ref type="bibr" target="#b19">[19]</ref>. Likewise, music is naturally rich in metadata. For example, physical formats typically contain detailed editorial information on their covers, digital audio files support containers such as ID3 for this purpose, and most streaming platforms offer album or artist-level browsability. Most music digital service providers routinely require such metadata from content uploaders, and therefore it is often available for music collections in the industry by default. Furthermore, editorial metadata does not suffer from the subjectivity problems common for music tags and tends to be more consistent. Because of these reasons, such metadata allows the creation of potentially larger and less noisy datasets than tag annotations. <ref type="bibr">Park et al.</ref> showed that certain types of editorial metadata (artist name) could be used to learn music representations using the triplet loss <ref type="bibr" target="#b11">[11]</ref>. Motivated by their study and following the recent success of unsupervised representation learning approaches such as SimCLR <ref type="bibr" target="#b9">[9,</ref><ref type="bibr" target="#b20">20]</ref>, we are interested whether modifying such systems to operate with similarity relations based on editorial metadata improves the learned features.</p><p>Our proposal differs from previous works on metadatabased music representation learning in two aspects. First, we use editorial metadata from Discogs, <ref type="foot" target="#foot_0">1</ref> a website containing an extensive metadata database including the artists, year, country, record label, and genres/styles of each release. Discogs publishes monthly dumps of their data under the Creative Commons CC0 license that we use to label 3.3 million tracks from our in-house data collection, allowing us to extract conclusions about systems trained on large datasets. Second, we adopt a contrastive approach already performant in a self-supervised setup instead of siamese networks. Specifically, we choose COLA <ref type="bibr" target="#b21">[21]</ref> for its simplicity, operating directly on spectral representations, and requiring no data augmentation, which makes it efficient and suitable for large-data regimes. COLA works by maximizing the bilinear similar-ity between a pair of mel-spectrogram patches (anchor and positive) cropped from the same audio clip while minimizing it for the rest of the patches in the batch. We propose to modify this self-supervised approach by constructing the anchor/positive pairs according to the different types of metadata considered (i.e., same track, release, artist, and record label). Additionally, we explore whether different metadata associations generate complementary information by combining the embeddings produced by their respective models and creating multi-task systems jointly optimized to learn them.</p><p>To summarize, we propose investigating the usability of metadata as an inexpensive source of supervision to train contrastive feature extractors for music classification. On top of the original self-supervised COLA approach, we experiment with associations based on editorial metadata to construct the positive pairs. We report results on public benchmarking datasets to facilitate comparison with the SOTA and provide publicly available pre-trained embedding and downstream models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>This paper combines three ideas: supervision based on editorial metadata, usage of the Discogs database, and the recent advances in contrastive learning for MIR. In this section, we review relevant works on these topics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Metadata-based music representation learning</head><p>Park et al. shows that the artist name can be used as training target, with the resulting features being close in performance to those obtained from systems trained on crowdsourced tags <ref type="bibr" target="#b11">[11]</ref>. As the artist information is too sparse to be learned efficiently in a classification setup, they approached it as a metric learning task by creating triplets with anchor and positive samples belonging to the same artist and a negative sample belonging to a different one. In a posterior study, they extend the approach to learning track-, album-, artist-level associations, and a combination of all, finding that the latter two provide the best representation <ref type="bibr" target="#b13">[13]</ref>.</p><p>Kim et al. propose dealing with the high dimensionality of artist vectors by summarizing them into Latent Dirichlet Allocation topics <ref type="bibr" target="#b22">[22]</ref> to create targets suitable for a traditional classification setup <ref type="bibr" target="#b12">[12]</ref>. Other works exploit editorial metadata (release year) among other learning sources in multi-task setups <ref type="bibr" target="#b14">[14]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Discogs in MIR research</head><p>The Discogs database has already been used for research. Bogdanov et al. propose using it in the context of music recommendation <ref type="bibr" target="#b23">[23]</ref>, MIR, and computational musicology <ref type="bibr" target="#b24">[24]</ref>. The former study proposes a recommendation system based on the similarity between artist representations in the form of a tag cloud of the associated genre, style, record label, and release year and country metadata. The latter illustrates the potential uses of the database on various cultural analysis examples including the evolution of physical distribution formats, genre and style trends, and their co-occurrences. Similarly, some studies analyze music artist collaboration networks [25±28].</p><p>In the context of music genre classification, the Acous-ticBrainz Genre dataset contains mappings across different music genre taxonomies, including the one from Discogs <ref type="bibr" target="#b29">[29]</ref>. Hennequin et al. use the genre and style labels from Discogs for genre tag disambiguation <ref type="bibr" target="#b30">[30]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Contrastive Learning in MIR</head><p>The MIR community has lately adopted contrastive learning approaches, both supervised and self-supervised. Regarding supervised methods, Favory et al. use a contrastive objective to align embedded representations of tags and audio <ref type="bibr" target="#b31">[31,</ref><ref type="bibr" target="#b32">32]</ref>. In a subsequent study, the system is enriched with playlists-track interactions as an additional modality to align <ref type="bibr" target="#b16">[16]</ref>.</p><p>On the self-supervised side, several contrastive systems from the computer vision domain have been adapted and evaluated for music-related tasks. CLMR <ref type="bibr" target="#b5">[5]</ref> adapts SimCLR <ref type="bibr" target="#b20">[20]</ref> to operate on waveforms using musicallymeaningful augmentations. BYOL-A <ref type="bibr" target="#b6">[6]</ref> relies on the BYOL <ref type="bibr" target="#b33">[33]</ref> framework and adapts it to the audio domain by proposing specific augmentations and evaluating it on several audio tasks, including instrument classification. S3T <ref type="bibr" target="#b8">[8]</ref> combines the MoCo framework <ref type="bibr" target="#b34">[34]</ref> with Swin Transformers <ref type="bibr" target="#b35">[35]</ref> to learn music classification features. Wang et al. <ref type="bibr" target="#b9">[9]</ref> modify SimCLR by using a normalization-free SlowFast <ref type="bibr" target="#b36">[36]</ref> backbone and improve the performance in several audio tasks, including musicauto-tagging. PEMR <ref type="bibr">[7]</ref> deals with the lack of temporal resolution of existing systems by learning to mask important or irrelevant parts of the mel-spectrogram to produce self-augmented positive/negative samples. COLA <ref type="bibr" target="#b21">[21]</ref> is a simple contrastive model for audio that takes random melspectrogram patches of the same clip instead of augmented versions of the same patch as anchor/positive pairs. It relies on the bilinear similarity to compute a distance matrix between all the anchors and positives and uses the categorical cross-entropy loss to maximize the similarity between correspondent anchor/positive pairs while using the rest of the positives in the batch as negatives.</p><p>We follow a straightforward implementation of COLA, but instead of relying on the same audio clip (purely selfsupervised), we form the anchor/positive pairs according to relationships from the metadata. The complete pipeline is represented in Figure <ref type="figure" target="#fig_0">1</ref> (left). This is, to the best of our knowledge, the first usage of this framework in the context of MIR.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHODOLOGY</head><p>We are interested in assessing the representation power of features derived from associations of commonly available editorial metadata. This goal is motivated by previous works that already showed the usability of the track, artist, and album similarities as supervision targets <ref type="bibr" target="#b13">[13]</ref>. As these works already studied the influence of the dataset size and showed a positive correlation with the downstream metrics, we will only perform full-size experiments and focus on unexplored aspects.</p><p>In particular, we are interested in imposing tight constraints on the pair generation process to emphasize the differences between the different associations. To formalize our problem, we consider a collection of music where each song has a track ID (t) and appears in one or more releases (R). Each release is produced by one or more artists (A) for one or more record labels (L). We define one selfsupervised and three metadata-based associations:</p><p>• track association, the anchor and positive samples come from the same track (self-supervised), Note that this approach considerably limits the number of pairs that can be matches and presumably leads to suboptimal representations. However, our goal is to limit the number of overlapping pairs to emphasize the differences between associations. For instance, the release associations would be broadly a subset of the artist ones without the proposed constraints.</p><formula xml:id="formula_0">t</formula><p>For each association, we generate a dataset of anchor/positive pairs. We initialize a pool with all the songs in the music collection. For each song, we pick a random pair that complies with the association's condition and remove both from the pool. While this approach does not exploit every possible association, it gives each track one association attempt, which provides us with sufficient training data for the scope of this work. We also considered a balanced version of the algorithm (e.g., same number of tracks per artist) that we discarded as the performance dropped due to the reduced dataset size without providing additional insights.</p><p>Following our contrastive paradigm, we do not need to create explicit anchor/negative pairs. For a given anchor, the rest of the positive samples in the batch are considered negatives (see Figure <ref type="figure" target="#fig_0">1</ref>). While this naive approach implies that two pairs of tracks associated with the same artist will be respectively used as negative examples, there is a small probability of having repeated artists in a batch, and we ignored this issue. <ref type="foot" target="#foot_1">2</ref></p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head><p>We pre-trained different contrastive systems following the proposed similarity notions. To evaluate the quality of the learned representations, we trained shallow classifiers on different multi-class and multi-label classification tasks. Additionally, we conducted experiments to understand the complementarity of such representations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Contrastive targets based on Discogs' metadata</head><p>The Discogs database provides publicly available dumps of their release data that we used to create our training targets. According to Discogs, a release is ªa broad term for any audio product that is made for general public consumptionº; albums, singles, or compilations are examples of releases. Each release entry contains lists of the artists and record labels involved, the year and country of release, and a list of music genres and styles according to the Discogs' taxonomy. We matched our in-house audio collection to releases and master releases (groupings of different versions of a release) in the Discogs metadata dump resulting in 4 million tracks, with 58.2% of the tracks belonging to more than one release. A track may be linked to many releases for multiple reasons, including remasters, reeditions, or compilations containing it. For each track, we generated lists of artists and record labels by pooling the metadata on the releases linked to it. We observed that different versions of a release could contain very different information, so for us, this was a simple way of maximizing the amount of information available per track.</p><p>We selected the subset with the top-400 most popular music styles resulting in 3.3 million tracks to train a baseline model with a multi-label classification objective (Style tags model). We reserved subsets of 50,000 tracks without artist overlap and a minimum frequency of 50 releases per music style tag for testing and validation. These sets were used as data pools to generate training, validation, and testing sets for the considered metadata associations following the methodology presented in Section 3. Note that we did not apply any data cleaning or deduplication, meaning that there may be room for improving the proposed representation models. Table <ref type="table" target="#tab_1">1</ref> contains the resulting number of pairs and association diversities for each association, as well as the training time, and the accuracy obtained by their respective models. <ref type="foot" target="#foot_2">3</ref></p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Pre-training the embedding models</head><p>We used an EfficientNet v1 on its B0 configuration as a backbone CNN to learn the embedding representations <ref type="bibr" target="#b37">[37]</ref>. Our models operate on 2-second patches of mel-spectrograms with 96 bands extracted with the same parametrization as for MusiCNN <ref type="bibr" target="#b38">[38]</ref> using the Essentia library <ref type="bibr" target="#b39">[39]</ref>. <ref type="foot" target="#foot_3">4</ref>Due to the massive dataset size, we stored the features as half-precision (16-bit) floats, and split the data into three machines with two GeForce RTX 2080 Ti GPUs each to parallelize the training. Every epoch, we fed the model with a random 2-second crop of the mel-spectrogram from each track in the training set. We also used a random patch per track for validation, but in this case, we used the same offset on every epoch to get more stable metrics. We relied on the Adam optimizer with an initial learning rate of 1e-3 and a scheduler that reduced the learning rate by a factor of 10 if the validation loss had not decreased in 10 epochs. We trained the models for 100 epochs and considered two versions. The first one had the weights from the epoch where the lowest validation loss was achieved. The second model was obtained with stochastic weight averaging <ref type="bibr" target="#b40">[40]</ref>.</p><p>For the last 25 epochs, we imposed a learning rate of 1e-3 and kept a moving average of the weights. As the latter version only reported minimum improvements in specific tasks, we decided to present the results of the former only.</p><p>As a baseline, we trained a model targeting the top-400 Discogs music styles with the multi-label soft-margin loss by connecting a fully-connected layer to the flattened output of the last convolutional block with 1280 units (embedding layer). As discussed on the Discogs website,<ref type="foot" target="#foot_4">foot_4</ref> music styles usually go beyond purely stylistic descriptions and encode cultural, temporal, or geographical information, so we hypothesize that the learned representations are valuable beyond the task of genre recognition.</p><p>For the contrastive objectives, we used a fullyconnected projection head with 512 dimensions on top of the same embedding layer, followed by a normalization layer and a tanh activation. We used the bilinear similarity (a T Bp) and the cross-entropy loss as in the original implementation. While the authors of COLA showed that larger batch sizes improved the performance, we could only afford a batch size of 200 pairs due to the memory size of our GPUs. We parallelized the training so that each optimizer step aggregated six batches computed by different GPUs. This setup was close to the optimal number of pairs per optimizer step found in the original publication but used a larger ratio of positive samples.</p><p>To get additional insights into the models, we computed the top-1 accuracies by taking the arg max of the similarity matrices. Table <ref type="table" target="#tab_1">1</ref> shows the training times and validation accuracies obtained by the model of each metadata association, and Figure <ref type="figure" target="#fig_1">2</ref> shows the evolution of the training accuracies over the epochs. The accuracies show that the associations have different difficulty levels, which aligns with our expectations.</p><p>All the pre-trained models are publicly available for feature extraction within the Essentia library. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Downstream datasets</head><p>We evaluated our models as frozen feature extractors following a transfer learning setup. We consider three well-known music auto-tagging and classification datasets: FMA-small <ref type="bibr" target="#b41">[41]</ref> (FMA), MagnaTagATune <ref type="bibr" target="#b42">[42]</ref> (MTAT), and the MTG-Jamendo Dataset <ref type="bibr" target="#b43">[43]</ref>. The latter contains different subsets for Genre, Instrument, and mood/theme (Mood) tags, as well as the top-50 tags in the dataset (Top50) that we treated independently. For FMA and MTAT, we used the splits proposed by the authors <ref type="bibr" target="#b41">[41]</ref> and the 12:1:3 partition <ref type="bibr" target="#b44">[44]</ref> respectively. In the MTG-Jamendo tasks, we used the sets defined by its split-0 similarly to previous works <ref type="bibr" target="#b17">[17,</ref><ref type="bibr" target="#b45">45]</ref>. Table <ref type="table" target="#tab_2">2</ref> shows the size of the considered datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Transfer learning evaluation setup</head><p>As for the pre-training stage, we trained the downstream models with 2-second patches randomly cropped on each epoch. For validation, we averaged over the activations from the half-overlapped patches of the entire tracks. We passed the patches through the frozen backbone and used the flattened output of the last convolution layer as the input to a multi-layer perceptron with a single hidden layer of 512 units with a sigmoid or softmax activation for multi-label or multi-class tasks. We used the cross-entropy loss and the Adam optimizer with a starting learning rate of 1e -3 and added a weight decay of 1e -5. A scheduler divided the learning rate by half if the loss had not decreased in five epochs. We trained the models for 30 epochs and used the weights from the epoch achieving the lowest validation loss to evaluate the test set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Stacks of embeddings</head><p>Apart from evaluating the embeddings obtained from every association individually, we were interested in understanding their complementarity. We wanted to understand if the individually-learned representations could be combined to boost the performance, and if so, which were the best combinations. To investigate this, we ran stacks of embeddings through the presented evaluation protocol. First, we evaluated the stack of the Track, Release, Artist, and Label features for all the datasets. Additionally, we performed a systematic evaluation considering all the possible combinations of the four contrastive models plus the model trained on tags on MTAT considering two, three, four, and five embeddings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Multi-task model</head><p>We also considered training a multi-task model to learn the metadata associations jointly. The architecture of the proposed system is depicted in Figure <ref type="figure" target="#fig_0">1</ref> (right). For each association, we have a separate pair generator and projection head. To perform an optimization step, we ran a batch of pairs from each association through the shared encoder and its specific projection head and computed a weighted sum of the losses. The loss weights were empirically selected prioritizing associations with better single-model performances (track: 0.1, release: 0.15, artist: 0.6, and label: 0.15). Additionally, we initialized the encoder with the weights of the model based on artist associations on its 20th epoch to speed up the training. While we experimented with multi-task models based on two association types, we did not find additional insights and decided to omit those results. Due to the additional model size, we had to reduce the batch size to 50 pairs per association.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.7">Results and discussion</head><p>Table <ref type="table" target="#tab_3">3</ref> reports the metrics obtained by our models and selected works from the literature. In descending order, the five groups in the table contain SOTA models trained from scratch without additional data, SOTA embedding models, baseline embedding models trained by us, our proposed embedding models trained on metadata associations, and models combining metadata associations. In the first group, we include MusiCNN <ref type="bibr" target="#b38">[38]</ref>, Harmonic CNN <ref type="bibr" target="#b45">[45]</ref>, and the winning submission of the 2021 Emotion and Theme Recognition challenge (team Lileonardo) <ref type="bibr" target="#b46">[46]</ref> <ref type="foot" target="#foot_6">foot_6</ref> as the best models from the literature in MTAT, Top50, and Mood, respectively. Similarly, MuLaP <ref type="bibr" target="#b17">[17]</ref> reports the best performance as a frozen embedding extractor in Genre, Mood, Top50, and FMA, and the same applies to CALM <ref type="bibr" target="#b10">[10]</ref> in MTAT. Note that comparisons against these reported metrics may be unreliable due to differences in training and evaluation settings. We computed three baselines based on audio embeddings from an EfficientNet architecture with random weights, an EfficientNet architecture trained on music style tags as described in Section 4.2, and the VGGish model with its pre-trained weights <ref type="bibr" target="#b47">[47]</ref>.</p><p>Concerning our contrastive models, we observe that the model based on track associations (Track model) achieves competitive performance in some tasks, especially in Top50. Nevertheless, the models using metadata associations show better or equivalent performance despite seeing fewer pairs of tracks in the pre-training stage. In particular, we find that model based on artist associations (Artist model) is the best-performing with a few exceptions, which aligns with previous studies in metadatabased music representation learning <ref type="bibr" target="#b13">[13]</ref>.</p><p>Instrument and MTAT are the tasks where our models are further from the SOTA. For MTAT, we attribute this to the fact that CALM has 1,000 times more parameters, and that the authors report the best metrics from a grid search over shallow classifiers and hyperparameters. Also, we observed that models operating in the full MTAT previews tend to report higher PR-AUC performances <ref type="bibr" target="#b8">[8,</ref><ref type="bibr" target="#b10">10]</ref> than models operating in short chunks <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b38">38]</ref>. The Stack is obtained by concatenating the embeddings from the models based on single associations as input for the MLPs. Except for MTAT, we do not get improvements over the best single model in any dataset despite the additional input dimensionality <ref type="bibr" target="#b5">(5,</ref><ref type="bibr">120)</ref>. Table <ref type="table" target="#tab_4">4</ref> shows the top-5 results of models trained on combinations of embeddings for MTAT. The representations from the Artist and Style tags models are the only ones present in all the top-5 combinations, suggesting that these are the representations with the most valuable information. This observation aligns with the results from Table <ref type="table" target="#tab_3">3</ref>.</p><p>Similarly, our Multi-task model is not superior to the best single model in any dataset, but generally it is close in performance to the Artist model. We observe that Multitask only overcomes Artist in the datasets where other associations perform better (i.e., Instrument and FMA), which shows its capability to pick the best information from different association types.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSIONS</head><p>In this paper, we studied the usage of editorial metadata as a source of supervision for contrastive feature extraction models intended for music classification. We contributed to the previous work on metadata-based feature learning by scaling up the experiments in terms of dataset size, considering additional editorial metadata notions, and by experimenting with a new contrastive learning setup. We could validate that some of the observations from previous stud- ies still hold for models trained on 10 times more data. Namely, we observed that some metadata-based representations are superior to their tag-based counterparts and that artist associations provide the best representations. Additionally, we found that the features learned from different metadata notions can be combined or jointly learned, showing slight performance improvements for particular tasks. To the best of our knowledge, this is the first study using Discogs' metadata to train music feature models. We did this by generating pairs of tracks according to metadata notions with simple matching rules, which leaves room for experimentation with the dataset.</p><p>In future research, we will explore more complex relationships in the metadata. For example, we could rely on metadata co-occurrences (e.g., record labels sharing many artists) to create more detailed associations. Another direction is to combine our approach with more sophisticated contrastive learning paradigms, which opens up a possibility for performance improvements. Finally, we will consider extending the evaluation to additional tasks such as music recommendation or arousal and valence regression.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure1. Overview of the proposed pipelines for a single (left) and multiple tasks (right). E is the encoder, P the projection head, B are the weights for the bilinear similarity, and L is the loss term. In the multi-task setup, tasks go from 0 to n.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Training accuracies over the epochs for the different associations.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 .</head><label>1</label><figDesc>Statistics for the metadata association and their respective models. We show the number of pairs used, association diversity (number of different tracks, releases, artists, and record labels, respectively), training time (hours), and validation accuracy (%).</figDesc><table><row><cell cols="5">Association Pairs Diversity Time Acc.</cell></row><row><cell>track</cell><cell>3.3M</cell><cell>3.3M</cell><cell>63h</cell><cell>88.7</cell></row><row><cell>release</cell><cell>846K</cell><cell>2.0M</cell><cell>21h</cell><cell>35.7</cell></row><row><cell>artist</cell><cell>1.2M</cell><cell>257K</cell><cell>33h</cell><cell>41.1</cell></row><row><cell>label</cell><cell>1.1M</cell><cell>142K</cell><cell>48h</cell><cell>24.7</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 .</head><label>2</label><figDesc>Considered downstream datasets.</figDesc><table><row><cell>6</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 .</head><label>3</label><figDesc>ROC-AUC, PR-AUC, and accuracy metrics for the downstream datasets. The five horizontal groups represent SOTA models from the literature trained from scratch, SOTA feature extractors from the literature, baseline feature extractors trained by ourselves, the proposed feature extractors based on metadata associations, and the proposed feature extractors combining associations. (*) results were computed in a clean version of MTAT and are not directly comparable.</figDesc><table><row><cell></cell><cell>Genre</cell><cell></cell><cell cols="2">Instrument</cell><cell>Mood</cell><cell></cell><cell cols="2">Top50</cell><cell cols="2">MTAT</cell><cell>FMA</cell></row><row><cell></cell><cell>ROC</cell><cell cols="2">PR ROC</cell><cell cols="2">PR ROC</cell><cell cols="2">PR ROC</cell><cell cols="2">PR ROC</cell><cell>PR</cell><cell>Acc.</cell></row><row><cell>Lileonardo</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell cols="3">-77.5 15.1</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell>Harmoic CNN</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell cols="5">-83.2 29.8 *91.3 *45.9</cell><cell>-</cell></row><row><cell>MusiCNN</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>90.7</cell><cell>38.4</cell><cell>-</cell></row><row><cell>MuLaP</cell><cell>85.9</cell><cell cols="2">-76.8</cell><cell cols="2">-76.1</cell><cell cols="2">-82.8</cell><cell cols="3">-*89.3 *40.2</cell><cell>61.1</cell></row><row><cell>CALM</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>91.5</cell><cell>41.4</cell><cell>-</cell></row><row><cell>Random weights</cell><cell>50.7</cell><cell cols="2">3.1 49.9</cell><cell cols="2">6.4 50.4</cell><cell cols="2">3.4 48.3</cell><cell>6.5</cell><cell>50.0</cell><cell>5.3</cell><cell>12.5</cell></row><row><cell>Style tags</cell><cell cols="8">87.7 19.9 77.6 19.8 75.6 13.6 83.1 29.7</cell><cell>90.2</cell><cell>37.4</cell><cell>59.1</cell></row><row><cell>VGGish</cell><cell cols="8">86.3 17.2 77.8 20.2 76.3 14.1 83.2 28.2</cell><cell>90.2</cell><cell>37.2</cell><cell>53.0</cell></row><row><cell>Track associations</cell><cell cols="8">86.3 18.0 69.9 16.7 74.0 12.8 82.9 29.4</cell><cell>89.7</cell><cell>36.4</cell><cell>58.9</cell></row><row><cell cols="9">Release associations 86.9 18.9 71.9 17.2 72.8 11.7 83.2 29.8</cell><cell>90.3</cell><cell>37.1</cell><cell>60.9</cell></row><row><cell>Artist associations</cell><cell cols="8">87.7 20.3 69.7 16.9 76.3 14.3 83.6 30.6</cell><cell>90.7</cell><cell>38.0</cell><cell>59.1</cell></row><row><cell>Label associations</cell><cell cols="8">87.0 19.4 75.0 18.2 74.8 12.8 83.1 29.9</cell><cell>88.7</cell><cell>34.2</cell><cell>59.5</cell></row><row><cell>Stack</cell><cell cols="8">86.9 19.4 74.7 18.8 74.3 13.0 83.4 30.0</cell><cell>90.8</cell><cell>38.6</cell><cell>59.8</cell></row><row><cell>Multi-task</cell><cell cols="8">87.2 19.9 70.5 17.2 76.1 14.4 83.5 30.3</cell><cell>90.8</cell><cell>37.8</cell><cell>60.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 .</head><label>4</label><figDesc>Tr Re Ar La St ROC-AUC PR-AUC Top-5 combinations of the Track, Release, Artist, Label and Style Tags features in MTAT. The results are sorted according to the ROC-AUC values.</figDesc><table><row><cell>✓</cell><cell cols="2">✓ ✓ ✓</cell><cell>90.93</cell><cell>38.75</cell></row><row><cell>✓ ✓</cell><cell>✓</cell><cell>✓</cell><cell>90.92</cell><cell>38.69</cell></row><row><cell>✓</cell><cell cols="2">✓ ✓ ✓</cell><cell>90.92</cell><cell>38.51</cell></row><row><cell>✓</cell><cell>✓</cell><cell>✓</cell><cell>90.89</cell><cell>38.57</cell></row><row><cell></cell><cell cols="2">✓ ✓ ✓</cell><cell>90.87</cell><cell>38.57</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://www.discogs.com/search</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>For example, considering a dataset of one million tracks, a batch size of 200 pairs, and an average of 6 tracks per release, the probability of having two pairs from the same release in the batch is 6e -4, which we consider an affordable false-negative rate.Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>The high number of releases is partially due to albums with multiple reeditions. On average, each track in our dataset is linked to 5 releases.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>https://essentia.upf.edu/reference/std_ TensorflowInputMusiCNN.html</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>https://blog.discogs.com/en/genres-and-styles</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>https://essentia.upf.edu/models.html Proceedings of the 23rd ISMIR Conference, Bengaluru, India,December 4-8, 2022   </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_6"><p>https://multimediaeval.github.io/ 2021-Emotion-and-Theme-Recognition-in-Music-Task/ Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_7"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="6.">ACKNOWLEDGEMENTS</head><p>This research was carried out under the project Musical <rs type="grantNumber">AI -PID2019-111403GB-I00/AEI/10.13039/501100011033</rs>, funded by the <rs type="funder">Spanish Ministerio de Ciencia e Innovación</rs> and the <rs type="funder">Agencia Estatal de Investigación</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_QpsbgR7">
+					<idno type="grant-number">AI -PID2019-111403GB-I00/AEI/10.13039/501100011033</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">ªTransfer learning by supervised pre-training for audio-based music classification</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Van Den Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Schrauwen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 15th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">ªTransfer learning for music classification and regression tasks</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fazekas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sandler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 18th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">ªSamplecnn: Endto-end deep convolutional neural networks using very small filters for music classification</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Applied Sciences</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">ªLook, listen, and learn more: Design choices for deep audio embeddings</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Cramer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H.-H</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 44th IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<meeting>the 44th IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">ªContrastive learning of musical representations</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Spijkervet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">A</forename><surname>Burgoyne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">ªByol for audio: Self-supervised learning for general-purpose audio representation</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Niizumi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Takeuchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ohishi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Harada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kashino</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2021 International Joint Conference on Neural Networks (IJCNN)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">ªContrastive learning with positivenegative frame mask for music representation</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>He</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>º in Proceedings of the ACM Web Conference 2022</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">ªS3t: Self-supervised pre-training with swin transformer for music classification</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2022-2022 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">ªTowards learning universal audio representations</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Luc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Recasens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Smaira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Brock</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jaegle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-B</forename><surname>Alayrac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Carreira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2022-2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">ªCodified audio language modeling learns useful representations for music information retrieval</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Castellon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">ªRepresentation learning of music using artist labels</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-W</forename><surname>Ha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 19th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">ªTransfer learning of artist group factors to musical genre classification</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">C S</forename><surname>Liem</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018. 2018</date>
+		</imprint>
+	</monogr>
+	<note>º Companion</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ªRepresentation learning of music using artist, album, and track information</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning (ICML) 2019, Machine Learning for Music Discovery Workshop</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">ªOne deep music representation to rule them all? a comparative analysis of different representation learning strategies</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Urbano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">C S</forename><surname>Liem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Hanjalic</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<publisher>Neural Computing and Applications</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ªLarge-scale weaklysupervised content embeddings for music recommendation and tagging</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">A</forename><surname>Saurous</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Anderson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting>the 45th IEEE International Conference on Acoustics, Speech and Signal Processing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Bogdanov, ªEnriched music representations with multiple cross-modal contrastive learning</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ferraro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Favory</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Drossos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<publisher>IEEE Signal Processing Letters</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">ªLearning music audio representations via weak language supervision</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Manco</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Quinton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fazekas</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2112.04214v1[cs.SD</idno>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">ªAn unsupervised approach to automatic classification of scientific literature utilizing bibliographic metadata</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Joorabchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">E</forename><surname>Mahdi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Information Science</title>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">ªMaking use of affective features from media content metadata for better movie recommendation making</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">K</forename><surname>Leung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Griva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">G</forename><surname>Kennedy</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2007.00636</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">ªA simple framework for contrastive learning of visual representations</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kornblith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hinton</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ªContrastive learning of general-purpose audio representations,º in ICASSP</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Saeed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Zeghidour</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Acoustics, Speech and Signal Processing -Proceedings, 2021. Proceedings of the 23rd ISMIR Conference</title>
+		<meeting><address><addrLine>Bengaluru, India</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">December 4-8, 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">ªLatent dirichlet allocation</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">M</forename><surname>Blei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">I</forename><surname>Jordan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of machine Learning research</title>
+		<imprint>
+			<date type="published" when="2003-01">Jan, 2003</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ªTaking advantage of editorial metadata to recommend music</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Herrera</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Symposium on Computer Music Modeling and Retrieval (CMMR&apos;12)</title>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">ªQuantifying music trends and facts using editorial metadata from the Discogs database</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 18th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note>IS-MIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Burke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Rygaard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yellin-Flaherty</surname></persName>
+		</author>
+		<title level="m">ªClam!: Inferring genres in the discogs collaboration network</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Budner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Grahl</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.00377</idno>
+		<title level="m">ªCollaboration networks in the music industry,º</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">ªExploring the latent structure of collaborations in music recordings: A case study in jazz</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Andrade</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Figueiredo</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">ªTopological properties of music collaboration networks: The case of jazz and hip hop.º DHQ</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Gienapp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Kruckenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Burghardt</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<publisher>Digital Humanities Quarterly</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">ªThe acousticbrainz genre dataset: Multisource, multi-level, multi-label, and large-scale</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Porter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Schreiber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Urbano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oramas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval (ISMIR)</title>
+		<meeting>the 20th International Society for Music Information Retrieval (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Moussallam, ªAudio Based Disambiguation Of Music Genre Tags</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Hennequin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Royo-Letelier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 19th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">ªCOALA: co-aligned autoencoders for learning semantically enriched audio representations,º in Workshop on Self-supervised learning in Audio and Speech</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Favory</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Drossos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Virtanen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning (ICML)</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">ªLearning contextual tag embeddings for crossmodal alignment of audio and tags</title>
+		<author>
+			<persName><surname>Ðð</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2021 -2021 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">ªBootstrap your own latenta new approach to self-supervised learning</title>
+		<author>
+			<persName><forename type="first">J.-B</forename><surname>Grill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Strub</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Altché</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Tallec</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Richemond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Buchatskaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Doersch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Avila Pires</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">Gheshlaghi</forename><surname>Azar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">ªMomentum contrast for unsupervised visual representation learning</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Girshick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF conference on computer vision and pattern recognition</title>
+		<meeting>the IEEE/CVF conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">ªSwin transformer: Hierarchical vision transformer using shifted windows</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF International Conference on Computer Vision</title>
+		<meeting>the IEEE/CVF International Conference on Computer Vision</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">ªSlowfast networks for video recognition</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Feichtenhofer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Malik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF international conference on computer vision</title>
+		<meeting>the IEEE/CVF international conference on computer vision</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Rethinking model scaling for convolutional neural networks</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">º in Proceedings of the 36th International Conference on Machine Learning (ICML)</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">ªmusicnn: Pre-trained convolutional neural networks for music audio tagging,º Late-Braeking/Demo</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pons</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">ªESSENTIA: an audio analysis library for music information retrieval</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Wack</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Gómez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gulati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Herrera</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Mayor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Roma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">R</forename><surname>Zapata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the 14th International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Izmailov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Podoprikhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Garipov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Vetrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">G</forename><surname>Wilson</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1803.05407</idno>
+		<title level="m">ªAveraging weights leads to wider optima and better generalization,º</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Defferrard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Benzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Vandergheynst</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Bresson</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1612.01840v3[cs.SD</idno>
+		<title level="m">ªFMA: A dataset for music analysis</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">ªEvaluation of algorithms using games: The case of music tagging</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Law</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>West</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">I</forename><surname>Mandel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Bay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">S</forename><surname>Downie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 10th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Tovstogan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Porter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+		<title level="m">ªThe MTG-Jamendo dataset for automatic music tagging,º in Machine Learning for Music Discovery Workshop, International Conference on Machine Learning (ICML)</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">ªTransfer learning by supervised pre-training for audio-based music classification</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Van Den</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Schrauwen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference of the International Society for Music Information Retrieval</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note>ISMIR 2014</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">ªEvaluation of cnn-based automatic music tagging models</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ferraro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of 17th Sound and Music Computing Conference (SMC)</title>
+		<meeting>17th Sound and Music Computing Conference (SMC)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">ªMediaeval 2021: Emotion and theme recognition in music using jamendo</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Tovstogan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Porter</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">º 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">ªCNN architectures for large-scale audio classification</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hershey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chaudhuri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">F</forename><surname>Gemmeke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">C</forename><surname>Moore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Plakal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Platt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">A</forename><surname>Saurous</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Seybold</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting>the 42nd IEEE International Conference on Acoustics, Speech and Signal Processing<address><addrLine>Bengaluru, India</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-12-04">2017. December 4-8, 2022</date>
+		</imprint>
+	</monogr>
+	<note>Proceedings of the 23rd ISMIR Conference</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

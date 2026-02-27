@@ -1,0 +1,731 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">A TRANSFORMER-BASED ªSPELLCHECKERº FOR DETECTING ERRORS IN OMR OUTPUT</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Timothy</forename><surname>De Reuse</surname></persName>
+							<email>timothy.dereuse@mcgill.ca</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Centre for Interdisciplinary Research in Music Media and Technology</orgName>
+								<orgName type="institution" key="instit2">McGill University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ichiro</forename><surname>Fujinaga</surname></persName>
+							<email>ichiro.fujinaga@mcgill.ca</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Centre for Interdisciplinary Research in Music Media and Technology</orgName>
+								<orgName type="institution" key="instit2">McGill University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">A TRANSFORMER-BASED ªSPELLCHECKERº FOR DETECTING ERRORS IN OMR OUTPUT</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">10B261D7E9AA80A7660063484264AAFC</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:13+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<textClass>
+				<keywords>
+					<term>Timothy de Reuse</term>
+					<term>Ichiro Fujinaga</term>
+					<term>ªA Transformer-Based ªSpellcheckerº for Detecting Errors in OMR Outputº</term>
+					<term>in Proc. of the 23rd Int. Society for Music Information Retrieval Conf.</term>
+					<term>Bengaluru</term>
+					<term>India</term>
+					<term>2022</term>
+				</keywords>
+			</textClass>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>The outputs of Optical Music Recognition (OMR) systems require time-consuming human correction. Given that most of the errors induced by OMR processes appear "non-musical" to humans, we propose that the time to correct errors may be reduced by marking all symbols on a score that are musically unlikely, allowing the human to focus their attention accordingly. Using a dataset of Romantic string quartets, we train a variant of the Transformer network architecture on the task of classifying each symbol of an optically-recognized musical piece in symbolic format as correct or erroneous, based on whether a manual correction of the piece would require an insertion, deletion, or replacement of a symbol at that location. Since we have a limited amount of data with real OMR errors, we employ extensive data augmentation to add errors into training data in a way that mimics how OMR would modify the score. Our best-performing models achieve 99% recall and 50% precision on this error-detection task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>An enormous amount of music scores exist only in the form of digital images, where its musical content is not machine-readable. Among the fields of research that that assist with large-scale processing of musical documents is Optical Music Recognition (OMR), which investigates how to transform images of music scores into symbolic music files (e.g., MusicXML files) that can be searched, played back, and edited. OMR has the potential to be a valuable tool for music archives and libraries, but it is not yet reliable enough; all methods require a human correction step after the OMR process, as the raw outputs of currently-available OMR algorithms contain too many errors to be acceptable for musicians or music researchers. This is an issue when using OMR on printed Western music notation, and is worse for other types of music notation, especially when training data is scarce. While custom interfaces exist for the purpose of facilitating human correction, such as the correction interface of MuRET [1], this is</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>still a time-consuming task even for experts. While OMR speeds up symbolic encoding in many cases <ref type="bibr" target="#b2">[2]</ref>, the process of scanning documents, performing OMR, and correcting OMR is not always faster than that of transcribing pieces from scratch on complex, polyphonic scores <ref type="bibr" target="#b3">[3]</ref>.</p><p>We observe that OMR systems tend to introduce musically unlikely phenomena into scores. A typical example of the errors induced by the OMR process of PhotoScore<ref type="foot" target="#foot_0">foot_0</ref> (a leading proprietary, commercial OMR software) is illustrated in Figure <ref type="figure">1</ref>. In the OMR'ed score, consider the pattern of missing staccato articulations in measure 1, the eighth note misidentified as a sixteenth note in measure 2, the strangely placed grace note in measure 3, and the accidental misidentified as a grace note in measure 6. Also note how the slurs in each instrument of the OMR'ed score do not match up with each other, though the correct phrasing could probably be guessed from the melodic content alone. While not all of these phenomena are necessarily impossible in a string quartet, a human looking over the score would notice their presence.</p><p>Given the musical ªincorrectnessº of many of the errors introduced by OMR, we propose that a machine-learning algorithm could flag most OMR errors automatically given information on the conventions of the genre. This could reduce the correction time of a score; instead of checking every measure of OMR output against the corresponding measure in the score image, the user would only have to check those regions flagged by the algorithm as possibly erroneous. Even if the algorithm flags some non-erroneous regions of the score, it could potentially still exclude large portions of it from needing human review.</p><p>The reader may question why we aim for detection of errors as opposed to correction of errors outright; this could further reduce the time to correct OMR output even further, and there exists a large body of work on error correction for natural language that we could draw on. We posit, however, that any amount of correction that is not guaranteed to address nearly all errors in an OMR output would not significantly save time on the part of the human corrector, as they would still be required to manually review the result anyway. Current studies on correcting errors in polyphonic music (discussed in Section 2) do not attain high enough performance to meet this bar.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head></head><formula xml:id="formula_0">                                                                                                                                                                                                                                                                                                                               Figure 1:</formula><p>Two versions of Felix Mendelssohn's Quartet No. 2 in A Major, Op. 13, mm. 4-9. The upper system is an engraving of the correct score. The lower system is an output from PhotoScore's OMR Process. Some prominent errors are highlighted in red.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">PREVIOUS WORK</head><p>There is little other research that seeks to detect or correct errors in symbolic music in the context of OMR. Most studies that discuss errors made by OMR systems seek to characterize them as a part of a method of evaluating their performance <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b5">5]</ref>. As part of an end-to-end OMR system, Rossant and Blach <ref type="bibr">[6]</ref> explicitly encode some musical rules (such as ensuring the number of beats in a measure matches the most recent time signature) that let them highlight areas that are likely incorrect, and also use confidence measures of detection steps from earlier in their OMR process to highlight areas that may have been detected incorrectly. More research focuses on error correction in music for other applications. McLeod et al. <ref type="bibr" target="#b7">[7]</ref> focus on the task of analyzing errors in the output of Automatic Music Transcription (AMT) methods, introducing rule-based and machine leaning-based models to solve error detection and correction tasks, though these are intended as proof-of-concept baselines to define the tasks. Ycart et al. <ref type="bibr" target="#b8">[8]</ref> compare a number of machine-learning models on the closely related task of Symbolic Music transduction, which involves processing the raw per-note probabilities output by an AMT model and producing a valid symbolic music file as output. Sidorov et al. <ref type="bibr" target="#b9">[9]</ref> analyse music using formal grammars, taking the assumption that ªcorrectº music tends to be highly compressible, and so any note whose presence alone significantly increases the amount of information in a piece is likely to be an error.</p><p>Significantly more literature exists in the fields of Grammar Error Detection (GED) and Grammar Error Correction (GEC) in natural language. The fields are far too broad to cover here; we direct readers to reviews on these subjects by Wang et al. <ref type="bibr" target="#b10">[10]</ref>, covering GEC, and Madi and Al-Khalifa <ref type="bibr" target="#b11">[11]</ref>, covering GED. Early models in both of these fields were rule-based, wherein every type of error had to be manually codified <ref type="bibr" target="#b12">[12]</ref>. The current state of the art in these areas is in sequence-to-sequence deep-learning models similar to those used for machine translation, reaching human-level performance on common English-language GEC benchmarks <ref type="bibr" target="#b13">[13]</ref>. To achieve this level of performance, however, a large amount of training data is required; there is much less research on GEC and GED in low-resource languages, the vast majority being on either English or Chinese <ref type="bibr" target="#b11">[11]</ref>. Our task faces a similar issue; there exists orders of magnitude fewer training data for any one genre of music than there exists for the English language.</p><p>Data augmentation is commonly used in GEC and GED where data availability is low. Errors are added to correct examples and the models are then directed to correct those errors; we refer to errors created in this way as synthetic errors and errors created by the process of interest (e.g. errors induced by an OMR process) as natural errors. Early work on this process used simple statistics about distributions and types of errors to add errors semi-randomly <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b15">15]</ref>. Later work, inspired by backtranslation techniques from machine translation, trained models that add synthetic errors simultaneously with ones that remove them. Htut and Tetreault <ref type="bibr" target="#b16">[16]</ref> evaluate a number of these models, finding that they provide significant improvements to training on natural errors when the dataset containing natural errors is small. Notably, they find these gains in performance even when the synthetic errors are qualitatively different than the natural errors; that is, a GEC method can still perform well even when it is trained on grammatical errors that a human would never make. However, when a large dataset of natural errors is available, the improvements obtained by augmenting with synthetic errors are significantly diminished.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHODOLOGY</head><p>In developing our method, we aim for it to have the following qualities:</p><p>• High Recall Rate: Our detection method should ideally make no false negatives; that is, whenever an error is present in its input, it highlights it. It is acceptable for the precision to be significantly lower than the recall as long as the user is assured that no errors lie outside the flagged regions.</p><p>• Localization of Errors: Within the constraint of having a high recall rate, the method should try to be as specific as possible when pointing out errors.</p><p>• Trainable on a Small Dataset: Many of the most common use-cases of OMR are on genres that do not have high-quality, large, digitized datasets on which we could train.</p><p>• Takes Long Inputs: Many errors introduced by OMR are unlikely to be identifiable in isolation from a small snippet of music, and may only be recognized on the basis of comparison with the rest of the piece.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Data Representation</head><p>What is ªan errorº in a musical score? Rigorously defining this notion requires some procedure to take the ªdifferenceº between two scores (in our case, an OMR output and a correct score). The characteristics of the errors that we find will depend heavily on the underlying representation we use. We also face the constraint that whatever representation we use must be suitable for input into a machinelearning model, preferably as a sequence; this disqualifies the use of methods that operate on hierarchicallystructured MusicXML data <ref type="bibr" target="#b17">[17,</ref><ref type="bibr" target="#b18">18]</ref>. A piano roll-like representation, representing a snippet of music as a two-dimensional image, easily admits a difference operation by way of taking the pixelwise difference of two two-dimensional piano rolls, but is memory-intensive for long inputs. Another possibility would be to use a token-based representation such as NoteTuple <ref type="bibr" target="#b19">[19]</ref>, which represents polyphonic music as an ordered list of multi-valued tokens; for example, a piece might be represented as a sequence of triples of the form (MIDI Pitch, Onset Time, Duration). This kind of representation is common in deep learning applications, and there exist many notions of difference on onedimensional sequences that could be adapted. However, to align with our goal of localizing errors, it would be better for each unit of our representation to contain as little information as possible, so that in calling a single element erroneous we pinpoint the location of the error down to a smaller region in the score.</p><p>To accomplish this, and to choose a representation that matches the domain of OMR, we opt to use an agnostic representation <ref type="bibr" target="#b20">[20]</ref>. An agnostic representation of a musical score lists each of the symbols on a staff without considering their underlying musical meaning; this stands in contrast to semantic representations like MusicXML. An agnostic representation encodes less information per sequence element; a dotted eighth note with an accidental would typically be encoded by a single token in a representation like NoteTuple, whereas the accidental, the note, and the dot would each be a separate element in an agnostic representation, and each could be individually flagged as an error.</p><p>We write our own utility (included with the source code of this project) to convert Musicxml or Humdrum **kern files into an agnostic encoding by first parsing them with the music21 package, and then heuristically defining an agnostic encoding that matches the resulting textttmusic21 stream. The encoding lists each symbol on a staff in order from left to right. When two or more symbols are in the same horizontal position (such as when multiple notes sound simultaneously) we list them in ascending order and add a caret symbol ˆbetween each of them. To handle multiple staves, we interleave them: a measure of the first violin, a measure of the second violin, the viola, the bass, and repeat. This scheme cannot encode all polyphonic musical scores into unique agnostic representations; staff lines where two rhythmically distinct polyphonic voices are notated on the same staff may contain unresolvable ambiguities, where it is not clear which notes belong to which voice. This is not an issue for our task, as we aim not to generate valid semantically-encoded scores from agnostic representations but only to classify notes in an existing score.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Sequence Alignment</head><p>To define a difference between two agnostically-encoded musical excerpts, we use the Needleman-Wunsch (NW) sequence alignment algorithm <ref type="bibr" target="#b21">[21]</ref>. This algorithm takes as input two sequences and computes the shortest list of operations necessary to turn one into another, where an operation is defined as insertion, deletion, or replacement of a sequence element. By comparing a corrected score with its OMR'ed version, we can see where operations must be performed in order to correct it. Our strategy will be to train a model to answer the question: Given a musical score that contains errors, where would we need to perform operations to correct those errors, according to a NW alignment? We ignore information on which operations need to be performed. Preliminary experiments showed degradation in overall performance when our model was trained to identify the type of error along with its position. We surmise that to a human corrector, reliable detection of the location error itself is more important. Figure <ref type="figure" target="#fig_0">2a</ref> contains an illustration of two snippets of music: one original and one with OMR errors. Figure <ref type="figure" target="#fig_0">2b</ref> shows the result of their alignment with the NW algorithm.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head></head><formula xml:id="formula_1">                              </formula><p>Our training data will mark each note as an error if it has an operation assigned to it; for example, the eighth rest at the end of the OMR snippet in Figure <ref type="figure" target="#fig_0">2a</ref> will be marked as an error in training, since it must be removed to correct the score. Under this scheme we have no way of flagging a note as an error if it is not present in the OMR output. As a workaround, we flag a symbol as erroneous in training if, to correct the input, it would be necessary to insert one or more items after that symbol in the sequence. For example, we would mark the very first barline of the OMR output in Figure <ref type="figure" target="#fig_0">2b</ref> as an erroneous symbol, since there is a missing 8th.pos2.start immediately succeeding it.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Dataset and Data Augmentation</head><p>Ideally, our dataset would comprise a large, well-curated corpus of symbolic music in a single genre, each with accompanying score files in some image format, and another dataset containing versions of those score images passed through an OMR process. We could match up each symbolic music file with its OMR'ed counterpart and perform an NW alignment between them. Then, during training, the OMR'ed symbolic music would be the input to our model, and the resulting alignment would be our target.</p><p>To our knowledge, there are no large, publicly available sources of data that match these requirements. Datasets intended for training OMR systems do not include erroneous OMR outputs, as their purpose is to aid in developing the OMR process itself. Given a set of scores in symbolic and image formats, we could automate a OMR application to process a new dataset in this way, but the commercial OMR software available to us does not have the requisite batch processing functionality that would make this feasible. Instead, we take a small dataset of symbolic music files paired with their OMR'ed counterparts, and supplement it with a large dataset containing music of the same genre, but without accompanying OMR'ed files. We add synthetic errors to this larger dataset to mimic the natural errors in the small dataset.</p><p>Our main dataset, from which we derive natural OMR errors, is a set of Mendelssohn's string quartets comprising 24 movements <ref type="bibr" target="#b22">[22]</ref>, containing a total of 175 thousand tokens when encoded agnostically. This dataset contains OMR'ed versions of each movement generated using the PhotoScore software, partially-corrected versions of the OMR'ed files for each movement, and fully-corrected versions of each movement. The OMR'ed files contain a high proportion of errors; the character error rate between the fully-corrected and uncorrected files is 0.29, and the same statistic for the partially-corrected files is 0.11 <ref type="foot" target="#foot_2">2</ref> . We supplement this with a corpus of the string quartets of Beethoven, Haydn, Mozart, and Schubert, taken from KernScores<ref type="foot" target="#foot_3">foot_3</ref> and the Annotated Beethoven Corpus <ref type="bibr" target="#b23">[23]</ref>, comprising a total of 361 movements and a total of 9.25 million agnostic tokens. It would be ideal to focus specifically on a single era of music, but we posit that for the sake of ease of training, consistency in instrumentation (restricting ourselves to only string quartets) is a more important consideration.</p><p>To augment the dataset, we add errors to the agnostic representation of our dataset in a way that mimics how natural OMR errors are distributed in the smaller dataset. To this end, we set aside a small portion of the Mendelssohn string quartet dataset and run a NW alignment between these snippets and their manually-corrected versions. From these alignments we can obtain statistics Precision on raw OMR Output Precision on partially corrected OMR R = 0.80 R = 0.90 R = 0.95 R = 0.99 R = 0.80 R = 0.90 R = 0.95 R = 0.99 on how each type of symbol tends to be affected by the OMR process. For example, in the OMR process, the symbol rest.quarter remains the same with probability 0.527, is deleted with probability 0.142, is replaced with an eighth rest with probability 0.013, and so on. We use these statistics as a probability distribution, sampling from it for every single symbol in an agnostically-encoded piece, and then apply the resulting operation to each symbol. This is a highly simplified model of how OMR introduces errors. It does not take into account the effects of adjacent symbols on one another, or how errors tend to group together on parts of a page that are badly scanned or damaged. However, we have a small amount of real OMR data to work from, which we plan to use for validation and testing, so we cannot spare much for the purpose of training the error generator. A more sophisticated error-generation model would likely overfit on such a small fraction of this dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Baseline</head><p>We train with the large dataset augmented with synthetic errors, reserving our dataset of Mendelssohn string quartets containing natural OMR errors for validation and testing. Each batch of training data in agnostic format is tokenized and is augmented with errors. Then, each training example in the batch is NW-aligned with its correct version (Section 3.2), and the alignment results are used to create a sequence of binary flags (error or no error) the same length as the training example. We train the model using the synthetic training data as input and these binary flags as the target. Validation and testing follow the same process but use existing OMR'ed data instead of adding synthetic errors.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head><p>As a baseline model, we employ the Long Short-Term Universal Transformer (LSTUT) <ref type="bibr" target="#b24">[24]</ref> as an encoder-only model. This architectre consists of a 4-layer Univer-sal Transformer <ref type="bibr" target="#b25">[25]</ref> (a Transformer network where all the layers share the same weights) with 5 self-attention heads, bookended by two bidirectional Long Short-Term Memory (LSTM) layers in lieu of the positional encoding scheme used by vanilla Transformers. This architecture was designed specifically to learn from short-and longterm repetitive musical structure, and outperformed other variants tested on our tasks. We use the linear self-attention mechanism by Vyas et al. <ref type="bibr" target="#b26">[26]</ref>, implemented as part of their fast-transformers package for use with the Pytorch deep learning framework; this is a modification to the vanilla Transformer network with memory usage that scales linearly with input size instead of quadratically. The source code for our full workflow is available on GitHub <ref type="foot" target="#foot_5">4</ref> .</p><p>We test on two alternate architectures: a bidirectional LSTM and a vanilla Transformer. In the baseline LSTUT, the LSTM layers and attention heads all have an internal hidden dimension of 128. The LSTM network uses four layers, each with a hidden dimension of 512, and the vanilla Transformer network has 6 layers each containing 4 self-attention heads, all with a hidden dimension of 128. All models end in a fully-connected layer that reduces each sequence element down to a single dimension. We designed these architectures such that all would have a similar number of trainable parameters (around 8 million).</p><p>We also test on different input sequence lengths, and the type of synthetic errors used for data augmentation; the ªRandomº run applies uniformly random deletions, insertions, and replacements in the training data, and the ª50% fewerº run uses our statistically-informed data augmentation scheme but only adds half as many errors, which we use to see if it improves performance on partially-corrected OMR. All models were trained with early stopping based on validation loss, using four NVIDIA P100-PCIE GPUs with a combined 48 GB of memory. When testing dif- Notes marked in red are errors that our model correctly identified, those marked in blue are errors that our model missed (false negatives), and those marked in grey are correct notes that our model marked as erroneous (false positives). Keep in mind that a correct note may be marked as erroneous if, to correct the score, one needs to insert a symbol after it. ferent sequence lengths, we alter the batch size so as to always use the entirety of the available GPU memory. Lastly, we test on two different sets of data: one is the OMR'ed Mendelssohn quartets, and one is the same quartets after a single pass of human review. This second test set allows us to see if the model can detect the kinds of errors that humans miss when reviewing a score.</p><formula xml:id="formula_2">                                                                                                                                                 </formula><p>In testing, we must apply a threshold to the raw output of the network to turn it into a binary prediction. A common way to do this is to choose a threshold that maximises F1 score on the validation set and then apply that threshold to the test set. However, since we seek to maximise precision given a recall score near 1.0, we instead fix several scores for recall, and report the corresponding precision scores on the test set for those thresholds. We anticipate that in a real error-correction scenario, a user would be able to set a threshold themselves based on their tolerance for error; such forms of user interaction are common in high-recall information retrieval applications <ref type="bibr" target="#b27">[27]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Results and Discussion</head><p>Table <ref type="table" target="#tab_0">1</ref> shows a summary of our results. The Baseline model uses an LSTUT, synthetic errors generated with our data augmentation method, and an input sequence length of 256. We show the precision scores associated with different recall scores to represent different tolerances for missed errors. For example, our baseline model has a precision of 0.47 when the recall is 0.9, meaning that if a user wishes to be sure that 90% percent of the errors are caught, then 53% of the model's detections will be false positives.</p><p>The LSTUT model performs slightly better than the LSTM and the vanilla Transformer, though this performance difference is most notable at lower recall scores. Our statistically-informed error generation method outperforms the addition of random errors. At the highest recall score (R=0.99), our best precision score is 0.50, which we obtain at a sequence length of 1024. Precision drops only slightly as our target recall score increases, indicating that a significant fraction of each string quartet is deemed to be correct, and is ignored by the model with high confidence. Our models to perform well at identifying single errors surrounded by correct musical content, while long runs of errors, common in OMR'ed passages with tightlyspaced notes, are sometimes ignored. This may be a con-sequence of how our data augmentation method does not produce dense clusters of errors.</p><p>All models performed poorly on detecting errors in the partially-corrected files, though the vanilla Transformer network did marginally better. Examining our results, we note that our model struggles to notice the absence of elements like articulations and accidentals; these kinds of omissions comprise a majority of the errors in the partiallycorrect OMR files.</p><p>Figure <ref type="figure" target="#fig_1">3</ref> shows a violin passage from a Mendelssohn quartet and its OMR'ed version, indicating where our baseline model (at 0.90 recall) predicts errors. A common tendency of our method is illustrated here: when the model cannot pin an error to one single symbol definitively, it will mark a region around the error as erroneous (e.g., the many false positives in measures 4±5 of the excerpt). False negatives do happen (e.g., the missing staccato markings in measure 2), but when notes are missing or inserted, the model tends to make a detection that is at least in the vicinity of the true error.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>For a machine-learning method to be useful in lowresource situations, such as those faced by many archivists and musicologists trying to make long-neglected music more accessible, it must perform a task consistently, given a small amount of data, and be easily generalizable. For this reason we have set ourselves a simple task, in hopes that we can perform it reliably. Even a low precision score may be helpful to a corrector if errors are rare; if our method flags 50% of the score as potentially erroneous, that halves the amount of material the human must check.</p><p>While our method achieves a reasonable amount of precision on Mendelssohn's string quartets, we have not proven that it can actually reduce OMR correction time. It would be useful to find ways of evaluating this type of system that speak more directly to its utility for human correctors; for example, by using the results of experiments by Pugin et al. <ref type="bibr" target="#b28">[28]</ref> that test how long it takes to correct different types of errors. We plan to integrate our method into an existing notation application or correction interface, to see how it can best aid the symbolic encoding process.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: (a): A correct score (top) and version with OMR errors (bottom): Mendelssohn's Quartet No. 1 in E♭ Major Op. 12, Mvt. 2, measure 10, 2nd violin part. (b): The Needleman-Wunsch alignment between the agnostic encodings of the two scores on the left. The Op. column shows the operations needed to correct the OMR column: Insertion, Replacement, and Deletion. Note that during training, all these operations will simply be marked as Errors.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure3: An excerpt from Mendelssohn's String Quartet in E♭ Major, Op. 12, Mvt 1, mm. 212-217 (1st violin part). The upper staff contains the original excerpt, and the bottom one contains OMR errors, along with the predictions of our model. Notes marked in red are errors that our model correctly identified, those marked in blue are errors that our model missed (false negatives), and those marked in grey are correct notes that our model marked as erroneous (false positives). Keep in mind that a correct note may be marked as erroneous if, to correct the score, one needs to insert a symbol after it.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>A table comparing precision scores for given recall (R) scores on our error detection task. The ªBaselineº model uses an LSTUT, synthetic errors made with our data augmentation method described in Section 3.3, and a sequence length of 256. Each section of the table changes a single variable from the baseline.</figDesc><table><row><cell>LSTUT</cell><cell>0.49</cell><cell>0.47</cell><cell>0.47</cell><cell>0.46</cell><cell>0.33</cell><cell>0.32</cell><cell>0.31</cell><cell>0.31</cell></row><row><cell>Architectures</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>LSTM</cell><cell>0.49</cell><cell>0.47</cell><cell>0.47</cell><cell>0.46</cell><cell>0.11</cell><cell>0.11</cell><cell>0.10</cell><cell>0.10</cell></row><row><cell>Transformer</cell><cell>0.51</cell><cell>0.50</cell><cell>0.50</cell><cell>0.49</cell><cell>0.14</cell><cell>0.12</cell><cell>0.12</cell><cell>0.10</cell></row><row><cell>Synthetic Errors</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Random</cell><cell>0.47</cell><cell>0.46</cell><cell>0.46</cell><cell>0.45</cell><cell>0.10</cell><cell>0.10</cell><cell>0.10</cell><cell>0.10</cell></row><row><cell>50% fewer errors</cell><cell>0.53</cell><cell>0.51</cell><cell>0.50</cell><cell>0.46</cell><cell>0.10</cell><cell>0.10</cell><cell>0.10</cell><cell>0.09</cell></row><row><cell>Sequence Length</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>64</cell><cell>0.47</cell><cell>0.47</cell><cell>0.46</cell><cell>0.45</cell><cell>0.10</cell><cell>0.10</cell><cell>0.10</cell><cell>0.09</cell></row><row><cell>128</cell><cell>0.49</cell><cell>0.47</cell><cell>0.47</cell><cell>0.46</cell><cell>0.10</cell><cell>0.10</cell><cell>0.10</cell><cell>0.09</cell></row><row><cell>512</cell><cell>0.50</cell><cell>0.49</cell><cell>0.49</cell><cell>0.48</cell><cell>0.11</cell><cell>0.10</cell><cell>0.10</cell><cell>0.10</cell></row><row><cell>1024</cell><cell>0.56</cell><cell>0.51</cell><cell>0.51</cell><cell>0.50</cell><cell>0.11</cell><cell>0.11</cell><cell>0.11</cell><cell>0.11</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>/www.neuratron.com/photoscore.htm</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_2"><p>This statistic may sound high compared to the number of errors shown in Figure1. This is explained by the verbosity of agnostic encodings; something that looks intuitively like a single error on the page may actually constitute several.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_3"><p>http://kern.ccarh.org/ Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_4"><p><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref>[6]<ref type="bibr" target="#b7">[7]</ref><ref type="bibr" target="#b8">[8]</ref> 2022   </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_5"><p>github.com/timothydereuse/transformeromr-spellchecker Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">ªMuRET: A Music Recognition, Encoding, and Transcription Tool</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Rizo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Calvo-Zaragoza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">M</forename><surname>Iñesta</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 5th Int. Conf. on Digital Libraries for Musicology</title>
+		<meeting>of the 5th Int. Conf. on Digital Libraries for Musicology<address><addrLine>New York, NY</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="52" to="56" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Alfaro-Contreras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Rizo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">M</forename><surname>Iñesta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Calvo-Zaragoza</surname></persName>
+		</author>
+		<title level="m">ªOmr-Assisted Transcription: A Case Study with Early Prints,º in Proc. of the 22nd Int. Society for Music Information Retrieval Conf., Online</title>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Daigle</surname></persName>
+		</author>
+		<title level="m">ªEvaluation of Optical Music Recognition Software,º Master&apos;s thesis</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+		<respStmt>
+			<orgName>McGill University</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">ªFurther Steps Towards a Standard Testbed for Optical Music Recognition</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hajic</surname><genName>Jr</genName></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Novotný</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Pecina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pokorný</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 17th Int. Society for Music Information Retrieval Conf</title>
+		<meeting>of the 17th Int. Society for Music Information Retrieval Conf<address><addrLine>New York, NY</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">ªTowards a Standard Testbed for Optical Music Recognition: Definitions, Metrics, and Page Images</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Byrd</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Simonsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of New Music Research</title>
+		<imprint>
+			<biblScope unit="volume">44</biblScope>
+			<date type="published" when="2015-07">Jul. 2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">F</forename><surname>Rossant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Bloch</surname></persName>
+		</author>
+		<title level="m">ªRobust and Adaptive OMR System Including Fuzzy Modeling, Fusion of Musical Rules, and Possible Error Detection,º EURASIP Journal on Advances in Signal Processing</title>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="volume">2007</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mcleod</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Owers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.00059</idno>
+		<title level="m">ªThe MIDI Degradation Toolkit: Symbolic Music Augmentation and Correction</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>cs, eess</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">ªA Comparative Study of Neural Models for Polyphonic Music Sequence Transduction</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ycart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Stoller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 19th Int. Society for Music Information Retrieval Conf., Delft, Netherlands</title>
+		<meeting>of the 19th Int. Society for Music Information Retrieval Conf., Delft, Netherlands</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">ªMusic Analysis as a Smallest Grammar Problem</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Sidorov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Marshall</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 15th Int. Society for Music Information Retrieval Conf</title>
+		<meeting>of the 15th Int. Society for Music Information Retrieval Conf<address><addrLine>Taipei, Taiwan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2005.06600[cs.CL</idno>
+		<title level="m">ªA Comprehensive Survey of Grammar Error Correction</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page">35</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">ªGrammatical Error Checking Systems: A Review of Approaches and Emerging Directions</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Madi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">S</forename><surname>Al-Khalifa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Thirteenth Int. Conf. on Digital Information Management</title>
+		<meeting>of the Thirteenth Int. Conf. on Digital Information Management<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="142" to="147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">ªA Rule-Based Style and Grammar Checker</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Naber</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+		</imprint>
+		<respStmt>
+			<orgName>Universität Bielefeld</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">Doctoral Thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">ªReaching Human-level Performance in Automatic Grammatical Error Correction: An Empirical Study</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1807.01270</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">C</forename><surname>Brockett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">B</forename><surname>Dolan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Gamon</surname></persName>
+		</author>
+		<title level="m">ªCorrecting ESL Errors Using Phrasal SMT Techniques,º in Proc. of the 21st Int. Conf. on Computational Linguistics and the 44th annual meeting of the ACL</title>
+		<meeting><address><addrLine>Sydney, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="page" from="249" to="256" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ªTraining Paradigms for Correcting Errors in Grammar and Usage</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Rozovskaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technologies: The 2010 Annual Conf. of the North American Chapter of the Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Los Angeles, CA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">ªThe Unbearable Weight of Generating Artificial Errors for Grammatical Error Correction</title>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">M</forename><surname>Htut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Tetreault</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.08889</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">ªA Diff Procedure for Music Score Files</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Foscarin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Jacquemard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Fournier-S'niehotta</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 6th Int. Conf. on Digital Libraries for Musicology</title>
+		<meeting>of the 6th Int. Conf. on Digital Libraries for Musicology<address><addrLine>The Hague, Netherlands</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="58" to="64" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">A Foundation for Improved Optical Music Recognition Using Multiple Recognizers</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Knopke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Byrd</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Musicdiff</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 8th. Int. Society for Music Information Retrieval Conf., Vienna, Austria</title>
+		<meeting>of the 8th. Int. Society for Music Information Retrieval Conf., Vienna, Austria</meeting>
+		<imprint>
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">ªTransformer-NADE for Piano Performances</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Ippolito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 32nd Conf. on Neural Information Processing Systems</title>
+		<meeting>of the 32nd Conf. on Neural Information essing Systems<address><addrLine>Montreal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Fujinaga, ªAbout Agnostic Representation of Musical Documents for Optical Music Recognition</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Rizo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Calvo-Zaragoza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Iñesta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Music Encoding Conf</title>
+		<meeting>of the Music Encoding Conf<address><addrLine>Tours, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ªA General Method Applicable to the Search for Similarities in the Amino Acid Sequence of Two Proteins</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">B</forename><surname>Needleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">D</forename><surname>Wunsch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Molecular Biology</title>
+		<imprint>
+			<biblScope unit="volume">48</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="443" to="453" />
+			<date type="published" when="1970">1970</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Degroot-Maggetti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>De Reuse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Feisthauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Howes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kokobu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Margot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><forename type="middle">Nápoles</forename><surname>López</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Upham</surname></persName>
+		</author>
+		<title level="m">ªData Quality Matters: Iterative Corrections on a Corpus of Mendelssohn String Quartets and Implications for MIR Analysis,º in Proc. of the 21st Int. Society for Music Information Retrieval Conf</title>
+		<meeting><address><addrLine>Montreal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Neuwirth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Harasim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">C</forename><surname>Moss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Rohrmeier</surname></persName>
+		</author>
+		<title level="m">ªThe Annotated Beethoven Corpus (ABC): A Dataset of Harmonic Analyses of All Beethoven String Quartets,º Frontiers in Digital Humanities</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page">16</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>De Berardinis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Barrett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Cangelosi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Coutinho</surname></persName>
+		</author>
+		<title level="m">ªModelling Long-and Short-Term Structure in Symbolic Music with Attention and Recurrence,º in Proc. of the 1st Joint Conf. on AI Music Creativity</title>
+		<meeting><address><addrLine>Stockholm, Sweden</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gouws</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">È</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Transformers</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1807.03819</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>cs, stat</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vyas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Katharopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Fleuret</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2007.04825</idno>
+		<title level="m">ªFast Transformers with Clustered Attention</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>cs, stat</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Abualsaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Ghelani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Smucker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">V</forename><surname>Cormack</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">R</forename><surname>Grossman</surname></persName>
+		</author>
+		<title level="m">ªEffective User Interaction for High-Recall Retrieval: Less is More,º in Proc. of the 27th ACM Int. Conf. on Information and Knowledge Management</title>
+		<meeting><address><addrLine>Torino, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="187" to="196" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">ªReducing Costs for Digitising Early Music with Dynamic Adaptation,º in Research and Advanced Technology for Digital Libraries</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Pugin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">A</forename><surname>Burgoyne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Fujinaga</surname></persName>
+		</author>
+		<editor>Kovács, N. Fuhr, and C. Meghini</editor>
+		<imprint>
+			<date type="published" when="2007">2007</date>
+			<publisher>Springer</publisher>
+			<biblScope unit="volume">4675</biblScope>
+			<biblScope unit="page" from="471" to="474" />
+			<pubPlace>Berlin; Berlin Heidelberg</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

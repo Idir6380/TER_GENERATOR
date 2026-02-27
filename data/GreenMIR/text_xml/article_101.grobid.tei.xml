@@ -1,0 +1,940 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">PERFORMANCE MIDI-TO-SCORE CONVERSION BY NEURAL BEAT TRACKING</title>
+				<funder>
+					<orgName type="full">China Scholarship Council and Queen Mary University of London</orgName>
+				</funder>
+				<funder ref="#_SqTSsHW">
+					<orgName type="full">The Alan Turing Institute</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Lele</forename><surname>Liu</surname></persName>
+							<email>lele.liu@qmul.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Centre for Digital Music</orgName>
+								<orgName type="institution" key="instit2">Queen Mary University of London</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">The Alan Turing Institute</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Qiuqiang</forename><surname>Kong</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="institution">ByteDance Shanghai</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Veronica</forename><surname>Morfi</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Centre for Digital Music</orgName>
+								<orgName type="institution" key="instit2">Queen Mary University of London</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Emmanouil</forename><surname>Benetos</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Centre for Digital Music</orgName>
+								<orgName type="institution" key="instit2">Queen Mary University of London</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">The Alan Turing Institute</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">PERFORMANCE MIDI-TO-SCORE CONVERSION BY NEURAL BEAT TRACKING</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">74FC5F81B35C0E3A409280A1ED956FE6</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:15+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Rhythm quantisation is an essential part of converting performance MIDI recordings into musical scores. Previous works on rhythm quantisation are limited to the use of probabilistic or statistical methods. In this paper, we propose a MIDI-to-score quantisation method using a convolutional-recurrent neural network (CRNN) trained on MIDI note sequences to predict whether notes are on beats. Then, we expand the CRNN model to predict the quantised times for all beat and non-beat notes. Furthermore, we enable the model to predict the key signatures, time signatures, and hand parts of all notes. Our proposed performance MIDI-to-score system achieves significantly better performance compared to commercial software evaluated on the MV2H metric. We release the toolbox for converting performance MIDI into MIDI scores at: <ref type="url" target="https://github.com/cheriell/PM2S">https://github.com/cheriell/PM2S</ref>.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Performance MIDI-to-Score (PM2S) conversion aims to convert a performance MIDI, usually recorded by electronic MIDI keyboards, into musical scores in computerreadable score format such as MIDI, MusicXML <ref type="bibr" target="#b1">[1]</ref> and Lilypond <ref type="bibr" target="#b2">[2]</ref>. PM2S covers a list of subtasks including rhythm quantisation, note value prediction, key estimation, voice separation, and possibly score typesetting such as beaming and playing techniques annotation. PM2S can be used in various scenarios such as music improvisation <ref type="bibr" target="#b3">[3]</ref>, complete music transcription [4±7] in combination with multi-pitch detection, music alignment <ref type="bibr" target="#b8">[8]</ref>, music education, music performance analysis <ref type="bibr" target="#b9">[9]</ref>, and building music archives.</p><p>Although research on the various subtasks on PM2S dates back to earlier decades [10±13], the first academic paper that fully formulated this task was published in 2016 <ref type="bibr" target="#b14">[14]</ref>. The paper works on converting a performance MIDI recording into a LilyPond score. The authors firstly fixed spurious overlapping notes according to a defined note overlapping ratio, then applied a probabilistic model using Hidden Markov Models (HMMs) based on a tactus-root combination concept <ref type="bibr" target="#b15">[15]</ref> for meter, harmony, and stream estimation. After that, the note onsets and offsets are quantised to beat subdivisions. Note spellings and staves are determined from the predicted harmony and streams.</p><p>Following the use of conventional methods for solving subtasks such as rhythm quantisation, recent years have seen some advances on statistical methods <ref type="bibr">[5,16±19]</ref>. Nakamura et al. <ref type="bibr" target="#b16">[16]</ref> proposed an improvement for rhythm transcription using a merged-output HMM to solve the problem introduced by multiple voices. A note value prediction method using Markov random fields was proposed in <ref type="bibr" target="#b17">[17]</ref>. The two methods were further improved for automatic music transcription by combining multi-pitch detection <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b19">19]</ref>. <ref type="bibr">Mcleod and Steedman [18]</ref> proposed an HMM-based meter detection method for aligning MIDI performances.</p><p>Over the past two years, researchers have published papers using deep learning methods on PM2S. Hiramatsu et al. <ref type="bibr" target="#b20">[20]</ref> proposed to use a recurrent neural network for joint estimation of note values and voices from note pitches and onset times, which in combination with multi-pitch detection and rhythm quantisation, outperformed previous methods <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b19">19]</ref> for automatic music transcription. The Score Transformer <ref type="bibr" target="#b21">[21]</ref> provided a solution to generating human-readable scores from quantised MIDI files.</p><p>From previous works, we observe that the problem of PM2S is usually solved through a combination of different methods for subtasks. Moreover, although there are attempts on applying deep learning methods for the task, they do not cover the rhythm quantisation step.</p><p>To address the limitations mentioned above, we propose to use a deep learning method for PM2S. We develop a CRNN model that directly converts a performance MIDI into a MIDI score. We pay special attention to the rhythm quantisation step, and propose to solve the problem by tracking beats on a MIDI note sequence. We then expand the CRNN model to predict a compact output for generating a quantised MIDI score, including quantised onset times and note values, time signatures, key signatures and hand parts. To better capture our method's ability in modelling expressive performances, we train and evaluate our proposed model on a set of classical piano music datasets <ref type="bibr" target="#b22">[22,</ref><ref type="bibr" target="#b23">23]</ref>. In a comparison with two commercial software products MuseScore <ref type="bibr" target="#b24">[24]</ref> and Finale [25], our proposed method achieved significantly better performance based on the MV2H metric <ref type="bibr" target="#b25">[26]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">METHODOLOGY</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Problem definition</head><p>Our proposed method aims to predict a MIDI score from a performance MIDI using a deep learning model. Assume a performance MIDI note sequence X where notes are ordered firstly by time and secondly by pitch. Each note in the sequence is represented by a tuple:</p><formula xml:id="formula_0">X = {(p n , o n , d n , v n )} N n=1 (1)</formula><p>where p n , o n , d n , v n are the MIDI pitch number, onset and duration in seconds, and velocity for the n-th note, N is the number of notes. We aim to predict the transcribed MIDI score annotations including</p><formula xml:id="formula_1">Y n = {(mo n , nv n , h n )} N n=1 (2) Y t = {(t i , tn i , td i )} T i=1 (3) Y k = {(t i , k i )} K i=1 (4) Y = (Y n , Y t , Y k )<label>(5)</label></formula><p>where Y n covers the musical onset time mo n , note value nv n and hand part h n for all notes; Y t and Y k are the time signature and key signature changes, where t i is the time and tn i , td i and k i are the time signature numerator, time signature denominator, and key signature respectively. T and K are the numbers of time signature changes and key signature changes. A MIDI score can be obtained by combining information from X and Y.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">From beat tracking to rhythm quantisation</head><p>Considering rhythm quantisation as a fine-grained tracking of beats and beat subdivisions, we propose to do rhythm quantisation by combining beat tracking and the prediction of musical note onset times in subdivisions within a beat. We use a deep learning model for both beat tracking and musical onset time prediction. Adding the beat tracking component allows the two components to learn from each other. It also allows us to use training data such as <ref type="bibr" target="#b23">[23]</ref> that has beat-level annotations, but do not provide fine-grained alignment in subdivision level. We define mo n in Eq. ( <ref type="formula">2</ref>) as a ratio of:</p><formula xml:id="formula_2">mo n = s n /S<label>(6)</label></formula><p>where s n is the musical note onset time in subdivisions within a beat, and S is the number of subdivisions per beat in rhythm quantisation.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Neural beat tracking on note sequences</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3.1">In-note and out-of-note beats</head><p>To match the model input data in note sequence format, we separate beats into two groups:</p><p>• In-note: beats concurrent with at least one note onset;</p><p>• Out-of-note: beats not concurrent with any note onset.</p><p>In our proposed approach, we first train a deep learning model to predict in-note beats in a binary classification task, and then use dynamic programming to infer out-ofnote beats from the in-note ones.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3.2">In-note beat prediction</head><p>Let the ground truth in-note beat labels for each note in the note sequence be B n ∈ {0, 1}. We define a binary classification model that predicts the in-note beat probabilities for each note given the note sequence X, that is:</p><formula xml:id="formula_3">P n = P (B n |X)<label>(7)</label></formula><p>The model is trained to find the minimum binary crossentropy loss defined as:</p><formula xml:id="formula_4">L = - 1 N N n=1 (B n * log(P n ) + (1 -B n ) * log(1 -P n ))<label>(8)</label></formula><p>In order to acquire the beat and downbeat predictions, we use a CRNN with 3 convolutional layers and 2 bidirectional gated recurrent unit (GRU) layers. Figure <ref type="figure" target="#fig_0">1</ref> shows the model architecture. The predicted in-note beat probabilities are then converted to binary labels by dynamic thresholding. The dynamic threshold depends on the maximum predicted probability in a fixed segment length in seconds.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3.3">Out-of-note beat prediction</head><p>We assume there are in total N i in-note beats and out-ofnote beats are at subdivisions of their neighbouring in-note beats b i n and b i n+1 where b i n means the n-th in-note beat Algorithm 1 Out-of-note beat prediction Input: List of in-note beats B i Output: List of all beats B after adding out-of-note beats</p><formula xml:id="formula_5">1: n ← 1 2: for K = 0, 1, 2, 3 do 3: Initialise objective function O K ← 0 4:</formula><p>Initialise beat sequence B K ← {b 1 } 5: end for 6: for n = 1, 2, . . . , N i -2 do 7:</p><p>for K cur = 0, 1, 2, 3 do 8:</p><p>Get out-of-note beats for current step by Eq. ( <ref type="formula" target="#formula_6">9</ref>) 9:</p><p>if Tempo is beyond tempo range limits then for K prev = 0, 1, 2, 3 do for K cur = 0, 1, 2, 3 do </p><formula xml:id="formula_6">b o n,K = {b i n + k K + 1 (b i n+1 -b i n )} K k=1<label>(9)</label></formula><p>where K ∈ {0, 1, 2, 3} is the number of out-of-note beats to insert for the current interval. We try to find a way that minimises the tempo change after adding out-of-note beats to the beat sequence. To describe the level of tempo change for a list of beats, we define an objective function as follows:</p><formula xml:id="formula_7">O 1 = N -2 n=1 log b n+2 -b n+1 b n+1 -b n (<label>10</label></formula><formula xml:id="formula_8">)</formula><p>where N is the number of beats in the final beat sequence and b n is the n-th beat. However, this function does not take into account adding too many out-of-note beats. We thus add a penalty associated with the number of out-ofnote beats to the objective function, resulting in:</p><formula xml:id="formula_9">O = O 1 + λ × N o (<label>11</label></formula><formula xml:id="formula_10">)</formula><p>where λ is the penalty coefficient applied to avoid adding too many out-of-note beats which is tuned based on experiments and N o is the number of out-of-note beats added.</p><p>In this way, we obtain an objective function O to be minimised in the out-of-note beat prediction process that encourages both a low level of tempo change and adds fewer out-of-note beats.  We use a dynamic programming algorithm (defined in Algorithm 1) to find the optimal out-of-note beats while minimizing O.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Performance MIDI-to-Score</head><p>Based on the problem definition in Section 2.1, we make some modifications to the prediction of time signature and key signature changes. In our proposed model, we define Y t and Y k in a way that the time signature and key signature values are mapped with each note by the note onsets. We also add beat b n , downbeat db n , and tempo tem n prediction in note level. Beat probabilities are defined as in Eq. ( <ref type="formula" target="#formula_3">7</ref>); similar definitions are used for downbeats. As a result, we define our model as X → Y ′ where:</p><formula xml:id="formula_11">Y ′ = {(mo n , nv n , h n , tn n , td n , k n , b n , db n , tem n )} N n=1 (12)</formula><p>We then define a CRNN-based model that maps the input note sequence X with Y ′ . Among the output elements, hand part h n , beats b n and downbeats db n are defined as binary classification tasks; the others are defined as multiclass classification tasks, where</p><p>• Musical onset mo n is defined as in Eq. ( <ref type="formula" target="#formula_2">6</ref>), whose value is quantised by beat subdivisions; • Note values nv n are quantised by beat subdivisions; • Time signature is defined to be tn n ∈ {0, 2, 3, 4, 6}</p><p>and td n ∈ {0, 2, 4, 8}, 0s indicate other values; • Key signature k n is defined to be in {C, Db, D, Eb, E, F, Gb, G, Ab, A, Bb, B}; • Tempo is quantised following a minimum inter-beatinterval of 0.01s. Our proposed model structure is shown in Figure <ref type="figure" target="#fig_4">2</ref>. The Convolutional blocks (ConvBlock) and GRU blocks (GRUBlock) have similar structure to the ones in Figure <ref type="figure" target="#fig_0">1</ref>. Links between branches allow the output elements to learn from each other. The model is trained jointly using binary cross-entropy loss for binary classification output elements and negative log-likelihood loss for multi-task classification output elements.</p><p>A MIDI score can then be generated by combining the information given in the performance MIDI and the output predictions from our proposed model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">EXPERIMENTS</head><p>3.1 Data</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.1">Datasets</head><p>To better demonstrate the ability of our proposed method on quantising expressive performance, we use a collection of classical piano music pieces from 1) The MAPS dataset <ref type="bibr" target="#b22">[22]</ref> and corresponding metrical annotations from the A-MAPS dataset <ref type="bibr" target="#b26">[27]</ref>; 2) The Classical Piano-Midi (CPM) database <ref type="bibr" target="#b27">[28]</ref>; and 3) The ASAP dataset <ref type="bibr" target="#b23">[23]</ref>.</p><p>In order to avoid piece overlaps between train, validation and test splits, we use the distinct music piece labels for all piano performances given in the ACPAS dataset <ref type="bibr" target="#b28">[29]</ref>. We use a real recording subset in MAPS (the EN-STDkCl subset) as the test set as in <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b20">20]</ref>. Other music pieces not included in the test set are randomly split into training and validation based on their distinct music piece labels. In this way, we get a train/validation/test setup with no overlapping music pieces among splits. Table <ref type="table" target="#tab_2">1</ref> shows the dataset statistics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.2">Annotation</head><p>Annotations are provided in different formats in the datasets we use. The A-MAPS dataset and the CPM database provide fully annotated MIDI scores with tempo and metrical information. Thus, we extract the annotations we need from the MIDI scores directly. Performances from the ASAP dataset come with two sets of annotations, MIDI scores and annotations in .tsv files. However, the MIDI scores were written by non-professionals and are not a good source of ground truth. Thus, we follow the authors' suggestion to use the provided annotations in the .tsv files, in which beat, downbeat, time signature and key signature annotations are provided. Due to the fact that the .tsv annotations do not cover precise fine-grained metrical and hand part annotations, we mask the ASAP data on musical onset time, note value, and hand part prediction during training. Moreover, when matching note onset times to beats or non-beats in our we set a tolerance of ±50ms to beat matching to comprise short-time variances introduced by human performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.3">Data augmentation</head><p>Given the note sequence information defined in Section 2, we consider the following data augmentation methods:</p><p>• Pitch shift: Shift MIDI pitch values up or down for the whole music performance. The shifted pitch is defined as: p s = p 0 + p shif t where p 0 is the original pitch value and pitch shift p shif t ∈ {0, ±1, ±2, ..., ±12}. • Tempo change: Change the tempo to a ratio of the original tempo. The new tempo tem c = r t * tem 0 where tem 0 is the original tempo and r t ∈ [0.8, 1.2] is the ratio. • Note removal: For polyphonic music, there should be little influence to the metrical structure of the music piece when removing some concurrent notes. Thus, for each group of M concurrent notes, we randomly remove 0 to M-1 of them from the MIDI performance. • Note introduction: Contrary to note removal, we randomly select 0-100% of notes from the MIDI performance, and add new notes that are concurrent with the selected ones. We keep the velocity and duration the same, so as to preserve the original music structure as much as possible. The new note pitches are ±12 semitones apart from the original note pitches.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Evaluation metrics</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">Beat tracking evaluation</head><p>We define a note-level F-measure for evaluating in-note beat tracking, and a beat-level F-measure which follows the benchmark F-measure for beat and downbeat tracking <ref type="bibr" target="#b29">[30]</ref> with a time tolerance of ±70ms. In both cases, a true positive means a predicted beat is in the ground truth; a false positive means a predicted beat is not in the ground truth; and a false negative means a ground truth beat is missing in prediction.</p><p>For both F-measures, we report the precision p, recall r and F-score f . Similar definitions are used for downbeats.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.2">Performance MIDI-to-Score evaluation</head><p>We use the MV2H metric <ref type="bibr" target="#b25">[26]</ref> to evaluate the system performance on PM2S conversion. The metric covers five sub-metrics including multi-pitch detection (F p ), voice separation (F vo ), metrical alignment (F me ), note value detection (F va ), and harmonic analysis (F ha ). The final accuracy F is the average of all the sub-metrics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Comparative experiments</head><p>Among the subtasks in PM2S, rhythm quantisation is a crucial and difficult part. It is also highly related to the estimation of time signatures, musical onsets, and note values. In our proposed rhythm quantisation method which combines neural beat tracking and musical onset time estimation, we consider beat tracking as a more important step since it works on drawing the skeleton of the metrical grid.</p><p>Thus, for the first part of our experiments, we investigate different input data configurations and data augmentation methods for the beat tracking part of our proposed method. To get rid of influences from out-of-note beat prediction, we use the note-level F-measure in our comparison. After that, we validate our beat tracking method on Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022 beat-level F-measure combining out-of-note beat prediction in comparison with a baseline beat tracking model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.1">Input data encoding</head><p>Given the input data in note sequences, we consider the following ways of encoding the input elements: For all possible input encoding combinations, we train and evaluate the in-note beat prediction part of our proposed model (excluding downbeat). The model learning rate is set to be 0.001. Since different input encodings can cause changes in the model convergence speed, we do not add learning rate decay in this comparison. The model is trained using a batch size of 32 over 4 GPUs with a dropout rate of 0.15. For each combination, we take the best model checkpoint on the validation set during training, and evaluate it over the test set. The performances of the model on all different input data encoding combinations are reported in Table <ref type="table" target="#tab_3">2</ref>.</p><p>From the results, we can see that in terms of pitch encoding, using the MIDI pitches tends to outperform using the chroma groups most of the time. For onsets, onset shift leads to better results than absolute onset across all encoding combinations. Using one-hot encoding for onset is better than using the raw values for most cases. 6 out of 8 encoding combinations result in better model performance with onsets encoded in one-hot format. However, an opposite preference is discovered for duration encoding, where duration in raw values ends up with better results for more cases.</p><p>Among all the 16 input data encoding combinations tested, the one with MIDI pitch, one-hot onset shift, and duration in raw value shows the best model performance. We use this input data encoding combination in our subsequent experiments. Table <ref type="table">3</ref>. Note-level F-measure results on the ablation studies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.2">Ablation studies</head><p>Using the best input encoding combination observed in the previous comparison, we run an ablation study on the input features and different data augmentation techniques. We use all four input features when exploring different data augmentation methods.</p><p>Table <ref type="table">3</ref> shows the ablation study results. From the table, we see that all four input features are helpful in beat tracking, among which the onset feature is the most beneficial one. This is consistent with the fact that onsets can be the feature to carry most metrical information in music performances. People can usually infer beat times from drum beats without knowing other information such as pitch or duration. Pitch and velocity are less important but still make a difference. That may be because pitch carries some harmony information that helps beat prediction. Velocity can provide useful information as well since beats are more probable to be concurrent with heavy notes. Finally, duration is of certain importance, suggesting it carries more metrical information than pitch and velocity. Models (output data) Results on different data augmentation methods suggest that all four proposed data augmentation methods improve performance, among which tempo change is the most beneficial one. Not performing data augmentation does not result in the lowest note-level F-score. However, its low precision rate indicates a limitation on predicting more false positives, which is discouraged since we will be adding out-of-note beats based on the predicted in-note beats. It is possible that we can add the false negatives back when predicting out-of-note beats, but we cannot remove the false positives.</p><formula xml:id="formula_12">f b f db Baseline (b,</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.3">Proposed model vs. baseline model</head><p>Using the best configurations in previous experiment results, we combine the out-of-note beat prediction step and evaluate our proposed model performance on beat tracking using beat-level F-measure. We compare our method with a baseline model that is similar to a state-of-the-art audio beat tracking model <ref type="bibr" target="#b30">[31]</ref>. We retrain the baseline model using a pianoroll input replacing the original audio spectrogram input, where the pianoroll is calculated from the performance MIDI, and let the model predict beat and downbeat probabilities. The probabilities are then passed to a dynamic Bayesian network <ref type="bibr" target="#b31">[32,</ref><ref type="bibr" target="#b32">33]</ref> to get beats and downbeats in seconds.</p><p>Table <ref type="table" target="#tab_4">4</ref> shows the comparative results between the baseline and our proposed model. Results suggest our proposed model largely outperforms the baseline when jointly trained with beats and downbeats. This is possibly because that the baseline model is a general purpose system designed to operate on richer content than piano music alone, and that our proposed model can better handle tempo changes. By adding tempo to the output data, the performance of our proposed model can be further improved, which suggests a benefit of joint learning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">System performance evaluation</head><p>Using the best configurations found in the comparative experiments, we train and evaluate our proposed CRNN model defined in Section 2.4 on PM2S conversion. We report the model performance on the MV2H metric described in Section 3.2.2.</p><p>When looking for other methods for comparison, we realise that there are some difficulties in comparing our system with existing academic works. Cogliati et al. <ref type="bibr" target="#b14">[14]</ref> evaluated their method in a subjective way by inviting five music theory students to rate the transcribed musical scores. Works such as <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b19">19,</ref><ref type="bibr" target="#b33">34]</ref> do provide a combination of methods to achieve PM2S conversion, however, the system performance was reported on audio-to-score transcription. Thus, we compared our proposed method with two commercial software products Finale v27 [25] and MuseScore v3 <ref type="bibr" target="#b24">[24]</ref> that can do PM2S conversion.</p><p>Results in Table <ref type="table" target="#tab_5">5</ref> suggest that our proposed model outperforms MuseScore and Finale across all MV2H submetrics. A significantly better performance can be observed in the metrical alignment sub-metric F me which is highly related to the rhythm quantisation step. By checking outputs generated from MuseScore, we found that its low performance on F p is caused by time shifts introduced when quantising notes according to a constant tempo estimated over the whole music piece. Constant tempo estimation also caused its low performance reported on F me . A similar limitation can be found in output scores from Finale. On the contrary, our proposed method tracked tempo changes during rhythm quantisation and preserved the expressiveness of music performance as much as possible. This not only benefits metrical alignment, but also results in high accuracies on F p and F va . Still, the rhythm quantisation performance (F me ) is far from satisfactory. Some typical errors include double/half tempo error and errors introduced by missing/extra beat predictions.</p><p>To provide a better understanding of the performance of our proposed method, we provide some example outputs from our model together with their performance MIDI recordings<ref type="foot" target="#foot_1">foot_1</ref> .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">CONCLUSION</head><p>We described our proposed method for rhythm quantisation by using a CRNN beat tracking model that predicts whether notes are at a beat position or not. We explored different input data encoding and data augmentation methods on the beat tracking model. We found that note onset time is the most important input feature in beat prediction and it is best to encode it into a one-hot onset-shift vector. Tempo change benefits most among the data augmentation methods explored. We validated our model's beat tracking ability in comparison with a pianoroll-input baseline model. In the end, we report the performance of our proposed system on PM2S conversion in comparison with MuseScore and Finale.</p><p>Possible next steps include investigating more powerful model architectures such as the Transformer <ref type="bibr" target="#b34">[35]</ref>, expanding the output data to generate a machine-readable score <ref type="bibr" target="#b21">[21]</ref>, probing our system's ability in dealing with more genre and instrumentation <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b35">36,</ref><ref type="bibr" target="#b36">37]</ref>, and exploring our method's potential in automatic music transcription by combining multi-pitch detection <ref type="bibr" target="#b37">[38,</ref><ref type="bibr" target="#b38">39]</ref>.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. Model architecture for in-note beat prediction.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>the minimum objective among all K prev values 16:Add out-of-beats for current step to the beat sequence mapped to the selected K prev 17:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>19 :</head><label>19</label><figDesc>Update O K , B K mapped with K cur 20: end for 21: end for 22: Return the beat sequence in B K with the minimum objective function O K and n ∈ {1, 2, . . . , N i }. We insert out-of-note beats b o from candidates in:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Model architecture for performance MIDI-toscore conversion.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>• Pitches: ± M: 128-dimensional one-hot vectors in MIDI pitch numbers; ± C: 12-dimensional one-hot vectors in octave values. • Onset times: ± AR: the raw value in seconds; ± AO: one-hot vectors quantised by 10ms resolution; ± SR: onset time shift in seconds compared to the previous note onset (o shif t i = o i -o i-1 for i &gt; 0, o shif t 0 = 0); ± SO: one-hot onset time-shift quantised by 10ms resolution (with a maximum onset time shift of 4s, larger values are trimmed to 4s). • Durations: ± R: the raw values in seconds; ± O: one-hot vectors quantised by 10ms resolution (similar to onset shift, large values are trimmed to 4s). • Velocities are always normalised to 0-1.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 1 .</head><label>1</label><figDesc>Dataset Statistics. Performances from the MAPS dataset and the CPM database for the same piece are not counted as different performances, since MAPS pieces are originally obtained from the CPM database.</figDesc><table><row><cell>Statistics</cell><cell>Train</cell><cell cols="2">Valid Test</cell><cell>Total</cell></row><row><cell>Distinct pieces</cell><cell>426</cell><cell>49</cell><cell>29</cell><cell>504</cell></row><row><cell>Performances</cell><cell>1324</cell><cell>157</cell><cell>29</cell><cell>1510</cell></row><row><cell cols="2">Duration (hour) 108.3</cell><cell>12.7</cell><cell>2.2</cell><cell>123.2</cell></row><row><cell>Notes (10 3 )</cell><cell cols="4">3984.0 517.6 73.2 4574.7</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 .</head><label>2</label><figDesc>Model performance on different input data encoding combinations.</figDesc><table><row><cell cols="2">Input encodings</cell><cell></cell><cell cols="3">Note-level F-measure</cell></row><row><cell cols="3">Pitch Onset Duration</cell><cell>p</cell><cell>r</cell><cell>f</cell></row><row><cell>M</cell><cell>AR</cell><cell>R</cell><cell cols="2">86.7 77.7</cell><cell>79.9</cell></row><row><cell>M</cell><cell>AR</cell><cell>O</cell><cell cols="2">89.9 57.2</cell><cell>65.2</cell></row><row><cell>M</cell><cell>AO</cell><cell>R</cell><cell cols="2">82.1 78.3</cell><cell>79.3</cell></row><row><cell>M</cell><cell>AO</cell><cell>O</cell><cell cols="2">83.3 72.2</cell><cell>76.0</cell></row><row><cell>M</cell><cell>SR</cell><cell>R</cell><cell cols="2">89.2 89.4</cell><cell>87.8</cell></row><row><cell>M</cell><cell>SR</cell><cell>O</cell><cell cols="2">88.8 91.9</cell><cell>89.5</cell></row><row><cell>M</cell><cell>SO</cell><cell>R</cell><cell cols="2">91.2 94.3</cell><cell>91.3</cell></row><row><cell>M</cell><cell>SO</cell><cell>O</cell><cell cols="2">91.1 90.3</cell><cell>89.1</cell></row><row><cell>C</cell><cell>AR</cell><cell>R</cell><cell cols="2">86.7 68.7</cell><cell>73.6</cell></row><row><cell>C</cell><cell>AR</cell><cell>O</cell><cell cols="2">80.7 64.4</cell><cell>67.2</cell></row><row><cell>C</cell><cell>AO</cell><cell>R</cell><cell cols="2">82.8 76.2</cell><cell>78.4</cell></row><row><cell>C</cell><cell>AO</cell><cell>O</cell><cell cols="2">82.7 71.9</cell><cell>76.0</cell></row><row><cell>C</cell><cell>SR</cell><cell>R</cell><cell cols="2">90.4 88.0</cell><cell>87.3</cell></row><row><cell>C</cell><cell>SR</cell><cell>O</cell><cell cols="2">90.2 88.9</cell><cell>87.5</cell></row><row><cell>C</cell><cell>SO</cell><cell>R</cell><cell cols="2">89.9 91.3</cell><cell>89.1</cell></row><row><cell>C</cell><cell>SO</cell><cell>O</cell><cell cols="2">88.8 90.6</cell><cell>88.0</cell></row><row><cell cols="3">Input feature omitted</cell><cell></cell><cell>p</cell><cell>r</cell><cell>f</cell></row><row><cell>Pitch</cell><cell></cell><cell></cell><cell></cell><cell cols="2">90.4 93.7 90.6</cell></row><row><cell>Onset</cell><cell></cell><cell></cell><cell></cell><cell cols="2">84.6 72.8 76.4</cell></row><row><cell>Duration</cell><cell></cell><cell></cell><cell></cell><cell cols="2">89.5 93.1 90.1</cell></row><row><cell>Velocity</cell><cell></cell><cell></cell><cell></cell><cell cols="2">89.5 93.9 90.6</cell></row><row><cell cols="2">Use all features</cell><cell></cell><cell></cell><cell cols="2">91.2 94.3 91.3</cell></row><row><cell cols="4">Augmentation method omitted</cell><cell>p</cell><cell>r</cell><cell>f</cell></row><row><cell cols="2">Pitch shift</cell><cell></cell><cell></cell><cell cols="2">92.0 92.0 90.6</cell></row><row><cell cols="2">Tempo change</cell><cell></cell><cell></cell><cell cols="2">91.7 89.5 89.7</cell></row><row><cell cols="2">Note removal</cell><cell></cell><cell></cell><cell cols="2">91.5 90.9 90.4</cell></row><row><cell cols="2">Extra note</cell><cell></cell><cell></cell><cell cols="2">91.2 94.3 91.3</cell></row><row><cell cols="2">Use all methods</cell><cell></cell><cell></cell><cell cols="2">92.9 93.7 92.2</cell></row><row><cell cols="3">No data augmentation</cell><cell></cell><cell cols="2">89.7 95.2 90.9</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 .</head><label>4</label><figDesc>Beat-level F-measure results on the baseline and proposed models. b: beat, db: downbeat, t: tempo.</figDesc><table><row><cell></cell><cell></cell><cell>db)</cell><cell>66.9 57.6</cell></row><row><cell></cell><cell cols="2">Proposed (b, db)</cell><cell>85.7 63.3</cell></row><row><cell></cell><cell cols="2">Proposed (d, db, t)</cell><cell>86.2 69.8</cell></row><row><cell>Methods</cell><cell>F p</cell><cell cols="2">F vo F me F va F ha</cell><cell>F</cell></row><row><cell>Finale</cell><cell cols="4">82.2 54.6 9.9 92.2 86.2 65.0</cell></row><row><cell cols="5">MuseScore 10.0 65.0 15.3 95.0 84.5 54.0</cell></row><row><cell>Proposed</cell><cell cols="4">99.8 87.0 61.7 99.9 91.1 87.9</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 .</head><label>5</label><figDesc>MV2H evaluation on performance MIDI-to-score conversion.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>Example outputs:https://cheriell.github.io/ research/PM2SProceedings of the</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><p><rs type="person">5. ACKNOWLEDGEMENTS L. Liu</rs> is a research student at the <rs type="affiliation">UKRI Centre for Doctoral Training in Artificial Intelligence and Music</rs>, supported jointly by the <rs type="funder">China Scholarship Council and Queen Mary University of London</rs>. The work of L. Liu is supported by <rs type="funder">The Alan Turing Institute</rs> through an <rs type="programName">Enrichment Scheme</rs>.</p><p>We would like to thank <rs type="person">Huan Zhang</rs>, <rs type="person">Changhong Wang</rs> and the reviewers for their valuable feedback to improve our work.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_SqTSsHW">
+					<orgName type="program" subtype="full">Enrichment Scheme</orgName>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Good</surname></persName>
+		</author>
+		<ptr target="http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.118" />
+		<title level="m">ªMusicXML: An internet-friendly format for sheet music,º XML Conference and Expo</title>
+		<imprint>
+			<date type="published" when="2001">2001</date>
+			<biblScope unit="page" from="5431" to="5431" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">H.-W</forename><surname>Nienhuys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nieuwenhuizen</surname></persName>
+		</author>
+		<title level="m">System for Automated Music Engraving,º in Proceedings of the XIV Colloquium on Musical Informatics (XIV CIM 2003)</title>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+			<biblScope unit="page" from="167" to="171" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Creative jazz improvisation</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">D</forename><surname>Reeves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">T P</forename><surname>Walsh</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<pubPlace>Taylor &amp; Francis</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">G C</forename><surname>Carvalho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Smaragdis</surname></persName>
+		</author>
+		<title level="m">ªTowards Endto-End Polyphonic Music Transcription: Transforming Music Audio Directly to A Score,º in IEEE Workshop on Applications of Signal Processing to Audio and Acoustics</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">2017</biblScope>
+			<biblScope unit="page" from="151" to="155" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">ªTowards Complete Polyphonic Music Transcription: Integrating Multi-Pitch Detection and Rhythm Quantization,º in ICASSP</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<date type="published" when="2018-04">2018-April. IEEE, 2018</date>
+			<biblScope unit="page" from="101" to="105" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">ªFrom Audio to Music Notation,º in Handbook of Artificial Intelligence for Music</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<editor>R. Miranda</editor>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<publisher>Springer</publisher>
+			<biblScope unit="page" from="693" to="714" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">ªJoint Multi-pitch Detection and Score Transcription for Polyphonic Piano Music,º in ICASSP</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Morfi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">ªImproving Lyrics Alignment through Joint Pitch Detection,º in ICASSP</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ewert</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2202.01646v1" />
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022-02">2 2022</date>
+			<biblScope unit="page" from="451" to="455" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">ªCreating a Multitrack Classical Music Performance Dataset for Multimodal Music Analysis: Challenges, Insights, and Applications</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Dinesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Sharma</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Multimedia</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="522" to="535" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">ªThe Quantization of Musical Time: A Connectionist Approach</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Desain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Honing</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Music Journal</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="56" to="66" />
+			<date type="published" when="1989">1989</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">ªModeling meter and harmony: A preference-rule approach</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Temperley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Sleator</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Music Journal</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="10" to="27" />
+			<date type="published" when="1999">1999</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raphael</surname></persName>
+		</author>
+		<title level="m">ªAutomated Rhythm Transcription,º in IS-MIR</title>
+		<imprint>
+			<date type="published" when="2001">2001</date>
+			<biblScope unit="page" from="99" to="107" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ªHidden Markov model for automatic transcription of MIDI signals</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Takeda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Saito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Otsuki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Nakai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Shimodaira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Sagayama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of 2002 IEEE Workshop on Multimedia Signal Processing</title>
+		<meeting>2002 IEEE Workshop on Multimedia Signal Processing</meeting>
+		<imprint>
+			<date type="published" when="2002">2002. 2002</date>
+			<biblScope unit="page" from="428" to="431" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">ªTranscribing Human Piano Performance into Music Notation</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Cogliati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Temperley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Duan</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ªA unified probabilistic model for polyphonic music analysis</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Temperley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of New Music Research</title>
+		<imprint>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="3" to="18" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">ªRhythm Transcription of Polyphonic Piano Music Based on Merged-Output HMM for Multiple Voices</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Sagayama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio Speech and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">25</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="794" to="806" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">ªNote Value Recognition for Piano Transcription Using Markov Random Fields</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio Speech and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">25</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<biblScope unit="page" from="1542" to="1554" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">ªMeter detection and alignment of MIDI performance</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mcleod</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Steedman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 19th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2018">2018. 2018</date>
+			<biblScope unit="page" from="113" to="119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">K</forename><surname>Shibata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2008.12710</idno>
+		<ptr target="http://arxiv.org/abs/2008.12710" />
+		<title level="m">ªNon-Local Musical Statistics as Guides for Audioto-Score Piano Transcription,º arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Hiramatsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<title level="m">ªJoint Estimation of Note Values and Voices for Audio-to-Score Piano Transcription,º in ISMIR. International Society for Music Information Retrieval Conference</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="278" to="284" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Suzuki</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Transformer</surname></persName>
+		</author>
+		<title level="m">Generating Musical Score from Note-level Representation,º in ACM International Conference Proceeding Series</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">ªMultipitch Estimation of Piano Sounds Using a New Probabilistic Spectral Smoothness Principle</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Emiya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Badeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>David</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1643" to="1654" />
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ªASAP: A Dataset of Aligned Scores and Performances for Piano Transcription</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Foscarin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mcleod</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Rigaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Jacquemard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sakai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Society for Music Information Retrieval Conference</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">[25] ªFinale music notation software</title>
+		<ptr target="https://www.finalemusic.com" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mcleod</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Steedman</surname></persName>
+		</author>
+		<ptr target="https://www.github.com/apmcleod/MV2H" />
+		<title level="m">ªEvaluating Automatic Polyphonic Music Transcription,º in ISMIR, International Society for Music Information Retrieval Conference</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="42" to="49" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ycart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<title level="m">ªA-MAPS: Augmented MAPS Dataset with Rhythm and Key Annotations,º in ISMIR, International Society for Music Information Retrieval Conference</title>
+		<imprint>
+			<publisher>Late-Breaking Demo</publisher>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<ptr target="http://www.piano-midi.de" />
+		<title level="m">ªClassical Piano-Midi Database</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">ªACPAS: A Dataset of Aligned Classical Piano Audio And scores for Audio-To-Score Transcription,º in ISMIR Late-Breaking Demo</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Morfi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2" to="4" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">ªEvaluation Methods for Musical Audio Beat Tracking Algorithms,º Centre for Digital Music</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E P</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Degara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Plumbley</surname></persName>
+		</author>
+		<idno>DM-TR-09</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Tech. Rep</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page">17</biblScope>
+			<date type="published" when="2009">2009</date>
+		</imprint>
+		<respStmt>
+			<orgName>Queen Mary University of London</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E P</forename><surname>Davies</surname></persName>
+		</author>
+		<title level="m">ªDeconstruct, Analyse, Reconstruct: How To Improve Tempo, Beat, and Downbeat Estimation,º in ISMIR, International Society for Music Information Retrieval Conference</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">ªA multi-model approach to beat tracking considering heterogeneous music styles</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Krebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 15th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2014">2014. 2014</date>
+			<biblScope unit="page" from="603" to="608" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">F</forename><surname>Krebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+		<title level="m">ªAn efficient statespace model for joint tempo and meter tracking,º Proceedings of the 16th International Society for Music Information Retrieval Conference</title>
+		<imprint>
+			<date type="published" when="2015">2015. 2015</date>
+			<biblScope unit="page" from="72" to="78" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mcleod</surname></persName>
+		</author>
+		<title level="m">ªEvaluating Non-Aligned Musical Score Transcriptions with MV2H,º in ISMIR, International Society for Music Information Retrieval Conference</title>
+		<imprint>
+			<publisher>Late-Breaking Demo</publisher>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I.-C</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-J</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ching</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2107.05223</idno>
+		<ptr target="https://arxiv.org/abs/2107.05223v1" />
+		<title level="m">ªMidiBERT-Piano: Large-scale Pre-training for Symbolic Music Understanding,º</title>
+		<imprint>
+			<date type="published" when="2021">7 2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<author>
+			<persName><forename type="first">K</forename><surname>Tanaka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Nakatsuka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Nishikimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Morishima</surname></persName>
+		</author>
+		<title level="m">ªMulti-instrument Music Transcription Based on Deep Spherical Clustering of Spectrograms and Pitchgrams,º in ISMIR, International Society for Music Information Retrieval Conference</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="327" to="334" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">ªMulti-Instrument Automatic Music Transcription with Self-Attention-Based Instance Segmentation</title>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">T</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio Speech and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="2796" to="2809" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.01815</idno>
+		<ptr target="http://arxiv.org/abs/2010.01815" />
+		<title level="m">ªHigh-resolution Piano Transcription with Pedals by Regressing Onsets and Offsets Times,º</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1" to="10" />
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">J</forename><surname>Bosch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Rubinstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Meseguer-Brocal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ewert</surname></persName>
+		</author>
+		<title level="m">ªA Lightweight Instrument-Agnostic Model for Polyphonic Note Transcription and Multipitch Estimation,º in ICASSP</title>
+		<meeting><address><addrLine>Bengaluru, India</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022-12-04">2022. December 4-8, 2022</date>
+			<biblScope unit="page" from="781" to="785" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of the 23rd ISMIR Conference</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

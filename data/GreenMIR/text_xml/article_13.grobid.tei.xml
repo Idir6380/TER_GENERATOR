@@ -1,0 +1,1498 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">EXPLOITING PRE-TRAINED FEATURE NETWORKS FOR GENERATIVE ADVERSARIAL NETWORKS IN AUDIO-DOMAIN LOOP GENERATION</title>
+				<funder ref="#_4vjRV3X">
+					<orgName type="full">NSTC</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">National Science and Technology Council of Taiwan</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Yen-Tung</forename><surname>Yeh</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Academia Sinica</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">National Taiwan University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Bo-Yu</forename><surname>Chen</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Academia Sinica</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">National Taiwan University</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Yi-Hsuan</forename><surname>Yang</surname></persName>
+							<email>yang@citi.sinica.edu.tw</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Academia Sinica</orgName>
+							</affiliation>
+							<affiliation key="aff2">
+								<orgName type="department">Taiwan AI Labs</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">EXPLOITING PRE-TRAINED FEATURE NETWORKS FOR GENERATIVE ADVERSARIAL NETWORKS IN AUDIO-DOMAIN LOOP GENERATION</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">8658750D33FB81A09AB5ED30FAA1181E</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:18+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>While generative adversarial networks (GANs) have been widely used in research on audio generation, the training of a GAN model is known to be unstable, time consuming, and data inefficient. Among the attempts to ameliorate the training process of GANs, the idea of Projected GAN emerges as an effective solution for GAN-based image generation, establishing the state-of-the-art in different image applications. The core idea is to use a pre-trained classifier to constrain the feature space of the discriminator to stabilize and improve GAN training. This paper investigates whether Projected GAN can similarly improve audio generation, by evaluating the performance of a StyleGAN2-based audio-domain loop generation model with and without using a pre-trained feature space in the discriminator. Moreover, we compare the performance of using a general versus domain-specific classifier as the pretrained audio classifier. With experiments on unconditional one-bar drum loop and synth loop generation, we show that a general audio classifier works better, and that with Projected GAN our loop generation models can converge around 5 times faster without performance degradation.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Generative adversarial networks (GANs) <ref type="bibr" target="#b0">[1]</ref> are deep generative models that are composed of a generator and a discriminator. The discriminator can be considered as a classifier (or a ªcriticº) which judges whether its input is a real sample, or a synthetic one created by the generator counterpart; the generator takes as input a random vector (sometimes plus additional conditional inputs <ref type="bibr" target="#b1">[2]</ref>) and aims to create a synthetic sample that ªfoolsº (i.e., appears to be realistic to) the discriminator. During the GAN training process, the discriminator and generator are updated in an iterative manner, fixing the parameters of one and updating those of the other each time. After the training converges, the generator can be used to generate original samples, leading to state-of-the-art (SOTA) results in image generation [3±7] and many other domains.</p><p>GANs have been extensively applied to music generation as well, including symbolic-domain generation [8±17] and audio-domain generation <ref type="bibr">[18±28]</ref>. In particular, GANbased models represent the SOTA in audio-domain music generation tasks such as single-note generation <ref type="bibr" target="#b17">[18,</ref><ref type="bibr" target="#b25">26]</ref>, drum track generation <ref type="bibr" target="#b20">[21]</ref>, and loop generation <ref type="bibr" target="#b26">[27]</ref>.</p><p>Despite its widespread applications, GANs are notoriously difficult to train [29±33]. This is partly due to the fact that the generator and discriminator have opposite goals by design, with the generator aiming to maximize the discriminator loss and the discriminator aiming to minimize the same loss in different iterations, making the training dynamics complicated. As the parameters of the discriminator are constantly being updated over the training process, the generator has no single critic to improve its own performance over time. And, while the parameters of the generator and discriminator are typically initialized randomly, the GAN training process can be time-consuming. Using a pre-trained feature network as part of the discriminator has been shown to speed up the training process [34±36], but some modifications of the pre-trained feature network is needed to avoid the discriminator from being too strong and causing the gradients of the generator to vanish.</p><p>Projected GAN <ref type="bibr" target="#b36">[37]</ref> is a new approach that is shown to effectively leverage the benefits of pre-trained feature networks, leading to SOTA results in unconditional image generation <ref type="bibr" target="#b6">[7]</ref>. Projected GAN adds two random projection modules after the pre-trained feature networks, named ªcross-channel mixingº (CCM) and ªcross-scale mixingº (CSM), to prevent the discriminator from focusing only on a subset of features and thereby avoid mode collapse. They not only reduce the time of GAN training, but also improve the quality of the generated images.</p><p>This paper studies whether Projected GAN can also improve audio generation, by incorporating it to unconditional audio-domain loop generation <ref type="bibr" target="#b26">[27]</ref> as a case study. We note that there are well-studied pre-trained feature networks in the image domain <ref type="bibr">[34±36]</ref>. There are also studies on the choice of pre-trained network for retrieval and analysis of musical audio <ref type="bibr" target="#b37">[38]</ref> and soundtracks <ref type="bibr" target="#b38">[39]</ref>. However, we are less sure which pre-trained feature networks to use in the context of musical audio generation. Therefore, besides pioneering the use of Projected GAN for audio generation, an interesting aspect of our research is that we in- Specifically, for the general classifier, we use the pretrained VGGish feature networks trained on YouTube-100M <ref type="bibr" target="#b38">[39]</ref>, a huge collection of sounds and musical audio from YouTube. For domain-specific classifiers, we use short-chuck convolutional neural network (SCNN)-based models <ref type="bibr" target="#b39">[40]</ref>, which have led to SOTA accuracy across multiple music auto-tagging datasets. We use two SCNNs, one trained on the MagnaTagATune (MTAT) dataset <ref type="bibr" target="#b40">[41]</ref> for tagging music of a wide range of genres, and the other trained on a collection of loops for genre classification of loops, which are domain-wise even closer to our generation task. We elaborate on the datasets and classifiers in Section 3, and then the usage of the classifiers as the pretrained feature networks for loop generation in Section 4.</p><p>We report objective and subjective evaluations in Sections 5 and 6 studying the influence of different pre-trained feature networks for drum loop generation and synth loop generation following the approach of Projected GAN, finding that the use of a general classifier works consistently better. Moreover, we find slightly better result can be obtained if we ªfuseº general and domain-specific pretrained feature networks in our model. Objective and subjective evaluations both demonstrate that Projected GAN improves training speed and the final generation quality.</p><p>We share our code at <ref type="url" target="https://github.com/">https://github.com/</ref> Arthurddd/pjloop-gan, and examples of the generated loops at <ref type="url" target="https://arthurddd.github.io/">https://arthurddd.github.io/</ref> PjLoopGAN/. Illustrations of the Mel-spectrograms of the generated synth loops and drum loops can be found respectively in Figure <ref type="figure" target="#fig_0">1</ref> and later on in Figure <ref type="figure" target="#fig_2">3</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">BACKGROUND</head><p>Related Work. GANs have garnered great interest in recent years, leading to models that generate high-fidelity audio waveforms. WaveGAN <ref type="bibr" target="#b18">[19]</ref> pioneers the use of GAN for audio; it can synthesize one-second raw audio waveforms of speech and music with coherence. Follow-up research applies GAN to other audio synthesis tasks. For example, MelGAN <ref type="bibr" target="#b41">[42]</ref> and Parallel WaveGAN <ref type="bibr" target="#b42">[43]</ref> use GAN to build neural vocoders that can reconstruct a waveform from the corresponding Mel-spectrogram. GAN-TTS <ref type="bibr" target="#b43">[44]</ref> applies GAN to convert text to natural human speech. UNAGAN <ref type="bibr" target="#b22">[23]</ref> uses GAN to synthesize singing voice.</p><p>GAN has also been used to synthesize audio samples of musical materials, including percussive and harmony ones, that can be used in music production. GANSynth <ref type="bibr" target="#b17">[18]</ref> can synthesize harmony music notes with diverse timbre and controllable pitches. DrumGAN <ref type="bibr" target="#b23">[24]</ref> can synthesize one-shot percussion sounds, allowing for the use of condition perceptual features to intuitively control the timbre of the percussion sounds. StyleWaveGAN <ref type="bibr" target="#b44">[45]</ref> improves the audio quality and inference time of DrumGAN. However, the aforementioned models deal with only single notes or one-shot samples instead of longer phrases such as musical loops, limiting their applicability to creating loop-based music. In view of this need, Hung et al. <ref type="bibr" target="#b26">[27]</ref> study the task of one-bar drum loop generation and benchmark the performance of UNAGAN <ref type="bibr" target="#b22">[23]</ref>, StyleGAN <ref type="bibr" target="#b3">[4]</ref> and Style-GAN2 <ref type="bibr" target="#b4">[5]</ref> for this task over the FreeSound Loop dataset <ref type="bibr" target="#b45">[46]</ref>, showing that the model based on StyleGAN2 <ref type="bibr" target="#b4">[5]</ref> performs the best. However, Hung et al. <ref type="bibr" target="#b26">[27]</ref> do not consider the training efficiency of their models. Moreover, while they focus on drum loops only, we consider also the generation of synth loops to encompass not only percussive but also harmonic musical materials in our work. Specific to the GAN training technique, there are three main approaches to improve the discriminator. First, modifying the architecture of the discriminator to improve the discriminator's ability [47±49]. Second, assembling multiple discriminators to capture more comprehensive features, an approach that as been widely investigated in the audio domain for building the vocoder <ref type="bibr">[42, 50±52]</ref>. The third approach introduces a pre-trained feature network to the discriminator to avoid learning its parameters completely from scratch, which helps speed up the convergence time and prevent model overfitting. Zhao et al. <ref type="bibr" target="#b33">[34]</ref> use the pre-trained network in the large-scale dataset, adapt it to a small dataset, and propose adaptive filter modulation to deal with domain shift. Grigoryev et al. <ref type="bibr" target="#b34">[35]</ref> and Kumari et al. <ref type="bibr" target="#b35">[36]</ref> both find that pre-trained network selection can largely influence performance and propose a recipe to choose a suitable pre-trained network for a particular image-domain task. Projected GAN <ref type="bibr" target="#b36">[37]</ref> is a very recent idea that combines the aforementioned approaches, using multiple discriminators and employing pre-trained feature networks simultaneously to improve the training stability and efficiency of the GAN. However, to our best knowledge, adapting Projected GAN to the audio-domain generation is still unexplored, for either speech or music.</p><p>Projected GAN. Projected GAN <ref type="bibr" target="#b36">[37]</ref> introduces a set of L = 4 feature projectors {P l , l = 1, . . . , L}, each maps either real samples x or fake samples G(z) to a fixed pretrained feature space. It aims to minimize the following objective function to match the data distribution in the feature space, instead of matching data distributions directly:</p><formula xml:id="formula_0">min G max {D l } L l=1 exp E x [log D l (P l (x))] +E z [log(1 -D l (P l (G(z))))] ,<label>(1)</label></formula><p>where {D l , l = 1, . . . , L} denotes the set of independent discriminators operating on different feature projections, Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022 and G denotes the generator that converts a random vector z into a fake sample. Each projector P l consists of three components: a pre-trained feature network C l , the CCM modules, and the CSM modules. First, we extract features from L different layers of the feature network C l , leading to L set of feature maps in different scales. Second, for each scale, the CCM mixes the features across channels by random (i.e., not-learned) 1 × 1 convolutions with an equal number of input and output channels, which can be viewed as the generalization of random permutation. Third, CSM further mixes features across scales by random 3 × 3 convolutions and bilinear upsampling layers, yielding a U-Net architecture that combines the feature maps of different scales. The features fused by CCM and CSM in L different scales would then be fed to each discriminator D l . The random projections introduced by CCM and CSM have the effect of encouraging each D l to take into account the entire feature space instead of overfitting to a sub-set of feature space, thereby avoiding mode collapse. Without using gradient penalties and any sophisticated training strategies, Projected GAN updates its loss simply by summing the output of the L discriminators.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">DATSETS &amp; CLASSIFIERS</head><p>Our work is built upon the use of the following datasets.</p><p>Youtube-100M <ref type="bibr" target="#b38">[39]</ref> is a private dataset of Google, containing 100 million Youtube videos. Each video has on average 5 manually assigned tags, out of 30,871 possible labels. Hershey et al. <ref type="bibr" target="#b38">[39]</ref> train a VGGish pre-trained network for large-scale audio classification using the dataset. While we are not able to have a copy of the dataset, we can use the pre-trained weights Gemmeke et al. <ref type="bibr" target="#b52">[53]</ref> share publicly as our general audio classifier. <ref type="bibr" target="#b40">[41]</ref> is a dataset commonlyused in research on music auto-tagging. It contains 25,863 music clips, each 29-seconds long. We use MTAT to train one of our domain-specific pre-trained feature networks. We follow the original data split <ref type="bibr" target="#b40">[41]</ref> and use only the top 50 tags, including genre and instrumentation labels, as well as decades (e.g., '80s' and '90s') and moods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>MagnaTagATune (MTAT)</head><p>Looperman dataset is an in-house collection of loops from <ref type="url" target="https://www.looperman.com/">https://www.looperman.com/</ref>, a website hosting free music loops. We get the audio and uploaderprovided metadata of 23,983 drum loops and 22,625 synth loops. According to the metadata, the drum loops and synth loops can be categorized to 66 and 58 genres, respectively. We use the Looperman dataset for not only building a domain-specific pre-trained feature network but also for building our audio-domain loop generation model.</p><p>Following the preprocessing steps of Hung et al. <ref type="bibr" target="#b26">[27]</ref>, we first apply downbeat tracking via madmom <ref type="bibr" target="#b53">[54]</ref> to split every loop into single bars and then time-stretch each to 120 BPM (beats-per-minute) by pyrubberband [55] to unify their length to be always 2 seconds per loop. After this preprocessing, we have 128,122 and 42,570 one-bar loops for drum and synth, respectively. We split the data by 80/10/10 for training the loop genre classifier, and use the entire data for music loop generation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Pre-trained Feature Networks for Music</head><p>General. As aforementioned, we use the VGGish network trained on Youtube-100M <ref type="bibr" target="#b52">[53]</ref> as the general pre-trained feature network. Taking the Mel-spectrogram as input, the model uses 2D convolutional blocks and 2D max-pooling layers to compute 128-dimensional features at the output. Domain specific. Short-Chuck CNN (SCNN) <ref type="bibr" target="#b39">[40]</ref> has a simple 2D CNN architecture with 3 × 3 filters and residual module but it has been shown to be remarkably effective for music auto-tagging. We use in our implementation 6 layers of CNN blocks with a fully connected layer and the residual module. Each CNN block comprises a 2 × 2 maxpooling layer. We use SCNN to train separate classifiers for MTAT and Looperman from scratch, and then used the trained classifiers as our domain-specific pre-trained feature networks. For MTAT, SCNN achieves 0.909 ROC-AUC and 0.445 PR-AUC. For genre classification of the looperman drum loops, the classification accuracy reaches 0.792. For synth loops, the accuracy attains 0.700.</p><p>Fusion. Fusing multiple pre-trained feature networks has also been shown useful for Projected GAN-based image generation <ref type="bibr" target="#b6">[7]</ref>. Accordingly, we also experiment with a simple fusion strategy that allows the discriminator to consider both general and domain-specific features at the same time, as depicted in Figure <ref type="figure" target="#fig_1">2</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">AUDIO GENERATION BY PROJECTED GAN</head><p>Following Hung et al. <ref type="bibr" target="#b26">[27]</ref>, we use StyleGAN2 <ref type="bibr" target="#b4">[5]</ref> as the backbone of our loop generation model. However, we improve their model in a number of aspects, regarding to not Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022 only the discriminator (i.e., with Projected GAN) but also the generator. We provide the details below.</p><p>Improving the generator. The generator G consists of a mapping network G m and a synthesis network G s . We implement G m with only 6 fully-connected layers instead of the 8 in the original StyleGAN2 architecture. Furthermore, echoing the finding in the image domain <ref type="bibr" target="#b54">[56]</ref>, we find that the length of the vectors z (i.e., the input of G m ) largely affects the model performance. Setting the length of z to 512 as done in <ref type="bibr" target="#b26">[27]</ref> leads to mode collapse in our preliminary experiments, as shown in Figure <ref type="figure" target="#fig_2">3(a)</ref>. This may be related to the so-called ªintrinsic dimensionº of the data <ref type="bibr" target="#b54">[56]</ref>; an overly large latent space of z introduces redundancy that distracts the generator. As smaller z empirically works better, we set its length to 32 in the experiments reported below. We similarly set the length of the ªstyle codeº w (i.e., the output of G m ) to a small value of 64.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Pipeline</head><p>The training follows the procedure of the Projected GAN, but we use the following pipeline to match the input shape expected by the pre-trained feature networks. First, we compute the Mel-spectrogram with 512-point window size and 160-point hop size for short-time Fourier Transform (STFT) and 64 Mel channels. Second, we feed a latent z to the mapping network G m to generate style codes that modulate the convolutions of the synthesis network G s , using four upsampling blocks to generate a Melspectrogram that corresponds to a synthesized 2-second loop. We note that our pre-trained feature networks are on 1-second audio. To address the size mismatch, we split the Mel-spectrogram into two chunks, with the first half corresponding to the first second and the other the rest. As illustrated in Figure <ref type="figure" target="#fig_1">2</ref>, we feed the two chunks separately to the discriminators, going through the pre-trained feature network, CCM and CSM. Moreover, we concatenate the features with the same scales but in different chunks to aggregate the features from individual chunks, yielding L = 4 aggregated features {F l , l = 1...L}. We feed each of these features independently to the corresponding discriminators D l . Additionally, if we consider two pretrained feature networks simultaneously, referred to as ªfusionº in Section 3.1, we have in total 2L aggregated features and 2L discriminators. Eventually, we sum the loss from these discriminators to update the network.</p><p>Similar to Hung et al. <ref type="bibr" target="#b26">[27]</ref>, at inference time, the Melspectrogram generated by the generator would go through a MelGAN vocoder <ref type="bibr" target="#b41">[42]</ref> to become waveforms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">OBJECTIVE EVALUATION</head><p>We use the following objective metrics to evaluate the quality and diversity of the generated loops.</p><p>Inception Score (IS) <ref type="bibr" target="#b57">[58,</ref><ref type="bibr" target="#b58">59]</ref> measures the quality of the generated loops and detects whether there is a mode collapse by using a pre-trained domain-specific classifier, namely the loop genre classifier for each type of loops (i.e., drum or synth). It penalizes models whose samples cannot be reliably classified into a single class or that only belong to a few from all possible classes. Fréchet Audio Distance (FAD) <ref type="bibr" target="#b59">[60]</ref> reflects both quality and diversity as it measures the distance between continuous multivariate Gaussians fitted to the embeddings of the real and generated loops.</p><p>Density &amp; Coverage (D&amp;C) <ref type="bibr" target="#b56">[57]</ref> are new metrics that measure respectively the quality and diversity of the generated data. D&amp;C are considered to be more robust against the influence of outliers compared to older metrics such as precision and recall (P&amp;R) <ref type="bibr" target="#b60">[61]</ref>. 'D' is the average number of real-sample neighborhood spheres that contain each of the fake samples. It may be greater than 1 depending on the density of reals around the fakes. 'C' is the fraction of real samples whose neighborhoods contain at least one fake sample. In our implementation, we use the hyperparameters suggested by <ref type="bibr" target="#b56">[57]</ref>. Moreover, following <ref type="bibr" target="#b56">[57]</ref>, we calculate D&amp;C with a randomly-initialized VGG16 model that projects samples to VGG16 fc2 space whose dimension is deliberately set to a small value 64.</p><p>We evaluate the following models here: • StyleGAN2: the SOTA for drum loop generation <ref type="bibr" target="#b26">[27]</ref>.</p><p>• StyleGAN2 (early-stop): the StyleGAN2 that stops training at the same point when Projected GAN converges, providing a reference demonstrating the possible advantage of the training efficiency of Projected GAN.</p><p>• Projected StyleGAN2 with different pre-trained feature networks, including 1) the general VGG classifier alone, 2) the domain-specific SCNN classifier trained on MTAT alone (denoted as SCNN MTAT ), 3) the SCNN classifier trained on Looperman alone, using the drum or synth classifier depending on whether it is for generating drum or synth loops (denoted as SCNN Loop ), 4) ªfusionº of</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Models</head><p>Drum loops Synth loops  <ref type="bibr" target="#b56">[57]</ref> (↓ / ↑: the lower/higher the better; the best in bold).</p><formula xml:id="formula_1">IS ↑ FAD ↓ D ↑ C ↑ IS ↑ FAD ↓ D ↑ C ↑ A Real</formula><p>VGG, SCNN MTAT , and 5) ªfusionº of VGG, SCNN Loop . Table <ref type="table" target="#tab_0">1</ref> presents the objective evaluation results of models trained on drum loops and synth loops. Each model generates 10,000 random loops to compute the scores. We also compute the scores using the real data for setting a high anchor of the objective scores.</p><p>We see that the best-performing configurations of Projected StyleGAN2 can achieve higher IS and lower FAD than StyleGAN2 (i.e., row B). For drum loops, the IS can be improved from 5.58 to 6.31 (row H) ; for synth loop the FAD can be reduced from 3.60 to 2.34 (row D).</p><p>Interestingly and somehow surprisingly, when only a single pre-trained feature network is used (i.e., rows D± F), we find that only Projected StyleGAN2 (VGG) performs nicely. The domain-specific pre-trained feature networks actually degrade the performance of loop generation; either Projected StyleGAN2 (SCNN MTAT ) or Projected StyleGAN2 (SCNN Loop ) obtains lower IS and higher FAD, and even close-to-zero D&amp;C. This suggests that a general pre-trained feature network works much better than a domain-specific pre-trained feature network in the context of Projected GAN-based unconditional loop generation. This is likely because the discriminator employing a domain-specific pre-trained feature network is too strong compared to the generator, leading to gradient vanishing. Figure <ref type="figure" target="#fig_2">3</ref>(b) shows samples generated by Projected Style-GAN2 (SCNN MTAT ); we see that the model weirdly generates sparse samples most of the time.</p><p>Table <ref type="table" target="#tab_0">1</ref> also shows that the ªfusionº of general and domain-specific pre-trained feature networks (rows G &amp; H) performs slightly better in some metrics than using a general pre-trained feature network alone (row D). In particular, we see that Projected StyleGAN2 (VGG+SCNN Loop ) achieves the highest IS score in both drum and synth loop generation. It also reaches the lowest FAD for drum loops and the second lowest FAD for synth loops. We show examples of its generated synth and drum loops in Figures <ref type="figure" target="#fig_0">1</ref> and<ref type="figure" target="#fig_2">3</ref>(c), respectively.</p><p>Projected StyleGAN2 appears to have lower D&amp;C compared to StyleGAN2, suggesting that Projected Style-GAN2 sacrifices a little diversity for higher quality of the generated samples. This is presumably because the feature space has been constrained by the pre-trained feature networks throughout the whole training process, making it Figure <ref type="figure" target="#fig_3">4</ref> shows how the FAD and IS of four selected models (rows B, D, F, H in Table <ref type="table" target="#tab_0">1</ref>) varies as a function of training time, when all the models are trained separately and independently on a single V100 GPU. For both drum and synth loop generation, Projected GAN leads to lower FAD much faster than the StyleGAN2 baseline. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">SUBJECTIVE EVALUATION</head><p>To further assess the loops generated by the models, we conduct a subjective listening test through an anonymous online questionnaire. Each subject is presented with a randomly picked human-made loop from the Looperman dataset (i.e., 'Real') and a randomly-generated loop by each of the following four models: StyleGAN2, Style-GAN2 (early-stop), Projected StyleGAN2 (SCNN Loop ) Figure <ref type="figure">5</ref>. Subjective evaluation results. The performance difference between any pair of models in any metric is statistically significant (p-value&lt; 0.001) under the Wilcoxon signed-rank test, except for the pairs that are explicitly highlighted. and Projected StyleGAN2 (VGG+SCNN Loop ). The subject is then asked to rate each of these loops in terms of the following metrics, all on a five-point Likert scale.</p><p>• Drummability or Harmony: Drummability (for drum loops) means whether the sample contains percussion sounds, and Harmony (for synth loops) means whether the sample contains harmonic sounds.</p><p>• Loopability: whether the sample can be played repeatedly in a seamless manner.</p><p>• Audio quality: whether the sample is free of unpleasant noises or artifacts.</p><p>• Preference: how much you like it.</p><p>To evaluate loopability, we repeat each sample four times in the audio recording. Because the output of the models all goes through the MelGAN vocoder <ref type="bibr" target="#b41">[42]</ref> to become waveforms, we do the same for 'Real' to be fair. Figure <ref type="figure">5</ref> shows the averaged results from 35 participants. The responses indicate an acceptable level of reliability, Cronbach's α = 0.721. The subjective evaluation result aligns nicely with the objective evaluation result. Projected StyleGAN2 (VGG+SCNN Loop ) performs the best and Projected StyleGAN2 (SCNN Loop ) performs the worst. Overall, Projected StyleGAN2 Loop ) achieves results comparable to StyleGAN2 and even 'Real' for both types of loops. Somehow surprisingly, Projected StyleGAN2 (VGG+SCNN Loop ) can even outperform 'Real' in audio quality and preference for both drum and synth loops. We conjecture that this is because the 'Real' here actually stands for the ªMelGAN-vocodedº version of the real data, whose quality may have suffered from the artefacts introduced by the vocoder. Almost all models lead to higher subjective scores for drum loops than for synth loops, suggesting that synth loop generation is more challenging. We note that, for synth loops, Projected StyleGAN2 (VGG+SCNN Loop ) actually obtains higher harmony scores than StyleGAN2 and 'Real', but its loopability scores is lower. To further improve its performance for synth loop generation, future work may be done to explicitly consider loopability in model training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.">LIMITATIONS</head><p>We only focus on one-bar loop generation with a specific BPM of 120 in our study, which is ªconvenientº as it gives us fixed-size Mel-spectrograms to be treated as images by StyleGAN2. However, to be applicable to loop-based music production, future work needs to consider variable BPMs and loops with more bars. As the size of the Melspectrogram would not be fixed when we consider variable BPMs, future work may need to adopt generative models other than StyleGAN2 as the backbone. Possible candidates are UNAGAN <ref type="bibr" target="#b22">[23]</ref> and VQGAN <ref type="bibr" target="#b61">[62]</ref>, both of which may also benefit from the ideas of Projected GAN.</p><p>To apply Projected GAN, we need to take care of the shape matching between the pre-trained networks and the generative model. For example, in our work the pre-trained networks (e.g., the VGGish one) is trained on 1-second audio chunks, but our generator is to generate 2-second loops. The size mismatch can be easily addressed by simply splitting the Mel-spectrogram into two chunks in our work, but this is trickier if we consider BPMs other than 120.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8.">CONCLUSION</head><p>In this paper, we have demonstrated that Projected GAN can be used to improve the training efficiency and overall performance of GAN-based models for audio generation, specifically the generation of drum loops and synth loops. Moreover, we demonstrated that using a domain-specific pre-trained feature network alone does not work well; we need to use either a general pre-trained feature network, or the fusion of multiple pre-trained feature networks.</p><p>This work can be extended in many ways. First, we can expand our work to generate variable-length loops, or to other GAN-based audio-related tasks. Next, we can explore unsupervised or self-supervised approaches (e.g., <ref type="bibr" target="#b62">[63,</ref><ref type="bibr" target="#b63">64]</ref>) to get the pre-trained feature network. Third, we are also interested in using class conditions or attributes for more controllable loop generation. Doing so may help improve the diversity of the generated loops as well, according to related work on image generation <ref type="bibr" target="#b6">[7]</ref>. Finally, using diffusion probabilistic models <ref type="bibr" target="#b64">[65,</ref><ref type="bibr" target="#b65">66]</ref> as the generative model for loop generation also worth trying.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. Mel-spectrograms of examples of synth loops generated by Projected GAN with a general classifier.</figDesc><graphic coords="2,57.22,68.54,225.47,76.90" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Diagram of the proposed discriminator architecture. A Mel-spectrogram is divided into two chunks and then fed to either a general or a domain-specific pre-trained feature network, or both (for ªfusionº). Features computed for both chunks are aggregated at each scale l before feeding to the corresponding discriminator D l .</figDesc><graphic coords="3,325.14,68.54,199.91,206.29" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. Mel-spectrograms of examples of drum loops generated (a) by a failed case using an overly large latent space for z, leading to mode collapse (see Section 4); (b) Projected GAN with the MTAT domain-specific classifier; (c) Projected GAN with the VGG general classifier.</figDesc><graphic coords="4,314.68,68.54,220.82,235.88" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 .</head><label>4</label><figDesc>Figure 4. The FAD and IS as a function of training hours.</figDesc><graphic coords="5,310.11,244.55,232.44,127.46" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>For synth loops, Projected GAN with only 2-hour training reaches lower FAD than the StyleGAN2 baseline with 12-hour training. In general, Projected GAN converges at approximately 2 hours for both drum and synth loops, while Style-GAN2 converges x5 times longer at about 10 hours. Echoing the result in Table 1, using the epoch of StyleGAN2 corresponding to 2-hour training time (i.e., row C) obtains worse scores than the models corresponding to rows B and D in almost all the metrics for both drum and synth loops. Overall, these results nicely demonstrate how Projected GAN speeds up and improves GAN training.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="6,54.98,68.54,487.58,135.36" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 .</head><label>1</label><figDesc>Objective evaluation result for the different settings of the Projected GANs trained on the Looperman dataset for loop generation. 'D' and 'C' stand for Density &amp; Coverage</figDesc><table><row><cell>data</cell><cell>16.30</cell><cell cols="2">0.01 1.00 1.00 14.95</cell><cell>0.01</cell><cell>1.00</cell><cell>1.00</cell></row><row><cell>B StyleGAN2 [27]</cell><cell>5.58</cell><cell>2.50 1.01 0.89</cell><cell>4.80</cell><cell>3.60</cell><cell>1.19</cell><cell>0.91</cell></row><row><cell>C StyleGAN2 (early-stop)</cell><cell>5.21</cell><cell>3.40 0.56 0.43</cell><cell>4.55</cell><cell>7.97</cell><cell>1.01</cell><cell>0.75</cell></row><row><cell>D Projected StyleGAN2 (VGG)</cell><cell>5.87</cell><cell>3.03 1.06 0.70</cell><cell>4.70</cell><cell>2.34</cell><cell>1.31</cell><cell>0.82</cell></row><row><cell>E Projected StyleGAN2 (SCNN MTAT )</cell><cell>4.75</cell><cell>8.18 0.00 0.00</cell><cell>3.97</cell><cell cols="3">7.14 0.001 0.002</cell></row><row><cell>F Projected StyleGAN2 (SCNN Loop )</cell><cell>4.45</cell><cell>7.21 0.00 0.00</cell><cell>3.08</cell><cell cols="3">8.32 0.001 0.002</cell></row><row><cell>G Projected StyleGAN2 (VGG+SCNN MTAT )</cell><cell>6.22</cell><cell>2.45 1.11 0.74</cell><cell>4.73</cell><cell>3.13</cell><cell>1.67</cell><cell>0.85</cell></row><row><cell>H Projected StyleGAN2 (VGG+SCNN Loop )</cell><cell>6.31</cell><cell>2.34 1.08 0.73</cell><cell>4.82</cell><cell>2.56</cell><cell>1.70</cell><cell>0.85</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="9.">ACKNOWLEDGEMENT</head><p>We are grateful to <rs type="person">Tun-Min Hung</rs> for helpful discussions during the project. We also thank the anonymous reviewers for their constructive feedbacks. Our research is funded by grant <rs type="funder">NSTC</rs> <rs type="grantNumber">109-2628-E-001-002-MY2</rs> from the <rs type="funder">National Science and Technology Council of Taiwan</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_4vjRV3X">
+					<idno type="grant-number">109-2628-E-001-002-MY2</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">ªGenerative adversarial nets</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Goodfellow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Advances in neural information processing systems</title>
+		<meeting>Advances in neural information processing systems</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="2672" to="2680" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mirza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Osindero</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1411.1784</idno>
+		<title level="m">ªConditional generative adversarial nets</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">ªLarge scale GAN training for high fidelity natural image synthesis</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Brock</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1809.11096</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">º arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">ªA style-based generator architecture for generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Karras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Laine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Aila</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition</title>
+		<meeting>IEEE/CVF Conf. Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4396" to="4405" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">ªAnalyzing and improving the image quality of StyleGAN</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Karras</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition</title>
+		<meeting>IEEE/CVF Conf. Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">T</forename><surname>Karras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Aittala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Laine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Härkönen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hellsten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lehtinen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Aila</surname></persName>
+		</author>
+		<title level="m">ªAlias-free generative adversarial networks,º in Proc. Conf. Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Schwarz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Geiger</surname></persName>
+		</author>
+		<title level="m">ªStyleGAN-XL: Scaling StyleGAN to large diverse datasets,º in Proc. ACM SIGGRAPH Conf</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Continuous recurrent neural networks with adversarial training</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Mogren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">ªc-Rnn-Gan</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Constructive Machine Learning Workshop</title>
+		<meeting>Constructive Machine Learning Workshop</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">ªMidiNet: A convolutional generative adversarial network for symbolic-domain music generation</title>
+		<author>
+			<persName><forename type="first">L.-C</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S.-Y</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc</title>
+		<meeting>null</meeting>
+		<imprint>
+			<publisher>Int. Soc. Music Information Retrieval Conf</publisher>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">ªMuseGAN: Multi-track sequential generative adversarial networks for symbolic music generation and accompaniment</title>
+		<author>
+			<persName><forename type="first">H.-W</forename><surname>Dong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. AAAI Conference on Artificial Intelligence</title>
+		<meeting>AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">ªMusicality-novelty generative adversarial nets for algorithmic composition</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACM Int. Conf. Multimedia</title>
+		<meeting>ACM Int. Conf. Multimedia</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1607" to="1615" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Improvising with generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Trieu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Keller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Workshop on Musical Metacreation</title>
+		<meeting>Int. Workshop on Musical Metacreation</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">ªGenerating structured drum pattern using variational autoencoder and selfsimilarity matrix</title>
+		<author>
+			<persName><forename type="first">I.-C</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-W</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<meeting>Int. Soc. Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ªModeling selfrepetition in music generation using generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jhamtani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Machine Learning for Music Discovery Workshop</title>
+		<meeting>Machine Learning for Music Discovery Workshop</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">ªLearning adversarial Transformer for symbolic music generation</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Neural Networks and Learning Systems</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="10" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ªConditional LSTM-GAN for melody generation from lyrics</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Canales</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">º ACM Trans. Multimedia Comput. Commun. Appl</title>
+		<imprint>
+			<biblScope unit="volume">17</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">ªSymbolic music generation with Transformer-GANs</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Muhamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yaddanapudi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Jackson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><forename type="middle">C</forename><surname>Lipton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">J</forename><surname>Smola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. AAAI Conference on Artificial Intelligence</title>
+		<meeting>AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">K</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Gulrajani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<title level="m">ªGANSynth: Adversarial neural audio synthesis,º in Proc. Int. Conf. Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">ªAdversarial audio synthesis</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Mcauley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Puckette</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Learning Representations</title>
+		<meeting>Int. Conf. Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">ªWGANSing: A multi-voice singing voice synthesizer based on the Wasserstein-GAN</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Chandna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Blaauw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bonada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Gómez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. European Signal Processing Conf</title>
+		<meeting>European Signal essing Conf</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1" to="5" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">ªHigh-level control of drum track generation using learned patterns of rhythmic interaction</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Grachten</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Work. Applications of Signal Processing to Audio and Acoustics</title>
+		<meeting>IEEE Work. Applications of Signal essing to Audio and Acoustics</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ªAdversarial synthesis of drum sounds</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Drysdale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tomczak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hockman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Digital Audio Effects</title>
+		<meeting>Int. Conf. Digital Audio Effects</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">ªUnconditional audio generation with generative adversarial networks and cycle regularization</title>
+		<author>
+			<persName><forename type="first">J.-Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-C</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. INTER-SPEECH</title>
+		<meeting>INTER-SPEECH</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ªDrumGAN: Synthesis of drum sounds with timbral feature conditioning using generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nistal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">º in Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Variable-length adversarial audio synthesis using vector-quantized contrastive predictive coding</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nistal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Aouameur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Workshop on Applications of Signal Processing to Audio and Acoustics</title>
+		<meeting>IEEE Workshop on Applications of Signal essing to Audio and Acoustics</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Exploiting knowledge distillation for comprehensible audio synthesis with GANs</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nistal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<meeting>Int. Soc. Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="484" to="492" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">ªA benchmarking initiative for audio-domain music generation using the Freesound Loop Dataset</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">º in Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">ªAutomatic DJ transitions with differentiable audio effects and generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">B.-Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-H</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-H</forename><surname>Liao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">A M</forename><surname>Ramírez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mitsufuji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Int. Conf. Acoustics, Speech and Signal Proc</title>
+		<meeting>IEEE Int. Conf. Acoustics, Speech and Signal</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">ªImproved techniques for training GANs</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Salimans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Advances in Neural Information Processing Systems</title>
+		<meeting>Advances in Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2234" to="2242" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">ªTowards principled methods for training generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Arjovsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Bottou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Learning Representations</title>
+		<meeting>Int. Conf. Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kodali</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1705.07215</idno>
+		<title level="m">ªOn convergence and stability of GANs,º</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">ªImproved training of Wasserstein GANs</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Gulrajani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Advances in Neural Information Processing Systems</title>
+		<meeting>Advances in Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5769" to="5779" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">L</forename><surname>Mescheder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Geiger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Nowozin</surname></persName>
+		</author>
+		<title level="m">ªWhich training methods for GANs do actually converge?º in Proc. Int. Conf. Machine Learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">ªOn leveraging pretrained GANs for generation with limited data</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Carin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Machine Learning</title>
+		<meeting>Int. Conf. Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">T</forename><surname>Grigoryev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Voynov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Babenko</forename></persName>
+		</author>
+		<title level="m">ªWhen, why, and which pretrained GANs are useful?º in Proc. Conf. Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">ªEnsembling off-the-shelf models for GAN training</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kumari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><forename type="middle">R</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Shechtman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">Y</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition</title>
+		<meeting>IEEE/CVF Conf. Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chitta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Geiger</surname></persName>
+		</author>
+		<title level="m">ªProjected GANs converge faster,º in Proc. Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">ªTransfer learning for music classification and regression tasks</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fazekas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sandler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc</title>
+		<meeting>null</meeting>
+		<imprint>
+			<publisher>Int. Soc. Music Information Retrieval Conf</publisher>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">ªCNN architectures for large-scale audio classification</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hershey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Acoustics, Speech and Signal Processing</title>
+		<meeting>Int. Conf. Acoustics, Speech and Signal essing</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">ªEvaluation of CNN-based automatic music tagging models</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ferraro</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bogdanov</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Sound and</title>
+		<meeting>Sound and</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">ªEvaluation of algorithms using games: The case of music tagging</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Law</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>West</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mandel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Bay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Downie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<meeting>Int. Soc. Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="387" to="392" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">ªMelGAN: Generative adversarial networks for conditional waveform synthesis</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kumar</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1910.06711</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">ªParallel WaveGAN: A fast waveform generation model based on generative adversarial networks with multiresolution spectrogram</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Yamamoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-M</forename><surname>Kim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Int. Conf. Acoustics, Speech and Signal Proc</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6199" to="6203" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">ªHigh fidelity speech synthesis with adversarial networks</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Biâ</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.11646</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">ªStyle-based synthesis of drum sounds with extensive controls using generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lavault</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roebel</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Voiry</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conf</orgName>
+			</affiliation>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Sound and</title>
+		<meeting>Int. Sound and</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">ªThe Freesound Loop Dataset and annotation tool</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ramires</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Soc. Music Information Retrieval Conf</title>
+		<meeting>Int. Soc. Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="287" to="294" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">ªEnergy-based generative adversarial network</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mathieu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lecun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Learning Representations</title>
+		<meeting>Int. Conf. Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">ªA unet based discriminator for generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Schonfeld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Schiele</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Khoreva</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition</title>
+		<meeting>IEEE/CVF Conf. Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8207" to="8216" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">ªTransGAN: Two pure Transformers can make one strong GAN, and that can scale up</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Conf. Neural Information Processing Systems</title>
+		<meeting>Conf. Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">ªVocGAN: A high-fidelity real-time vocoder with a hierarchically-nested adversarial network</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. INTERSPEECH</title>
+		<meeting>INTERSPEECH</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Generative adversarial networks for efficient and high fidelity speech synthesis</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bae</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Conf. Neural Information Processing Systems</title>
+		<meeting>Conf. Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">ªFre-GAN: Adversarial frequency-consistent audio synthesis</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. INTERSPEECH</title>
+		<meeting>INTERSPEECH</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">ªAudio Set: An ontology and human-labeled dataset for audio events</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">F</forename><surname>Gemmeke</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Int. Conf. Acoustics, Speech and Signal Processing</title>
+		<meeting>IEEE Int. Conf. Acoustics, Speech and Signal essing</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">ªMadmom: A new Python audio and music signal processing library</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACM Multimedia Conf</title>
+		<meeting>ACM Multimedia Conf</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<monogr>
+		<title level="m" type="main">ªThe intrinsic dimension of images and its impact on learning</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Pope</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Abdelkader</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goldblum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Goldstein</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2104.08894</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<title level="m">Proceedings of the 23rd ISMIR Conference</title>
+		<meeting>the 23rd ISMIR Conference<address><addrLine>Bengaluru, India</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">December 4-8, 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">F</forename><surname>Naeem</surname></persName>
+		</author>
+		<title level="m">ªReliable fidelity and diversity metrics for generative models,º in Int. Conf. Machine Learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">ªImproved techniques for training GANs</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Salimans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Conf. Neural Information Processing Systems</title>
+		<meeting>Conf. Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2226" to="2234" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<analytic>
+		<title level="a" type="main">ªA note on the inception score</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Barratt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Sharma</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICML Works. Theoretical Foundations and Applications of Deep Generative Models</title>
+		<meeting>ICML Works. Theoretical Foundations and Applications of Deep Generative Models</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<monogr>
+		<title level="m" type="main">ªFréchet Audio Distance: A metric for evaluating music enhancement algorithms</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kilgour</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1812.08466</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b60">
+	<analytic>
+		<title level="a" type="main">ªImproved precision and recall metric for assessing generative models</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kynkäänniemi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Conf. Neural Information Processing Systems</title>
+		<meeting>Conf. Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3929" to="3938" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b61">
+	<analytic>
+		<title level="a" type="main">ªTaming Transformers for high-resolution image synthesis</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Esser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Rombach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Ommer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition</title>
+		<meeting>IEEE/CVF Conf. Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b62">
+	<monogr>
+		<title level="m" type="main">ªExploring simple Siamese representation learning</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2011.10566</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b63">
+	<monogr>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2111.06377</idno>
+		<title level="m">ªMasked autoencoders are scalable vision learners,º</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b64">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Tts</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2201.11972</idno>
+		<title level="m">Highfidelity and efficient text-to-speech with denoising diffusion GANs,º</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b65">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2206.02262</idno>
+		<title level="m">ªDiffusion-GAN: Training GANs with diffusion,º</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

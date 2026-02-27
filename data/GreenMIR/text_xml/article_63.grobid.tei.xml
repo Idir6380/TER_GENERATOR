@@ -1,0 +1,640 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MUSIC GENERATION AND TRANSFORMATION WITH MOMENT MATCHING-SCATTERING INVERSE NETWORKS</title>
+				<funder ref="#_vVWMMQH">
+					<orgName type="full">ERC InvariantClass</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Mathieu</forename><surname>Andreux</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">Département d&apos;informatique de l&apos;ENS</orgName>
+								<orgName type="institution" key="instit1">École normale supérieure</orgName>
+								<orgName type="institution" key="instit2">CNRS</orgName>
+								<orgName type="institution" key="instit3">PSL Research University</orgName>
+								<address>
+									<postCode>75005</postCode>
+									<settlement>Paris</settlement>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Stéphane</forename><surname>Mallat</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">Département d&apos;informatique de l&apos;ENS</orgName>
+								<orgName type="institution" key="instit1">École normale supérieure</orgName>
+								<orgName type="institution" key="instit2">CNRS</orgName>
+								<orgName type="institution" key="instit3">PSL Research University</orgName>
+								<address>
+									<postCode>75005</postCode>
+									<settlement>Paris</settlement>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MUSIC GENERATION AND TRANSFORMATION WITH MOMENT MATCHING-SCATTERING INVERSE NETWORKS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">8CD1924859CE4E9A3C87323CC620D683</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:14+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>We introduce a Moment Matching-Scattering Inverse Network (MM-SIN) to generate and transform musical sounds. The MM-SIN generator is similar to a variational autoencoder or an adversarial network. However, the encoder or the discriminator are not learned, but computed with a scattering transform defined from prior information on sparse time-frequency audio properties. The generator is trained by jointly minimizing the reconstruction loss of an inverse problem, and a generation loss which computes a distance over scattering moments. It has a similar causal architecture as a WaveNet and provides a simpler mathematical model related to time-frequency decompositions. Numerical experiments demonstrate that this MM-SIN generates new realistic musical signals. It can transform low-level musical attributes such as pitch with a linear transformation in the embedding space of scattering coefficients.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>This paper investigates musical sound generation and transformation with a simplified algorithmic architecture, which relates generative networks to time-frequency representations. Image generation has led the way through the development of Generative Adversarial Networks (GANs) <ref type="bibr" target="#b7">[7]</ref> and Variational Autoencoders <ref type="bibr" target="#b13">[13]</ref> where images are generated from a Gaussian white noise vector, which defines a latent space. Arithmetic operations in this latent space lead to controlled transformations over the images such as aging of faces or transforming women in men. The problem is however different for audio signals which must take into account time causality properties. Some authors have applied image generation algorithms over spectrograms <ref type="bibr" target="#b3">[3,</ref><ref type="bibr" target="#b10">10]</ref> but it then requires to invert the spectrograms with a vocoder or a Griffin-Lim algorithm which is long and has a reduced quality.</p><p>Deep autoregressive neural networks such as WaveNet <ref type="bibr" target="#b15">[15,</ref><ref type="bibr" target="#b16">16]</ref> or SampleRNN <ref type="bibr" target="#b14">[14]</ref> have achieved exceptional synthesis of music and speech signals.  do not take as input a Gaussian white noise but estimate a probability distribution with a Markov chain factorization, which computes conditional probabilities given from past values. The generated signals have an outstanding quality but these neural architectures are complex and lack interpretability. Several effective techniques have been introduced to modify audio generations <ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr" target="#b6">[6]</ref><ref type="bibr" target="#b9">9]</ref> by modifying the latent code to change the probability distribution or by using reference signals as targets, which is more complex than arithmetic operations used for images.</p><p>This paper introduces a simplified neural network architecture which synthesizes and modifies music signals from Gaussian white noise, with two key contributions. As opposed to image GANs or variational autoencoders, we do not learn a discriminator or an encoder: both are provided by prior information on audio signals, which is captured by their time-frequency regularity. This is done by adapting a result obtained in <ref type="bibr" target="#b2">[2]</ref> for images, and introducing a moment matching technique. The second contribution is the introduction of a causal computational architecture allowing to progressively synthesize audio signals, and which can be parallelized in GPU's. The resulting Scattering Autoencoder architecture has some similarities with a Parallel WaveNet <ref type="bibr" target="#b16">[16]</ref>. Similarly to warping properties over images, we show that arithmetic transformations in the latent space produce time-frequency deformations, which can modify the pitch of musical notes or interpolate music. Despite a lower synthesis quality than state-of-theart generating methods, these preliminary results pave the way for a new approach to synthesize audio signals, without learning encoders or discriminators.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">SCATTERING AUTOENCODER</head><p>This section introduces the principles of a scattering autoencoder and its computational architecture. The encoder is not learned but computed based on prior information on audio time-frequency properties. Audio and musical signals have sparse representations over time-frequency dictionaries such as audio wavelets <ref type="bibr" target="#b20">[20]</ref>. Their perceptual properties are not much affected by small time-frequency warpings. We define a signal embedding which takes advantage of these characteristics.</p><p>The architecture of a scattering autoencoder is illustrated in Figure <ref type="figure">1</ref>. The random input audio signal X[t] is first transformed into a nearly Gaussian random vec-</p><formula xml:id="formula_0">X[t] Scattering S J Whitening L VAR L -1 CNN Z[2 J n] Fixed Encoder Φ Trained Generator G Signal Waveform Latent code Temporal Vector Figure 1.</formula><p>The audio waveforms is encoded with a timefrequency scattering S J followed by a linear whitening operator L. The Scattering Inverse Network (SIN) G restores a signal from a Gaussian white noise by inverting L S J on training data. tor S J (X)[2 J n] by applying the time-frequency scattering transform S J , where J ≥ 0 is a hyperparameter. Gaussianization is achieved through a time averaging over a sufficiently long time interval thanks to the central limit theorem. In order to preserve enough information on the original signal X after averaging, multiple sparse timefrequency channels are built by applying iterative wavelet transforms <ref type="bibr" target="#b1">[1]</ref>. The Gaussian scattering S J (X) is then mapped into a Gaussian white noise with a whitening operator L, which outputs the linear prediction errors of a future scattering vector from its neighboring past. Section 4 details the whitened scattering transformation LS J .</p><p>The generator G inverts the linear whitening operator and the joint scattering transform by synthesizing an approximation of X[t] from Z[2 J n]. It first applies a vector autoregressive (VAR) filter L -1 , which can be deduced from L. This operation is followed by a causal convolutional neural network (CNN), with the convolutions acting along time. The network has J layers to invert a scattering at scale 2 J . Section 3 describes the architecture which has similarities with a Parallel WaveNet <ref type="bibr" target="#b16">[16]</ref>. The optimization of the generator G amounts to inverting the scattering transform S J in an adapted metric. The statistics of synthesized signals are constrained by ensuring that they have the same moments in the scattering space as the input signal X[t]. This network is thus called a Moment Matching-Scattering Inverse Network (MM-SIN).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">MOMENT MATCHING-SCATTERING INVERSE GENERATOR</head><p>A Moment Matching-Scattering Inverse Network G is computed by inverting a scattering embedding computed at a scale 2 J . It is a causal network which takes as input a nearly Gaussian white noise vector Z computed with a scattering transform, to recover an estimation of the signal X. This network is trained with a loss which incorporates the inverse problem loss computed with a scattering metric, regularized by a moment matching term that can be interpreted as a discriminative metric. The MM-SIN generator is a linear recurrent neural network L -1 followed by a causal convolutional network implemented with a cascade of J convolutions and pointwise non-linearities, illustrated in Figure <ref type="figure">2</ref>. Each intermediate network layer is composed of vectors X j [t j ] having k j channels and sampled at intervals 2 j , for 0 ≤ j ≤ J. All layers in Figure <ref type="figure">2</ref> appear to be aligned but to understand the causality structure one must realize that each layer is indexed by a time index t j which is shifted by 2 j relatively to the absolute time variable t of the original input signal X[t]: t j = t -2 j . Using the absolute time t, we thus use the noise vector at a time t = 2 J (n+1) to generate 2 J new output signal values at times</p><formula xml:id="formula_1">W1 WJ-1 ReLU WJ ReLU L -1 ReLU Layer X 0 [t 0 ] Layer X J [t J ] Input Noise Z[t J ] Z[2 J n] X 0 [2 J n]</formula><formula xml:id="formula_2">2 J n -2 J + 1 &lt; t ≤ 2 J n + 1.</formula><p>The first layer maps Z[t J ] to X J [t J ] with a vector autoregressive filter L -1 which inverts the whitening operator L, followed by a ReLU non-linearity ρ(u) = max(u, 0)</p><formula xml:id="formula_3">X J = ρ L -1 Z .</formula><p>(1)</p><formula xml:id="formula_4">A new noise vector Z[2 J n] outputs a new vector X J [2 J n]. At depth j, this initial vector gives rise to 2 J-j temporal vectors X j [t j ] for 2 J n -2 J-j &lt; t j ≤ 2 J n.</formula><p>At layer j &gt; 0, the layer X j is mapped to X j-1 with an à trous convolution followed by a ReLU non-linearity plus bias. We first double the size of X j with a zero insertion:</p><formula xml:id="formula_5">Xj [n2 j ] = X j [n2 j ] and Xj [n2 j + 2 j-1 ] = 0. (2)</formula><p>Each X j-1 is then calculated with a causal convolution along time and a linear operator along channels with a bias, W j , followed by a ReLU:</p><formula xml:id="formula_6">X j-1 = ρ(W j Xj ).<label>(3)</label></formula><p>Except for the autoregressive layer, the ReLU is preceded by a batch normalization <ref type="bibr" target="#b11">[11]</ref>. The last convolution is not followed by a ReLU so that we can output a signal with negative values. The final output is X 0</p><formula xml:id="formula_7">[t 0 ] for 2 J n -2 J &lt; t 0 ≤ 2 J n which corresponds to X[t] for 2 J n -2 J + 1 &lt; t ≤ 2 J n + 1.</formula><p>As in standard generative networks <ref type="bibr" target="#b18">[18]</ref>, the number of the channels k j decreases with j according to a geometric law fitted such that X 0 has only one channel and X J has k J channels, which is the dimensionality of each vector Z[2 J n].</p><p>The parameters of the network G are optimized by inverting the scattering transform followed by the causal whitening operator L. The loss L minimized by G is a sum of two terms, weighted by a hyperparameter λ &gt; 0. The first term L inv measures the accuracy of the inversion. The second discriminative term L MM measures the distance between the scattering moments of the synthesized signals and the scattering moments of the original signals.</p><formula xml:id="formula_8">min G L = L inv + λL MM . (<label>4</label></formula><formula xml:id="formula_9">)</formula><p>The inverse problem loss L inv computes the reconstruction error on each training example x i from its embedding z i computed with the scattering transform S J followed by the linear whitening operator L. The reconstruction error is calculated over scattering coefficients computed at a scale 2 K &lt; 2 J :</p><formula xml:id="formula_10">L inv = 1 N N i=1 S K (x i ) -S K G(z i ) 1 with z i = LS J (x i ).</formula><p>(5) The l 1 norm promotes the sparsity of the responses, while the scattering S K allows to generate signals which may be locally deformed, but are perceptually similar to the original ones. In order to avoid useless computations, we do not apply L -1 z i but directly input the vectors S J (x i ) to the convolutional part of G for the computation of L inv .</p><p>The loss L inv does not control the quality of the generated samples G(z) when z is sampled as a Gaussian white noise. Similarly to GANs which have a discriminator, the quality is controlled by introducing another loss term L MM , which controls the distance between the generated distribution and the distribution of the original signals.</p><p>The moment matching term L MM computes the distance between scattering coefficients of generated signals averaged over time t and batch index i, S K G(z i ) <ref type="bibr">[</ref> </p><formula xml:id="formula_11">L MM = S K x i [t] -S K G(z i )[t] 2 (6)</formula><p>The codes {z i } correspond to a batch of random vectors which is renewed at each iteration of the gradient descent algorithm.</p><p>The loss L MM is similar to the Maximum Mean Discrepancy regularization introduced in <ref type="bibr" target="#b19">[19]</ref>. The moment matching term can be interpreted as a distance with a scattering transform kernel <ref type="bibr">[8]</ref>. However, in this case it can directly be implemented as a difference of moments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">WHITENED TIME-FREQUENCY SCATTERING</head><p>This section details the time-frequency scattering transform S J (X) originally introduced in <ref type="bibr" target="#b1">[1]</ref> and its whiten- ing L, which results in the embedding Z[2 J n]. Figure <ref type="figure" target="#fig_2">3</ref> sketches the different computational steps. This transform relies on priors on musical signals in order to build a timedependent vector representation S J X[2 J n] which is approximately Gaussian and linearizes small time-frequency deformations.</p><p>Musical signals admit a sparse decomposition in timefrequency representations with a spectrogram. Here, we first compute a spectrogram with frequencies sampled on a logarithmic scale thanks to a wavelet filterbank {ψ 1 } 0≤ &lt;J followed by a modulus non-linearity. The wavelets ψ 1 are defined by dilations of a single mother wavelet:</p><formula xml:id="formula_12">ψ 1 [t] = 2 -/Q ψ 1 [2 -/Q t]<label>(7)</label></formula><p>We use causal analytic Gammatone wavelets <ref type="bibr" target="#b20">[20]</ref>, which are good perceptual models of auditory filters, with Q = 12 wavelets per octave in order to separate highfrequency partials. On this sparse spectrogram, small time-frequency deformations of the input signal X produce small local translations in the time-frequency plane. These deformations result in smooth perceptual variations. As a consequence, the embedding should be regular with respect to these deformations This is obtained with a joint 2D filtering of the spectrogram in the time and log-frequency axis. One can prove that the resulting representation is Lipschitzcontinuous to these deformations, while preserving invertibility thanks to the use of filters spanning all the energy of the signal <ref type="bibr" target="#b1">[1]</ref>. This will imply a form a linearization of these deformations, paving the way for meaningful arithmetic in the latent space.</p><p>The time-frequency filters are built as a separable product h ξ ⊗ ψ 2 of frequential filters h ξ and temporal filters ψ 2 . The frequential filters h ξ are localized Fourier atoms with a Hann window whose size P matches one octave, P = Q = 12. The convolution is computed in halfoverlaps over the frequency axis. The temporal filters ψ 2 are also Gammatone wavelets, with only Q 2 = 1 wavelet per octave. After performing the convolution, a modulus non-linearity is also applied in order to remove the local phase, thereby regularizing the representation.</p><p>The time-frequency filtering of the log-spectrogram results in a large tensor with one temporal axis. Its coefficients are sparse along the channel axis and typically decorrelate as they get farther apart in time. To obtain a variable which is more Gaussian, we use the central limit theorem which says that the averaging of a large number of independant variables converges towards a Gaussian random variable. We perform this averaging with a window size 2 J which should be larger than the typical decorrelation length in order to average over enough independent events. This averaging is carried out with a low-pass filter φ J along the temporal axis. It is followed by a subsampling by 2 J in order to remove redundant information.</p><p>The time-frequency scattering transform S J X is defined as:</p><formula xml:id="formula_13">S J X[2 J n] = x φ J [2 J n], |x ψ 1 | h ξ φ J [2 J n], |x ψ | (h ξ ⊗ ψ 2 ) φ J [2 J n] ,<label>(8)</label></formula><p>for all , ξ, , where convolutions with h ξ should be interpreted along the frequential axis and other convolutions along time. S J X is subsampled in time by a factor 2 J . Each vector 2 . For J = 10 and Q = 12, this amounts to 973 channels. The scale 2 J is chosen as a trade-off between the Gaussianization condition which improves as J increases, and the stability of the scattering invertibility which improves when J decreases.</p><formula xml:id="formula_14">S J X[2 J n] has dimension k J = 1 + Q(2J -3) + Q(J -2)</formula><p>Thanks to the local averaging, the vectors S J X tend to a Gaussian distribution. However, this distribution might not be white, i.e. it has temporal and channel-wise correlations. The whitening operator L is a causal vector autoregressive linear filter which removes this correlation structure. It is trained by minimizing a prediction error of S J X[2 J n] given previous vectors S J X[2 J (n -m)] for 1 ≤ m ≤ M . The whitening operator L outputs the innovations of the fitted vector autoregressive process {Z[2 J n]} n , which have an approximately Gaussian white distribution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">NUMERICAL EXPERIMENTS</head><p>We show that the MM-SIN is able to reconstruct waveforms from their embeddings and generate new decent waveforms from noise. Furthermore, we show that it is possible to manipulate low-level attributes of sounds such as pitch with a simple arithmetic in the embedding. In addition, a simple arithmetic in the embedding allows to merge the contents of different inputs, while preserving the musical structure of the resulting signal.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Methods</head><p>We describe the numerical details which lay out experiments. The source code supporting experiments is freely available at <ref type="url" target="http://github.com/AndreuxMath/">http://github.com/AndreuxMath/</ref> ismir2018, where the reader may also find the audio recordings corresponding to the figures.</p><p>The time-frequency scattering transform S J is computed with an averaging window of size 2 J = 2 10 = 1024. It is implemented on GPU with a code inspired from <ref type="bibr" target="#b17">[17]</ref>. In the case of the loss (4), we employ a first-order scattering S K , which means that it is an averaged scalogram, with an averaging window of size 2 K = 2 5 = 32. The filterbanks are normalized so as to have responses of average equal magnitude in each band over the training dataset.</p><p>The architecture of the SIN G is defined as follows. The whitening operator L has a past size M = 4. All subsequent convolutions have a kernel size equal to 7. These values were not tuned: results could likely be improved with a careful hyperparameter search. Each network is trained by Adam <ref type="bibr" target="#b12">[12]</ref> with a learning rate of 5 × 10 -4 for 1200 epochs and batches of size 128.</p><p>We use two different musical datasets: NSynth <ref type="bibr" target="#b5">[5]</ref> and Beethoven <ref type="bibr" target="#b14">[14]</ref>. NSynth is a dataset consisting of annotated musical notes from multiple instruments, thereby allowing to perform carefully controlled transformation experiments. All recordings begin with the onset of the note and last 4s. We restrict ourselves to two types of acoustic instruments, keyboards and flutes, totalling 40 different instruments with MIDI pitches ranging 20 -110, leading to a varied and well-balanced dataset. In the original dataset, instruments of the training and testing sets do not overlap. In this paper, we use an alternative split based on the velocity's attributes of the training samples: for each instrument, a random velocity is picked to define the test set. We only use the first 2s of the recordings, as they concentrate most of the energy of the signals.</p><p>The Beethoven dataset is closer to an actual musical composition than NSynth, insofar as it consists in 8s extracts of Beethoven's piano sonata. Therefore, it is a good testbed for music generation experiments. We use the train-test split provided by the authors.</p><p>For both datasets, the amplitudes of all recordings are normalized in [-1, 1]. The sampling rate is reduced from 16000Hz to 4096Hz so as to reduce the computational complexity. It is very likely that the quality of the synthesis could be improved by increasing this sampling rate.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Waveform generation</head><p>We first show that the MM-SIN generator is able to reconstruct and to generate realistic musical samples.</p><p>In Figure <ref type="figure" target="#fig_3">4</ref>, we display two reconstructions of waveforms from their embeddings, along with the corresponding log-spectrograms, for each of the studied datasets. This shows that the network is able to generalize to a test set, and to adapt to the specifics of a given dataset. The reconstruction is not perfect. The network can introduce small time-frequency deformations because of the scattering encoder and the use of a scattering loss. As witnessed in the log-spectrograms, the time-frequency content of the signals is correctly retrieved, and perceptually the two signals sound similar, up to minor artifacts. Table <ref type="table" target="#tab_2">1</ref> provides quantitative reconstruction results on the Beethoven dataset. Training a network with the meansquare error (MSE) metric x i -G(z i ) 2  2 instead of the proposed perceptual metric within the inverse problem loss (5) negatively impacts results, both on the training and testing sets. Further, the moment-matching term has a positive effect on the reconstruction: even though it degrades reconstruction on the training set, it improves the generalization on the test set both in absolute and relative terms.</p><p>We now investigate the ability of the network to generate new waveforms from Gaussian white noise. Figure <ref type="figure" target="#fig_4">5</ref> displays several samples generated from white noise through a network trained on the Beethoven dataset. Despite the input being a pure white noise, the network is able to generate samples which alternate silences and more active phases. Further, the fundamental frequency which is played varies through the samples.</p><p>In order to measure the variability of the generated samples, we measure the spread σ of the distribution of the time-averaged scattering coefficients S K X of the samples. This spread corresponds to the average Euclidean distance between the time-averaged scattering of the waveforms and the average scattering coefficients of this distribution.  The effect of the moment matching loss (6) on the generated samples is difficult to assess qualitatively, so we resort to quantitative measures. In the case of a network trained without this loss, the moment matching distance between generated samples and the training set was equal to 38.7, whereas the same distance was equal to 0.176 when also optimizing this loss. As a comparison, the testing set has a distance of 0.334 with respect to the training set. Thus, using this loss term brings generated samples much closer to the natural signals' statistics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Pitch modification</head><p>We now study the ability of the algorithm to transform the pitch of musical signals with an arithmetic operations in the latent space. We use the NSynth dataset, whose careful construction allows to perform modifications with fixed factors of variability. In the test set, we pick two samples belonging to the same instrument, but with a pitch separated by 5 MIDI scales. We compute their embeddings Z 1 and Z 2 , their mean embedding (Z 1 + Z 2 )/2, and reconstruct the corresponding signals with the generator:</p><formula xml:id="formula_15">G(Z 1 ), G(Z 2 ) and G((Z 1 + Z 2 )/2).</formula><p>The results are displayed in Figure <ref type="figure" target="#fig_5">6</ref>. The interpolation in the latent space does not result in a linear interpolation which would double the number of harmonics. It yields one fundamental frequency in each case. Furthermore, this fundamental frequency is indeed interpolated by this simple arithmetic. Observe that this is also the case of the partials, as can be seen in particular in the bottom example. However, this interpolation suffers from some artifacts. For instance, in the middle example, the partials at highest frequencies are cluttered and the resulting signal misses harmonicity. Yet, these results showcase the ability to transform signals via linear interpolations in the latent space with a simple unsupervised learning procedure and a predefined embedding.</p><p>The algorithm owes the ability to perform such pitch interpolations to the time-frequency scattering transform S J used as an encoder, which regularizes small timefrequency deformations. As such, the pitch interval on which the interpolations can be performed is bounded by the size P of the Hann window used to filter the scalogram along the frequency axis. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Waveform interpolation</head><p>Let us show results when interpolating waveforms from the Beethoven dataset, which have a high density of musical events. We take two random white noise realizations Z 1 and Z 2 , and compare the effect on the waveforms of an interpolation in the latent space and in the signal space, with a network G trained on the Beethoven dataset.</p><p>The results are represented in </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSION</head><p>This paper introduces a causal musical synthesis network optimized through an inverse problem and which thus involves no learned encoder or discriminator. The encoder is defined from time-frequency signal priors in order to Gaussianize the input signal. The generator network maps back the resulting codes to raw waveforms. This network inverts the encoder and generates new signals whose scattering moments match those of the original signals. The resulting system synthesizes new realistic musical signals and performs the transformation of low-level attributes, such as pitch, by simple linear combinations in the latent space.</p><p>Synthesized signals do not reach the quality of state-ofthe-art generating architectures but these first results show that this approach is a new promising avenue to synthesize audio signals directly from Gaussian white noise, without learning encoders or discriminators.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>They</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>c</head><label></label><figDesc>Mathieu Andreux and Stéphane Mallat. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Mathieu Andreux and Stéphane Mallat. "Music Generation and Transformation with Moment Matching-Scattering Inverse Networks", 19th International Society for Music Information Retrieval Conference, Paris, France, 2018.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. Time-Frequency Scattering transform. The logspectrogram is obtained with a first wavelet transform ψ 1 followed by a modulus. A joint time-frequency filtering of this log-spectrogram with the filters h ξ ⊗ψ 2 regularizes the time-frequency deformations of the signal. The low-pass convolution with φ J Gaussianizes the resulting tensor.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 .</head><label>4</label><figDesc>Figure 4. Reconstruction with the MM-SIN G. Left: Original test sample X. Right: Reconstruction G(Z) for Z = L S J X. Top: NSynth dataset. Bottom: Beethoven dataset. A different network was trained for each dataset.</figDesc><graphic coords="5,288.85,194.56,262.11,157.26" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 .</head><label>5</label><figDesc>Figure 5. Musical signal G(Z) generated from a white noise Z, where G is learned on the Beethoven dataset. Each line corresponds to an independent sample obtained from a different white noise realization. The resulting signals last about 4s.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 6 .</head><label>6</label><figDesc>Figure 6. Pitch interpolation. Left column: G(Z 1 ). Middle column: G((Z 1 + Z 2 )/2). Right column: G(Z 2 ). Z 1 and Z 2 are the embeddings of samples from the test set. The generator interpolates the fundamental frequency with a simple arithmetic. The frequential displacement from left to right corresponds to 5 MIDI scales.</figDesc><graphic coords="6,12.58,285.01,192.68,128.45" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 7 .</head><label>7</label><figDesc>Figure 7. Interpolations in the latent and signal space. Top two signals: G(Z 1 ) and G(Z 2 ), where Z 1 , Z 2 are Gaussian white noise realizations and G is trained on the Beethoven dataset. Bottom left: Latent interpolation G((Z 1 +Z 2 )/2). Bottom right: (G(Z 1 ) + G(Z 2 ))/2. The latent interpolation is able to merge both signals while preserving the musical structure.</figDesc><graphic coords="6,149.81,168.25,192.68,128.45" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 7 .</head><label>7</label><figDesc>The top two signals are the original signals G(Z 1 ) and G(Z 2 ), while the bottom left is the latent interpolation G((Z 1 + Z 2 )/2) and the bottom right the linear interpolation (G(Z 1 ) + G(Z 2 ))/2. The latent interpolation incorporates patterns from both signals but it respects the musical structure. It has successive musical notes with their harmonics, and it recovers a sound with silences. On the opposite, the linear interpolation merges both signals, which eliminates the silence regions while producing a cluttered log-spectrogram.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>t], and scattering coefficients of the training signals averaged over time t and training examples i, S K x i [t]:</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 1 .</head><label>1</label><figDesc>In the case of the training distribution, we obtainedLossL inv L inv L inv + λL MM Reconstruction errors on the Beethoven dataset, expressed in terms of the perceptual loss<ref type="bibr" target="#b5">(5)</ref>. MSE denotes the mean-square error metric x i -G(z i )2  2 . Using the perceptual metric for training instead of the MSE metric reduces the error. Further, adding the moment-matching term during training improves the reconstruction results and the generalization.</figDesc><table><row><cell>Metric</cell><cell>MSE S K</cell><cell>S K</cell></row><row><cell>Train error</cell><cell>0.56 0.16</cell><cell>0.23</cell></row><row><cell>Test error</cell><cell>0.77 0.37</cell><cell>0.31</cell></row><row><cell>Gap test/train (dB)</cell><cell>1.36 3.53</cell><cell>1.21</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="7.">ACKNOWLEDGEMENTS</head><p>This work is supported by the <rs type="funder">ERC InvariantClass</rs> grant <rs type="grantNumber">320959</rs> and an <rs type="grantName">AMX grant</rs> from the MNESR.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_vVWMMQH">
+					<idno type="grant-number">320959</idno>
+					<orgName type="grant-name">AMX grant</orgName>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Joint timefrequency scattering for audio classification</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Anden</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Lostanlen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mallat</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of IEEE MLSP</title>
+		<meeting>of IEEE MLSP</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Generative networks as inverse problems with scattering transforms</title>
+		<author>
+			<persName><forename type="first">Tomàs</forename><surname>Angles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stéphane</forename><surname>Mallat</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Modeling and transforming speech using variational autoencoders</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Blaauw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bonada</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Interspeech</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1770" to="1774" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">On using backpropagation for speech texture generation and voice conversion</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chorowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">A</forename><surname>Saurous</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Audio and Speech Processing (ICASSP)</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Neural audio synthesis of musical notes with WaveNet autoencoders</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Resnick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Machine Learning</title>
+		<meeting>the 34th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1068" to="1077" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Texture synthesis using convolutional neural networks</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Gatys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">S</forename><surname>Ecker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Bethge</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="262" to="270" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Generative adversarial nets</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pouget-Abadie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mirza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Warde-Farley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ozair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="2672" to="2680" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A kernel method for the two-sampleproblem</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gretton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">M</forename><surname>Borgwardt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Rasch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Schölkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">J</forename><surname>Smola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2007">2007</date>
+			<biblScope unit="page" from="513" to="520" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">E</forename><surname>Grinstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Duong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ozerov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Pérez</surname></persName>
+		</author>
+		<title level="m">Audio style transfer. HAL preprint hal-01626389</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Learning latent representations for speech generation and transformation</title>
+		<author>
+			<persName><forename type="first">W.-N</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Glass</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Interspeech</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1273" to="1277" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Batch normalization: Accelerating deep network training by reducing internal covariate shift</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ioffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Szegedy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="448" to="456" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<title level="m">Adam: A method for stochastic optimization</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Auto-encoding variational bayes</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Welling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">SampleRNN: An unconditional end-to-end neural audio generation model</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mehri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Gulrajani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sotelo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Van Den</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Senior</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.03499</idno>
+		<title level="m">WaveNet: A generative model for raw audio</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Van Den</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Babuschkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Van Den Driessche</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">C</forename><surname>Lockhart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Cobo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Stimberg</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1711.10433</idno>
+		<title level="m">Parallel WaveNet: Fast high-fidelity speech synthesis</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Scaling the scattering transform: Deep hybrid networks</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Oyallon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Belilovsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zagoruyko</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICCV</title>
+		<meeting>of ICCV</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Unsupervised representation learning with deep convolutional generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Metz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Chintala</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Wasserstein auto-encoders</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Tolstikhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Bousquet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gelly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Schölkopf</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Auditory-motivated gammatone wavelet transform</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Venkitaraman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Adiga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">S</forename><surname>Seelamantula</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Signal Processing</title>
+		<imprint>
+			<biblScope unit="volume">94</biblScope>
+			<biblScope unit="page" from="608" to="619" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

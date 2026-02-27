@@ -1,0 +1,1495 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">BEAT TRANSFORMER: DEMIXED BEAT AND DOWNBEAT TRACKING WITH DILATED SELF-ATTENTION</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Jingwei</forename><surname>Zhao</surname></persName>
+							<email>jzhao@u.nus.edu</email>
+							<affiliation key="aff1">
+								<orgName type="department">Institute of Data Science</orgName>
+								<address>
+									<region>NUS</region>
+								</address>
+							</affiliation>
+							<affiliation key="aff3">
+								<orgName type="department">Integrative Sciences and Engineering Programme</orgName>
+								<orgName type="institution">NUS Graduate School</orgName>
+								<address>
+									<addrLine>5 MBZUAI</addrLine>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Gus</forename><surname>Xia</surname></persName>
+							<email>gxia@nyu.edu</email>
+							<affiliation key="aff2">
+								<orgName type="department">Music X Lab</orgName>
+								<address>
+									<country>NYU Shanghai</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ye</forename><surname>Wang</surname></persName>
+							<email>wangye@comp.nus.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing</orgName>
+								<address>
+									<settlement>NUS</settlement>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="department">Institute of Data Science</orgName>
+								<address>
+									<region>NUS</region>
+								</address>
+							</affiliation>
+							<affiliation key="aff3">
+								<orgName type="department">Integrative Sciences and Engineering Programme</orgName>
+								<orgName type="institution">NUS Graduate School</orgName>
+								<address>
+									<addrLine>5 MBZUAI</addrLine>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">BEAT TRANSFORMER: DEMIXED BEAT AND DOWNBEAT TRACKING WITH DILATED SELF-ATTENTION</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">E81D776575DAF93228D2FCFD06AF27D8</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>We propose Beat Transformer, a novel Transformer encoder architecture for joint beat and downbeat tracking. Different from previous models that track beats solely based on the spectrogram of an audio mixture, our model deals with demixed spectrograms with multiple instrument channels. This is inspired by the fact that humans perceive metrical structures from richer musical contexts, such as chord progression and instrumentation. To this end, we develop a Transformer model with both time-wise attention and instrument-wise attention to capture deep-buried metrical cues. Moreover, our model adopts a novel dilated self-attention mechanism, which achieves powerful hierarchical modelling with only linear complexity. Experiments demonstrate a significant improvement in demixed beat tracking over the non-demixed version. Also, Beat Transformer achieves up to 4% point improvement in downbeat tracking accuracy over the TCN architectures. We further discover an interpretable attention pattern that mirrors our understanding of hierarchical metrical structures.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Music audio beat and downbeat tracking, which aims to infer the very basic metrical structure of music, is a long-standing central topic in music information retrieval (MIR). A good beat estimation benefits various downstream MIR tasks, including transcription and structure analysis <ref type="bibr">[1±5]</ref>. Moreover, beat tracking can be applied to human-computer interaction <ref type="bibr">[6,</ref><ref type="bibr" target="#b7">7]</ref>, music therapy <ref type="bibr" target="#b8">[8]</ref>, and more scenes, as beats echo with human perceptual and motor sensitivity to musical rhythms.</p><p>We see significant progress in beat tracking with the development of deep neural networks. Current mainstream methods utilize temporal convolutional networks (TCNs) to extract frame-wise beat activations from an input spectrogram <ref type="bibr" target="#b9">[9]</ref>. We further see successful efforts in boosting beat tracking performance, including phase-informed postprocessing with dynamic Bayesian networks (DBNs) <ref type="bibr" target="#b10">[10]</ref>, multi-task learning for joint beat, downbeat and tempo estimation [11±13], and explicit beat phase modelling <ref type="bibr" target="#b14">[14]</ref>.</p><p>Recently, Transformer has demonstrated highly competitive performances over a range of MIR tasks <ref type="bibr">[15±21]</ref>. In this paper, we propose Beat Transformer, a novel Transformer encoder architecture for joint beat and downbeat tracking. To better accommodate Transformer to our purpose, we introduce two extra inductive biases. Firstly, our model is constructed with short-windowed dilated selfattention. An exponentially increasing dilation rate enables our model to discern beats from non-beats in a hierarchical manner. With a fixed window size, our model maintains a linear complexity to the input sequence length.</p><p>Another inductive bias is demixed beat tracking. This strategy is inspired by the fact that human beat tracking is always accompanied by and enhanced by a deep understanding of the musical contexts. For example, the coordination of instruments enforces the progression of chords and bass notes, thus implying metrical accents, and such cues can be easily identified by human listeners. To capture this relation, we use Spleeter <ref type="bibr" target="#b22">[22]</ref> to demix an input music piece into multiple instrument channels, and our model performs both time-wise and instrument-wise attention in alternate Transformer layers to excavate metrical cues.</p><p>We evaluate Beat Transformer on a wide range of beat-and downbeat-annotated datasets. Besides competing with state-of-the-art works, we present a thorough ablation study to illustrate the effectiveness of dilated self-attention and demixing. Moreover, our model learns highly interpretable representations. We demonstrate that our model can be interpreted as a learner over finite-state Markov chains, and we observe beat phase transition through visualization of the transition (attention) matrix.</p><p>In brief, the contributions of our paper are as follows:</p><p>• We propose Beat Transformer<ref type="foot" target="#foot_0">foot_0</ref> , a novel Transformer encoder architecture for joint beat and downbeat tracking in music audio.</p><p>• We devise dilated self-attention, which demonstrates powerful sequential modelling with linear complexity, potentially adaptable to more general MIR tasks.</p><p>• We make use of music demixing to complement and enhance beat tracking, shedding light on future MIR research towards universal music understanding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORKS</head><p>We review two topics related to our work: beat tracking, and Transformer. For beat tracking, we focus on its development with deep neural networks. For Transformer, we address its application in MIR. For more general review of both topics, we refer readers to <ref type="bibr" target="#b23">[23]</ref> and <ref type="bibr" target="#b24">[24]</ref>, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Music Audio Beat Tracking</head><p>Beat tracking has been formulated as a two-stage sequential learning task. The first stage aims to determine the likelihood of beat presence, or beat activation, at each frame of an input spectrogram. The initial deep learning approach for this purpose was based on long short-term memory networks (LSTM) <ref type="bibr" target="#b25">[25,</ref><ref type="bibr" target="#b26">26]</ref>. To better pick up the beat sequence from raw model output, at the second stage, a dynamic Baysian network (DBN) is introduced to infer tempo and beat phase transition from beat activation <ref type="bibr" target="#b10">[10]</ref>.</p><p>The current mainstream methods substitute the LSTM with a TCN architecture <ref type="bibr">[9, 12±15]</ref>. Specifically, the convolutional kernels have a dilation rate exponential to the depth of layer. This hierarchical structure facilitates the network to model various scales, functionally similar to pooling, but maintains the same input and output size <ref type="bibr" target="#b27">[27]</ref>. Besides architecture, another breakthrough of beat tracking is the formulation of multi-task learning [11±15]. Specifically, beat, downbeat, and tempo are strongly correlated metrical features. Sharing model weights among all three sub-tasks helps each to reach better convergence.</p><p>A recent trend of beat tracking is to deal with demixed music sources. Chiu et. al. leverages demixed drum and non-drum streams to enhance model adaptability to different drum source conditions <ref type="bibr" target="#b28">[28,</ref><ref type="bibr" target="#b29">29]</ref>. In fact, humans can track beats while switching their attention among different instrument parts. Hence the coordination of instrumental sources can be explored for useful metrical information.</p><p>In our work, we inherit the fashion of multi-task learning and the use of DBN, while proposing a novel Transformer encoder architecture to replace TCN. We formalize dilated self-attention <ref type="bibr" target="#b30">[30,</ref><ref type="bibr" target="#b31">31]</ref> for efficient modeling of long metrical structures. Moreover, we seek to enhance beat tracking by introducing instrumental attention among drum, piano, bass, vocal, and other demixed sources.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Transformer in MIR</head><p>Transformer has established itself de facto state-of-theart in natural language and symbolic music domain. Recently, it has also demonstrated outstanding performance over audio-based MIR tasks, including music transcription [17±19], music tagging <ref type="bibr" target="#b20">[20,</ref><ref type="bibr" target="#b21">21]</ref>, and other analysis <ref type="bibr" target="#b16">[16]</ref>. For these tasks, a Transformer model is trained over short spectrogram clips typically of 2-5 seconds as a compromise to the quadratic complexity computing self-attention.</p><p>Transformer is first applied to beat tracking by Hung et. al. <ref type="bibr" target="#b15">[15]</ref> using SpecTNT blocks <ref type="bibr" target="#b16">[16]</ref>. For each SpecTNT block, a spectral Transformer encoder first aggregates spectral information at each time step, and then a temporal encoder exchanges information in time and pays attention to beat and downbeat positions. Such a time-frequency design makes an effective use of spectral features and achieves the state-of-the-art performance.</p><p>Our work is also a Transformer-based architecture that strives to enhance beat tracking with richer musical contexts. Instead of aggregating spectral features as in <ref type="bibr" target="#b15">[15]</ref>, we resort to demixed instrumental attention as a more explicit inductive bias to exploring spectral information. Our design of dilated self-attention is also a crucial step to accommodate Transformer to beat tracking. With only linear complexity, our model handles full-length songs at a time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHOD</head><p>The core of our method is a Transformer encoder based on 1) dilated self-attention (DSA), and 2) demixed instrumental attention, to extract a framewise beat activation from input spectrograms. In this section, we first formalize DSA in Section 3.1. We then present our design of demixed beat tracking in Section 3.2. We further interpret our method with Markov chain properties in Section 3.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Dilated Self-Attention (DSA)</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.1">Background of Self-Attention (SA)</head><p>We first recall that, for vanilla Transformer layers, selfattention (SA) is computed via the scaled dot product:</p><formula xml:id="formula_0">Attention(Q, K, V ) = softmax( QK ⊤ √ d f )V,<label>(1)</label></formula><p>where</p><formula xml:id="formula_1">Q 1:T , K 1:T , V 1:T ∈ R T ×d f</formula><p>are query, key, and value sequences, each linearly mapped from input x 1:T . T is the sequence length, and d f is the feature dimension. The partial attention from position i to j is explicitly:</p><formula xml:id="formula_2">e ij = Q i K ⊤ j √ d f ,<label>(2)</label></formula><p>where 1 ≤ i, j ≤ T . Such computation leads to quadratic complexity O(T 2 ) in terms of both time and space.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.2">Dilated Self-Attention (DSA)</head><p>An illustration of DSA is shown in Figure <ref type="figure" target="#fig_1">1</ref>. DSA is computed over a short window of size l win = m + n + 1, where m and n are the length of non-causal and causal components of the window (in Figure <ref type="figure" target="#fig_1">1</ref>, m = n = 2).</p><p>Each Transformer layer has a dilation rate r ⩾ 1, and r increases exponentially as the layer goes deeper. Formally, given Q, K, and V ∈ R T ×d f , DSA first computes Q-K attention by:</p><formula xml:id="formula_3">e ik = Q i K ⊤ i+rk √ d f ,<label>(3)</label></formula><p>where 1 ≤ i ≤ T and -m ≤ k ≤ n. Specifically, i + rk refers to the positions in K 1:T that are attainable by Q i under the dilated window of rate r. When i + rk exceeds the sequence range [1, T ], we fill e ik with -inf.   Then, the Q-K attention e ik is normalized via softmax:</p><formula xml:id="formula_4">p ik = exp(e ik ) n k=-m exp(e ik )<label>(4)</label></formula><p>The output of DSA is a sequence z 1:T , where z i is the weighted average of V under the same dilated window:</p><formula xml:id="formula_5">z i = n k=-m p ik (V i+rk )<label>(5)</label></formula><p>We apply DSA with exponentially increasing dilation rates and relative positional embedding (RPE) <ref type="bibr" target="#b32">[32]</ref> to a stack of Transformer layers. Each layer consists of two sub-layers: DSA, and a position-wise feed-forward layer. We place residual connections across each sub-layer and perform layer normalization <ref type="bibr" target="#b33">[33]</ref> before each sub-layer.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.3">Memory Efficient Implementation of DSA</head><p>A straightforward implementation of DSA is to mask SA. Concretely, a square mask takes the same form as in Figure <ref type="figure" target="#fig_1">1b</ref>, where all uncolored positions are filled with -inf, rendering a rather sparse attention matrix. This way, however, still requires quadratic complexity, because e ij is explicitly computed for all masked positions.</p><p>Our implementation takes a ªrollingº strategy to eliminate redundant computation. As in Figure <ref type="figure" target="#fig_2">2</ref>, l win copies of K 1:T sequences are padded and rolled along the time axis, and then concatenated on a new axis. In this way, each Q i sees K j directly and only at j = i + rk for -m ≤ k ≤ n, which is exactly the coverage of the dilated window.</p><p>Formally, given K 1:T ∈ R T ×d f , dilation rate r, and window size l win , the rolling strategy takes three steps:  The same procedure applies to V 1:T as well. In this way, computing DSA is essentially as simple as Equation (1). Here, instead of Q, K, V ∈ R T ×d f , we have Q ∈ R T ×1×d f and K, V ∈ R T ×lwin×d f , with T treated as a batch dimension. The computation complexity is O(T × l win ), while l win is fixed and small enough to be left uncounted.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Demixed Beat Tracking</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">Demixed Transformer Block</head><p>We use Spleeter 5-stems model <ref type="bibr" target="#b22">[22]</ref> to demix an input piece into spectrograms with |C| instrument channels, where C = {vocal, piano, drum, bass, other}. As shown in Figure <ref type="figure" target="#fig_3">3</ref>, we stack two Transformer layers to perform time-wise and instrument-wise attention in turn. Let the input at layer l be x l 1:T,1:|C| ∈ R T ×|C|×d f , a temporal Transformer layer (TTL) first takes x l 1:T,c for 1 ≤ c ≤ |C|:</p><formula xml:id="formula_6">x l+1 1:T,c = TTL(x l 1:T,c )<label>(6)</label></formula><p>Then, an instrumental Transformer layer (ITL), on the orthogonal direction, takes x l+1 t,1:|C| for 1 ≤ t ≤ T :</p><formula xml:id="formula_7">x l+2 t,1:|C| = ITL(x l+1 t,1:|C| )<label>(7)</label></formula><p>A TTL followed by ITL forms a demixed Transformer block. TTL consists of DSA as described in Section 3.1.2.  For ITL, we use vanilla SA because there is only 5 instrument channels. As instruments are not sequentially ordered, we do not add any positional encoding to ITL. Through demixed Transformer blocks, our model can capture the rhythmic evolution of each instrument, as well as the harmonic coordination among all instruments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.2">Partial Demix Augmentation</head><p>Spleeter may produce empty channels when a certain instrument does not present. To avoid potential effects of such a situations, we develop a partial demix strategy for data augmentation. Partial demix creates new stems by summing up existing instrument channels of a default 5stem demixed input sample. For example, an augmented data sample may have three channels corresponding to C ′ = {vocal&amp;piano, drum, bass&amp;other}.</p><p>In our case, we randomly sum up 2, 3, or 4 instrument channels of a 5-stem input with a probability 30%, 10%, and 10% during training. In this way, our model is encouraged to pay attention to instrument-agnostic musical contents and thus is less affected by empty channels where no valid music content is present. As our augmentation strategy also adds to the demix diversity and the data quantity, we believe it brings general benefits to training as well.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Markov Chain Interpretation</head><p>In Equation (4), we formulate the attention matrix of DSA as P = [p ij ] 1≤i,j≤T , where p ij ≥ 0 if and only if j = i + rk for -m ≤ k ≤ n. Here, r is the dilation rate, and m, n are components of the attention window. Moreover, P satisfies T j=1 p ij = 1 for all i. Therefore, P can be regarded as the transition matrix of a finite-state Markov chain, where each state is a position of the input sequence.</p><p>For a stack of temporal Transformer layers (TTL), where DSA is employed, layer l essentially learns a unique one-step transition P l , by which our model can attend to local neighbours covered by the attention window. Through L layers, our model makes an L-step transition, during which it attends to global positions hierarchically. The overall L-step transition matrix P (L) satisfies:</p><formula xml:id="formula_8">P (L) = L l=1 P l<label>(8)</label></formula><p>Note that P l itself is a rather sparse matrix (due to short attention window), while P (L) is densely connected. Its components [p (L) ij ] 1≤i,j≤T represent the hierarchical attention weights across the whole L layers, which can tell us much richer attention patterns (more in Section 4.4).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Complete Architecture</head><p>A complete view of Beat Transformer is presented in Fig- <ref type="figure" target="#fig_5">ure 4</ref>. The inputs are log-scaled spectrograms demixed by Spleeter, with F = 128 mel-bins and |C| = 5 instrument channels. Subject to Spleeter, our frame rate is 43.07 fps and the frequency range is up to 11 kHz. We then use three 2D convolutional layers, shared by each demixed channel, as a front-end feature extractor. The convolutional design is the same as in <ref type="bibr" target="#b13">[13]</ref> except that we employ more filters to reach feature dimension d model = 256.</p><p>Beat Transformer comprises 9 temporal Transformer layers (TTL) with DSA. Each TTL has 8 attention heads with window size l win = 5, four of which have skewed window ranges, where m = 0, 1, 3, 4, respectively, and n = 4m. The dilation rate grows exponentially from 2 0 to 2 8 , stretching to a receptive field of 47.51 seconds. Among the 9 TTLs, the middle three are expanded to demixed Transformer blocks by interleaving ITLs. We found it sufficient to perform instrumental attention only in the middle layers, which has a proper scale of 1-5 seconds. Each Transformer layer has 8 heads (d f = 32) followed by a feed-forward layer with hidden dimension d ff = 1024.</p><p>We sum up the instrument channels of the output of the last Transformer layer and obtain a frame-wise beat representation of shape T × d model . Following multi-task learning practice [11±14], we use a linear layer to map the representation to beat and downbeat activations respectively, and add a regularization branch predicting global tempo via ªskip connectionsº <ref type="bibr" target="#b12">[12]</ref>. We apply DBN in Madmom package <ref type="bibr" target="#b34">[34]</ref> as the post-processor to pick up the beat and downbeat sequence from raw activations. For DBN parameters, we set observation_lambda = 6, transition_lambda = 100, and threshold = 0.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets</head><p>We utilize a total of 7 datasets for model training and evaluation: Ballroom <ref type="bibr" target="#b35">[35,</ref><ref type="bibr" target="#b36">36]</ref>, Hainsworth <ref type="bibr" target="#b37">[37]</ref>, RWC Popular <ref type="bibr" target="#b38">[38]</ref>, Harmonix <ref type="bibr" target="#b39">[39]</ref>, Carnetic <ref type="bibr" target="#b40">[40]</ref>, SMC <ref type="bibr" target="#b41">[41]</ref>,  <ref type="bibr" target="#b13">[13]</ref> on Harmonix is reproduced by <ref type="bibr" target="#b15">[15]</ref>, as indicated by the * symbol. We use underscore to denote best results comparing with our ablation models and use boldface to compare with state-of-the-art models.</p><formula xml:id="formula_9">Proceedings</formula><p>and GTZAN <ref type="bibr" target="#b42">[42,</ref><ref type="bibr" target="#b43">43]</ref>. We acquire Harmonix in melspectrogram and invert each piece to audio using Griffin-Lim Algorithm <ref type="bibr" target="#b44">[44,</ref><ref type="bibr" target="#b45">45]</ref> with Librosa package <ref type="bibr" target="#b46">[46]</ref>. Following convention, we leave GTZAN for testing only and use the other datasets in 8-fold cross validation [11±13].</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Training</head><p>Our model is supervised in a multi-task learning fashion, where beat, downbeat, and tempo are predicted jointly <ref type="bibr" target="#b13">[13]</ref>. Beat and downbeat annotations are each represented as a 1D binary sequence that indicates beat (1) and nonbeat (0) states at each input frame. Following <ref type="bibr" target="#b13">[13]</ref>, we widen beat and downbeat states to ±2 neighbours of annotated frames with weights 0.5 and 0.25. Following <ref type="bibr" target="#b12">[12]</ref>, we derive tempo target from beat annotation for the tempo prediction branch. We found the use of tempo branch generally beneficial to beat tracking, as it may serve as a regularization term that helps reaching better convergence.</p><p>For training, we combine the binary cross entropy loss over beat, downbeat, and tempo by weighing them equally. We use a batch size of 1 to train on whole sequences with different lengths. For excessively long songs, we split them into 3-minute (8k-frame) clips. We apply RAdam <ref type="bibr" target="#b47">[47]</ref> plus Lookahead <ref type="bibr" target="#b48">[48]</ref> optimizer with an initial learning rate of 1e-3, which is reduced by a factor of 5 whenever the validation loss gets stuck for 2 epochs before being capped at a minimum value of 1e-7. We use dropout <ref type="bibr" target="#b49">[49]</ref> with rate 0.5 for the tempo branch and 0.1 for other parts of the network. We apply partial demix augmentation described in Section 3.2.2 as the only means of data augmentation. Our model has 9.29M trainable parameters and is trained with an RTX-A5000-24GB GPU. Each training fold generally takes 20 epochs (in 11 hours) to fully converge.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Evaluation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.1">Baseline Methods</head><p>We first compare three ablation models to validate our module design. The first ablation model is Ours trained without partial demix augmentation (Ours w/o Aug.). The second model removes all ITL layers and tracks beat with a single channel of non-demixed mixture (Ours w/o Demix). The last model replaces each TTL layer with a TCN layer <ref type="bibr" target="#b13">[13]</ref> of the same dilation rate (TCN+Demix). We imple-  ment TCN layers following <ref type="bibr" target="#b23">[23]</ref> while setting the input and output shape to be the same as our model. The resulting model yields a comparable amount of 10.25M parameters and is trained without augmentation.</p><p>In addition, we compare our model with two recent works that have achieved state-of-the-art performance. Specifically, Böck et al. <ref type="bibr" target="#b13">[13]</ref> is based on TCN architectures and Hung et al. <ref type="bibr" target="#b15">[15]</ref> is based on SpecTNT.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.2">Results and Discussion</head><p>In Table <ref type="table" target="#tab_1">1</ref>, we first observe Ours w/o Aug. yields generally better performance than TCN+Demix, especially on the unseen GTZAN dataset. As both models share a comparable amount of parameters, this result demonstrates the capability of Transformer (DSA) versus TCN (dilated convolution), which also corroborates with previous findings on Transformer's comparability to convolution on general tasks [50±52]. Considering that Transformer is notoriously data-inefficient to train, it is remarkable that our model is well-trained with limited data without augmentation. We owe this merit to DSA, which not only prevents redundant computation but also makes musical sense in terms of the hierarchical structure of music metrical modelling.</p><p>Comparing Ours w/o Demix to Ours w/o Aug., while both models are highly competitive in beat tracking, the latter demonstrates more superiority in downbeat tracking. Downbeat tracking is generally more difficult than beat tracking because it is involved with deeper musical knowledge, such as chord and bass progression, behind the apparent spectrogram energy. In our model, the instrumental attention captures the instrumental coordination as hints to the harmonic cues that are orthogonal to the temporal axis, and thus acquires better metrical modelling.</p><p>Comparing Ours w/o Aug. to Ours, we observe a consistent improvement across datasets brought by partial demix augmentation, which indicates the general usefulness of this augmentation strategy to model training.</p><p>Compared to state-of-the-art models, our improvement in downbeat accuracy is more significant than that in beat accuracy. On the test-only GTZAN dataset, we obtain 4% point gain in F-measure over Böck et al. <ref type="bibr" target="#b13">[13]</ref> in downbeat tracking. Compared to Hung et al. <ref type="bibr" target="#b15">[15]</ref>, which is also based on Transformer, our model can be more flexibly trained (owing to the efficient DSA mechanism) on a 24GB GPU in contrast to four 32GB GPUs reported in <ref type="bibr" target="#b15">[15]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Attention Matrix Visualization</head><p>We visualize the attention matrix that our model learns by interpreting it as a multi-step Markov transition matrix as defined in Equation <ref type="bibr" target="#b8">(8)</ref>. Specifically, the L-step matrix is the product of L one-step matrices through L layers. Here we only consider TTLs with dilated self-attention, as ITLs work on an orthogonal axis. Figure <ref type="figure" target="#fig_6">5</ref> shows the attention matrix P (L) for L = 1, 3, 5, and 9 of the drum channel, inferred from the piece hiphop.00090 chosen from GTZAN.</p><p>Figure <ref type="figure" target="#fig_6">5a</ref> shows a one-step transition. Each position Q i can only attend to its neighbours covered by the attention window. Still, we observe that beat positions (denoted by b k ) are likely to get more attention. In Figure <ref type="figure" target="#fig_6">5b</ref> where we step to the beat scale, most attention spots are aligned with beats. Moreover, we observe that the attention at b k is typically prolonged after Q i leaves b k , and is formed before Q i reaches b k for every k. This means that our model learns to transition its attention from the offbeat phase following the last beat to the upbeat phase preceding the next beat. Figure <ref type="figure" target="#fig_6">5c</ref> further stretches the view to the downbeat scale, and we can see similar patterns aligned with downbeat positions (denoted by d k ). Finally, in Figure <ref type="figure" target="#fig_6">5d</ref>, the attention reaches further positions and displays a structural pattern.</p><p>The above visualization demonstrates the inner logic that our model exploits for beat and downbeat tracking. We see that our model gathers information from both local and global scales with an organized hierarchy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>In conclusion, we contribute a novel Transformer architecture for audio beat and downbeat tracking. The main novelty lies first in our design of dilated self-attention, which brings down the computation complexity of Transformer from quadratic to linear level. In addition, we successfully enhance beat and downbeat tracking by utilizing off-theshelf progress in music demixing. Our model not only captures deeper harmonic cues for better metrical inference but also discerns beat and downbeat in a visualizable hierarchical manner. Our model is efficient, interpretable, and potentially generalizable with highly competitive sequential modelling power. We hope our model encourages future MIR research toward universal music understanding.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>Layer-wise view of dilated self-attention (Adapted from TCN structures<ref type="bibr" target="#b9">[9,</ref><ref type="bibr" target="#b27">27]</ref>) Attention matrix view at layer 2</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Illustration of dilated self-attention (with a non-causal short window of size 5) over a three-layer Transformer. Part (a) shows the hierarchical connectivity across layers, which shares the same pattern as TCN in [9]. Part (b) shows the attention matrix at layer 2, with colours indicating relative position. The white colour indicates unattainable positions.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Illustration of efficient DSA implementation, with dilation rate r = 2 and window size l win = 5.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Demixed Transformer block. Two Transformer layers are stacked ªorthogonallyº, each handling time-wise dilated self-attention and instrument-wise self-attention.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Beat Transformer architecture. For conciseness, layer normalization and dropout layers are not shown.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Visualization of temporal attention matrix based on the product rule in Equation (8) for L-step transition on a Markov chain. L = 1, 3, 5, and 9 from part (a) to (d), which model different hierarchies of the metrical structure.</figDesc><graphic coords="6,81.23,75.40,82.42,82.42" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022 Testing results of beat and downbeat tracking under 8-fold cross-validation. GTZAN is unseen from training and held out for test only. Böck et. al.</figDesc><table><row><cell>Beat Accuracy</cell><cell>Downbeat Accuracy</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</figDesc><table><row><cell>𝑏𝑏 𝑘𝑘</cell><cell>𝑏𝑏 𝑘𝑘</cell><cell></cell><cell></cell><cell>𝑏𝑏 𝑘𝑘</cell><cell>𝑏𝑏 𝑘𝑘</cell><cell></cell><cell></cell><cell></cell><cell>𝑑𝑑 𝑘𝑘</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>𝑏𝑏 𝑘𝑘+1</cell><cell>𝑏𝑏 𝑘𝑘+1</cell><cell></cell><cell></cell><cell>𝑏𝑏 𝑘𝑘+1</cell><cell>𝑏𝑏 𝑘𝑘+1</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>𝑑𝑑 𝑘𝑘+1</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>𝑏𝑏 𝑘𝑘-1</cell><cell>𝑏𝑏 𝑘𝑘-1 𝑏𝑏 𝑘𝑘</cell><cell>𝑏𝑏 𝑘𝑘 𝑏𝑏 𝑘𝑘+1</cell><cell>𝑏𝑏 𝑘𝑘+1</cell><cell>𝑏𝑏 𝑘𝑘-1</cell><cell>𝑏𝑏 𝑘𝑘-1 𝑏𝑏 𝑘𝑘</cell><cell>𝑏𝑏 𝑘𝑘 𝑏𝑏 𝑘𝑘+1</cell><cell>𝑏𝑏 𝑘𝑘+1</cell><cell></cell><cell>𝑑𝑑 𝑘𝑘-1</cell><cell></cell><cell>𝑑𝑑 𝑘𝑘</cell><cell></cell><cell>𝑑𝑑 𝑘𝑘+1</cell></row><row><cell></cell><cell>𝐾𝐾 𝑗𝑗</cell><cell>𝐾𝐾 𝑗𝑗</cell><cell></cell><cell></cell><cell>𝐾𝐾 𝑗𝑗</cell><cell>𝐾𝐾 𝑗𝑗</cell><cell></cell><cell></cell><cell>𝐾𝐾 𝑗𝑗</cell><cell>𝐾𝐾 𝑗𝑗</cell><cell></cell><cell></cell><cell></cell><cell>𝐾𝐾 𝑗𝑗</cell></row><row><cell>𝑄𝑄 𝑖𝑖</cell><cell>𝑄𝑄 𝑖𝑖</cell><cell></cell><cell></cell><cell>𝑄𝑄 𝑖𝑖</cell><cell>𝑄𝑄 𝑖𝑖</cell><cell></cell><cell></cell><cell>𝑄𝑄 𝑖𝑖 𝑑𝑑 𝑘𝑘-1</cell><cell>𝑄𝑄 𝑖𝑖 𝑑𝑑 𝑘𝑘-1</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>𝑄𝑄 𝑖𝑖</cell></row><row><cell>𝑏𝑏 𝑘𝑘-1</cell><cell>𝑏𝑏 𝑘𝑘-1</cell><cell></cell><cell></cell><cell>𝑏𝑏 𝑘𝑘-1</cell><cell>𝑏𝑏 𝑘𝑘-1</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>𝑏𝑏 𝑘𝑘</cell><cell>𝑏𝑏 𝑘𝑘</cell><cell></cell><cell></cell><cell>𝑏𝑏 𝑘𝑘</cell><cell>𝑏𝑏 𝑘𝑘</cell><cell></cell><cell></cell><cell>𝑑𝑑 𝑘𝑘</cell><cell>𝑑𝑑 𝑘𝑘</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>𝑏𝑏 𝑘𝑘+1</cell><cell>𝑏𝑏 𝑘𝑘+1</cell><cell></cell><cell></cell><cell>𝑏𝑏 𝑘𝑘+1</cell><cell>𝑏𝑏 𝑘𝑘+1</cell><cell></cell><cell></cell><cell>𝑑𝑑 𝑘𝑘+1</cell><cell>𝑑𝑑 𝑘𝑘+1</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>𝑏𝑏 𝑘𝑘-1</cell><cell>𝑏𝑏 𝑘𝑘-1 𝑏𝑏 𝑘𝑘</cell><cell>𝑏𝑏 𝑘𝑘 𝑏𝑏 𝑘𝑘+1</cell><cell>𝑏𝑏 𝑘𝑘+1</cell><cell>𝑏𝑏 𝑘𝑘-1</cell><cell>𝑏𝑏 𝑘𝑘-1 𝑏𝑏 𝑘𝑘</cell><cell>𝑏𝑏 𝑘𝑘 𝑏𝑏 𝑘𝑘+1</cell><cell>𝑏𝑏 𝑘𝑘+1</cell><cell>𝑑𝑑 𝑘𝑘-1</cell><cell>𝑑𝑑 𝑘𝑘-1</cell><cell>𝑑𝑑 𝑘𝑘</cell><cell>𝑑𝑑 𝑘𝑘</cell><cell>𝑑𝑑 𝑘𝑘+1</cell><cell>𝑑𝑑 𝑘𝑘+1</cell></row><row><cell></cell><cell cols="4">(a) P (1) lower scale</cell><cell cols="4">(b) P (3) beat scale</cell><cell cols="6">(c) P (5) downbeat scale</cell><cell>(d) P (9) higher scale</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Available at https://github.com/zhaojw1998/Beat-Transformer.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">ªThe sousta corpus: Beat-informed automatic transcription of traditional dance tunes</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Holzapfel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 17th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="531" to="537" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">ªMusic structure analysis based on an LSTM-HSMM hybrid model</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Shibata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Nishikimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference, IS-MIR</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference, IS-MIR</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="23" to="29" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">ªBayesian singing transcription based on a hierarchical generative model of keys, musical notes, and F0 trajectories</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Nishikimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Itoyama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="1678" to="1691" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">ªGlobal structure-aware drum transcription based on selfattention mechanisms</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Ishizuka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Nishikimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Signals</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="508" to="526" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">ªSheet sage: Lead sheets from music audio,º 2021</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<ptr target="https://archives.ismir.net/ismir2021/latebreaking/000049.pdf" />
+	</analytic>
+	<monogr>
+		<title level="m">Late Breaking Demo in the 22nd International Society for Music Information Retrieval Conference, ISMIR</title>
+		<imprint/>
+	</monogr>
+	<note>Online</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">ªReal-time dance generation to music for a legged robot</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Fankhauser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bellicoso</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hutter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">RSJ International Conference on Intelligent Robots and Systems, IROS. IEEE</title>
+		<imprint>
+			<biblScope unit="page" from="1038" to="1044" />
+			<date type="published" when="2018">2018. 2018</date>
+		</imprint>
+	</monogr>
+	<note>IEEE</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">ªHuman-in-the-loop adaptation for interactive musical beat tracking</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yamamoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="794" to="801" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">ªBasic evaluation of auditory temporal stability (beats): A novel rationale and implementation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 14th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="541" to="546" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">ªTemporal convolutional networks for musical audio beat tracking,º in 27th European Signal Processing Conference, EU-SIPCO</title>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">P</forename><surname>Matthewdavies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<publisher>IEEE</publisher>
+			<biblScope unit="page" from="1" to="5" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">ªAn efficient statespace model for joint tempo and meter tracking</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Krebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 16th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="72" to="78" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">ªJoint beat and downbeat tracking with recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Krebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 17th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="255" to="261" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">ªMulti-task learning of tempo and beat: Learning one to improve the other</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E P</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Knees</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference, IS-MIR</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference, IS-MIR</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="486" to="493" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E P</forename><surname>Davies</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="574" to="582" />
+		</imprint>
+	</monogr>
+	<note>ªDeconstruct, analyse, reconstruct: How to improve tempo, beat, and downbeat estimation</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">ªPhase-aware joint beat and downbeat estimation based on periodicity of metrical structure</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Oyama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Ishizuka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="493" to="499" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ªModeling beats and downbeats with a time-frequency transformer</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Hung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">T</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="401" to="405" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">ªSpecTNT: A time-frequency transformer for music audio</title>
+		<author>
+			<persName><forename type="first">W.-T</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Song</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference, IS-MIR</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference, IS-MIR</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="396" to="403" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">ªSequence-to-sequence piano transcription with transformers</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Swavely</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Manilow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="246" to="253" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">ªExploring transformer&apos;s potential on automatic piano transcription</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="776" to="780" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">ªMT3: multi-task multitrack music transcription</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Manilow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">H</forename><surname>Engel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Tenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">ªToward interpretable music tagging with self-attention</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1906.04972</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ªSemi-supervised music tagging transformer</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="769" to="776" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Moussallam, ªSpleeter: a fast and efficient music source separation tool with pre-trained models</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Hennequin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Khlif</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Voituret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename></persName>
+		</author>
+		<idno type="DOI">10.21105/joss.02154</idno>
+		<ptr target="https://doi.org/10.21105/joss.02154" />
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Open Source Software</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">50</biblScope>
+			<biblScope unit="page">2154</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title/>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Fuentes</surname></persName>
+		</author>
+		<ptr target="https://tempobeatdownbeat.github.io/tutorial/intro.html" />
+	</analytic>
+	<monogr>
+		<title level="j">Tempo, Beat and Downbeat Estimation</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>Available</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Qiu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2106.04554</idno>
+		<title level="m">ªA survey of transformers,º</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">ªEnhanced beat tracking with context-aware neural networks</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Schedl</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th International Conference on Digital Audio Effects, DAFx</title>
+		<meeting>the 14th International Conference on Digital Audio Effects, DAFx</meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="135" to="139" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">ªA multi-model approach to beat tracking considering heterogeneous music styles</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Krebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th International Society for Music Information Retrieval Conference, IS-MIR</title>
+		<meeting>the 15th International Society for Music Information Retrieval Conference, IS-MIR</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="603" to="608" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<author>
+			<persName><forename type="first">A</forename><surname>Van Den Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">W</forename><surname>Senior</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ªWavenet: A generative model for raw audio,º in The 9th ISCA Speech Synthesis Workshop</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page">125</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">ªSource separation-based data augmentation for improved joint beat and downbeat tracking,º in 29th European Signal Processing Conference</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ching</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">W</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<publisher>EUSIPCO. IEEE</publisher>
+			<biblScope unit="page" from="391" to="395" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">ªDrum-aware ensemble architecture for improved joint musical beat and downbeat tracking</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">W</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Signal Processing Letters</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="1100" to="1104" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">ªPDAN: pyramid dilated attention network for action detection</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Minciullo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Garattoni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Francesca</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Brémond</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Winter Conference on Applications of Computer Vision</title>
+		<imprint>
+			<publisher>WACV. IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2969" to="2978" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">ªCapturing multiresolution context by dilated self-attention</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Moritz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hori</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">L</forename><surname>Roux</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="5869" to="5873" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">ªSelf-attention with relative position representations</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Shaw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="464" to="468" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">L</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">R</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1607.06450</idno>
+		<title level="m">ªLayer normalization,º</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">ªmadmom: A new python audio and music signal processing library</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Korzeniowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schlüter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Krebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 ACM Conference on Multimedia Conference, MM</title>
+		<meeting>the 2016 ACM Conference on Multimedia Conference, MM</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1174" to="1178" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">ªAn experimental comparison of audio tempo induction algorithms</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Gouyon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Klapuri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Alonso</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Tzanetakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Uhle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Cano</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="1832" to="1844" />
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">ªRhythmic pattern modeling for beat and downbeat tracking in musical audio</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Krebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 14th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="227" to="232" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">ªParticle filtering applied to musical tempo tracking</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">W</forename><surname>Hainsworth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Macleod</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">EURASIP Journal on Advances in Signal Processing</title>
+		<imprint>
+			<biblScope unit="volume">2004</biblScope>
+			<biblScope unit="issue">15</biblScope>
+			<biblScope unit="page" from="1" to="11" />
+			<date type="published" when="2004">2004</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">ªRWC music database: Popular, classical and jazz music databases</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Hashiguchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Nishimura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Oka</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+	<note>º in ISMIR 2002, 3rd International Conference on Music Information Retrieval</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">ªThe harmonix set: Beats, downbeats, and functional segment annotations of western popular music</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Nieto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E P</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Robertson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Stark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Egozy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="565" to="572" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">ªA supervised approach to hierarchical metrical cycle tracking from audio music recordings</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Srinivasamurthy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="5217" to="5221" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">ªSelective sampling for beat tracking evaluation</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Holzapfel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">E P</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">R</forename><surname>Zapata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">L</forename><surname>Oliveira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Gouyon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Speech and Audio Processing</title>
+		<imprint>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<biblScope unit="page" from="2539" to="2548" />
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">ªMusical genre classification of audio signals</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Tzanetakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">R</forename><surname>Cook</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Speech and Audio Processing</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="293" to="302" />
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">ªSwing ratio estimation</title>
+		<author>
+			<persName><forename type="first">U</forename><surname>Marchand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Peeters</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Conference on Digital Audio Effects</title>
+		<meeting>the 18th International Conference on Digital Audio Effects</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">ªSignal estimation from modified short-time fourier transform</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Griffin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on acoustics, speech, and signal processing</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="236" to="243" />
+			<date type="published" when="1984">1984</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">ªA fast griffin-lim algorithm,º in IEEE Workshop on Applications of Signal Processing to Audio and Acoustics</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Perraudin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Balázs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">L</forename><surname>Sùndergaard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">WASPAA. IEEE</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="4" />
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">ªlibrosa: Audio and music signal analysis in python</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mcvicar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Battenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Nieto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th python in science conference</title>
+		<meeting>the 14th python in science conference</meeting>
+		<imprint>
+			<publisher>Citeseer</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="18" to="25" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<author>
+			<persName><forename type="first">L</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Han</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ªOn the variance of the adaptive learning rate and beyond,º in 8th International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">ªLookahead optimizer: k steps forward, 1 step back</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">R</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lucas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 32: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="9593" to="9604" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">ªDropout: a simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1929" to="1958" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dosovitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Beyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kolesnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Weissenborn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Unterthiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Minderer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Heigold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gelly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Houlsby</surname></persName>
+		</author>
+		<title level="m">ªAn image is worth 16x16 words: Transformers for image recognition at scale,º in 9th International Conference on Learning Representations, ICLR</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">ªTraining data-efficient image transformers &amp; distillation through attention</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Touvron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Cord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Douze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Massa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sablayrolles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jégou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International Conference on Machine Learning, ICML, ser. Proceedings of Machine Learning Research</title>
+		<meeting>the 38th International Conference on Machine Learning, ICML, ser. Machine Learning Research</meeting>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">139</biblScope>
+			<biblScope unit="page" from="10" to="347" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">ªSwin transformer: Hierarchical vision transformer using shifted windows</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2021 IEEE/CVF International Conference on Computer Vision, ICCV</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="9992" to="10002" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

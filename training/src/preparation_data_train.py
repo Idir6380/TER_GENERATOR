@@ -1,5 +1,6 @@
 import re 
 import requests
+import numpy as np
 from io import BytesIO
 from PyPDF2 import PdfReader
 from collections import Counter
@@ -27,6 +28,8 @@ def decomposition_en_list_mot(text,idx=0):  # sourcery skip: for-append-to-exten
     id_paragraphe= [idx]*len(list_mot)
     return list_mot,id_paragraphe
 
+
+
 def extraire_nom_balise(tag):
     return re.sub(r'[</>]', '', tag)
 
@@ -38,7 +41,6 @@ def labeliser(list_paragraphe):
         fe ,la = [],[]
         i = 0
         n = len(phrase)
-
         while i < n:
             token = phrase[i]
             if token.startswith("<") and not token.startswith("</"):
@@ -92,6 +94,23 @@ def decomposition_and_labelisation(data,id_article=0):
     text,id_para= decomposition_en_list_mot(text,id_paragraphe)
     features, labels= labeliser(text)
     return features, labels,id_para
+
+
+def label_feature_per_article(fe,la,id_para):
+    unique = np.unique(np.array(id_para)).tolist()
+    n = len(unique)
+    features, labels = [[]]*n ,[[]]*n
+    id_params= []
+    for i, idx in enumerate(id_para):
+        if idx not in id_params :
+            id_params.append(idx)
+        f ,l = fe[i],la[i]
+        arg = unique.index(idx)
+        a= features[arg]+f
+        b= labels[arg]+l 
+        features[arg] = a 
+        labels[arg] = b
+    return features,labels,id_params
 
 
 def read_all(datas):
@@ -195,6 +214,21 @@ def data(file_name,tokenizer,batch_size=32):
     print("total corpus:",len(datas_train)+len(datas_test)+len(datas_eval) )
     fe_train,la_train,doc_ids = read_all(datas_train)
     fe_eval,la_eval,doc_id_ev=read_all( datas_eval)
+    vocab,inv_vocab= create_vocab(la_train)
+    labels_ids = [[vocab[l] for l in sent] for sent in la_train]
+    labels_ids_e = [[vocab[l] for l in sent] for sent in la_eval]
+    dataloader_train= dataloader(fe_train,labels_ids,doc_ids,tokenizer,batch_size=batch_size)
+    dataloader_eval= dataloader(fe_eval,labels_ids_e,doc_id_ev,tokenizer,batch_size=10,train=False)
+    return dataloader_train,dataloader_eval,vocab,inv_vocab
+
+def data_per_article(file_name,tokenizer,batch_size=32):
+    datas_train,datas_eval,datas_test= read_file_train(file_name)
+    print("total corpus:",len(datas_train)+len(datas_test)+len(datas_eval) )
+    fe_train,la_train,doc_ids_train = read_all(datas_train)
+    fe_eval,la_eval,doc_id_ev=read_all( datas_eval)
+    
+    fe_train,la_train,doc_ids = label_feature_per_article(fe_train,la_train,doc_ids_train)
+    fe_eval,la_eval,doc_id_ev = label_feature_per_article(fe_eval,la_eval,doc_id_ev)
     vocab,inv_vocab= create_vocab(la_train)
     labels_ids = [[vocab[l] for l in sent] for sent in la_train]
     labels_ids_e = [[vocab[l] for l in sent] for sent in la_eval]

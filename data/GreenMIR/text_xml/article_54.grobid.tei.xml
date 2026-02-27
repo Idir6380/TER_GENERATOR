@@ -1,0 +1,1149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">THE JAZZ TRANSFORMER ON THE FRONT LINE: EXPLORING THE SHORTCOMINGS OF AI-COMPOSED MUSIC THROUGH QUANTITATIVE MEASURES</title>
+				<funder ref="#_Ve6XGGV">
+					<orgName type="full">unknown</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Shih-Lun</forename><surname>Wu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">National Taiwan University</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">Taiwan AI Labs</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Yi-Hsuan</forename><surname>Yang</surname></persName>
+							<email>yang@citi.sinica.edu.tw</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Taiwan AI Labs</orgName>
+							</affiliation>
+							<affiliation key="aff2">
+								<orgName type="institution">Academia Sinica</orgName>
+								<address>
+									<country key="TW">Taiwan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">THE JAZZ TRANSFORMER ON THE FRONT LINE: EXPLORING THE SHORTCOMINGS OF AI-COMPOSED MUSIC THROUGH QUANTITATIVE MEASURES</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">B2F05CEB97C9A1EEF2EED7E963AA1D44</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:18+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>This paper presents the Jazz Transformer, a generative model that utilizes a neural sequence model called the Transformer-XL for modeling lead sheets of Jazz music. Moreover, the model endeavors to incorporate structural events present in the Weimar Jazz Database (WJazzD) for inducing structures in the generated music. While we are able to reduce the training loss to a low value, our listening test suggests however a clear gap between the ratings of the generated and real compositions. We therefore go one step further and conduct a series of computational analysis of the generated compositions from different perspectives. This includes analyzing the statistics of the pitch class, grooving, and chord progression, assessing the structureness of the music with the help of the fitness scape plot, and evaluating the model's understanding of Jazz music through a MIREX-like continuation prediction task. Our work presents in an analytical manner why machine-generated music to date still falls short of the artwork of humanity, and sets some goals for future work on automatic composition to further pursue.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Music is a heart-touching form of art that strikes a chord with people's emotions, joyful or sorrowful; intense or relieved, through the twists and turns of notes. Despite its ubiquity in our everyday lives, the composition and arrangement of music often requires substantial human effort. This is a major reason why automatic music composition is such a fascinating field of study. Over the years, researchers have sought strenuously ways for machines to generate well-formed music; such methods include meticulously designed non deep learning-based algorithms like the Markov chains <ref type="bibr" target="#b6">[6]</ref> and formal grammars <ref type="bibr" target="#b19">[19]</ref>; and, a proliferation of deep learning-based solutions in the past decade <ref type="bibr" target="#b8">[8]</ref>. In this work, we exclusively study the extension and evaluation of Transformer-based models <ref type="bibr" target="#b43">[43]</ref> for its claimed successes in natural language processing and music generation in recent years <ref type="bibr" target="#b12">[12,</ref><ref type="bibr" target="#b13">13,</ref><ref type="bibr" target="#b20">20,</ref><ref type="bibr" target="#b38">38]</ref>.</p><p>The dataset chosen for our work is the Weimar Jazz Database (WJazzD) <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b37">37]</ref>. As opposed to the commonly used piano MIDIs in recent works <ref type="bibr" target="#b20">[20,</ref><ref type="bibr" target="#b21">21]</ref>, the choice of this dataset represents a fresh endeavor to train the Transformer on Jazz music, and grants us the unique opportunity to integrate structure-related events, precisely annotated in the WJazzD, to the model. However, such an attempt involves no short of technical challenges, including the quantization of the numerous short notes in Jazz improvisations; and, dealing with the complex chord representations used in the WJazzD. In Section 3, we will elaborate on how these difficulties are tackled in a detailed manner.</p><p>Furthermore, while recent works in Transformer-based music generation often praised the model's capabilities, like being able to compose "compelling" music, or generate pieces with "expressiveness, coherence, and clear structures" as claimed in <ref type="bibr" target="#b20">[20]</ref> and <ref type="bibr" target="#b21">[21]</ref> respectively, rarely do we admit that the machine is still far behind humans, as shown in our user study (Section 4), and take a step back to "face the music", in other words, to identify what exactly goes wrong in the model's compositions.</p><p>Therefore, the goal of the paper is two-fold. First, to deploy Transformers to a new, more complex music genre, Jazz, asking the model to compose melody lines, chord progression, and structures all at once. Second, to develop a set of objective metrics (Section 5) that evaluate the generated music's pitch usages, rhythmicity, consistency in chord progression, and structureness (see Sec. 5.4 for definition), to discover the culprits behind the model's incompetence (Section 6). Figure <ref type="figure" target="#fig_0">1</ref> shows an example of a composition generated by our model, in which we may find reasonable combinations of chords and melody; and, clear rests between phrases. Audio samples can be found in a Google Drive folder, 1 which we encourage readers to listen to. We have also open-sourced our implementation of the Jazz Transformer 2 and the proposed objective metrics. 3   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>There has been a great body of research work on computational analysis of human performance of Jazz <ref type="bibr" target="#b3">[3,</ref><ref type="bibr" target="#b4">4,</ref><ref type="bibr" target="#b15">15,</ref><ref type="bibr" target="#b18">18,</ref><ref type="bibr" target="#b44">44]</ref>. One prominent example is the Jazzomat Project <ref type="bibr" target="#b5">[5]</ref>, which established the WJazzD <ref type="bibr" target="#b2">[2]</ref> to study the creative processes underpinning Jazz solo improvisations <ref type="bibr" target="#b37">[37]</ref>. Weiss et al. <ref type="bibr" target="#b44">[44]</ref>, for instance, used the dataset to explore the evolution of tonal complexity of Jazz improvisations in the past century. See Sec. 3.1 for more details of the dataset.</p><p>The use of Transformer-like architectures for training music composition models has drawn increasing attention recently. These works enhanced the Transformer's capability in modeling music through relative positional encoding schemes <ref type="bibr" target="#b20">[20,</ref><ref type="bibr" target="#b36">36]</ref>, cross-domain pre-training <ref type="bibr" target="#b13">[13]</ref>, and event token design <ref type="bibr" target="#b13">[13,</ref><ref type="bibr" target="#b21">21]</ref>. To the best of our knowledge, this work represents the first attempt in the literature to employ Transformers to compose exclusively Jazz music.</p><p>Automatic composition of general lead sheets has been investigated lately, mostly based on recurrent neural network (RNN) models <ref type="bibr" target="#b7">[7,</ref><ref type="bibr" target="#b29">29,</ref><ref type="bibr" target="#b30">30]</ref>. As for inducing structures in the generated music, several RNN-based solutions have also been proposed <ref type="bibr" target="#b24">[24,</ref><ref type="bibr" target="#b31">31,</ref><ref type="bibr" target="#b39">39]</ref>. Since Transformers have been shown to outperform RNNs in various tasks <ref type="bibr">[9,</ref><ref type="bibr" target="#b20">20,</ref><ref type="bibr" target="#b26">26]</ref>, we strive to be the forerunner in bringing them to these realms of research.</p><p>Relatively little work has been done to train a model for Jazz composition. JazzGAN <ref type="bibr" target="#b42">[42]</ref> is a model employing a generative adversarial network (GAN) architecture for chord-conditioned melody composition, using a dataset of only 44 lead sheets, approximately 1,700 bars. Another model presented in <ref type="bibr" target="#b22">[22]</ref> explores the use of recurrent variational auto-encoders for generating both the melody and chords of a lead sheet from scratch.</p><p>A number of objective metrics have been employed for measuring the performance of deep learning for music composition <ref type="bibr" target="#b10">[10,</ref><ref type="bibr" target="#b14">14,</ref><ref type="bibr" target="#b41">41,</ref><ref type="bibr" target="#b45">45]</ref>. However, most of them focused on surface-level statistics only (e.g., pitch class histograms, note onset intervals, etc.). The introduction of structureness indicators and the MIREX-like metric (see Sec. 5.4-5.5) in this paper provide new insights into assessing music's quality at piece level, and evaluating the model's overall understanding of a certain music genre.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">THE JAZZ TRANSFORMER</head><p>Transformers use self-attention modules to aggregate information from the past events when predicting the next  <ref type="table">1</ref>. Statistics of the dataset we compile from the WJazzD <ref type="bibr" target="#b37">[37]</ref>. See Section 3.2 for details of the "events".</p><p>events <ref type="bibr" target="#b11">[11,</ref><ref type="bibr" target="#b27">27,</ref><ref type="bibr" target="#b43">43]</ref>. Accordingly, it is natural that we model music as a language, namely, to represent each composition by a sequence of event tokens. In this section, we will explain in detail how we break down the components of the WJazzD <ref type="bibr" target="#b37">[37]</ref> to construct the vocabulary of events, and how the pieces are converted into sequences that can be fed into a Transformer-like model for training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Dataset</head><p>The WJazzD dataset <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b37">37]</ref> comprises of 456 monophonic Jazz solos. Each solo is arranged in the lead sheet style and comes with two tracks: the melody track and the beat track. The melody track contains every note's pitch, onset time and duration (in seconds), with additional information on loudness (in decibels), phrase IDs and "midlevel units" (MLUs) <ref type="bibr" target="#b17">[17]</ref>, a structure of finer granularity than a phrase to capture the distinctive short-time ideas in Jazz improvisations. The beat track contains the beat onsets (in seconds), chord progressions and form parts (or sections, e.g., A1, B1). The highlight of this dataset is that all the contents, including the notes, chords, metrical and structural markings, are human-annotated and cross-checked by the annotators <ref type="bibr" target="#b37">[37]</ref>, ensuring the data cleanliness that is often crucial for machine learning tasks. To simplify the subsequent processings, we retain only the pieces marked solely with 4/4 time signature, resulting in 431 solos. For objective analysis, we leave 5% of the solos as the held-out validation data. See Table <ref type="table">1</ref> for the statistics of the data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Data Representation</head><p>The event representation adopted here is a modified version of the "REvamped MIDI-derived event representation" recently proposed in <ref type="bibr" target="#b21">[21]</ref>, extended to integrate the chord system and structural events of WJazzD. The resulting event encodings can be broken down into the following 4 categories: note-related-NOTE-VELOCITY, NOTE-ON, NOTE-DURATION; metric-related-BAR, POSI-TION, TEMPO-CLASS, TEMPO; chord-related-CHORD-TONE, CHORD-TYPE, CHORD-SLASH; and structurerelated-PHRASE, MLU, PART, REPETITION.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">Note-related Events</head><p>Each note in the melody is represented by three events, i.e., NOTE-VELOCITY, NOTE-ON, and NOTE-DURATION. The NOTE-VELOCITY event decides how hard the note should be played. We derive it according to the estimated loudness (in decibels) provided by the dataset, and quantize it into 32 bins, corresponding to MIDI velocities <ref type="bibr">[3, 7, . . . , 127]</ref>, through v = 80 + 3 • (dB -65) /4 , where dB is the decibel value of the note, and v, clipped such that v ∈ <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b32">32]</ref>, is the resulting NOTE-VELOCITY(v) event. This mapping scheme comes in handy in the process of converting the model's compositions to MIDIs.</p><p>The NOTE-ON events, ranging from 0 to 127, correspond directly to the MIDI numbers, indicating the note's pitch. The NOTE-DURATION events represent the note's length in 64th note multiples, ranging from 1 to 32, obtained by taking the ratio of the note's duration (in seconds) to the duration of the beat (also in seconds) where the note situates. The reason why we use such a fine-grained quantum, while previous work mainly consider only 16th note multiples (e.g., <ref type="bibr" target="#b20">[20,</ref><ref type="bibr" target="#b21">21]</ref>), is as follows. Most notes in WJazzD are quite short, with a significant portion being 32th and 64th notes (12.9% and 2.7% respectively). The quantum is chosen such that the coverage of the 32 NOTE-DURATION events encompasses the most notes, which is 99.6% with our choice of the 64th note. <ref type="foot" target="#foot_0">4</ref></p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.2">Metric-related Events</head><p>To model the progression of time, we use a combination of BAR and POSITION events; as demonstrated in <ref type="bibr" target="#b21">[21]</ref>, this combination leads to clearer rhythmic structure in the generated music compared to using TIME-SHIFT events introduced in <ref type="bibr" target="#b20">[20]</ref>. In addition, the pace the music should be played at is set by TEMPO-CLASS and TEMPO events.</p><p>A BAR event is added at the beginning of each bar, and a bar is quantized into 64 subunits, each represented by a POSITION event; for example, POSITION( <ref type="formula">16</ref>) marks the start of the 2nd beat in a bar. A POSITION event occurs whenever there is a note onset, chord change, or tempo change. It is worth mentioning that to minimize the quantization error, a note's onset position is justified with the beat it is in through the formula:</p><formula xml:id="formula_0">p n = p b + 16 • t n -t b /d b ,<label>(1)</label></formula><p>where p b , t b , d b are the beat's position (note that p b ∈ {0, 16, 32, 48}), onset time, and duration; and t n is the note's onset time. The resulting p n is then rounded to the nearest integer to determine the note's onset position.</p><p>The TEMPO-CLASS and TEMPO events always cooccur at every beat position. The 5 TEMPO-CLASS events represent the general "feeling" of speed (i.e. fast, or slow) with interval boundaries of [50, 80, 110, 140, 180, 320] beats per minute (bpm), while the 12 TEMPO events assigned to each tempo class in evenly-spaced steps (within the interval, e.g., 50, 52.5, 55 bpm...) determine the exact pace. The events can be derived simply by taking the reciprocal of a beat's duration (provided by WJazzD). The frequent appearance of these tempo events facilitates smooth local tempo changes common in Jazz performances.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.3">Chord-related Events</head><p>Chord progressions serve as the harmonic foundation of Jazz improvisations <ref type="bibr" target="#b25">[25]</ref>, hence a complex chord representation system is used in the WJazzD dataset. If we were to treat each of the 418 unique chord representations present in the WJazzD as a token, the majority of chord tokens will have very few occurrences-in fact, 287 (69%) of them appear in less than 5 solos, making it hard for the model to learn the meaning of those chords well; plus, the process of translating chords to individual notes during the conversion to MIDIs would be extremely cumbersome.</p><p>Fortunately, thanks to the detailed clarification provided in <ref type="bibr" target="#b37">[37]</ref>, we are able to decompose each chord into 3 events, namely, the CHORD-TONE, CHORD-TYPE, and CHORD-SLASH events, with the help of regular expressions (regex) and some rule-based exception handling.</p><p>The 12 CHORD-TONE events, one for each note on the chromatic scale (i.e. C, C#, D, ...), determine the root note, hence the tonality, of the chord. The 47 CHORD-TYPE events affect the chord's quality and emotion by the different combination of notes played relative to the root note (or, key template as we call it); e.g., the key template of a Dominant 7th chord (CHORD-TYPE( <ref type="formula">7</ref>)) is [0, 4, 7, 10]. Finally, the 12 CHORD-SLASH events allow the freedom to alter the bass note to slightly tweak the chord's quality. If a chord contains no slash, its CHORD-SLASH event will share the same key as its CHORD-TONE. For instance, the chord C7/G, a C Dominant 7th over G, is represented by</p><formula xml:id="formula_1">[CHORD-TONE(C), CHORD-TYPE(7), CHORD-SLASH(G)].</formula><p>Note that after our decomposition, the number of unique chord-related events is greatly reduced to 71; and, the resulting set of events is still able to represent all 418 chords in WJazzD. It is easy to use the manually-constructed key template accompanying each CHORD-TYPE, together with the CHORD-TONE and CHORD-SLASH events to map each chord to notes during the conversion to MIDIs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.4">Structure-related Events</head><p>For the melodies, we prepend a PHRASE event to the notes marked as the start of a phrase. The presence of phrases may be important as it informs the model to "take a breath" between streams of notes. And, we retain several common types and subtypes of midlevel units (e.g., line, rhythm, lick etc.) as MLU events <ref type="bibr" target="#b17">[17]</ref>, likewise prepended to the starting note of each MLU, hoping that the model could capture the short-term note patterns described by the MLU types. PART and REPETITION events are added to each beginning and end of a form part, <ref type="foot" target="#foot_1">5</ref> guiding the model to generate repetitive chord progression and coherent melody lines for the parts marked with the same letter.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Model and Training Setups</head><p>Due to the large number of events per solo (check Table <ref type="table">1</ref>), it is hard to feed the entire pieces into a Transformer at once because of memory constraint. Therefore, we choose as the backbone sequence model the Transformer-XL <ref type="bibr" target="#b11">[11]</ref>, an improved variant of the Transformer which introduces recurrence to the architecture. It remedies the memory constraint and the resulting context fragmentation issue by caching the computation record of the last segment, and allowing the current segment to attend to the cache in the self-attention process. This allows information to flow across the otherwise separated segments, inducing better coherence in the generated music.</p><p>To evaluate the effectiveness of adding the structurerelated events (cf. Section 3.2.4), we consider the following two variants in our objective analysis:</p><p>• Model (A): trained with no structure-related events.</p><p>• Model (B): trained with the complete set of events.</p><p>They both consist of 12 layers, 8 attention heads and about 41 million learnable parameters. We train them on a single NVIDIA GTX 1080-Ti GPU (with 11 GB memory) with Adam optimizer, learning rate 1e-4, batch size 8, segment length 512 and 100% teacher forcing. Besides, following the Music Transformer's data augmentation setting <ref type="bibr" target="#b20">[20]</ref>, we randomly transpose each solo in the range of -3 to +3 keys in every epoch. It takes roughly a full day for the negative log-likelihood losses of the models to drop to 0.25, a level at which they are able to produce music of distinctive Jazz feeling (see Section 6 for justifications).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">SUBJECTIVE STUDY</head><p>To discover how users feel about the Jazz Transformer's compositions, we set up a blind listening test in which test-takers listen to four one-minute long pieces, two from the Model (B)'s compositions (at loss level 0.25), and two from real data. We do not include Model (A) here to reduce the burden on the test-takers, assuming that Model (B) is better. We inform them that the pieces are independent of one another, and they will be asked the same set of questions after listening to each piece, namely, to rate it in a five-point Likert scale on the following aspects:</p><p>• Overall Quality (O): Does it sound good overall?</p><p>• Impression (I): Can you remember a certain part or the melody?</p><p>• Structureness (S): Does it involve recurring music ideas, clear phrases, and coherent sections?</p><p>• Richness (R): Is the music diverse and interesting?</p><p>We distribute five test suites to our social circles and collect responses from 59 anonymized subjects, of which 27 are classified as "pros" for they rate their musical background (in general, not restricted to Jazz) as 4/5 or 5/5 (i.e., also on a five-point scale). The result shown in Figure <ref type="figure">2</ref> indicates that the Jazz Transformer receives mediocre scores and falls short of humans in every aspect, especially in overall quality (O) and structureness (S). Moreover, performed one-tailed Z-tests for the difference of means also suggests the significance of the gaps (p &lt; 0.05 for all aspects), providing concrete evidence of the model's defeat.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">OBJECTIVE EVALUATION METRICS</head><p>The result of our subjective study poses to us an intriguing question: All Responses (N=59)</p><formula xml:id="formula_2">If</formula><note type="other">Ours Real Figure 2</note><p>. Result of subjective study (O: Overall Quality, I: Impression, S: Structureness, R: Richness), comparing from-scratch compositions created by the proposed model with structure-related events (i.e., 'Model (B)') against the real pieces from the WJazzD. We note that the gaps in all aspects are statistically significant (p &lt; 0.05).</p><p>mystery, we develop a set of objective metrics which enables us to scrutinize the Jazz Transformer's compositions from various perspectives, and make comparisons with real data. These metrics include the analyses of event distributions, namely, the pitch class histogram, the grooving pattern, and the chord progressions; assessing the structureness with the help of the fitness scape plot; and, judging the model's performance on a discriminative task through the MIREX-like continuation prediction challenge.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Pitch Class Histogram Entropy</head><p>To gain insight into the usage of different pitches, we first collect the notes appeared in a certain period (e.g., a bar) and construct the 12-dimensional pitch class histogram -→ h , according to the notes' pitch classes (i.e. C, C#, ..., A#, B), normalized by the total note count in the period such that i h i = 1. Then, we calculate the entropy of</p><formula xml:id="formula_3">- → h : H( - → h ) = - 11 i=0 h i log 2 (h i ) .<label>(2)</label></formula><p>The entropy, in information theory, is a measure of "uncertainty" of a probability distribution <ref type="bibr" target="#b40">[40]</ref>, hence we adopt it here as a metric to help assessing the music's quality in tonality. If a piece's tonality is clear, several pitch classes should dominate the pitch histogram (e.g., the tonic and the dominant), resulting in a low-entropy -→ h ; on the contrary, if the tonality is unstable, the usage of pitch classes is likely scattered, giving rise to an -→ h with high entropy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Grooving Pattern Similarity</head><p>The grooving pattern represents the positions in a bar at which there is at least a note onset, denoted by -→ g , a 64dimensional binary vector in our setting. <ref type="foot" target="#foot_2">6</ref> We define the similarity between a pair of grooving patterns -→ g a , -→ g b as:</p><formula xml:id="formula_4">GS( - → g a , - → g b ) = 1 - 1 Q Q-1 i=0 XOR(g a i , g b i ) , (<label>3</label></formula><formula xml:id="formula_5">)</formula><p>where Q is the dimensionality of -→ g a , -→ g b , and XOR(•, •) is the exclusive OR operation. Note that the value of GS(•, •) would always lie in between 0 and 1.</p><p>The grooving pattern similarity helps in measuring the music's rhythmicity. If a piece possesses a clear sense of rhythm, the grooving patterns between pairs of bars should be similar, thereby producing high GS scores; on the other hand, if the rhythm feels unsteady, the grooving patterns across bars should be erratic, resulting in low GS scores.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Chord Progression Irregularity</head><p>To measure the irregularity of a chord progression, we begin by introducing the term chord trigram, which is a triple composed of 3 consecutive chords in a chord progression; for example, (Dm7, G7, CM7). Then, the chord progression irregularity (CPI) is defined as the percentage of unique chord trigrams in the chord progression of an entire piece. Please note that 2 chord trigrams are considered different if any of their elements does not match.</p><p>It is common for Jazz compositions to make use of 8or 12-bar-long templates of chord progressions (known as the 8-, or 12-bar blues), which themselves can be broken down into similar substructures <ref type="bibr" target="#b25">[25,</ref><ref type="bibr" target="#b35">35]</ref>, as the foundation of a section, and more or less "copy-paste" them to form the complete song with, say, AABA parts. Therefore, a well-composed Jazz piece should have a chord progression irregularity that is not too high.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Structureness Indicators</head><p>The structureness of music is induced by the repetitive musical content in the composition. It can involve multiple granularities, ranging from an instant musical idea to an entire section. From a psychological perspective, the appearance of repeated structures is the essence of the catchiness and the emotion-provoking nature of music <ref type="bibr" target="#b28">[28]</ref>.</p><p>The fitness scape plot algorithm <ref type="bibr" target="#b32">[32,</ref><ref type="bibr" target="#b33">33]</ref> and the associated SM Toolbox <ref type="bibr" target="#b34">[34]</ref> offer an aesthetic way of detecting and visualizing the presence of repeating structures in music. The fitness scape plot is a matrix S N ×N , <ref type="foot" target="#foot_3">7</ref> where s ij ∈ [0, 1] is the fitness, namely, the degree of repeat in the piece derived from the self-similarity matrix (SSM) <ref type="bibr" target="#b16">[16]</ref>, of the segment specified by (i, j).</p><p>Our structureness indicator is based on the fitness scape plot and designed to capture the most salient repeat within a certain duration interval. For brevity of the mathematical representation, we assume the sampling frame rate of S is 1 Hz (hence N will be the piece's duration in seconds), and define the structureness indicator as follows:</p><formula xml:id="formula_6">SI u l (S) = max l≤i≤u 1≤j≤N S ,<label>(4)</label></formula><p>where l, u<ref type="foot" target="#foot_4">foot_4</ref> are the lower and upper bounds of the duration interval (in seconds) one is interested in. In our experiments, we choose the structureness indicators of SI 8 3 , SI 15  8 , and SI 15 to examine the short-, medium-, and longterm structureness respectively. Notice that the accuracy of both Model (A) and (B) peaks at the loss level of 0.25, at 80% and 83% respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">MIREX-like Continuation Prediction Challenge</head><p>Being inspired by the "Patterns for Prediction Challenge" held as part of the Music Information Retrieval Evaluation eXchange (MIREX) 2019 <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b23">23]</ref>, we developed a method to test the model's capability to predict the correct continuation given a musical prompt. The challenge is carried out as follows: First, the model is fed with the beginning 8 bars of a piece, denoted by -→ s ; then, it is presented with a set of four 8-bar continuations</p><formula xml:id="formula_7">X = { - → x 0 , - → x 1 , - → x 2 , - → x 3 }, in</formula><p>which one is the true continuation, and the rest are wrong answers randomly drawn from other pieces. The way the model attempts to answer the multiple choice question is by calculating the average probability of generating the events of each continuation:</p><formula xml:id="formula_8">P( - → x i ) = 1 L L-1 j=0 p(x i j | xj-1 , . . . , x0 ; - → s ), i ∈ {0, 1, 2, 3} ,<label>(5)</label></formula><p>where L is the length of the shortest given continuation (in # events) in X , x i j is the j-th event token in -→ x i , and xj-1 , . . . , x0 are the events sampled from the model's output, hence the conditional probability p(x i j ) at each timestep can be obtained straightforward. Finally, the model returns arg max i P( -→ x i ) as its answer, of which the correctness we can check.</p><p>If the model can achieve high accuracy on this continuation prediction task, we may say it possesses a good overall understanding of Jazz music, enough for it to tell right from wrong when given multiple choices.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">EXPERIMENT RESULTS AND DISCUSSIONS</head><p>We begin with the evaluation on the MIREX-like challenge (Section 5.5). We pick 5 checkpoints of both Model (A) and Model (B) at different training loss levels to ask each of them 100 multiple choice questions (the prompt and continuation choices of each question are randomly drawn from the held-out validation data). The result shown in Figure <ref type="figure" target="#fig_1">3</ref> indicates that, similarly for both models, the accuracy steadily goes up as the training loss decreases, peaks at the loss level of 0.25, and drops afterwards. This shows that the models are gradually gaining knowledge about Jazz music along the training process until a certain point, where they potentially start to overfit.  , and SI 15 are the short-, medium-, and long-term structureness indicators (Sec. 5.4). Bold texts indicate the model checkpoint performing the closest to real data, which is considered to be the best. It is observed that Model (B) (i.e., the model trained with structure-related events) with a loss of 0.25 outperforms its counterparts at other loss levels and Model (A) on most of the metrics. Moreover, consistent with the result of the MIREX-like challenge (Fig. <ref type="figure" target="#fig_1">3</ref>), the performance of Model (B) plunges when the loss goes too low (0.1 in this case).</p><p>Following the MIREX-like challenge, we pick several checkpoints of both Models (A) and (B) for objective evaluations described in Sections 5.1-5.4. The chosen checkpoints are at loss levels 0.8, 0.25, and 0.1 (for Model (B) only, since in the MIREX-like challenge (Fig. <ref type="figure" target="#fig_1">3</ref>), its accuracy drastically drops when the loss reduces from 0.25 to 0.1). In the experiments, 50 32-bar-long from-scratch compositions from each checkpointed model are compared against the 409 pieces in the training dataset.</p><p>From the results (Table <ref type="table" target="#tab_2">2</ref>), we can summarize the model's deficiencies as follows: 1) the erraticity of the generated musical events; and, 2) the absence of mediumand long-term repetitive structures. Comparing with the real data, the first argument can be justified by the higher H 1 and H 4 , manifesting the unstable usage of pitches at local scale; and, the lower GS and higher CPI of the entire pieces, marking the lack of consistency in rhythm and harmony from a global point of view; meanwhile, the second argument can be explained directly by the significantly lower values of structureness indicators SI 15  8 and SI 15 , suggesting that while the model might be able to repeat some short fragments of music, creating structures of a longer time span is still beyond its capability.</p><p>Much to our delight, the introduction of structurerelated events seems to be functional to some extent, noticeable from the numbers that Model (B) at 0.25 loss level is for most of the time the closest competitor to humans, with a substantial lead on the metrics focusing on shorter timespans (i.e., H 1 , H 4 , and SI 8</p><p>3 ) when placed in comparison with Model (A). This suggests that the use of PHRASE and MLU events provides some assistance to the model in modeling music. Furthermore, resonating with the accu- racy trend in the MIREX-like challenge, the performance worsens when the loss is reduced to an overly low level.</p><p>To visualize the deficiency in structureness of the model's compositions, we choose the piece which scores the highest, 3.14, in the structureness (S) aspect in our subjective study; and, a human composition of the same duration, receiving 3.54 in the aspect S, for a head-tohead comparison of their fitness scape plots. The rivalry (see Figure <ref type="figure" target="#fig_3">4</ref>) reveals the stark contrast between their fitness values across all timescales. In the model's work, all traces of repetitive structures disappear at the timescale of 10 seconds; whereas in the human composition, not only do the fitness values stay high in longer timespans, but a clear sense of section is also present, as manifested by the 2 large, dark "triangles" in its scape plot.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.">CONCLUSION AND FUTURE WORK</head><p>In this paper, we have presented the Jazz Transformer, whose incorporation of structure-related events has been shown useful here in enhancing the quality of machinegenerated music. Moreover, we have proposed a series of objective metrics that shed light on the shortcomings of machine-composed pieces, including the erratic usage of pitch classes, inconsistent grooving pattern and chord progression; and, the absence of repetitive structures. These metrics not only show that the Transformer is in fact not that good a music composer, but also serve as effective quantitative measures for future efforts in automatic music composition to assess their models' performance, which by now still relies heavily on human evaluation.</p><p>In the future, we plan to carry out larger-scale studies to explicate the correlations between those quantitative metrics and the aspects of subjective evaluation; and, to continue working on inducing structures in machinecomposed music; such endeavors may not stay on revamping events that fit into Transformers as done, but involve a complete redesign of the Transformer architecture, enabling it to read the structural information directly computable from data, say, the fitness scape plot, to grasp the blueprint of a piece before composing music at finer scales.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. The first 8 bars of a piece (filename sample_ B01.mp3 in Google Drive) composed by the Jazz Transformer, exhibiting clear rests between phrases.</figDesc><graphic coords="1,307.05,203.80,241.20,109.57" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 .</head><label>3</label><figDesc>Figure3. Result of the MIREX-like continuation prediction challenge, each checkpoint is asked 100 questions. Notice that the accuracy of both Model (A) and (B) peaks at the loss level of 0.25, at 80% and 83% respectively.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>FitnessFigure 4 .</head><label>4</label><figDesc>Figure 4. The fitness scape plots of Model (B)'s best composition (according to the structureness (S) score in our subjective study, see Sec. 4) versus a human composition in the WJazzD. Note that the piece by Model (B) contains almost no signs of repetition longer than 10 seconds, while the real piece's repetitive structures extend well into the 20-30 seconds range.</figDesc><graphic coords="6,331.45,64.11,80.41,80.41" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 .</head><label>2</label><figDesc>Results of objective evaluations. H 1 , H 4 are the 1-, and 4-bar pitch class histogram entropy (see Sec. 5.1); GS is the grooving pattern similarity (Sec. 5.2) measured on all pairs of bars within a piece; CPI is the chord progression irregularity (in %; Sec. 5.3); finally, SI8  3 , SI15  8 </figDesc><table><row><cell>--</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_0"><p>All notes shorter than a 64th note are discarded and those longer than a half note are clipped.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_1"><p>For example, the entire A1 part is represented as [PART-START(A), REPETITION-START(1), . . . other events . . . , REPETITION-END(1), PART-END(A)].</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_2"><p>For example, if a bar contains only two note onsets, at the beginning of the 1st beat and 2nd beat respectively, then the corresponding -→ g will have g 0 , g 16 = 1, and the rest dimensions 0.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_3"><p>N is the number of frames sampled from the audio of a piece, the 1st axis represents the segment duration (in frames), and the 2nd axis represents the center of segment (in frames).</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_4"><p>If present, otherwise l defaults to 1, and u defaults to N .</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="8.">ACKNOWLEDGEMENTS</head><p>The authors would like to express the utmost gratitude to the <rs type="projectName">Jazzomat Research Project (University of Music FRANZ LISZT Weimar</rs>), for compiling the WJazzD dataset and making it publicly available; <rs type="person">Wen-Yi Hsiao</rs> (<rs type="affiliation">Taiwan AI Labs</rs>), for rendering the MIDIs to audios for subjective study; and <rs type="person">Yi-Jen Shih</rs> (<rs type="affiliation">National Taiwan University</rs>), for the help in arranging our open-source codes.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funded-project" xml:id="_Ve6XGGV">
+					<orgName type="project" subtype="full">Jazzomat Research Project (University of Music FRANZ LISZT Weimar</orgName>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Patterns for Prediction Challenge&quot; of Music Information Retrieval Evaluation eXchange</title>
+		<ptr target="https://www.music-ir.org/mirex/wiki/2019" />
+		<imprint>
+			<publisher>Patterns_for_Prediction</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">The Weimar Jazz Database</title>
+		<ptr target="https://jazzomat.hfm-weimar.de/" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Deep learning for Jazz walking bass transcription</title>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Abeßer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Balke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Klaus</forename><surname>Frieler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Pfleiderer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meinard</forename><surname>Müller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. AES International Conference on Semantic Audio</title>
+		<meeting>AES International Conference on Semantic Audio</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Score-informed analysis of intonation and pitch modulation in Jazz solos</title>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Abeßer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Estefanía</forename><surname>Cano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Klaus</forename><surname>Frieler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Pfleiderer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wolf-Georg</forename><surname>Zaddach</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="823" to="829" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Introducing the Jazzomat project -Jazz solo analysis using music information retrieval methods</title>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Abeßer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Klaus</forename><surname>Frieler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Pfleiderer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wolf-Georg</forename><surname>Zaddach</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Symposium on Computer Music Multidisciplinary Research (CMMR)</title>
+		<meeting>International Symposium on Computer Music Multidisciplinary Research (CMMR)</meeting>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">The generative electronic dance music algorithmic system (GEDMAS)</title>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arne</forename><surname>Eigenfeldt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philippe</forename><surname>Pasquier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Artificial Intelligence and Interactive Digital Entertainment Conference</title>
+		<meeting>Artificial Intelligence and Interactive Digital Entertainment Conference</meeting>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Rhythm, chord and melody generation for lead sheets using recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">Cedric</forename><forename type="middle">De</forename><surname>Boom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephanie</forename><surname>Van Laere</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Verbelen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bart</forename><surname>Dhoedt</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2002.10266</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Deep Learning Techniques for Music Generation, Computational Synthesis and Creative Systems</title>
+		<author>
+			<persName><forename type="first">Jean-Pierre</forename><surname>Briot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaëtan</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<publisher>Springer</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Harmony Transformer: Incorporating chord segmentation into harmony recognition</title>
+		<author>
+			<persName><forename type="first">Tsung-Ping</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="259" to="267" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Modeling temporal tonal relations in polyphonic music through deep networks with a novel image-based representation</title>
+		<author>
+			<persName><forename type="first">Ching-Hua</forename><surname>Chuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dorien</forename><surname>Herremans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. AAAI Conference on Artificial Intelligence</title>
+		<meeting>AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Transformer-XL: Attentive language models beyond a fixed-length context</title>
+		<author>
+			<persName><forename type="first">Zihang</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhilin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaime</forename><surname>Carbonell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2978" to="2988" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1810.04805</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">LakhNES: Improving multi-instrumental music generation with cross-domain pre-training</title>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huanru</forename><surname>Henry Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiting</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Garrison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Cottrell</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mcauley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval (ISMIR)</title>
+		<meeting>International Society for Music Information Retrieval (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="685" to="692" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Multi-track sequential generative adversarial networks for symbolic music generation and accompaniment</title>
+		<author>
+			<persName><surname>Hao-Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Yi</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li-Chia</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi-Hsuan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Musegan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. AAAI Conference on Artificial Intelligence</title>
+		<meeting>AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="34" to="41" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Audio-aligned Jazz harmony dataset for automatic chord transcription and corpus-based research</title>
+		<author>
+			<persName><forename type="first">Vsevolod</forename><surname>Eremenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emir</forename><surname>Demirel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baris</forename><surname>Bozkurt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Music Information Retrieval (ISMIR)</title>
+		<meeting>International Conference on Music Information Retrieval (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="483" to="490" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Visualizing music and audio using self-similarity</title>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Foote</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACM International Conference on Multimedia</title>
+		<meeting>ACM International Conference on Multimedia</meeting>
+		<imprint>
+			<date type="published" when="1999">1999</date>
+			<biblScope unit="page" from="77" to="80" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Midlevel analysis of monophonic Jazz solos: A new approach to the study of improvisation</title>
+		<author>
+			<persName><forename type="first">Klaus</forename><surname>Frieler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Pfleiderer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wolf-Georg</forename><surname>Zaddach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Abeßer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Musicae Scientiae</title>
+		<imprint>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="page" from="143" to="162" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Phrase-level audio segmentation of jazz improvisations informed by symbolic data</title>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Gregorio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Youngmoo</forename><surname>Kim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Automatic melodic reduction using a supervised probabilistic context-free grammar</title>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Groves</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Music Transformer: Generating music with long-term structure</title>
+		<author>
+			<persName><forename type="first">Cheng-Zhi Anna</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Curtis</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">D</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Monica</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douglas</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Learning Representations (ICLR)</title>
+		<meeting>International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Pop Music Transformer: Beat-based modeling and generation of expressive Pop piano compositions</title>
+		<author>
+			<persName><forename type="first">Yu-Siang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi-Hsuan</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACM International Conference on Multimedia</title>
+		<meeting>ACM International Conference on Multimedia</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Improving automatic jazz melody generation by transfer learning techniques</title>
+		<author>
+			<persName><forename type="first">Hsiao-Tzu</forename><surname>Hung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chung-Yang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi-Hsuan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hsin-Min</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Asia Pacific Signal and Information Processing Association Annual Summit and Conf. (APSIPA ASC)</title>
+		<meeting>Asia Pacific Signal and Information essing Association Annual Summit and Conf. (APSIPA ASC)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Algorithmic ability to predict the musical future: Datasets and evaluation</title>
+		<author>
+			<persName><forename type="first">Berit</forename><surname>Janssen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iris</forename><surname>Ren</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="208" to="215" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Modeling self-repetition in music generation using structured adversaries</title>
+		<author>
+			<persName><forename type="first">Harsh</forename><surname>Jhamtani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taylor</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Machine Learning for Media Discovery Workshop</title>
+		<meeting>Machine Learning for Media Discovery Workshop</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">How Jazz musicians improvise</title>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Johnson-Laird</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Music Perception -MUSIC PERCEPT</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="page" from="415" to="442" />
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">A comparative study on Transformer vs RNN in speech applications</title>
+		<author>
+			<persName><forename type="first">Karita</forename><surname>Shigeki</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Automatic Speech Recognition and Understanding Workshop</title>
+		<meeting>IEEE Automatic Speech Recognition and Understanding Workshop</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="449" to="456" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Nikolaos Pappas, and François Fleuret. Transformers are RNNs: Fast autoregressive transformers with linear attention</title>
+		<author>
+			<persName><forename type="first">Angelos</forename><surname>Katharopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Apoorv</forename><surname>Vyas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Machine Learning</title>
+		<meeting>International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">This is Your Brain on Music: The Science of a Human Obsession</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Daniel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Levitin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+			<pubPlace>Dutton</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Chord generation from symbolic melody using BLSTM networks</title>
+		<author>
+			<persName><forename type="first">Hyungui</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seungyeon</forename><surname>Rhyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyogu</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="621" to="627" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Lead sheet generation and arrangement via a hybrid generative model</title>
+		<author>
+			<persName><surname>Hao-Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meng-Hsuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi-Hsuan</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval Conference (ISMIR), latebreaking demo</title>
+		<meeting>International Society for Music Information Retrieval Conference (ISMIR), latebreaking demo</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">StructureNet: Inducing structure in generated melodies</title>
+		<author>
+			<persName><forename type="first">Gabriele</forename><surname>Medeot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Srikanth</forename><surname>Cherla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katerina</forename><surname>Kosta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Mcvicar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samer</forename><surname>Abdallah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Selvi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Newton-Rex</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Webster</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="725" to="731" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">A segment-based fitness measure for capturing repetitive structures of music recordings</title>
+		<author>
+			<persName><forename type="first">Meinard</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Grosche</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nanzhu</forename><surname>Jiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Music Information Retrieval (ISMIR)</title>
+		<meeting>International Conference on Music Information Retrieval (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="615" to="620" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">A scape plot representation for visualizing repetitive structures of music recordings</title>
+		<author>
+			<persName><forename type="first">Meinard</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nanzhu</forename><surname>Jiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Music Information Retrieval (ISMIR)</title>
+		<meeting>International Conference on Music Information Retrieval (ISMIR)<address><addrLine>Porto, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="page" from="97" to="102" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">SM Toolbox: MATLAB implementations for computing and enhancing similarity matrices</title>
+		<author>
+			<persName><forename type="first">Meinard</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nanzhu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harald</forename><forename type="middle">G</forename><surname>Grohganz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Audio Engineering Society (AES)</title>
+		<meeting>Audio Engineering Society (AES)</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Melodic improvisation on a twelve bar blues model: an investigation of physical and historical aspects and their contribution to performance</title>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>John</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nelson</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2001">2001</date>
+		</imprint>
+		<respStmt>
+			<orgName>City University London</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">PhD thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title/>
+		<author>
+			<persName><forename type="first">Christine</forename><surname>Mcleavy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Payne</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">MuseNet. OpenAI Blog</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Pfleiderer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Klaus</forename><surname>Frieler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Abeßer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wolf-Georg</forename><surname>Zaddach</surname></persName>
+		</author>
+		<title level="m">side the Jazzomat -New Perspectives for Jazz Research</title>
+		<editor>
+			<persName><forename type="first">Benjamin</forename><surname>Burkhart</surname></persName>
+		</editor>
+		<imprint>
+			<publisher>Schott Campus</publisher>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Language models are unsupervised multitask learners</title>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Open AI Blog</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Music generation with temporal structure augmentation</title>
+		<author>
+			<persName><forename type="first">Shakeel</forename><surname>Raja</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2004.10246</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">A mathematical theory of communication</title>
+		<author>
+			<persName><forename type="first">Claude</forename><forename type="middle">E</forename><surname>Shannon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Bell system technical journal</title>
+		<imprint>
+			<biblScope unit="volume">27</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="379" to="423" />
+			<date type="published" when="1948">1948</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Taking the models back to music practice: Evaluating generative transcription models built using deep learning</title>
+		<author>
+			<persName><forename type="first">Bob</forename><forename type="middle">L</forename><surname>Sturm</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oded</forename><surname>Ben-Tal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Creative Music Systems</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">JazzGAN: Improvising with generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Trieu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><forename type="middle">M</forename><surname>Keller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Workshop on Musical Metacreation</title>
+		<meeting>International Workshop on Musical Metacreation</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Advances in Neural Information Processing Systems (NIPS)</title>
+		<meeting>Advances in Neural Information essing Systems (NIPS)</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Computational corpus analysis: A case study on Jazz solos</title>
+		<author>
+			<persName><forename type="first">Christof</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Balke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Abeßer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meinard</forename><surname>Müller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>International Society for Music Information Retrieval Conference (ISMIR)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="416" to="423" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">On the evaluation of generative models in music</title>
+		<author>
+			<persName><forename type="first">Li-Chia</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lerch</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<publisher>Neural Computing and Applications</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

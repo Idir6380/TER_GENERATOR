@@ -1,0 +1,759 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">TOWARDS IMPROVING HARMONIC SENSITIVITY AND PREDICTION STABILITY FOR SINGING MELODY EXTRACTION</title>
+				<funder ref="#_FAZZZSv">
+					<orgName type="full">European Research Council</orgName>
+				</funder>
+				<funder ref="#_4MWQD4A">
+					<orgName type="full">ERC REACH)</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Keren</forename><surname>Shao</surname></persName>
+							<email>k5shao@ucsd.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California San Diego</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ke</forename><surname>Chen</surname></persName>
+							<email>knutchen@ucsd.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California San Diego</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Taylor</forename><surname>Berg-Kirkpatrick</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California San Diego</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Shlomo</forename><surname>Dubnov</surname></persName>
+							<email>sdubnov@ucsd.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California San Diego</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">TOWARDS IMPROVING HARMONIC SENSITIVITY AND PREDICTION STABILITY FOR SINGING MELODY EXTRACTION</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">4A84D1ECEA4C5B5BDB2B1566FD54FD02</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:18+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>In deep learning research, many melody extraction models rely on redesigning neural network architectures to improve performance. In this paper, we propose an input feature modification and a training objective modification based on two assumptions. First, harmonics in the spectrograms of audio data decay rapidly along the frequency axis. To enhance the model's sensitivity on the trailing harmonics, we modify the Combined Frequency and Periodicity (CFP) representation using discrete z-transform. Second, the vocal and non-vocal segments with extremely short duration are uncommon. To ensure a more stable melody contour, we design a differentiable loss function that prevents the model from predicting such segments. We apply these modifications to several models, including MSNet, FTANet, and a newly introduced model, PianoNet, modified from a piano transcription network. Our experimental results demonstrate that the proposed modifications are empirically effective for singing melody extraction. *The first two authors have equal contribution.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Singing melody extraction is a challenging task that aims to detect and identify the fundamental frequency (F0) of singing voice in polyphonic music recordings. This task is more complicated than the monophonic pitch detection task due to the presence of various instrumental accompaniments and background noises, making it more difficult to accurately extract the singing melody. Singing melody extraction is not only crucial for music analysis by itself, but also has many downstream applications, such as cover song identification <ref type="bibr" target="#b1">[1]</ref>, singing evaluation <ref type="bibr" target="#b2">[2]</ref>, and music recommendation <ref type="bibr" target="#b3">[3]</ref>.</p><p>Deep neural networks have been widely adopted in the singing melody extraction task to produce promising performance in terms of extraction accuracy. Early models <ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr">[6]</ref> simply leveraged deep neural networks (DNN) and convolutional neural networks (CNN) <ref type="bibr" target="#b7">[7]</ref>. In more recent models, musical and structural priors were incorporated to improve performance. These include MSNet <ref type="bibr" target="#b8">[8]</ref> with a vocal detection component at the encoder-decoder bottleneck, joint detection model <ref type="bibr" target="#b9">[9]</ref> setting up an auxiliary network, and TONet <ref type="bibr" target="#b10">[10]</ref> with tone-octave predictions. Additionally, models can capture frequency relationships better with multi-dilation <ref type="bibr" target="#b11">[11]</ref>, cross-attention networks <ref type="bibr" target="#b12">[12]</ref>, graph-based neural networks <ref type="bibr" target="#b13">[13]</ref>, or harmonic constant-Q transform (HCQT) <ref type="bibr" target="#b14">[14]</ref>.</p><p>One of our observations relates to the input representations of the models, which play an important role in affecting the extraction performance. Timbre, which is closely related to harmonics, is one of the key components that helps models distinguish the vocal from other instruments. When the CFP representation <ref type="bibr" target="#b15">[15]</ref> is chosen as the input representation, its second feature, the generalized cepstrum, allows the model to learn the strength of harmonics of any given fundamental frequency in a localized manner. However, in music, the harmonics of a single sound usually decays rapidly along the frequency axis (detail in section 2.1), which can pose a challenge for the model to distinguish sounds that only differ significantly at the trailing harmonics.</p><p>The transformation from the spectrum to the generalized cepstrum in CFP is a Fourier transform, and hence mostly captures the first few peaks with large magnitudes. As a result, this representation is not helpful in sensing the trailing harmonics. This motivates us to apply a different transformation function that produces a generalized cepstrum with better harmonics sensitivity.</p><p>Another observation relates to the vocal detection component. Extremely short vocal segments surrounded by non-vocal regions, and vice versa, rarely occur since vocalists typically sing a melody for at least half a second or rest for at least a few hundred milliseconds. Thresholdbased removal <ref type="bibr" target="#b16">[16]</ref>, mean or median filtering <ref type="bibr" target="#b17">[17,</ref><ref type="bibr" target="#b18">18]</ref> and Viterbi-based smoothing <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b20">20]</ref> are frequently used to address the problem. When they are implemented alongside a network-based algorithm, however, the network remains unaware of our smoothing intention and configuration. To investigate whether such awareness can increase the prediction performance, we derive a differentiable loss component that specifically penalizes spurious short-term predictions of these kinds during training, thus potentially guiding the model to produce consistently stable predictions.</p><p>In this paper, we propose two techniques that attempt to improve the two concerns mentioned above, namely the harmonic sensitivity and the prediction stability of singing melody extraction models. Our contributions are as follows:</p><p>• We propose to use exponentially growing sinusoids along the frequency axis to transform the spectrum into the generalized cepstrum of the CFP representation. This approach is equivalent to taking a ztransform instead of Fourier transform, which increases the harmonic sensitivity of the input.</p><p>• We design a differentiable loss function as part of the training objective to teach the network to avoid predicting unrealistically short sequences of vocal and non-vocal at the voice detection bin.</p><p>• We evaluate our techniques by applying them on several melody extraction models. Additionally, we adapt PianoNet <ref type="bibr" target="#b21">[21]</ref>, originally developed for piano transcription, into the melody extraction task. Experimental results demonstrate state-of-the-art performance of our improved models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">METHODOLOGY</head><p>In this section, we introduce three main parts of our methodology. First, we propose a modified CFP representation, z-CFP, to enhance the harmonic sensitivity of the network input. Second, we introduce extraction models used for evaluating our techniques, namely MSNet, FTANet, and PianoNet. Third, we propose a new loss function as part of training objective to improve the prediction stability of models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">z-CFP Representation for Harmonic Sensitivity</head><p>Our input representation of audio data is a modified version of the CFP representation. A CFP representation X ∈ R 3×T ×F contains three features, with T the length of time frames and F the number of frequency bins. At each time slice, it contains: (1) a power spectrum S ∈ R 1×F ;</p><p>(2) a generalized cepstrum GC ∈ R 1×F ; and (3) a generalized cepstrum of spectrum GCoS ∈ R 1×F , As illustrated in the upper part of Figure <ref type="figure" target="#fig_0">1</ref>, the standard CFP generation process begins by computing the framewise spectrum of an input audio waveform using shorttime Fourier transform (STFT). We then obtain the magnitude of each spectrum, which serves as the first feature of CFP, denoted as S. To derive the second feature, we compute the generalized cepstrum using the following equation:</p><formula xml:id="formula_0">GC = |F -1 (s γ (S))| = |F(s γ (S))|<label>(1)</label></formula><p>where F and F -1 denotes the Fourier transform and its inverse, s γ : R → R is an element-wise applied, logarithmlike modification function as described in <ref type="bibr" target="#b15">[15]</ref>, and the absolute value sign represents an element-wise complex norm operation. The second equality comes directly from the fact that norm of a complex number equals to that of its conjugate.</p><p>As mentioned in the introduction, GC is not sensitive to the trailing harmonic dynamics, as it mostly captures the first few peaks with large magnitudes. Since the harmonics decay rapidly along with the frequency axis, we shall revert the decay to better preserve such dynamics. In other words, instead of applying complex sinusoids n s γ (S[n])e -iwn as in Fourier transform (n is the entry of frequency bins in S), we apply growing complex sinusoids n s γ (S[n])e (k-iw)n , where k ∈ R and k &gt; 0. This is equivalent to taking a discrete z-transform n s γ (S[n])z -n , where z = e iw-k . In the actual implementation, k is manually assigned and fixed across different w. Therefore, as illustrated in Figure <ref type="figure" target="#fig_0">1</ref>, we can separate the computation of k part and w part as follows:</p><formula xml:id="formula_1">S[n] = e kn s γ (S[n]) for ∀n (2) GC = |F -1 ( S)| = |F( S)|<label>(3)</label></formula><p>In the lower part of Figure <ref type="figure" target="#fig_0">1</ref>, we present S of an audio waveform with different values of k. We can observe that the harmonics of S at the tail gets amplified so that the subsequent Fourier transform can better capture their dynamics. While we observe some amplifications of harmonics at frequencies other than the fundamental frequencies, their magnitudes are always smaller than those of nearby fundamental frequencies. Therefore, they pose no sufficient distraction for the extraction model, as long as the chosen k is not too large. In our experiments, we set k = 0.0006.</p><p>We then generate the generalized cepstrum of spectrum GCoS from cepstrum GC the same way as in the original CFP. Finally, each time slice of our modified CFP representation X ∈ R 3×T ×F consists of {S, GC, GCoS} with log-scaled frequency axis. For the rest of the paper, we denote it z-CFP. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Model Architecture</head><p>Our extraction models are referred from three state-ofthe-art (SoTA) models, MSNet <ref type="bibr" target="#b8">[8]</ref>, FTANet <ref type="bibr" target="#b12">[12]</ref>, and Pi-anoNet <ref type="bibr" target="#b21">[21]</ref>. Different from MSNet and FTANet, Pi-anoNet is the SoTA model of piano transcription. Given its superior performance on piano transcription, we incorporate a sub-network of PianoNet into singing melody extraction, as we hypothesize that it may also yield good results for melody extraction.</p><p>MSNet contains a 3-layer encoder, a 3-layer decoder, and a bottleneck module. The channel size is shifted as 3 → 32 → 64 → 128 → 64 → 32 → 1. The bottleneck module maps the encoder output to a 1-channel featuremap for voice detection. All 2D-convolutional layers come with (5 × 5) kernel size. FTANet contains a 4-layer encoder, a 3-layer decoder, and a 4-layer bottleneck module. Both encoder and decoder contain FTA-modules and SF-modules to process the audio latent features. The channel size is shifted from 3 to 128, then back to 1. More specifications of MSNet and FTANet can be found in their papers <ref type="bibr" target="#b8">[8,</ref><ref type="bibr" target="#b12">12]</ref>.</p><p>The PianoNet we use for this task is modified from a sub-network of <ref type="bibr" target="#b21">[21]</ref>. It starts with four convolutional blocks, each block containing two 2D-convolutional layers with kernel sizes <ref type="bibr" target="#b3">(3,</ref><ref type="bibr" target="#b5">5)</ref> and <ref type="bibr" target="#b3">(3,</ref><ref type="bibr" target="#b3">3)</ref> respectively, a batch normalization layer and a ReLU activation. Then it is followed by bidirectional-GRU and softmax layers, with dense layers as transitions. The layer bias is turned off for all layers before the Bi-GRU.</p><p>Figure <ref type="figure" target="#fig_1">2</ref> illustrates a more detailed structure of the three extraction models. Following the pipeline, we first process the audio waveform into z-CFP representations. Then we feed them into the extraction model, which produces output feature maps Ỹ ∈ R T ×(F +1) . The additional one feature along the frequency axis denotes the voice detection bin output. It is then compared against the ground truth label Y ∈ R T ×(F +1) , through the loss function introduced in the following section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Loss Function for Prediction Stability</head><p>We add two differentiable training objectives, L v and L nv , to the conventional binary cross entropy loss L BCE to teach the extraction model to avoid unrealistically short vocal and non-vocal sequences at the vocal detection bin. Since the design for these two cases are symmetric, we first introduce the loss object L v , for the vocal case.</p><p>As shown on the top of Figure <ref type="figure" target="#fig_2">3</ref>, the predictions at the vocal detection bin is a time series {a 1 , a 2 , ..., a T }. First, since our training objectives are dealing with certain types of short burst segments of vocal and non-vocal, we extract all possible subsequences, with stride 1. For example, for 3-length subsequences we have {a 1:3 , a 2:4 , ..., a T -2:T }, and similarly {a 1:4 , a 2:5 , ..., a T -3:T } for subsequences of length 4, etc.</p><p>Second, to simplify the problem a bit at the beginning, we assume that the voice detection output is binary valued a ∈ {0, 1}. Formally, we do not want "sharp-burst" sequences inside the following set:</p><formula xml:id="formula_2">Bv = Mv m=3 {a1...am|a1 = am = 0, ai = 1 for ∀i ̸ = 1, m} (4)</formula><p>where M v is a hyperparameter threshold, above which the duration of vocal segments becomes reasonable. Figure <ref type="figure" target="#fig_2">3</ref> illustrates examples of "sharp-burst" sequences in B v (and B nv ) as red segments inside black-border boxes.</p><p>Suppose m = 3, all possible binary sequences are {000, 001, 010, 011, 100, 101, 110, 111} and 010 ∈ B v . To make the model avoid predicting the short burst vocal Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023 segment, i.e., 010, we construct a polynomial objective that can fulfill the goal by satisfying the following:</p><formula xml:id="formula_3">L 3 v (a1a2a3) =</formula><p>1 where a1a2a3 = 010 0 otherwise (</p><p>A decent choice will then be</p><formula xml:id="formula_5">L 3 v (a1a2a3) = (1 -a1)a2(1 -a3)<label>(6)</label></formula><p>which can be easily extended to sequences with longer length m.</p><formula xml:id="formula_6">L 4 v (a1a2a3a4) = (1 -a1)a2a3(1 -a4) . . . L m v (a1...am) = (1 -a1)(1 -am) m-1 i=2 ai<label>(7)</label></formula><p>However, there is a small caveat in this extension when we move back from binary values to probability values a ∈ [0, 1]. For example, our loss component will be having trouble capturing sequences like {0.1, 0.4, 0.6, 0.1} and {0.1, 0.6, 0.4, 0.1} as both L<ref type="foot" target="#foot_3">foot_3</ref> v and L 4 v result in relatively small values. However, we observe that polynomials</p><formula xml:id="formula_7">(1 -a 1 )(1 -a 2 )a 3 (1 -a 4 ) and (1 -a 1 )a 2 (1 -a 3 )(1 -a 4 )</formula><p>respectively works better than our original L 4  v , but still insufficient to work standalone.</p><p>Since none of the polynomials above gives high values to sequences outside of B v in 4-length, a simple solution would be to redefine L 4  v to be the sum of all such polynomials:</p><formula xml:id="formula_8">L 4 v = (1 -a1)(1 -a4)(a2a3 + a2(1 -a3) + (1 -a2)a3) . . . L m v = (1 -a1)(1 -am) c 1 ...cm∈{0,1} m at least one c i ̸ =0 m-1 i=2 a c i i (1 -ai) 1-c i = (1 -a1)(1 -am)(1 - m-1 i=2 (1 -ai))<label>(8)</label></formula><p>This redefined loss L v allows better recognition of the bad sequences mentioned above while not falsely flagging sequences outside of B v . Furthermore, when dealing with longer sequences, for example {0.1, 0.9, ..., 0.9, 0.1} with increasingly many 0.9s in the middle, the original L v 's output quickly diminishes while the redefined L v does not.</p><p>This redefined objective does come with a small side effect, as it over-counts the shorter bad sequences. For example, (0.1, 0.9, 0.1, 0.1) now gets a high loss value not only in L 3 v , but also in L 4 v . However, we believe this side effect does not have significant impact as it does not matter whether neural network decides to stop producing shorter bad sequences or longer bad sequences first.</p><p>A further improvement is to pass the value of L m v into the S-curve function:</p><formula xml:id="formula_9">L m v ← (L m v ) r (L m v ) r + (1 -L m v ) r<label>(9)</label></formula><p>where r ∈ R and r &gt; 1. It will amplify those sequences that receive loss values closer to 1 and suppress those sequences with loss values closer to 0.</p><p>Finally, for each m ∈ [3, M v ], we compute L m v across all m-length subsequences in the model's output. The aggregated loss function L v is then computed by concatenating all these L m v arrays and taking the average. Now analogously, assuming non-vocal sequences beyond length M nv become reasonable, we can the same analysis on the following set of sequences:</p><formula xml:id="formula_10">Bnv = Mnv m=3 {a1...am|a1 = am = 1, ai = 0 for ∀i ̸ = 1, m}<label>(10)</label></formula><p>and consequently obtain L nv . Practically, L m nv of any sequence a 1 ...a m can be computed as L m v of the flipped sequence b 1 ...b m , where b i = 1a i for all i ∈ {1..m}. Our final loss function will then be:</p><formula xml:id="formula_11">L = L BCE + L v + L nv<label>(11)</label></formula><p>3. EXPERIMENTS</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Datasets and Experiment Setup</head><p>For the training data, we complied with the setting of <ref type="bibr" target="#b10">[10,</ref><ref type="bibr" target="#b12">12]</ref> and chose all 1000 Chinese pop songs from MIR-1K <ref type="foot" target="#foot_1">1</ref> and 35 vocal tracks from MedleyDB <ref type="bibr" target="#b22">[22]</ref>. For the testing data, we chose 12 tracks in ADC2004 and 9 tracks in MIREX05<ref type="foot" target="#foot_2">foot_2</ref> . We also selected 12 tracks from Med-leyDB that are disjoint from those already used for training.</p><p>For the signal processing part, we used 8000 Hz sampling rate to process audio tracks. We use a window size of 768, a hop size of 80 to compute the STFT of audio tracks. Note that the time resolution of our labels is 0.01 seconds, and this hop size was chosen to match that. Then, when creating z-CFP representations, we set the time dimension of the representation to be T = 128, or 1.28 seconds, and the number of frequency bins F = 360, or 60 bins per octave across 6 octaves. The start and stop frequencies are 32.5 Hz and 2050 Hz. Hence, the input shape becomes X ∈ R 3×128×360 and the output/label shape becomes Y ∈ R 128×361 .</p><p>Within the extra loss component, we set the duration threshold of vocal segments M v = 30 (0.3 seconds), the duration threshold of non-vocal segments M nv = 7 (0.07 seconds), and the S-curve exponent parameter r = 5.</p><p>For the training hyperparameters, we use a batch size of 10, the Adam optimizer <ref type="bibr" target="#b23">[23]</ref> with a fixed learning rate of 1 × 10 -4 . The maximum training epoch is 500. During the evaluation, we use the standard metrics of the singing melody extraction task, namely, voice recall (VR), voicing false alarm (VFA), raw pitch accuracy (RPA), raw chroma accuracy (RCA), and overall accuracy (OA) from the mir_eval library <ref type="bibr" target="#b24">[24]</ref>. Following the convention of this task, overall accuracy (OA) is regarded as the most important metric. All models are trained and tested in NVIDIA RTX 2080Ti GPUs and implemented in Py-Torch 3   <ref type="table">1</ref>. Ablation studies on ADC2004, MIREX05 and MedleyDB testsets. Baselines use CFP as the input representation and L BCE as the loss function. {L v , L nv } denotes the use of our proposed loss function in section 2.3. Among median filter sizes in the range [3, 100] ⊂ Z, 3 point works best for MedleyDB, 7 point works best for MIREX 05, and 15 point works best for ADC 2004. But they neither significantly outperform our proposed loss component in any single dataset, nor uniformly outperform in all three datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Ablation Study</head><p>We choose three extraction models, namely MSNet <ref type="bibr" target="#b8">[8]</ref>, FTANet <ref type="bibr" target="#b12">[12]</ref>, and PianoNet <ref type="bibr" target="#b21">[21]</ref>, to evaluate our ztransform and loss functions. We conducted ablation studies and presented the results in Table <ref type="table">1</ref>. We re-trained these models from scratch, and the results are largely consistent with the original reports of <ref type="bibr" target="#b8">[8,</ref><ref type="bibr" target="#b10">10,</ref><ref type="bibr" target="#b12">12]</ref>. The option ztransform denotes the use of z-CFP representations. Note that {L v , L nv } in the table denote the use of loss functions to address short burst segments of vocal and non-vocal. Due to the page limitation, we present a detailed ablation study on PianoNet while ablating MSNet and FTANet in an all-or-nothing fashion.</p><p>From Table <ref type="table">1</ref> we can clearly observe decent performance of both z-CFP and {L v , L nv } when added to the PianoNet, MSNet, and FTANet. Among these results, the addition of loss functions {L v , L nv } increases the overall accuracy while improving the VR, RPA, and RCA. The median filter postprocessing <ref type="bibr" target="#b18">[18]</ref> is used as a comparison. Since our loss component focuses on the vocal detection, we took the pitches predicted by median filters only when the original predictions are non-vocal. Further, to ensure fairness, we optimized the filter size against each single dataset within the range [3, 100] ⊂ Z and listed the evaluation results of those optimal ones. As we can see in Table <ref type="table">1</ref>, none of these median filters outperforms our loss component in a consistent manner, nor do they obtain considerable margins in any single dataset.</p><p>The z-CFP also increases several metrics, especially either VR or VFA, on each dataset. This indicates that by preserving more dynamics in the high frequency bins, the model can distinguish different sounds better and consequently improve the extraction performance. Also, note that unlike TONet <ref type="bibr" target="#b10">[10]</ref> and JDC <ref type="bibr" target="#b9">[9]</ref>, which achieved this through model design or music inductive bias, this technique relies solely on the inherent characteristics of the data.</p><p>When we incorporate both techniques into the extraction models, we observe a promising increase in each metric compared to the original models. However, we notice that some models with both techniques carried do not yield better performance than the models carrying only one of the techniques. These models appear to be an averaging weighting or an ensemble of models improved with either technique, implying better generalization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Comprehensive Performance Comparison</head><p>Table <ref type="table" target="#tab_1">2</ref> presents the results as we compare our best model, i.e., PianoNet with z-transform and {L v , L nv }, with other SoTA models. Among these SoTAs, there are two models with "*", indicating that these are only partial comparisons. For SpecTNT <ref type="bibr" target="#b25">[25]</ref>, since there is no official open-source implementation, we report its results based on our own reimplementation. For H-GNN <ref type="bibr" target="#b13">[13]</ref>, we directly copied its reported performance from the original paper.</p><p>From Table <ref type="table" target="#tab_1">2</ref>, our improved PianoNet with z-transform and {L v , L nv } yield the best OA performance over all datasets, the best RPA and RCA on ADC 2004 and MIREX 05 datasets. We do note, despite the use of the extra loss component, that our model's VFA is not necessarily the smallest. This is because the extra loss component only targets a particular type of false positive, and is not meant to minimize the false positive rate in general. For example, sometimes the network's vocal to non-vocal transition happens later than the reference labels. In this case, since the vocal sequence itself lasts long enough, the extra loss component will not mark this type of false positives. Addressing this type of errors is potentially a future work.</p><p>Another thing we found is that the PianoNet, as one of SoTAs in the piano transcription task and ported by us to the melody extraction task in this paper, has already yields very high performance on MIREX 05 dataset. This indicates that there may exist more powerful network architectures for this task yet to be explored.  <ref type="table">1</ref>, our techniques could help models other than PianoNet achieve higher performance than their original versions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Loss Value and Extraction Visualization</head><p>To empirically verify if applying the polynomial loss functions L v and L nv could reduce the voice detection errors, i.e., short burst segments of vocal and non-vocal, we visualize two types of plots in Figure <ref type="figure" target="#fig_3">4</ref>. The top three plots demonstrate the loss values of L 30 v between the original extraction models and the improved models with L v and L nv , across the entire MIREX05 dataset (i.e., we concatenate all tracks in the dataset). We see that cases in which the improved models' prediction receive loss values close to 1 diminishes comparing to those of the original models. This phenomenon implies that after applying L v and L nv , the chance of models to predict short burst segments The pair of plots in the last row compares the prediction performance of PianoNets, trained without and with the extra loss components, on a zoomed-in section of MIREX05. Note that the original PianoNet has a short burst non-vocal segment in between the 10th second and 11th second. Further, it has a considerable number of short burst vocal segments around the 12th second. Once trained with the extra loss components, these issues are resolved. Also note that both the original version and the improved version make a mistake in between the 13th and the 14th second. This is because the length of that non-vocal transition is greater than our threshold M nv , which ends up not triggering L nv . All these observations further verify the effectiveness of our proposed loss components.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">CONCLUSION</head><p>In this paper, we propose two techniques to respectively utilize the two assumptions we made for improving the performance of singing melody extraction models. First, comparing to Fourier transform, the use of z-transform in generating cepstrum allows the network to better recognize the strength of harmonics of any fundamental frequencies. Empirically, while the trailing harmonics of those frequencies that do not actually appear in the audio also get elevated, the benefit of the technique is greater than its setback. Second, our extra loss components make the network less prone to predict vocal and non-vocal sequences are unreasonably short, while not affecting the network's overall accuracy due to its differentiability. Along with different extraction models, we achieve better performance when compared to their original version and other state-ofthe-art models. We regard these two techniques as decent improvements on singing melody extraction models.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. Top: the transformation pipeline of the original CFP representation, and our proposed z-CFP representation. Bottom: modified Spectrum S with different growing rates k applied. Note that the original CFP corresponds to the case of k = 0.</figDesc><graphic coords="2,32.32,133.36,235.67,131.13" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. The model architecture. Note that we choose only one of the three extraction models at a time.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. The illustration of how we perform the loss functions L v and L nv on the subsequences of the voice detection prediction. Each loss components L are used to give large penalties (i.e., ✗) to certain types of subsequences.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 .</head><label>4</label><figDesc>Figure 4. The effect of applying the loss L v and L nv . The top three plots are values of L 30 v across the entire MIREX05 dataset. The bottom two plots are one 5-sec MIREX05 predictions.</figDesc><graphic coords="6,314.82,128.04,226.34,124.48" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>. RCA OA VR VFA↓ RPA RCA OA VR VFA↓ RPA RCA OA PianoNet 87.21 14.62 84.28 84.30 84.48 91.98 6.14 86.54 86.55 89.19 69.38 13.74 61.81 62.80 73.70 PianoNet + z-CFP 88.25 7.58 84.87 84.93 86.27 93.44 6.21 86.78 86.79 89.33 68.76 11.91 62.22 63.10 74.80 PianoNet + 3 point median 87.33 14.58 84.35 84.38 84.55 92.08 6.15 86.60 86.62 89.23 69.49 13.77 61.86 62.86 73.71 PianoNet + 7 point median 87.58 14.53 84.46 84.48 84.65 92.47 6.14 86.78 86.8 89.35 69.71 13.83 61.92 62.91 73.71 PianoNet + 15 point median 89.13 14.21 84.89 84.91 85.06 93.27 6.58 86.82 86.84 89.21 70.31 14.43 61.91 62.90 73.42 PianoNet + {Lv, Lnv} 90.92 13.58 86.06 86.12 86.13 91.87 5.79 87.50 87.50 89.94 71.16 15.77 63.66 64.81 73.66 PianoNet + z-CFP + {Lv, Lnv} 90.50 7.99 85.76 85.82 86.92 92.84 6.39 87.57 87.59 89.76 68.88 12.29 62.05 62.91 74.53 MSNet 89.78 23.12 80.83 81.60 80.10 84.85 11.44 77.76 78.09 81.68 53.49 9.41 46.90 48.24 68.15 MSNet + z-CFP + {Lv, Lnv} 90.61 14.62 81.96 82.57 82.59 88.38 14.85 80.83 81.01 82.39 62.95 14.60 53.60 55.31 69.07 FTANet 81.26 2.70 77.17 77.36 80.89 87.34 5.11 81.56 81.61 86.40 62.44 10.41 55.94 56.58 72.30 FTANet + z-CFP + {Lv, Lnv} 90.29 10.83 85.06 85.19 85.82 90.50 6.63 83.94 83.99 87.36 63.71 9.35 56.32 57.29 73.02</figDesc><table><row><cell>Dataset</cell><cell>ADC 2004</cell><cell>MIREX 05</cell><cell>MEDLEY DB</cell></row><row><cell cols="2">Metrics VR VFA↓ RPA Table</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 .</head><label>2</label><figDesc>Additionally, it is The comprehensive performance comparison among our improved models and current baselines.</figDesc><table><row><cell>Dataset</cell><cell></cell><cell></cell><cell>ADC 2004</cell><cell></cell></row><row><cell>Metrics</cell><cell>VR</cell><cell cols="3">VFA↓ RPA RCA</cell><cell>OA</cell></row><row><cell>MCDNN [4]</cell><cell>65.0</cell><cell>10.5</cell><cell>61.6</cell><cell cols="2">63.1 66.4</cell></row><row><cell>DSM [14]</cell><cell>89.2</cell><cell>51.3</cell><cell>75.4</cell><cell cols="2">77.6 69.8</cell></row><row><cell>MSNet [8]</cell><cell>89.8</cell><cell>23.1</cell><cell>80.8</cell><cell cols="2">81.6 80.1</cell></row><row><cell>FTANet [12]</cell><cell>81.3</cell><cell>2.7</cell><cell>77.2</cell><cell cols="2">77.4 80.9</cell></row><row><cell>TONet [10]</cell><cell>91.8</cell><cell>17.1</cell><cell>82.6</cell><cell cols="2">82.9 82.6</cell></row><row><cell cols="2">SpecTNT* [25] 85.4</cell><cell>8.2</cell><cell>83.5</cell><cell cols="2">83.6 85.0</cell></row><row><cell>H-GNN* [13]</cell><cell>89.2</cell><cell>21.3</cell><cell>84.8</cell><cell cols="2">86.1 83.9</cell></row><row><cell>Ours</cell><cell>90.5</cell><cell>8.0</cell><cell>85.7</cell><cell cols="2">85.8 86.9</cell></row><row><cell>Dataset</cell><cell></cell><cell></cell><cell>MIREX 05</cell><cell></cell></row><row><cell>Metrics</cell><cell>VR</cell><cell cols="3">VFA↓ RPA RCA</cell><cell>OA</cell></row><row><cell>MCDNN [4]</cell><cell>66.5</cell><cell>4.6</cell><cell>64.1</cell><cell cols="2">64.4 75.4</cell></row><row><cell>DSM [14]</cell><cell>91.4</cell><cell>45.3</cell><cell>75.7</cell><cell cols="2">77.0 68.4</cell></row><row><cell>MSNet [8]</cell><cell>84.8</cell><cell>11.4</cell><cell>77.8</cell><cell cols="2">78.1 81.7</cell></row><row><cell>FTANet [12]</cell><cell>87.3</cell><cell>5.1</cell><cell>81.6</cell><cell cols="2">81.6 86.4</cell></row><row><cell>TONet [10]</cell><cell>91.6</cell><cell>8.5</cell><cell>83.8</cell><cell cols="2">84.0 86.6</cell></row><row><cell cols="2">SpecTNT* [25] 82.2</cell><cell>8.7</cell><cell>77.4</cell><cell cols="2">77.5 82.5</cell></row><row><cell>H-GNN* [13]</cell><cell>93.2</cell><cell>21.7</cell><cell>85.2</cell><cell cols="2">86.4 81.3</cell></row><row><cell>Ours</cell><cell>92.8</cell><cell>6.4</cell><cell>87.6</cell><cell cols="2">87.6 89.8</cell></row><row><cell>Dataset</cell><cell></cell><cell cols="3">MEDLEY DB</cell></row><row><cell>Metrics</cell><cell>VR</cell><cell cols="3">VFA↓ RPA RCA</cell><cell>OA</cell></row><row><cell>MCDNN [4]</cell><cell>37.4</cell><cell>5.3</cell><cell>34.2</cell><cell cols="2">35.3 62.3</cell></row><row><cell>DSM [14]</cell><cell>86.6</cell><cell>44.3</cell><cell>70.2</cell><cell cols="2">72.4 64.8</cell></row><row><cell>MSNet [8]</cell><cell>53.5</cell><cell>9.4</cell><cell>46.9</cell><cell cols="2">48.2 68.1</cell></row><row><cell>FTANet [12]</cell><cell>62.4</cell><cell>10.4</cell><cell>55.9</cell><cell cols="2">56.6 72.3</cell></row><row><cell>TONet [10]</cell><cell>64.2</cell><cell>12.5</cell><cell>56.6</cell><cell cols="2">58.0 71.6</cell></row><row><cell cols="2">SpecTNT* [25] 62.7</cell><cell>18.8</cell><cell>54.7</cell><cell cols="2">56.4 63.9</cell></row><row><cell>H-GNN* [13]</cell><cell>71.7</cell><cell>21.6</cell><cell>61.2</cell><cell cols="2">65.8 67.9</cell></row><row><cell>Ours</cell><cell>68.9</cell><cell>12.3</cell><cell>62.1</cell><cell cols="2">62.9 74.5</cell></row><row><cell cols="6">noteworthy that our proposed PianoNet architecture has a</cell></row><row><cell cols="6">small number of parameters (5.5 million), which is com-</cell></row><row><cell cols="6">parable with MCDNN (5.6 million), FTANet (3.4 million)</cell></row><row><cell cols="6">and far less than TONet (152 million). This demonstrates</cell></row><row><cell cols="6">its potential in practical applications where computational</cell></row><row><cell cols="6">resources are limited. Again, as demonstrated in Table</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>http://mirlab.org/dataset/public/MIR-1K.zip</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_2"><p>https://labrosa.ee.columbia.edu/projects/melody/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_3"><p>https://pytorch.org/ Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="5.">ACKNOWLEDGMENTS</head><p>We would like to thank the <rs type="institution">Institute for Research and Coordination in Acoustics and Music (IRCAM)</rs> Project <rs type="projectName">REACH: Raising Co-creativity in Cyber-Human Musicianship</rs> for supporting this project. This project has received funding from the <rs type="funder">European Research Council</rs> (<rs type="funder">ERC REACH)</rs> under the European Union's <rs type="programName">Horizon 2020 research and innovation programme</rs> (Grant Agreement #<rs type="grantNumber">883313</rs>).</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funded-project" xml:id="_FAZZZSv">
+					<orgName type="project" subtype="full">REACH: Raising Co-creativity in Cyber-Human Musicianship</orgName>
+				</org>
+				<org type="funding" xml:id="_4MWQD4A">
+					<idno type="grant-number">883313</idno>
+					<orgName type="program" subtype="full">Horizon 2020 research and innovation programme</orgName>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Bytecover2: Towards dimensionality reduction of latent embedding for efficient cover song identification</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ma</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP</title>
+		<meeting>ICASSP</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="616" to="620" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Automatic singing evaluation without reference melody using bidense neural network</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP</title>
+		<meeting>ICASSP</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="466" to="470" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Learning audio embeddings with user listening data for content-based music recommendation</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Gu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP, 2021</title>
+		<meeting>ICASSP, 2021</meeting>
+		<imprint>
+			<biblScope unit="page" from="3015" to="3019" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Melody extraction on vocal segments using multi-column deep neural networks</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Oh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ISMIR</title>
+		<meeting>ISMIR</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="819" to="825" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Vocal melody extraction using patch-based cnn</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP</title>
+		<meeting>ICASSP</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="371" to="375" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Crepe: A convolutional representation for pitch estimation</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP</title>
+		<meeting>ICASSP</meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="161" to="165" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Gradient-based learning applied to document recognition</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Haffner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE</title>
+		<meeting>IEEE</meeting>
+		<imprint>
+			<date type="published" when="1998">1998</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A streamlined encoder/decoder architecture for melody extraction</title>
+		<author>
+			<persName><forename type="first">T.-H</forename><surname>Hsieh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP</title>
+		<meeting>ICASSP</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="156" to="160" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Joint detection and classification of singing voice melody using convolutional recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Applied Sciences</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Tonet: Tone-octave network for singing melody extraction from polyphonic music</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dubnov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP</title>
+		<meeting>ICASSP</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="626" to="630" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A multi-dilation and multiresolution fully convolutional network for singing melody extraction</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>You</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Chi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP</title>
+		<meeting>ICASSP</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="551" to="555" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Frequency-temporal attention network for singing melody extraction</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP, 2021</title>
+		<meeting>ICASSP, 2021</meeting>
+		<imprint>
+			<biblScope unit="page" from="251" to="255" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Hierarchical graph-based neural network for singing melody extraction</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP</title>
+		<meeting>ICASSP</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="626" to="630" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Deep salience representations for f0 estimation in polyphonic music</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ISMIR</title>
+		<meeting>ISMIR</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="63" to="70" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Combining spectral and temporal representations for multipitch estimation of polyphonic music</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Trans. Audio, Speech, Lang. Process</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="1600" to="1612" />
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Pitch contours as a mid-level representation for music informatics</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">J</forename><surname>Bosch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Audio engineering society conference: 2017 AES international conference on semantic audio</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Melody extraction from polyphonic music signals using pitch contour characteristics</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Gómez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Trans. Audio, Speech, Lang. Process</title>
+		<imprint>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1759" to="1770" />
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Detecting stable regions in frequency trajectories for tonal analysis of traditional georgian vocal music</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Rosenzweig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Scherbaum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Müller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ISMIR</title>
+		<meeting>ISMIR</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="352" to="359" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">pyin: A fundamental frequency estimator using probabilistic threshold distributions</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mauch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP. IEEE</title>
+		<meeting>ICASSP. IEEE</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="659" to="663" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Melody extraction based on a source-filter model using pitch contour selection</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">J</forename><surname>Bosch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">Gómez</forename><surname>Gutiérrez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings SMC 2016. 13th Sound and Music Computing Conference</title>
+		<meeting>SMC 2016. 13th Sound and Music Computing Conference</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Highresolution piano transcription with pedals by regressing onset and offset times</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Trans. Audio, Speech, Lang. Process</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="page" from="3707" to="3717" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Medleydb: A multitrack dataset for annotation-intensive mir research</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tierney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mauch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Cannam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ISMIR</title>
+		<meeting>ISMIR</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="155" to="160" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">mir_eval: A transparent implementation of common mir metrics</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">J</forename><surname>Humphrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Nieto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Dawen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">C</forename><surname>Raffel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ISMIR</title>
+		<meeting>ISMIR</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="367" to="372" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Spectnt: a time-frequency transformer for music audio</title>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">T</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Song</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ISMIR, 2021</title>
+		<meeting>ISMIR, 2021</meeting>
+		<imprint>
+			<biblScope unit="page" from="396" to="403" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m">Proceedings of the 24th ISMIR Conference</title>
+		<meeting>the 24th ISMIR Conference<address><addrLine>Milan, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023-09">November 5-9, 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

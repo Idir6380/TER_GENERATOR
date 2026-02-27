@@ -1,0 +1,1131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MELODY INFILLING WITH USER-PROVIDED STRUCTURAL CONTEXT</title>
+				<funder ref="#_VQdA7jg">
+					<orgName type="full">NSTC</orgName>
+				</funder>
+				<funder ref="#_gcbvYX4">
+					<orgName type="full">National Science and Technology Council of Taiwan</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Chih-Pin</forename><surname>Tan</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">National Cheng Kung University</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">Academia Sinica</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Alvin</forename><forename type="middle">W Y</forename><surname>Su</surname></persName>
+							<email>alvinsu@mail.ncku.edu.tw</email>
+							<affiliation key="aff0">
+								<orgName type="institution">National Cheng Kung University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yi-Hsuan</forename><surname>Yang</surname></persName>
+							<email>yang@citi.sinica.edu.tw</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Academia Sinica</orgName>
+							</affiliation>
+							<affiliation key="aff2">
+								<orgName type="department">Taiwan AI Labs</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MELODY INFILLING WITH USER-PROVIDED STRUCTURAL CONTEXT</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">257193F23B2884C59E1E24B3D6C2F2AC</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:15+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>This paper proposes a novel Transformer-based model for music score infilling, to generate a music passage that fills in the gap between given past and future contexts. While existing infilling approaches can generate a passage that connects smoothly locally with the given contexts, they do not take into account the musical form or structure of the music and may therefore generate overly smooth results. To address this issue, we propose a structure-aware conditioning approach that employs a novel attention-selecting module to supply user-provided structure-related information to the Transformer for infilling. With both objective and subjective evaluations, we show that the proposed model can harness the structural information effectively and generate melodies in the style of pop of higher quality than the two existing structure-agnostic infilling models.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>In recent years, machine learning techniques have been widely applied to symbolic music generation. A large number of models attain sequential generation by accounting for only the past context, i.e., the generated music depends on only the preceding musical content <ref type="bibr">[1±14]</ref>. While sequential generation can find useful use cases, it does not align with typical human compositional practices which can be non-sequential in nature. Musicians often write motifs or small pieces to get inspiration first, before working on the middle parts to connect them.</p><p>Hence, we focus on the scenario when both the past and future contexts are given, which is called music score infilling or inpainting <ref type="bibr" target="#b15">[15]</ref>. As shown in Figure <ref type="figure" target="#fig_0">1</ref>(a), the task is to let models fill in the missing part between the two given segments. Prompt-based conditioning approaches <ref type="bibr">[15±23]</ref> have been applied to such a task in recent years, treating the two given segments as the ªprompt.º Among them, the variable-length infilling model (VLI) <ref type="bibr" target="#b20">[20]</ref> obtains promising results by adding special positional encodings to XLNet <ref type="bibr" target="#b24">[24]</ref>, a permutation-based language model that is naturally suitable for generative tasks with given bi-© Chih-Pin Tan, Alvin W.Y. Su, and Yi-Hsuan Yang. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Chih-Pin Tan, Alvin W.Y. Su, and Yi-Hsuan Yang, ªMelody Infilling with User-Provided Structural Contextº, in Proc. of the 23rd Int. Society for Music Information Retrieval Conf., Bengaluru, India, 2022. Considering composers usually write musical pieces in a hierarchical manner <ref type="bibr" target="#b25">[25]</ref>, we note that prompt-based conditioning approaches have a strong limitation: they generate results with only consideration of local smoothness among the past context, future context, and result, without taking care of the overall musical form or structure of the music. For instance, a composer may like to write a song in a musical form of ABA'B'. If we consider the concatenation of the segments corresponding to A and B (i.e., AB) as the past context, and the segment corresponding to B' as the future context, and feed them to an existing infilling model, the model may generate a sequence that consists of similar melody and chord progression as the segments corresponding to B and B', not the intended repetition or variation of the segment corresponding to A.</p><p>To address this issue, we propose in this paper a novel structure-aware setting for music infilling. As shown in Figure <ref type="figure" target="#fig_0">1</ref>(b), besides the past and future contexts exploited by conventional structure-agnostic, prompt-based models, out approach additionally capitalizes for the infilling task the structural context, a music segment corresponding to a certain part of the whole music that is supposed to share the same structure label (such as A or B) with the missing segment. Accordingly, besides local smoothness, the model also needs to consider the similarity between the infilled segment and the structural context. Here, we assume the structural context is provided by a user, not generated by a model. For example, the user may designate the segment corresponding to A as the structural context, thereby inform the model with the intended musical form.</p><p>We improve upon the VLI model <ref type="bibr" target="#b20">[20]</ref> in the following ways to realize structure-aware infilling. First, we use the classic Transformer [26±28] instead of the more sophisticated XLNet <ref type="bibr" target="#b24">[24]</ref> as the model backbone, to make it easier to add a conditioning module to exploit the structural context. To improve the capability of the Transformer to account for bi-directional contexts, we propose two novel components, the bar-count-down technique (Section 3.2) and order embeddings (Section 3.3), which respectively give the model an explicit control of the length of the generated music, and a convenient way to attend to the future context. Second, being inspired by the Theme Transformer <ref type="bibr" target="#b29">[29]</ref>, we use not a Transformer decoder-only architecture but a sequence-to-sequence (seq2seq) Transformer encoder/decoder architecture, using the cross-attention between the encoder and decoder as the conditioning module to account for the structural context. Moreover, we propose an attention-selecting module that allows the Transformer to access multiple structural contexts while infilling different parts of a music piece, which can be useful both in the training and inference time (Section 3.4) .</p><p>For evaluation, we compare our model with two strong baselines, the VLI <ref type="bibr" target="#b20">[20]</ref> and the work of Hsu &amp; Chang <ref type="bibr" target="#b21">[21]</ref>, on the task of symbolic-domain melody infilling of 4-bar content using the POP909 dataset <ref type="bibr" target="#b30">[30]</ref> and the associated structural labels from Dai et al. <ref type="bibr" target="#b31">[31]</ref>. With objective and subjective analyses, we show that our model greatly outperforms the baselines in the structure completeness of the generated pieces, without degrading local smoothness.</p><p>We set up a webpage for demos <ref type="foot" target="#foot_0">1</ref> and open source our code at a public GitHub repository. <ref type="foot" target="#foot_1">2</ref></p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>Generating missing parts with given surrounding contexts has been attempted by early works. DeepBach <ref type="bibr" target="#b17">[17]</ref> predicts missing notes based on the notes around them. They use two recurrent neural networks (RNNs) to capture the past and future contexts, and a feedforward neural network to capture the current context from notes with the same temporal position as the target note. COCONET <ref type="bibr" target="#b16">[16]</ref> trains a convolutional neural network (CNN) to complete partial musical scores and explores the use of blocked Gibbs sampling as an analog to rewriting. They encode the music data with the piano roll representation and treat that as a fixed-size image, so the model can only perform fixedlength music infilling. Inpainting Net <ref type="bibr" target="#b15">[15]</ref> uses an RNN to integrate the temporal information from a variational auto-encoder (VAE) <ref type="bibr" target="#b32">[32]</ref> for bar-wise generation, Wei et al. <ref type="bibr" target="#b23">[23]</ref> build the model with a similar concept as Inpainting Net and use the contrastive loss <ref type="bibr" target="#b33">[33,</ref><ref type="bibr" target="#b34">34]</ref> for training to improve the infilling quality. Some Transformer-based models have also been proposed to achieve music infilling. Ippolito et al. <ref type="bibr" target="#b18">[18]</ref> concatenate the past and future context with a special separator token. They keep the original positional encoding of the contexts and the missing segment, which again limits the length of given contexts and generated sequence to be fixed. We see that these infilling models impose some data assumptions and thereby have certain restrictions, e.g., the length of the input sequence cannot be arbitrary, or the missing segment needs to be complete bars. The work of Hsu &amp; Chang <ref type="bibr" target="#b21">[21]</ref> is free of these restrictions. They use two Transformer encoders to capture the past and future context respectively and generate results with a Transformer decoder. The VLI model <ref type="bibr" target="#b20">[20]</ref> can also realize variable-length infilling. However, to our best knowledge, no existing models have explicitly considered structure-related information for infilling.</p><p>Structure-based conditioning has been explored only recently by Shi et al. <ref type="bibr" target="#b29">[29]</ref> in their Theme Transformer model for sequential music generation. They use a seq2seq Transformer to account for not only the past context but also an additional pre-given theme segment that is supposed to manifest itself multiple times in the model's generation result. The present work can be considered as an extension of their work to the scenario of music infilling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHODOLOGY</head><p>Given a past context C past and a future context C future , the general, structure-agnostic music infilling task entails generating an infilled segment T that interconnects C past and C future smoothly, preferably in a musically meaningful way. When using an autoregressive generative model such as the Transformer as the model backbone, the training object is to maximize the following likelihood function:</p><formula xml:id="formula_0">0&lt;k≤|T | P (t k |t &lt;k , C past , C future ) ,<label>(1)</label></formula><p>where t k denotes the element of T at timestep k, t &lt;k the subsequence consisting of all the previously generated elements, and | • | the length of a sequence. Extending from Eq. ( <ref type="formula" target="#formula_0">1</ref>), we propose and study in this paper a special case, called structure-aware music infilling, where an additional segment G representing the structural context is given, leading to the new objective:</p><formula xml:id="formula_1">0&lt;k≤|T | P (t k |t &lt;k , C past , C future ; G) .<label>(2)</label></formula><p>As depicted in Figure <ref type="figure" target="#fig_1">2</ref>(a), our model is based on Transformer with the encoder-decoder architecture. It uses the decoder to self-attend to the prompt (i.e., C past and C future ) and the previously-generated elements (i.e., t &lt;k ), and the encoder to cross-attend to the structural context G. We provide details of the proposed model below. Note that we do not require the length of all the involved segments to be fixed; namely |T |, |C past |, |C future | and |G| are all variables in our setting.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">REMI-based Token Representation</head><p>To incorporate structure-related information to our representation of the music data, we devise an extension of the REMI-based representation <ref type="bibr" target="#b8">[8]</ref> that comprises five types   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Bar-Count-Down Technique</head><p>The work of Hsu &amp; Chang <ref type="bibr" target="#b21">[21]</ref> uses special BOS and EOS tokens as the ªsignalº to start or stop the generation process. At inference time, the infilled segment generated by their model comes to an end when the model generates an EOS token. While this may work fine in certain cases, doing so cannot give us an explicit control of the number of bars to be generated for the infilled segment. Such a control is preferable when we want to make sure that the previous context and the future context are a certain number of bars apart, which is highly needed for structure-aware in- </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Order Embedding</head><p>Transformers with causal masking are mainly designed for sequential generation. To apply the model to infilling tasks where the missing part is in the middle of the input sequence, the model proposed by Hsu &amp; Chang <ref type="bibr" target="#b21">[21]</ref> attends to bi-directional context from two encoders with crossattention. As we want to instead use only the self-attention of the decoder to exploit bi-directional information, we reorder the sequence {C past , T , C future } to {C past , C future , T }. Doing so would however change the original positional relationship among C past , T , and C future . <ref type="foot" target="#foot_3">3</ref> As depicted in Figure <ref type="figure" target="#fig_4">4</ref>(b), the real positional relationships among the segments entails associating the tokens in T with positional embeddings corresponding to a set of positions p 2 that signifies the model the segment T is after C past (i.e., p 1 ≺ p 2 ) and is before C future (p 2 ≺ p 3 ). 4 After reordering, however, using the typical way of computing the positional embeddings from left to right by the Transformers, T would be assigned with positional embeddings corresponding to p 3 , meaning that by the model-viewed positional relationships, T is after both C past and C future . The real and the model-viewed are mismatched.</p><p>We introduce a new position-related segment embedding called ªorder embeddingº to tackle this issue. Specifically, for the positional embeddings for all the tokens in C past , we add to them the same additional embedding corresponding to a positional ªoffsetº or ªorder,º denoted as O 0 . We similarly incorporate O 1 and O 2 to the positional embeddings for the tokens in T and C future . As long as the ªoffsetº is big enough, we can have p 1 + O 0 ≺ p 3 + O 1 ≺ p 2 +O 2 , ensuring that the real and model-viewed positional relationships are matched, as depicted in Figure <ref type="figure" target="#fig_4">4(c)</ref>.</p><p>We note that, as the same order embedding is added to the positional embeddings of all the tokens in a segment, the proposed idea works nicely regardless of whether the segment lengths |C past |, |T |, |C future | are fixed or not.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Attention-Selecting Module</head><p>While the formulation of Eq. ( <ref type="formula" target="#formula_1">2</ref>) considers only one structural context G, in practice, we may want to designate multiple structural contexts {G 1 , G 2 , . . . , G N } for infilling, with each segment G n corresponding to a certain structure label such as A and B. This is useful, for example, when the first part of the infilled segment T is meant to be similar to phrase A, while the latter part similar to phrase B. To indicate which G n a specific token t k of T should refer to, we define the structure index y k ∈ {0, . . . , N }, for k = {1, . . . , |T |}. The structure indices are also given by called attention score. However, using the token embeddings alone fails to consider the position-related relations of the two tokens (e.g., whether they are neighbors or distant apart). Accordingly, in practice, people add token-wise positional embeddings to the token embeddings before computing their attention [35±37]. 4 We use p ≺ q to denote that any elements in the set p is smaller, or ªtemporally before,º any elements in the set q. the user when the user specifies the intended musical form. With all these, we extend Eq. ( <ref type="formula" target="#formula_1">2</ref>) to:</p><formula xml:id="formula_2">0&lt;k≤|T | P (t k |t &lt;k , C past , C future ; G 1 , ..., G N , y k ) . (3)</formula><p>We use y k = 0 to indicate the case where t k is supposed to follow none of the structural contexts (e.g., when t k is part of the bridge). When y k ̸ = 0, t k follows only one of the structural context G y k . In our implementation, for tokens whose y k = 0, we only use the self-attention to attend to the prompt and t &lt;k , leading to a formulation akin to Eq. ( <ref type="formula" target="#formula_0">1</ref>). When y k ̸ = 0, we have a ªselectorº that picks by y k the structural context G y k to be attended to via crossattention, resulting in a formulation akin to Eq. ( <ref type="formula" target="#formula_1">2</ref>). This is depicted in Figure <ref type="figure" target="#fig_1">2</ref>(b) and Figure <ref type="figure" target="#fig_5">5</ref>.</p><p>Figure <ref type="figure" target="#fig_5">5</ref> also shows that, in our implementation, instead of computing the cross attention between the target sequence with a specific structural context G y k , we actually compute the cross attention between the target sequence with every structural contexts {G 1 , G 2 , . . . , G N } and let the selector pick the right one. While this seems a waste of computing, we find doing so faster when GPUs are used. <ref type="foot" target="#foot_4">5</ref></p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTAL SETUP</head><p>We collect the melody data <ref type="foot" target="#foot_5">6</ref> from the POP909 dataset compiled by Wang et al. <ref type="bibr" target="#b30">[30]</ref>. POP909 contains 909 MIDI files of pop piano performances, though we discard 8 of them due to errors encountered in the preprocessing stage. We split all remaining songs into 811 (90%) songs for training and 91 (10%) songs for testing. The 16-th note is set as the minimal temporal resolution to quantize the tempo, beat, and duration for reducing the vocabulary size.</p><p>Dai et al. <ref type="bibr" target="#b31">[31]</ref> publicly share the structural information of songs in POP909 with letters and integers to indicate the structure labels and their lengths in bars, such as</p><formula xml:id="formula_3">i4 A8 B8 x4 A8 B8 B8 X2 c4 c4 X2 B9 o2 , (4)</formula><p>where the music phrases labeled with the same letter are considered to share the same structural context. 7 8 Besides, the musical phrases with the labels i, x, and o are respectively the introduction, bridge, and ending, which do not have structural context in our setting. For each song, we use the phrases corresponding to the first occurrence of the structure labels such as A and B as the structural contexts G 1 , G 2 , etc. For example, we choose bars 5±12 (i.e., the A8 phrase after i4) and bars 13±20 (i.e., the B8 phrase before x4) in the example shown in Eq. ( <ref type="formula">4</ref>) as the structural contexts for A and B since they are the first music phrases in the song with the corresponding labels.</p><p>The training data is generated with the following steps: (i) iterating through all labels except for the first and last ones in the structural information, (ii) choosing their corresponding music phrases as the infilled sequences T , and (iii) concatenating T with their preceding and following 6-bars music segments to get {C past , T, C future }, yielding 8,607 data in total. Before feeding the training data into the model, we reorder the input sequences and insert additional special tokens, BOS, SEP, and EOS, to change them into {BOS, C past , SEP, C future , SEP, T, EOS}. The reordered input sequence and structural contexts are transformed to the embeddings with size 512. The model consists of an encoder and a decoder, where both of them consist of six 8-head self-attention layers with intermediate layers of dimension 2,048. Each layer of the encoder and decoder is connected with an 8-head cross-attention, as shown in Figure <ref type="figure" target="#fig_1">2</ref>. The output from the model is transformed back to a probability distribution of the vocabulary with the softmax function. At inference time, we use nucleus sampling <ref type="bibr" target="#b38">[38]</ref> to sample the output tokens with the threshold value of 0.9.</p><p>For evaluation, we create the testing data by: (i) searching from the testing songs all the 4-bar phrases that correspond to only a structure label, (ii) keeping only the phrases that share the same structure label with one of its two neighboring phrases but a different structure label with the other neighbor, and (iii) setting the 4-bar phrase as the target T and concatenate them with their preceding and succeeding 6-bar music segments, which are set as the past context C past and future context C future , respectively. We get 156 test cases of {C past , T , C future }, each with 16 bars (i.e., 6 + 4 + 6). All the cases have the form of, e.g., AA'B or ABB', and the target lengths are 4 bars with arbitrary number of notes (hence variable sequence lengths). In this setting, the attention selection mechanism is used only for training, since the target sequence T in our testing data only have one structural context to refer to.</p><p>We consider VLI <ref type="bibr" target="#b20">[20]</ref> and the model from Hsu &amp; Chang <ref type="bibr" target="#b21">[21]</ref>   <ref type="bibr" target="#b21">[21]</ref> rarely generates infilled segments with the desirable number of bars. Therefore, we slightly improve their model by incorporating the bar-count-down technique.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">OBJECTIVE EVALUATION RESULTS</head><p>We propose three new metrics for objective evaluation, all of which have not been used in the literature of music infilling. The first two metrics, pitch class histogram cross entropy (H) and grooving pattern similarity (GS), are extensions of the ones proposed by Wu &amp; Yang for sequential generation <ref type="bibr" target="#b10">[10]</ref> to our infilling task, evaluating respectively the consistency in terms of pitch class distribution (which is related to tonality) and rhythmic pattern. For H, we compute per test case the pitch class histogram of T , and that histogram of the concatenation of C past and C future , and then report the cross entropy between these two histograms. For GS, we use per bar a 16-dim binary vector indicating where there is at least a note onset for every position in a bar, calculate one minus the normalized XOR difference between every pair of bars <ref type="bibr" target="#b10">[10]</ref>, one from T and the other from either C past and C future , and then report the average per test case. The third metric, melody distance (D) measures the melody distance (dissimilarity) between the infilled segment T and the ground truth one (denoted as T #) using the algorithm proposed by Hu et al. <ref type="bibr" target="#b39">[39]</ref>.</p><p>Lower H and higher GS may imply that T connects C past and C future smoothly, while lower D indicates that the generation result is similar to a human-made one.</p><p>Table <ref type="table" target="#tab_1">2</ref> shows that our model achieves the best result in all the three metrics, followed by VLI and then the model of Hsu &amp; Chang. Besides being consistent with the contexts, the infilling result of our model is closest to the ground truth one T #, demonstrating the effectiveness of exploiting the structural context. Figure <ref type="figure" target="#fig_6">6</ref> exemplifies how the infilled bars by our model fit the desired musical form.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">SUBJECTIVE EVALUATION RESULTS</head><p>We conduct additionally an online user study for subjective evaluation. We have 91 anonymous volunteers, where 12 of them are marked as professionals according to the question about their musical background. Each subject is pre-    <ref type="table">3</ref> shows the mean opinion scores (MOS) of the user study. Echoing the result of the objective evaluation, the proposed model outscores the baselines by a large margin in all the four subjective metrics, and is close to the real music with a small gap. The same observations can be made from either the average result of all the subjects, or only that from the 12 professionals.</p><p>However, we notice that our model may overly imitate the given structural contexts in some cases, as exemplified in Figure <ref type="figure" target="#fig_8">7</ref>. When this happens, the generated music sounds rigid and non-creative. We conjecture that this can be attributed to the limited diversity of our training dataÐ the melodies corresponding to the same structure label in POP909 appear to be too similar to each other, which may ) not be uncommon for pop songs. To study this, we implement additionally a 'Copy' baseline that simply copies the structural contexts as the result, and include its infilling result to the demo website. Our own subjective listening of its result confirms that the proposed method still outperforms the 'Copy' baseline most of the time, as the connections between the targets and their contexts are considered by our model, but not by the 'Copy' baseline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.">CONCLUSION</head><p>In this paper, we have proposed a new structure-aware conditioning approach for music score infilling. To help Transformers exploit bi-directional contexts, we employ the order embedding to shift the position viewed by the model. Besides, we introduce a new attention-selecting mechanism to account for multiple structural contexts. Evaluations on 4-bar melody infilling validate the superiority of the proposed model over two existing Transformer-based structure-agnostic infilling methods <ref type="bibr" target="#b20">[20,</ref><ref type="bibr" target="#b21">21]</ref>.</p><p>We can extend this work in three ways. First, instead of relying on user inputs, we may build models that generate the musical form automatically and predict the structural context for a specific infilled segment to refer to. Second, we like to expand our work to other music genres and polyphonic music. Finally, we like to study how the attentionselecting mechanism can be applied to sequential generative tasks such as theme-based generation <ref type="bibr" target="#b29">[29]</ref>.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Comparison between (a) structure-agnostic and (b) structure-aware approaches for music score infilling.</figDesc><graphic coords="1,317.17,206.20,220.83,123.53" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Schematic diagram of (a) the proposed seq2seq Transformer model for structure-aware infilling, and (b) a zoomin of the decoder highlighting how the decoder utilizes the order embedding and structure index.</figDesc><graphic coords="3,90.81,68.54,418.38,158.08" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>of tokens: Bar, Struct, Tempo, Position, Pitch and Duration. Table1lists the vocabulary of our token representation. Bar consists of numbers from 1 to 32, standing for the number of remaining bars on the generation process. A music form, e.g., ABA'B', consists of multiple groups of similar phrases or sections (each of multiple bars), e.g., {A, A'} and {B, B'}, where each group can be said to be associated with the same structure label. We use Struct to indicate the structure label for each bar. Tempo and Position are related to the musical metre. Tempo is the current tempo of beats per minute (BPM), and Position is the temporal distance between the onset of a musical note and the beginning of its bar, denoted by the number of 16-th notes. Pitch and Duration are related to musical notes, which are the MIDI pitch number and duration in 16-th notes, respectively. We show an example of how we encode the musical content in Figure3.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: An example of representing a two-bar segment with our adapted REMI-based token representation. With the bar-count-down technique, Bar(2) and Bar(1) are used for the first and second Bar tokens, respectively.</figDesc><graphic coords="3,334.60,280.82,185.96,96.52" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Illustration of the order embedding, where re. and mo. stand for the real position and model-viewed position. Conceptually, we shift the model-viewed position by O i to make it consistent with the real position.</figDesc><graphic coords="4,67.85,68.54,209.20,112.39" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: The schematic of attention selecting. Multiple structural contexts G 1 , G 2 , G 3 are passed to the crossattention block simultaneously, and the output is filtered by the selector with the structure index.</figDesc><graphic coords="4,311.36,68.54,232.45,98.99" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Results generated by (a) our model and (b) VLI. The structural relations of bars 4-5 (green area) and bars 8-9 (red area) are preserved well in (a) but not in (b).</figDesc><graphic coords="6,67.56,68.54,464.91,128.44" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Table 3 :</head><label>3</label><figDesc>Results of the user study: mean opinion scores in 1±5 in M (melodic fluency), R (rhythmic fluency), S (Structureness), and O (Overall), from 'all' the participants or only the music 'pro'-fessionals.sented with 3 out of 15 sets of music segments randomly sampled from the testing data. We inform them that the first and last 6 bars are the given prompts, and the middle 4 bars are the music generated by a model. Each set of music contains in random order 4 music including 3 generated by the models and 1 from the real data. The subjects rate each of the 4 music in a 5-point Likert scale (the higher the better) according to their (i) melodic fluency: do the pitches of notes go in the right tonality and connect the contexts fluently? (ii) rhythmic fluency: are the notes played on the right beats? (iii) structureness: how is the generated part of the music similar to its contexts? (ix) overall: how much do they like the music? Table</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: A result generated by our model, where C future is not shown in this figure. Bars 3±6 (green area) and bars 7± 10 (red area) look identical since the model overly imitates the given structural context. (Best viewed in color.)</figDesc><graphic coords="6,311.36,251.18,232.46,110.60" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>The vocabulary of the token representation.</figDesc><table /><note><p>Token type Voc. size Values Bar 32 1, 2, ... , 32 Struct 16 0, 1, ... , 15 Tempo 47 28, 32, ... , 212 Position 16 0, 1, ... , 15 Pitch 86 22, 23, ... , 107 Duration 16 1, 2, ... , 16</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>as the baselines. By design, only our model has access to an external structural context. However, we consider the Objective evaluation results. H: pitch class histogram cross entropy, GS: grooving pattern similarity, D: melody distance (↑/↓: the higher/lower the better). comparison as valid, since C past and C future are presumably long enough to provide sufficient context, and at least one of them has the same structure label as T . Besides, in our implementation, we found the model Hsu &amp; Chang</figDesc><table><row><cell></cell><cell>H ↓</cell><cell>GS ↑</cell><cell>D ↓</cell></row><row><cell>Ours</cell><cell cols="3">2.75±0.80 0.70±0.08 25.73±19.45</cell></row><row><cell cols="4">VLI [20] 3.47±1.57 0.67±0.09 49.40±25.12</cell></row><row><cell cols="4">Hsu [21] 9.87±4.64 0.64±0.09 65.41±38.00</cell></row><row><cell cols="3">Original 2.78±0.89 0.70±0.09</cell><cell>0.00± 0.00</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>3.46 3.51 3.40 3.42 VLI [20] 2.96 3.14 3.12 2.97 Hsu [21] 2.60 2.95 2.75 2.64 Real 3.77 3.77 3.62 3.66 pro Ours 3.58 3.28 3.28 3.42 VLI [20] 2.67 2.86 2.78 2.72 Hsu [21] 2.36 2.75 2.39 2.44 Real 3.61 3.56 3.42 3.42</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://tanchihpin0517.github.io/structure-aware_infilling</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://github.com/tanchihpin0517/structure-aware_infilling</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_3"><p>The principal idea of the attention mechanism<ref type="bibr" target="#b26">[26]</ref> is to use the token embeddings of two tokens to compute their correlation, leading to the so-</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>There is another implementation detail: actually, not only the tokens in T but also those in Cpast and C future would go through the Transformer's self-and cross-attention blocks. This is to get the latent vectors for the tokens in Cpast and C future . In doing so, we calculate and employ the structure indices for Cpast and C future as well.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>Please note that the ªmelodyº data in this paper is not exact monophonic music. We merge two midi tracks, ªMELODYº and ªBRIDGEº of the MIDI files of POP909<ref type="bibr" target="#b30">[30]</ref> to generate the melody data, which is monophonic most of the time but not always.Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_6"><p>The lower-case and capital letters indicate respectively non-melodic and melodic phrases (i.e., where a clear melody is present, mostly a vocal line or an instrument solo), but we do not use this information.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_7"><p>Depending on the underlying musical form of a song, different songs may have different numbers of phrase groups. For example, a song with a simpler form may only have phrase groups A and B, while other songs have much more. In the POP909 dataset, a song can contain up to</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_8"><p>unique phrase groups, which are labeled as A, B, C, D, etc.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="8.">ACKNOWLEDGEMENT</head><p>We are grateful to <rs type="person">Shih-Lun Wu</rs> for sharing the unpublished idea of the bar-count-down technique, <rs type="person">Ping-Yi Chen</rs> and <rs type="person">Chin-Jui Chang</rs> for the assistance with experiments and discussion, <rs type="person">Shan Lee</rs> for the help of figure drawing, and <rs type="person">Chun-Wei Lai</rs> and <rs type="person">Sophia Lin</rs> for the help in finding volunteers for the user study. We also thank the anonymous reviewers for their valuable feedbacks. Our research is funded by grants <rs type="funder">NSTC</rs> <rs type="grantNumber">109-2628-E-001-002-MY2</rs> and <rs type="grantNumber">NSTC 110-2221-E-006-137-MY3</rs> from the <rs type="funder">National Science and Technology Council of Taiwan</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_VQdA7jg">
+					<idno type="grant-number">109-2628-E-001-002-MY2</idno>
+				</org>
+				<org type="funding" xml:id="_gcbvYX4">
+					<idno type="grant-number">NSTC 110-2221-E-006-137-MY3</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Vincent, ªModeling temporal dependencies in highdimensional sequences: Application to polyphonic music generation and transcription</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Boulanger-Lewandowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Machine Learning</title>
+		<meeting>International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="page" from="1881" to="1888" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">ªAlgorithmic composition of melodies with deep recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Colombo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">º Poster Session of International Conference on Artificial Intelligence and Statistics</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Korshunova, ªMusic transcription modelling and composition using deep learning</title>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">L</forename><surname>Sturm</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">F</forename><surname>Santos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Ben-Tal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Conference on Computer Simulation of Musical Creativity</title>
+		<meeting>Conference on Computer Simulation of Musical Creativity</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">ªA hierarchical latent vector model for learning long-term structure in music</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Machine Learning</title>
+		<meeting>International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4364" to="4373" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">ªMidiNet: A convolutional generative adversarial network for symbolic-domain music generation</title>
+		<author>
+			<persName><forename type="first">L.-C</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S.-Y</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Music Information Retrieval</title>
+		<meeting>International Conference on Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Transformer</surname></persName>
+		</author>
+		<title level="m">Proc. International Conference on Learning Representations</title>
+		<meeting>International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Improving multi-instrumental music generation with cross-domain pre-training</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">H</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">E</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">W</forename><surname>Cottrell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Mcauley</surname></persName>
+		</author>
+		<author>
+			<persName><surname>ªlakhnes</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Music Information Retrieval</title>
+		<meeting>International Conference on Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">ªPop Music Transformer: Beat-based modeling and generation of expressive pop piano compositions</title>
+		<author>
+			<persName><forename type="first">Y.-S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACM International Conference on Multimedia</title>
+		<meeting>ACM International Conference on Multimedia</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1180" to="1188" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Pop music accompaniment generation</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T.-Y</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACM Multimedia</title>
+		<meeting>ACM Multimedia</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">ªThe Jazz Transformerm on the front line: Exploring the shortcomings of aicomposed music through quantitative measures</title>
+		<author>
+			<persName><forename type="first">S.-L</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Music Information Retrieval</title>
+		<meeting>International Conference on Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">ªControllable deep melody generation via hierarchical music structure representation</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gomes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">B</forename><surname>Dannenberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Music Information Retrieval</title>
+		<meeting>International Conference on Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">S.-L</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2105.04090</idno>
+		<title level="m">ªMuseMorphose: Full-song and fine-grained music style transfer with one Transformer VAE,º</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2205.05448</idno>
+		<title level="m">ªSymphony generation with permutation invariant language model,º</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">H.-W</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dubnov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Mcauley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2207.06983</idno>
+		<title level="m">ªMultitrack Music Transformer: Learning long-term dependencies in music with diverse instruments,º</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ªLearning to traverse latent spaces for musical score inpainting</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Music Information Retrieval</title>
+		<meeting>International Conference on Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">ªCounterpoint by convolution</title>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Cooijmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Society for Music Information Retrieval</title>
+		<meeting>International Society for Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">ªDeepbach: a steerable model for bach chorales generation</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Pachet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Nielsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Machine Learning</title>
+		<meeting>International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1362" to="1371" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">ªInfilling piano performances</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Ippolito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. NIPS Workshop on Machine Learning for Creativity and Design</title>
+		<meeting>NIPS Workshop on Machine Learning for Creativity and Design</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">ªNonoto: A model-agnostic web interface for interactive music composition by inpainting</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Bazin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Computational Creativity</title>
+		<meeting>International Conference on Computational Creativity</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">ªVariablelength music score infilling via XLNet and musically specialized positional encoding</title>
+		<author>
+			<persName><forename type="first">C.-J</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-Y</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Music Information Retrieval</title>
+		<meeting>International Conference on Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ªGenerating music transition by using a Transformer-based model</title>
+		<author>
+			<persName><forename type="first">J.-L</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S.-J</forename><surname>Chang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Electronics</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">18</biblScope>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">ªMusic score expansion with variable-length infilling</title>
+		<author>
+			<persName><forename type="first">C.-P</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-J</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">W Y</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Music Information Retrieval</title>
+		<meeting>International Conference on Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ªMusic phrase inpainting using long-term representation and contrastive loss</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Gao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting>IEEE International Conference on Acoustics, Speech and Signal essing</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="186" to="190" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Generalized autoregressive pretraining for language understanding</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Carbonell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Advances in Neural Information Processing Systems</title>
+		<meeting>Advances in Neural Information essing Systems</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">A Generative Theory of Tonal Music, Reissue, with a New Preface</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Lerdahl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">S</forename><surname>Jackendoff</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1996">1996</date>
+			<publisher>MIT press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">È</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<title level="m">ªAttention is all you need,º Proc. Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">30</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Carbonell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<title level="m">ªTransformer-XL: Attentive language models beyond a fixed-length context,º in Proc. Annual Meeting of the Association for Computational</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">ªImproving language understanding by generative pre-training</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Salimans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Symbolic music generation with theme-conditioned transformer</title>
+		<author>
+			<persName><forename type="first">Y.-J</forename><surname>Shih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S.-L</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Zalkow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Muller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Transformer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Multimedia</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">A pop-song dataset for music arrangement generation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Bin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Music Information Retrieval</title>
+		<meeting>International Conference on Music Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">909</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Dannenberg, ªAutomatic analysis and influence of hierarchical structure on melody, rhythm and harmony in popular music</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">B</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Conference on AI Music Creativity</title>
+		<meeting>Conference on AI Music Creativity</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">ªAuto-encoding variational bayes</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Welling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Learning Representations</title>
+		<meeting>International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">ªA simple framework for contrastive learning of visual representations</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kornblith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International conference on machine learning</title>
+		<meeting>International conference on machine learning</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1597" to="1607" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">ªMomentum contrast for unsupervised visual representation learning</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Girshick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE/CVF conference on computer vision and pattern recognition</title>
+		<meeting>IEEE/CVF conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9729" to="9738" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">ªSelf-attention with relative position representations</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Shaw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Conf. North American Chapter</title>
+		<meeting>Conf. North American Chapter</meeting>
+		<imprint>
+			<publisher>the Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">ªRethinking positional encoding in language pre-training</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Ke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T.-Y</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Learning Representations</title>
+		<meeting>International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">ªRelative positional encoding for Transformers with linear complexity</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Cífka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S.-L</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">U</forename><surname>Simsekli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Machine Learning</title>
+		<meeting>International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">ªThe curious case of neural text degeneration</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Buys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Forbes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Conference on Learning Representations</title>
+		<meeting>International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">ªA probabilistic model of melodic similarity</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">B</forename><surname>Dannenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">L</forename><surname>Lewis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. International Computer Music Conference</title>
+		<meeting>International Computer Music Conference</meeting>
+		<imprint>
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,622 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">RENDERING MUSIC PERFORMANCE WITH INTERPRETATION VARIATIONS USING CONDITIONAL VARIATIONAL RNN</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Akira</forename><surname>Maezawa</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Yamaha Corporation</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Kazuhiko</forename><surname>Yamamoto</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Yamaha Corporation</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Takuya</forename><surname>Fujishima</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Yamaha Corporation</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">RENDERING MUSIC PERFORMANCE WITH INTERPRETATION VARIATIONS USING CONDITIONAL VARIATIONAL RNN</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">946A510AAE64DC34583F44DB6A794B8C</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Capturing and generating a wide variety of musical expression is important in music performance rendering, but current methods fail to model such a variation. This paper presents a music performance rendering method that explicitly models the variability in interpretations for a given piece of music. Conditional variational recurrent neural network is used to jointly train, conditioned on the music score, an encoder from a music performance to a latent representation of interpretation and a decoder from the latent interpretation back to the music performance. Evaluation demonstrates the method is capable of predicting and generating an expressive performance, and that the decoder learns a latent space of musical interpretation that is consistent with human perception of interpretation.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Music performance rendering is the task of generating a human-like performance data from a piano music score. That is, for each note in a given music score, it generates a set of expressive performance parameters such as the onset timing, the duration and the velocity. It is an important task in music production, allowing a composer to generate human-like piano part of a new composition, or a musician to listen to a convincing preview of a digital sheet music. It is not only important to generate a convincing performance, but also to allow humans to interact in the generation. For example, it is useful to be able to adjust expressive parameters, or, like how a musician might ask to another musician, feed a reference performance snippet, in expression of which the system should perform.</p><p>Capturing and generating a wide variety of musical expression are important in music performance rendering, but current methods are limited in such capabilities. For example, most methods permit control over concrete musical concepts like the average tempo and the average velocity <ref type="bibr" target="#b2">[2]</ref>, but cannot manipulate abstract musical concepts that cannot be labeled, such as liveliness within a performance. It is also not possible to feed a short reference perc Akira Maezawa, Kazuhiko Yamamoto, Takuya Fujishima. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Akira Maezawa, Kazuhiko Yamamoto, Takuya Fujishima. "Rendering Music Performance With Interpretation Variations Using Conditional Variational RNN", 20th International Society for Music Information Retrieval Conference, Delft, The Netherlands, 2019. formance snippet and ask the system to play with that particular musical musical interpretation.</p><p>These limitations are rooted in the attempt to directly map between the music score and expressive performance <ref type="bibr" target="#b4">[4]</ref>. Such a model entwines musical interpretation and its execution, but a human performer presumably decouples musical intent and its execution given the score. For example, when playing a piece multiple times, a musician might play lively the first time but calmly on the second. Given the intent, however, its execution is consistent based on musical contexts, such as whether a note is a melody or if a particular measure is a beginning of a new phrase. For example, a lively playing might be executed, almost second nature, as shorter chords and louder melody, or calm playing as softer and more broken chords.</p><p>To address this problem, we present a music performance rendering method that explicitly decouples intent and its execution based on a music score. We achieve this by jointly training a performance decoder (performance renderer) and a performance encoder (performance analyzer) that are conditioned on (1) a music score, and (2) an interpretation sequence, a latent low-dimensional sequence representation that expresses the underlying musical intent. It may be either generated automatically or manipulated coherently. Thus, it is possible to generate different interpretations to a score by either modifying the interpretation sequence or encoding a performance snippet as an initial value for generating the interpretation sequence.</p><p>The conceptual overview is shown in Figure <ref type="figure" target="#fig_0">1</ref>. Our method, given a music score and an interpretation sequence, generates an expressive performance for the given music (denoted (1)). Conversely, it can encode an expressive performance into the interpretation sequence (denoted (2)). To achieve such a capability, the encoder and the de-coder are jointly trained by encoding a human performance and trying to recover it with the decoder (denoted by path (3)).</p><p>Our contributions are as follows: <ref type="bibr" target="#b1">(1)</ref> we propose a new machine learning model, CVRNN, which extends variational recurrent neural network (VRNN <ref type="bibr">[6]</ref>) to accept position-dependent conditional inputs; (2) we apply convolutional recurrent network (CRNN) to extract features from the music score; (3) we apply these two models and present a first deep generative model that is simultaneously capable of analyzing and generating an expressive music performance for a given music score with adjustable musical interpretation.</p><p>We invite the readers to check out audio demonstrations at <ref type="url" target="https://sites.google.com/view/">https://sites.google.com/view/</ref> cvrnn-performance-render .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>Music performance rendering is the task of generating an expressive performance from a music score <ref type="bibr" target="#b4">[4]</ref>. The research focuses mostly on generating a sequence of expressive onset timings, durations and velocities for a piano piece. Unlike the generation of improvisation <ref type="bibr" target="#b20">[20]</ref>, performance rendering needs to understand the musical contexts of the given music score, and generate a natural performance constrained by the score.</p><p>Previous studies formulate performance rendering as a prediction task of expressive parameters based on features extracted from the music score, such as melodic features <ref type="bibr" target="#b22">[22]</ref>, perceptual features <ref type="bibr" target="#b3">[3]</ref>, or neighboring contexts <ref type="bibr" target="#b9">[9,</ref><ref type="bibr" target="#b18">18]</ref>. Then, expressive performance to a new music score can be predicted using methods like a hidden Markov model <ref type="bibr" target="#b12">[12]</ref>, a decision tree <ref type="bibr" target="#b18">[18]</ref>, or a dynamic Bayesian network <ref type="bibr" target="#b8">[8]</ref>. More recently, deep learning has been incorporated to better extract the features or predict the performance. For example, deep neural networks have been shown to be effective for dynamics prediction <ref type="bibr" target="#b21">[21]</ref>, tempo prediction <ref type="bibr" target="#b15">[15]</ref>, and piano performance generation <ref type="bibr" target="#b11">[11,</ref><ref type="bibr" target="#b17">17]</ref>.</p><p>The capability to adjust the generated performance is important, but current methods cannot capture the abstract variations in playing. For example, the tempo or dynamics <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b7">7]</ref> can be adjusted, but controlling a more abstract musical idea remains difficult. It is possible to manipulate the performance by mixing the parameters of performance renderers trained on multiple corpora <ref type="bibr" target="#b2">[2]</ref>, but it fundamentally cannot identify commonalities and differences among a set of corpora.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHOD</head><p>Our method generates an expressive piano performance data to a given piano music score, and an interpretation sequence that is either automatically generated, manually adjusted, or initialized by a performance snippet. The score contains a sequence of notes (pitch, position and duration), the average tempo, the time signatures, and the key signatures. The interpretation sequence is a sequence of lowdimensional vectors, each element of which is associated with each note in the score. It is an abstract representation of playing style, each vector of which is called the interpretation vector. For each note, based on the interpretation vector and musical context inferred from the music score, our method estimates (1) the fine note onset timing, (2) the duration, (3) the note-on velocity, and (4) the tempo fluctuation of human performance.</p><p>To generate the performance, we use a deep generative model that has been trained to generate an expressive performance data, conditioned on the music score and the interpretation sequence. To acquire a temporally coherent manifold over the space of interpretation vector, we propose CVRNN, an extension of VRNN that accepts the music score as a conditioning input. Essentially, we jointly train three models: (1) a music score feature extractor that extracts, for each note, relevant features (music score feature) from the music score, (2) an encoder that maps a human performance to an interpretation sequence, and (3) a decoder that maps an interpretation sequence to an expressive performance.</p><p>Hereon, n indicates the index of a note encountered in the music score, lexicographically sorted by the onset beat position and the pitch. x n indicates the expressive performance data, c n indicates the music score feature that has been extracted from the nth note on the score, and z n indicates the interpretation vector associated with x n .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Representation of expressive performance</head><p>The generated expressive performance x n comprises of the note velocity, the note duration, the micro-onset timing deviation and the tempo.</p><p>The note velocity is an integer between 1 and 127 indicating the MIDI velocity value, encoded as a 128dimensional one-hot vector.</p><p>The note duration is an integer between 1 and 800, indicating the duration as 1/100ths of a beat relative to the current tempo (e.g. duration of "42" means 0.42 beats). It is encoded as an 800-dimensional one-hot vector.</p><p>The micro-onset timing is an integer between -50 and 49, indicating the number of 1/100ths of a beat elapsed after an ideal onset time. The ideal onset time is computed based on the generated tempo curve up to the current point in the score. It is represented as a 100-dimensional one-hot vector, ith element of which means that the onset is lagging by (i -50)/100 beats.</p><p>The tempo is an integer indicating the the difference between the current tempo and the tempo written in the music score, in bpm. It is represented as a 100-dimensional one-hot vector, ith element of which means that the output should be faster than the written tempo by i -50 bpm. It is computed by interpolating the music score position and the playback position of the performance using Gaussian regression with a squared exponential kernel with a FWHM of 2 beats.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Extraction of the music score feature</head><p>The music score contains a sequence of notes, average dynamics, average tempi, meters, and key signatures. From  the music score, we extract the music score feature c n , which represents the nth note and its surrounding context.</p><p>To extract the feature, we use the following information: the key signature as a 12 dimensional one-hot vector that indicates the number of accidentals; the time signature as a tuple of 12 dimensional one-hot vector, indicating the numerator and the denominator; the pitch as a 128 dimensional one-hot vector indicating the MIDI note number; the inter-onset interval from the previous note as a multiple of 96th note, represented as a 512 dimensional one-hot vector; the duration of the note as a multiple of 96th note, represented as a 192 dimensional one-hot vector; the written tempo quantized to a multiple of 30 bpm, represented as a 9 dimensional one-hot vector (30-300 bpm); the written velocity quantized to a multiple of 10, represented as a 12 dimensional one-hot vector; the piano-roll centered about the current position in the score, spanning a radius of 7 beats at a 32nd note resolution (224x128 dimension). The velocity and the tempo are quantized at a low resolution because different music notation software map the dynamics and tempo markings to similar velocity and bpm values, but the exact mapping differ.</p><p>Based on these inputs, we extract the feature using a CRNN as shown in Figure <ref type="figure" target="#fig_2">2</ref>. First, the piano-roll passes through a CNN. It is comprised of four layers, whose kernel sizes are all (4 × 4), and channel sizes from the lower to the higher layers are <ref type="bibr" target="#b20">[20,</ref><ref type="bibr">40,</ref><ref type="bibr">60,</ref><ref type="bibr">80]</ref>. Each layer is followed by max-pooling with a kernel size of (2 × 1), batch normalization and leaky ReLU nonlinearity. The output the CNN is concatenated with the remaining one-hot vectors mentioned above. Then, the concatenated vector is passed through a multi-layer perceptron (MLP) with 1024 hidden units and leaky ReLU nonlinearity at the hidden layer. The MLP output passes through a tanh nonlinearity.</p><p>Second, the output of the perceptron is embedded to 64 dimensions using a linear layer. The embedded vector is then passed to a RNN consisting of 3 stacks of gated recurrent units (GRU) <ref type="bibr" target="#b5">[5]</ref> with 64 neurons each.</p><p>Finally, the outputs of the MLP and the GRU stack are concatenated to create the music score feature c n .  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">Analysis of the music score feature extractor</head><p>Here we illustrate some musically relevant concepts that are acquired by the music score feature extractor. We have trained our model using the same dataset used in Section 4, and extracted the music score feature from measures 5-6 of Chopin's Nocturne Op. 9-2 and extracted the GRU and the CNN activations. Some of the highest GRU and CNN activations are shown in Figure <ref type="figure" target="#fig_3">3</ref>, showing, for each note, the value of the corresponding activation in different color, positioned at the beat position and the pitch written on the score, a la piano-roll. We can see that the GRU acquires concepts like the number of notes stacked below the current point in the score ("gru.a") or top notes ("gru.b"). The CNN extracts longer contextual information such as the melody ("cnn.a"), and the bottom notes ("cnn.b"). Neither the GRU nor the CNN becomes dead: the standard deviation of the activation of the CNN and the GRU are comparable (about 0.5 to 1.0), where about 90 GRU activations have standard deviation of above 0.1, and about 150 for the CNN.</p><p>To analyze how these concepts are acquired, we show in Figure <ref type="figure" target="#fig_4">4</ref> the feature maps of the final layers of the CNN, overlayed to the piano-roll. The tendency of the map suggests that the CNN expresses concepts like the register (Fig. <ref type="figure" target="#fig_4">4a</ref>), rising arpeggio (b), top and bottom melodic contour (c), or melodic contour (d).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">CVRNN for joint encoding and decoding of the interpretation sequence</head><p>We assume that an expressive performance depends on both (1) the musical context, expressed through the music score feature, and (2) a corresponding sequence of lowdimensional music interpretation vectors z n , dimension of which is set to 5. It is necessary for z n to learn (1) a manifold that z n resides in, that explains interpretation reasonably well, and (2) a model of temporal evolution of z n , so that the generated performance is temporally coher-Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019 ent. We achieve (1) by decoupling the music score and the generative model of z n , such that z n learns a repertoireindependent low-dimensional representation of variability of playing. We achieve (2) by basing the temporal evolution of z n on the state of a RNN h n .</p><formula xml:id="formula_0">(a) Prior h n x n c n z n h n-1 (c) Recurrence h n x n c n z n h n-1 (b) Generation h n x n c n z n h n-1 (d) Inference h n x n c n z n h n-1 (e) Overall</formula><p>To meet these requirements, we model the generation process with a CVRNN. There are three key components in a CVRNN, as shown in the dependency diagram in Figure <ref type="figure" target="#fig_5">5:</ref> (1) generation of the interpretation sequence z n given the underlying h n (called the prior distribution), (2) generation of an expressive performance x n given the interpretation sequence z n and music score features c n (called the generation distribution), and (3) generation of the interpretation vector z n given a true human performance x n (called the inference distribution). Finally, the true or the generated expressive performance x n and the interpretation vector z n are used to update the underlying h n , used then to predict the next interpretation vector z n+1 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.1">Generation</head><p>We assume the following generative process:</p><formula xml:id="formula_1">p(x ≤N , z ≤N |c ≤N ) = N n=1 p(x n |z n , c n ) generation p(z n |x &lt;n , z &lt;n ) prior .</formula><p>(1) Thus, the data is generated autoregressively by sampling z n from the prior, generating x n , and feeding it back to the prior to sample the z n+1 for the next note in the score.</p><p>For the prior distribution, the previous RNN state h n-1 passes through a three-layer densely-connected <ref type="bibr" target="#b10">[10]</ref> fullyconnected network with 250 units each with a leaky ReLU nonlinearity. By dense connection, we mean that the input to the current layer is a concatenation of the outputs of previous layers. It outputs the mean and log-variance of a Normal distribution µ(h n-1 ) and γ(h n-1 ). Then z n is sampled as follows:</p><formula xml:id="formula_2">z n |h n-1 ∼ N (µ(h n-1 ), exp(γ(h n-1 ))).</formula><p>(2)</p><p>From the interpretation vector z n , we pass it through another feature extractor ψ(z n ) to obtain a feature that describes the current musical interpretation. ψ(•) has the same three-layer architecture as mentioned above.</p><p>For the generation of x n , we use the sampled interpretation vector z n and the current music context c n : where g(c, z) indicates a Cartesian product of categorical distributions over the one-hot representations of the velocity, the micro-onset timing, the duration and the tempo, parameterized by an output of a three-layer fully-connected network with leaky ReLU nonlinearity for the hidden layers and softmax for the output layer, applied separately for the four output variables.</p><formula xml:id="formula_3">x n |z n , c n ∼ g(c n , ψ(z n )),<label>(3)</label></formula><p>To recurrently update h n , we extract a feature vector from x n by passing it through a network φ(•) with a same architecture as ψ to obtain φ(x n ). Then, the underlying state h n is updated as follows:</p><formula xml:id="formula_4">h n+1 = f (h n , [c n , φ(x n ), ψ(z n )]),<label>(4)</label></formula><p>where f (h, x) is state update equation of a stacked GRU of three layers, given h as the current state variable and x as the input that has been embedded to 64 dimensions by a fully-connected layer.</p><p>Let us elaborate on the modeling assumptions. First, the prior in Eq. 2 is independent of c n . This forces z n to express music interpretation abstractly, such that it is decoupled from the musical context, which provides strong hints on how to execute the performance given an interpretation. Second, x n and h n depends only indirectly via the bottleneck z n . This is unlike the original formulation of VRNN where x n and h n are directly dependent. We found that such a bottleneck is vitally critical for learning a meaningful representation of z n ; if x n depends on h n , then the model simply learns to generate an auto-regressive model of x n using h t , almost completely bypassing z n . Such an error mode occurs because it is much easier for a model to learn to simply predict the next note, instead of having to go through the hassle of trying to explain how it could have varied with a different interpretation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.2">Inference</head><p>In addition to the generative process, we also define an approximate posterior distribution, or the inference distribution, so that variational technique can be used to train the model <ref type="bibr" target="#b14">[14]</ref>.</p><p>We assume the following dependency for the inference distribution:</p><formula xml:id="formula_5">q(z ≤N |x ≤N ) = N n=1 q(z n |x ≤n , z &lt;n ) inference .</formula><p>(</p><formula xml:id="formula_6">)<label>5</label></formula><p>Variance of interpretation sequence =low =high</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>First subject group Transition</head><p>Sheet music If we assume that z n is normally distributed and conditionally independent of z &lt;n and x &lt;n given h n-1 , it becomes:</p><formula xml:id="formula_7">q(z n |x ≤n , z &lt;n ) = q(z n |x n , h n-1 ) = N (z n |η(h n-1 , φ(x n )) , exp (ν(h n-1 , φ(x n )))) ,<label>(6)</label></formula><p>where η(•) and ν(•) are the outputs of a neural network with the same architecture as ψ(•), that take φ(x n ) and h n-1 as the inputs. The inference is independent of the music score c n , so that it learns a repertoire-agnostic model for inferring z n given an expressive human playing.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.3">Training</head><p>We train the model by minimizing the KL divergence from the approximate posterior to the true posterior. It amounts to the minimizing of the following note-level loss l n (Θ) w.r.t. the set of model parameters Θ, accrued over every note in the training data:</p><formula xml:id="formula_8">l n (Θ) = E zn∼q(z|xn,hn-1) [log p(x n |z n , c n )] + KL(q(z|x n , h n-1 )||p(z|h n-1 )). (<label>7</label></formula><formula xml:id="formula_9">)</formula><p>The expectation is computed using the reparametrization trick <ref type="bibr" target="#b14">[14]</ref>. We use truncated backpropagation with truncation length of 30 notes (longer truncation length of 50 notes yielded qualitatively similar outputs). We also augment the data by adding zero-reverting Wiener noise to the tempo curve and randomly transposing each piece by -7 to 7 semitones at every epoch. To minimize the loss, we use Adam <ref type="bibr" target="#b13">[13]</ref>, with gradient clipping for gradient values above 5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Analysis of the learnt manifold of the interpretation vector</head><p>We briefly illustrate the essences of musical expression acquired by the interpretation sequence. Figure <ref type="figure">6</ref> shows the interpretation sequence of first 20 bars of Mozart's K333 piano sonata, mvt. 1 (from the top to the introduction of second subject group), played by three professional pianists for multiple takes. The figure shows that the interpretation sequence tends to remain similar within each performer, and different among different performers.</p><p>We can also show where in the music score has the highest variance of interpretation vector among the nine takes. Figure <ref type="figure" target="#fig_7">7</ref> shows the variance for each note, from which we can see that the maximum variance occurs at the structural boundary from the first subject group to the transition, supporting findings that music expression varies significantly at structural boundaries <ref type="bibr" target="#b19">[19]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EVALUATION</head><p>We evaluate our method's capability to (1) create a natural expressive performance given the music score, and to encode an expressive performance into (2) perceptually relevant space that is (3) representative of the corresponding performance. For training, we used an in-house dataset comprising of 380 classical pieces, mostly Late romantic and Baroque. The piano performance comprised of 130 inhouse performances and 250 performances obtained from the piano e-competition archive <ref type="foot" target="#foot_1">1</ref> . Some performances were different interpretations of the same piece. Furthermore, corresponding music scores were obtained. To generate a one-to-one mapping between the performance and the score, each performance was aligned to the music score using symbolic music alignment based on <ref type="bibr" target="#b16">[16]</ref> with manual alignment correction. Then, the notes in the performance and the score were matched using maximum bipartite matching, using the pitch and the onset timing to determine the edge weights between notes in the score and the performance.</p><p>We have used 370 of 380 pieces for training. Of 370 pieces, all but 500 notes were used for training, and remaining notes for the optimization of the hyperparameters (validation). To test the decoder in experiment 1 and 2, we have sampled 10 piano music scores from the Mutopia project <ref type="foot" target="#foot_2">2</ref> , and corrected the key signature, meter and downbeat positions. It contained a wide variety of pieces from Baroque to Ragtime. To test the encoder in experiment 3, we have used 10 pieces of 380 pieces that were not used for training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Listening test</head><p>We evaluated the naturalness of the generated performance using different methods. For each of the ten pieces, we extracted a random 15-second segment, and generated performance using three methods: (1) method Deadpan directly played back the SMF data of the music score data that has been exported from MakeMusic's Finale Version 25; (2) method Finale used "Human Playback" function of Finale to create a natural performance, serving as a reproducible reference music performance method; and (3) the proposed method. Furthermore, we extracted seven 15-second excerpts from human playback in the training dataset, which serves as an oracle method. The selected pieces were different from the first three methods, because the human playing data to the first three were not always available. To make a fair comparison, we removed the sustain pedal data from the oracle, because the pedal is contained in none of the other methods.</p><p>Next, the MIDI data were synthesized using a highquality piano synthesizer and presented in a random order to 11 participants. The participants were asked to evaluate the naturalness and expressiveness, on a rating from 1 to 5, 1 being unnatural or unexpressive, 3 being moderately natural or contains some expression, and 5 being the most  <ref type="table" target="#tab_0">1</ref>. Kruskal-Wallis H-test was used for test of significance (p &lt; 0.01), since Shapiro test showed non-normality. We found that the effects were significant for both expressiveness and naturalness, for all of the method pairs. This shows that the system is capable of generating a performance that is as natural as human playing, but the expression has a room for improvement. One possible reason is that the system does not make use of music score markings like expression and phrase markings. The audio on our demo webpage suggests nonetheless that the system learns to "improvise" a noticeable evolution of musical expression over a timespan of multiple notes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Test on the perception of the interpretation vector</head><p>Second, we analyzed the capability of the interpretation sequence to create a perceptually distinguishable and consistent space of musical interpretation.</p><p>First, a pair of non-identical and non-overlapping segments were sampled from a piece, which we call segments A and B. Second, a vector ∆ was sampled from a 5dimensional, zero-mean and unit-variance Normal distribution. Third, two interpretations are generated for each of A and B, where rendition A 1 and B 1 are generated with interpretation vector µ(h n-1 ) + ∆ ⊗ exp(γ(h n-1 )), and A 2 and B 2 with µ(h n-1 ) -∆ ⊗ exp(γ(h n-1 )). Fourth, A 1 , A 2 , B 1 and B 2 were successively presented to the participants, randomly presenting B 2 before B 1 . They were asked to identify whether the relationship of music expression between A 1 → A 2 is the same as B 1 → B 2 or B 1 ← B 2 . The participants rated the perceived relationship with a confidence on a two-point scale 2 (0 means cannot tell, 2 means strongly confident about the response). We repeated this experiment on 9 other pairs of segments. After the experiment, we changed the signs of the responses, such that negative confidence indicates the wrong guess</p><formula xml:id="formula_10">(A 1 → A 2 is B 1 ← B 2 ),</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>and positive indicates the right guess (A</head><formula xml:id="formula_11">1 → A 2 is B 1 → B 2 ).</formula><p>The average rating was 0.34, meaning that there is an agreement between the change of interpretation vector and human perception of interpretation. To test the significance, Wilcoxon signed rank test was used under the null hypothesis that the median rating is zero, since Shapiro test showed non-normality. The effect was significant with p &lt; 0.01.</p><p>This shows that the encoder does capture a perceptually coherent space of music interpretation, and its modification creates a perceptually consistent difference in the interpretation. Qualitatively, we found that by changing the interpretation vector, there are simultaneous and smooth changes not only in the dynamics and the tempo but also nontrivial aspects like breaking of the chords or the articulation of the accompaniment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Test on the predictive capability of the encoder</head><p>Finally we evaluated the capability to encode a given performance, by priming h and z with an encoded true human performance, and comparing the true human and the generated performances. First, we primed the decoder by feeding to the encoder the first 20 notes to a performance to infer the initial value of z n . Next, the remaining 10 or 40 notes were decoded using two different decoders: (1) use z n sampled from the prior that has been primed in the first step, and (2) fix z n = 0. We repeated this experiment on 100 different starting points, and evaluated the Pearson's correlation coefficient between the generated and human performance.</p><p>Table <ref type="table" target="#tab_1">2</ref> shows the correlation coefficients. The result shows that the encoder is capable of encoding information pertinent to music performance. Significant improvements are seen for the velocity and the tempo, showing that the interpretation space is captures these aspects. At the same time, there are still rooms for improving the prediction of the onset deviation and the tempo.</p><p>This shows that we can indeed feed a reference performance snippet to the system, and the system would generate a performance in style of the snippet.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>We have presented music performance rendering method that explicitly encodes underlying sources of expression variations. Our method opens door to wider possibilities for the co-creation of music performance between a machine and humans, by enabling an interpretable and adjustable performance rendering and analysis system. We also believe the capability to decouple musical intent and its execution given the intent opens door to a new abstraction layer for performance analysis.</p><p>Future work includes the inference of additional outputs like the pedals and note-off velocity, better expressiveness through incorporation of music score markings, disentanglement of the latent space and interfaces for interactive music performance rendering.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. The overview of our method.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Music score information for the n th note in the score Pitch Notated duration IOI from the previous note Phase inside the measure Quantized velocity in the score Quantized tempo in the score Meter (denominator / numerator) Key signature (no. sharps) One-hot representation</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Overview of music score feature extractor for extracting the music score feature.</figDesc><graphic coords="3,60.79,68.66,220.82,165.23" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3.Activation of the most active components of GRU and CNN activations (dark=negative, yel-low=positive).</figDesc><graphic coords="3,434.83,172.27,107.82,88.08" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 .</head><label>4</label><figDesc>Figure 4. Some feature maps learned from the CNN, overlayed with the piano-roll (blue=negative, red=positive).</figDesc><graphic coords="3,317.71,172.27,107.82,88.08" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 .</head><label>5</label><figDesc>Figure 5. Dependency of the CVRNN model. Solid arrows indicate conditional dependence of the generative process, and dotted arrows indicate conditional dependence of the approximate posterior distribution.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>4 Figure 6 .</head><label>46</label><figDesc>Figure 6. Visualization of the interpretation sequence, for different takes of three professional pianists. Horizontal axis indicates the music score position, vertical axis indicates the pitch, and the color indicates 3D projection of the temporally-smoothed interpretation vector.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 7 .</head><label>7</label><figDesc>Figure 7. The variance of the interpretation vectors over different performers at each note.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 .</head><label>1</label><figDesc>Mean opinion scores of the performances</figDesc><table><row><cell></cell><cell cols="4">Deadpan Finale Proposed Oracle</cell></row><row><cell>Naturalness</cell><cell>3.02</cell><cell>3.08</cell><cell>3.29</cell><cell>3.23</cell></row><row><cell>Expressiveness</cell><cell>2.75</cell><cell>2.98</cell><cell>3.14</cell><cell>3.62</cell></row><row><cell cols="5">natural or expressive. The participants were between age</cell></row><row><cell cols="4">25 and late fifties, working on music technology.</cell><cell></cell></row><row><cell cols="2">The results are shown in Table</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 .</head><label>2</label><figDesc>Pearson's correlation coefficient between the generated performance and the true performance.Num. notes z n = 0 z n ∼ prior</figDesc><table><row><cell>Velocity</cell><cell>10 40</cell><cell>0.61 0.37</cell><cell>0.72 0.68</cell></row><row><cell>Onset</cell><cell>10</cell><cell>0.02</cell><cell>0.07</cell></row><row><cell>deviation</cell><cell>40</cell><cell>0.19</cell><cell>0.24</cell></row><row><cell>Duration</cell><cell>10 40</cell><cell>0.77 0.82</cell><cell>0.77 0.82</cell></row><row><cell>BPM</cell><cell>10 40</cell><cell>0.07 0.00</cell><cell>0.21 0.14</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>www.piano-e-competition.com</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_2"><p>www.mutopiaproject.org Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_3"><p>Proceedings of the 20th ISMIR Conference, Netherlands, November 4-8, 2019</p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Caro 2.0: An interactive system for expressive music rendering</title>
+		<author>
+			<persName><forename type="first">Sergio</forename><surname>Canazza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giovanni</forename><forename type="middle">De</forename><surname>Poli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonio</forename><surname>Roda</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Human-Computer Interaction</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="13" />
+			<date type="published" when="2015">2015. 2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">The basis mixer: a computational romantic pianist</title>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Cancino-Chacón</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Late-Breaking Demo</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A computational study of the role of tonal tension in expressive piano performance</title>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Cancino-Chacón</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICMPC</title>
+		<meeting>ICMPC</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Computational models of expressive music performance: A comprehensive and critical review</title>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Cancino-Chacón</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Werner</forename><surname>Goebl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Frontiers in Digital Humanities</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page">25</biblScope>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Learning phrase representations using RNN encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bart</forename><surname>Van Merrienboer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="1724" to="1734" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A recurrent latent variable model for sequential data</title>
+		<author>
+			<persName><forename type="first">Junyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Kastner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurent</forename><surname>Dinh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kratarth</forename><surname>Goel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><forename type="middle">C</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="2980" to="2988" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">The &quot;Air Worm&quot;: an interface for real-time manipulation of expressive music performance</title>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Dixon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Werner</forename><surname>Goebl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICMC</title>
+		<meeting>ICMC</meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Expressive performance rendering: Introducing performance context</title>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Flossmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. SMC</title>
+		<meeting>SMC</meeting>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="155" to="160" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Using computational models of music performance to model stylistic variations</title>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Friberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erica</forename><surname>Bisesi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Expressiveness in music performance: Empirical approaches across styles and cultures</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="240" to="259" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Densely connected convolutional networks</title>
+		<author>
+			<persName><forename type="first">Gao</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurens</forename><surname>Van Der Maaten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. CVPR</title>
+		<meeting>CVPR</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="4700" to="4708" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Graph neural network for music score data and modeling expressive piano performance</title>
+		<author>
+			<persName><forename type="first">Dasaem</forename><surname>Jeong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taegyun</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoojin</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juhan</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICML</title>
+		<editor>
+			<persName><forename type="first">Kamalika</forename><surname>Chaudhuri</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</editor>
+		<meeting>ICML</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3060" to="3070" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Polyhymnia: An automatic piano performance system with statistical modeling of polyphonic expression and musical symbol interpretation</title>
+		<author>
+			<persName><forename type="first">Satoru</forename><surname>Tae Hun Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Takuya</forename><surname>Fukayama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shigeki</forename><surname>Nishimoto</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sagayama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. NIME</title>
+		<meeting>NIME</meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="96" to="99" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Auto-encoding variational Bayes</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Welling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Deep linear autoregressive model for interpretable prediction of expressive tempo</title>
+		<author>
+			<persName><forename type="first">Akira</forename><surname>Maezawa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. SMC</title>
+		<meeting>SMC</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="364" to="371" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">MuEns: A multimodal human-machine music ensemble for live concert performance</title>
+		<author>
+			<persName><forename type="first">Akira</forename><surname>Maezawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kazuhiko</forename><surname>Yamamoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. CHI</title>
+		<meeting>CHI</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="4290" to="4301" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Virtu-osoNet: A hierarchical attention RNN for generating expressive piano performance from music score</title>
+		<author>
+			<persName><forename type="first">Dasaem</forename><surname>Jeong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taegyun</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juhan</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Workshop on Machine Learning for Creativity and Design</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1" to="6" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Laminae: A stochastic modeling-based autonomous performance rendering system that elucidates performer characteristics</title>
+		<author>
+			<persName><forename type="first">Kenta</forename><surname>Okumura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shinji</forename><surname>Sako</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tadashi</forename><surname>Kitamura</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICMC</title>
+		<meeting>ICMC</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Music performance</title>
+		<author>
+			<persName><forename type="first">Caroline</forename><surname>Palmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Annual review of psychology</title>
+		<imprint>
+			<biblScope unit="volume">48</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="115" to="138" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Performance RNN: Generating music with expressive timing and dynamics</title>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sageev</forename><surname>Oore</surname></persName>
+		</author>
+		<ptr target="https://magenta.tensorflow.org/performance-rnn" />
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Predicting expressive dynamics in piano performances using neural networks</title>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Van Herwaarden</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Bas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">De</forename><surname>Haas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ISMIR</title>
+		<meeting>ISMIR</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="45" to="52" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Flossmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th ISMIR Conference</title>
+		<meeting>the 20th ISMIR Conference<address><addrLine>Delft, Netherlands</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2009-11-04">2009. November 4-8, 2019</date>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page">35</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

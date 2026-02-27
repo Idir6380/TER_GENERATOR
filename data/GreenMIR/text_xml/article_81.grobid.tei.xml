@@ -1,0 +1,724 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">TRIAD: CAPTURING HARMONICS WITH 3D CONVOLUTIONS</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Miguel</forename><surname>Perez</surname></persName>
+						</author>
+						<author>
+							<persName><roleName>Munich Research Center ♯</roleName><forename type="first">♯♭</forename><surname>Huawei</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Holger</forename><surname>Kirchhoff</surname></persName>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Xavier</forename><surname>Serra</surname></persName>
+							<email>xavier.serra@upf.edu</email>
+						</author>
+						<author>
+							<persName><roleName>Universitat</roleName><forename type="first">♭</forename><surname>Mtg</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Pompeu</forename><surname>Fabra</surname></persName>
+						</author>
+						<title level="a" type="main">TRIAD: CAPTURING HARMONICS WITH 3D CONVOLUTIONS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">0029DC710920216576B6EE6DAC522A4E</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:14+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Thanks to advancements in deep learning (DL), automatic music transcription (AMT) systems recently outperformed previous ones fully based on manual feature design. Many of these highly capable DL models, however, are computationally expensive. Researchers are moving towards smaller models capable of maintaining state-ofthe-art (SOTA) results by embedding musical knowledge in the network architecture. Existing approaches employ convolutional blocks specifically designed to capture the harmonic structure. These approaches, however, require either large kernels or multiple kernels, with each kernel aiming to capture a different harmonic. We present TriAD, a convolutional block that achieves an unequally distanced dilation over the frequency axis. This allows our method to capture multiple harmonics with a single yet small kernel. We compare TriAD with other methods of capturing harmonics, and we observe that our approach maintains SOTA results while reducing the number of parameters required. We also conduct an ablation study showing that our proposed method effectively relies on harmonic information.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>When a note is played, a set of strongly related frequencies start to sound leading to a pitch sensation for the listener. These strongly related frequencies are what we call the harmonic spectrum, in which we distinguish two parts: the fundamental frequency (f 0 ) and the harmonics. The fundamental is the frequency associated with the pitch, and the harmonics are integer multiples of f 0 . Different instruments reinforce different harmonics, achieving different timbres; but the underlying structure created by f 0 and its harmonics remain present.</p><p>Traditional Automatic music transcription (AMT) systems based on manual feature design employed this property to look for harmonic patterns given an observed spectrogram <ref type="bibr" target="#b1">[1]</ref>. When DL became more popular, many researchers refrained from incorporating expert knowledge into their model architectures, but relied on generic models in combination with large amounts of task-specific training data. Even though these systems significantly outper-formed traditional approaches, models utilized large numbers of parameters. <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b3">3]</ref>.</p><p>The number of parameters plays an important role, as more parameters can help capture the harmonic pattern better; in exchange, larger models require more computing resources as the number of operations grows. Many DL practitioners do not always have access to large GPU clusters, and might not be able to train such large models. Moreover, many portable devices such as phones have limited battery and memory, and such large models in those devices will either quickly drain their battery or be directly impossible to employ. Part of the research focused on reducing the number of models' parameters without harming the transcription's accuracy. This was achieved in many cases through the incorporation of pitch expert knowledge within the architecture neural network (NN) <ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr" target="#b6">[6]</ref><ref type="bibr">[7]</ref><ref type="bibr" target="#b8">[8]</ref><ref type="bibr" target="#b9">[9]</ref>.</p><p>The main challenge resides in the unequal distances between harmonics in the spectrum, so previous approaches employ either large kernels or several ones running in parallel. This paper introduces a tridimensional kernel harmonically dilated (TriAD), a neural block that captures music intervals and is capable of observing multiple harmonics while using a single yet small kernel.</p><p>The rest of the paper is divided into the following sections: Section 2 gives more details about prior work capturing harmonics from the spectrum. Section 3 describes our method, including the processing of the signal and the design of the kernels. The experimental setting is described in Section 4. We present the results for these experiments as well as an ablation study in Section 5. Finally, Section 6 contains our conclusions for this paper and future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>As mentioned in Section 1, harmonics played an important role in the first AMT systems. For example, <ref type="bibr" target="#b1">[1]</ref> creates a dictionary of sets of expected harmonics for each fundamental. These ideal patterns were then matched to the spectrograms used as input for the system using the nonnegative least squares (NNLS) algorithm. The result is an estimation of fundamental frequencies that along with their respective harmonics, would resemble the input's spectrogram.</p><p>For AMT systems using DL, prior work has incorporated domain-specific knowledge in two ways: 1. by choosing a custom input representation that allows the model to detect harmonic structures <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b10">10,</ref><ref type="bibr" target="#b11">11]</ref>; 2. by employing specific network architectures to search for pat-terns in a given feature map obtained at any point of the network <ref type="bibr" target="#b6">[6]</ref><ref type="bibr">[7]</ref><ref type="bibr" target="#b8">[8]</ref><ref type="bibr" target="#b12">12]</ref>. Within the first category, one of the most popular approaches is the harmonic constant Q transform (HCQT) <ref type="bibr" target="#b4">[4]</ref>, a feature that extends the constant Q transform (CQT) <ref type="bibr" target="#b13">[13]</ref>. The standard CQT returns a logfrequency representation of the spectrum, where the n th bin is associated with the frequency f n = f min • 2 n/p where f min is the minimum frequency to be considered, and p is the number of bins per octave. The magnitude of CQT spectrogram is a representation containing a single channel, F bins frequency bins, for T frames; its shape is [1, F bins , T ]. The HCQT extends the CQT the channel dimension, where now H harmonics are aligned, resulting in a tensor with dimensions [H, F bins , T ]. This extension is done by stacking a number of H CQTs through the channel dimension. Each one of these H CQTs is a regular one whose f min has been scaled by a harmonic factor h: f n = h • f min ; the CQTs with h = 1 will refer to the fundamental, h = 2 will refer to the first harmonic, h = 3 to the third harmonic, etc. up to H different values. Similarly, sub-harmonics can be added by making h = 0.5, 0.25, etc. In a nutshell, the HCQT facilitates information about the fundamentals directly at the network's input.</p><p>As mentioned, other works incorporated the harmonic knowledge within the architecture of NNs, e.g. <ref type="bibr" target="#b6">[6]</ref> extended the idea of frequency-shifted representations, for the internal feature maps obtained inside NNs. The authors named this method multiple rates dilated harmonic causal convolution (MRDC-Conv). Let X denote a feature map, with shape [C in , F bins , T ] at an arbitrary point of the network. The number of channels for that map is C in . In a CQT spectrum, the distance d n between the fundamental frequency and the n th harmonic is given by:</p><formula xml:id="formula_0">d n = round(p • log 2 (n))<label>(1)</label></formula><p>Where p is a parameter that determines the number of bins per octave in the CQT spectra. To capture k harmonics with MRDC-Conv, the feature map X is convolved with k different kernels in parallel, resulting in k outputs. Each of the outputs is shifted following the harmonic factors given by Equation <ref type="formula" target="#formula_0">1</ref>. E.g. to capture the first three harmonics, three different kernels are required, thus, producing three different outputs. In the case of p = 12 and following Equation 1, the shifts associated with the 2 nd , 3 rd and 4 t h harmonics are 12, 19, and 24. The sum across the k outputs is taken, leading to a single final output of shape [C out , F bins , T ], where C out is the number of output channels. This method is illustrated in Figure <ref type="figure" target="#fig_1">1a</ref>. MRDC-Conv achieves a convolution able to observe the input at the precise position of the harmonics; its drawback is that for each of the harmonics, a different kernel is needed, thus requiring a different feature map stored in memory for each of the k harmonics before they can be aggregated. Some other authors embedded harmonic knowledge within the convolutional kernels rather than in the manipulation of their inputs/outputs. In <ref type="bibr" target="#b12">[12]</ref> the authors use sparse convolutions so that only relevant parts of the spectrum are considered. Sparse convolutions allow the kernels to "ignore" certain parts of the input, so they do not contribute either to the output or to backpropagation during training <ref type="bibr" target="#b14">[14]</ref>. According to <ref type="bibr" target="#b15">[15]</ref>, the harmonics are positive indicators that a certain pitch is present, but some frequencies indicate that the pitch might not be present at all. The latter are called negative indicators. The sparse convolutions from <ref type="bibr" target="#b12">[12]</ref> are used in such a way that only positive and negative indicators defined in <ref type="bibr" target="#b15">[15]</ref> are taken into account. Sparse convolutions require nonetheless using large kernels to cover relevant parts of the spectrum, i.e. <ref type="bibr" target="#b12">[12]</ref> resulted in around 650k parameters exclusively for harmonic processing, accounting for the major portion of the model's parameters.</p><p>In <ref type="bibr" target="#b8">[8]</ref>, dilated convolutions are used to capture the harmonics from the spectrum, with a method named harmonic dilated convolution (HD-Conv). Dilated convolutions are a special kind of convolution, where the kernels' inputs are spaced by a fixed amount. An example of dilated convolutions can be seen in Figure <ref type="figure" target="#fig_1">1b</ref>. By controlling the dilation size, the authors space the kernels' inputs, so each kernel obtains a specific harmonic. The outputs of the different kernels are aggregated by summing across the kernels' outputs as shown in Figure <ref type="figure" target="#fig_1">1b</ref>. The size of the dilations is given by Equation ( <ref type="formula" target="#formula_0">1</ref>). E.g. for p = 12, the second harmonic is separated from the fundamental by d 2 = 12 bins, the third one by d 3 = 19; to capture both the second and the third harmonic, we would need to create two convolutional kernels with a dilation size of 12 and 19 at the frequency dimension. This method has the same drawback as MRDC-Conv, as different harmonics also require a different kernel.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">OUR METHOD</head><p>Similarly to <ref type="bibr" target="#b8">[8]</ref>, our method uses dilated convolutions to capture the harmonics of the spectrum. As mentioned before, a constant dilation can not capture multiple harmonics given the logarithmic nature of these. If it was possible to use different dilations for the same kernel, this problem  would have been already solved, but currently, DL frameworks support only dilations with constant spacing. Our method is able to partially overcome this technical limitation and achieve a convolution at the frequency axis with different dilation rates; thanks to this, our proposed method captures multiple harmonics by just using a single kernel.</p><p>We named our method TriAD, and it involves a series of steps. The first step is to split the frequency dimension into two new ones, each representing different octaves and pitch classes. We call this representation the pitch/octave spectrogram. Next, we create the kernels for our method. Previous works used kernels spanning 2 dimensions: frequency and time; our method's kernels however span 3 dimensions: octave, pitch class, and time. An arbitrary number of m different kernels can be created, each one capturing a different music interval. The m kernels are convolved with the previously described pitch/octave spectrogram, resulting in m different outputs. Finally, these outputs are aggregated by taking the sum across them. The consecutive steps are illustrated in Figure <ref type="figure" target="#fig_2">2</ref>. Subsection 3.1 details the procedure followed to convert a log-frequency spectrogram onto a pitch/octave spectrogram. Subsection 3.2 explains how our convolutional kernels are created and the difference they have with the method described in <ref type="bibr" target="#b8">[8]</ref>. At the end of that subsection, we describe a special kind of padding used in our technique, the octave-circular padding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">The pitch/octave spectrogram</head><p>Let X Cin×F bins ×T be a feature map, with F bins logarithmically spaced frequency bins, T frames, and C in channels. Our goal is to separate octave and pitch class information. We split the F bins bins into two dimensions representing the octave (o) and pitch class (p) information. The number of pitch classes is simply the number of bins per octave used, and the number of octaves can be obtained by o = F bins p . Note that o must be an integer, and so when this condition is not met, we pad the upper part of X 's frequency dimension with the minimum amount of zeros that satisfies the condition. The result is the pitch/octave spectrogram Y Cin×o×p×T , a view of X where F bins has been separated into its octave and pitch class information.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">The harmonic convolutions</head><p>Our aim is to compare two pitch classes across multiple octaves to capture harmonically related information. As shown in Table <ref type="table" target="#tab_0">1</ref>, harmonics and music intervals are closely related. Comparing two pitch classes separated by a certain interval at multiple octaves simultaneously will effectively obtain the harmonics associated with that music interval.</p><p>As previously mentioned, our kernels have 3 dimensions: K ko×kp×kt , related to the octaves (k o ), pitch classes (k p ), and frames (k t ) of the pitch/octave spectrogram; this means that our method uses 3D convolutions <ref type="foot" target="#foot_1">1</ref> . By changing the convolution dilation at the pitch class dimension we control which interval we capture, and consequently its associated harmonics. Since our goal is to compare the same two pitch classes, our method has a fixed k p = 2, but the sizes of k o and k t can be varied, spanning many octaves and timesteps. The effect of dilation exclusively on pitch classes is what achieves the aforementioned non-constant dilation at the frequency dimension. E.g. Let p = 12 and a kernel K with k o = 3 and a perfect fifth dilation at the pitch class dimension, in a certain position, this kernel would see C 1 , G 1 , C 2 , G 2 , C 3 , G 3 simultaneously. The distance from each C to the next G is 7 bins, but the distance from each G to the next C is 5 bins. Our method is to the best of our knowledge, the only one capable of achieving that effect in dilation. In the same scenario using linear dilations <ref type="bibr" target="#b8">[8]</ref>, a kernel with the same size and dilation of a perfect fifth would see instead</p><formula xml:id="formula_1">C 1 , G 1 , D 2 , A 2 , E 3 , B 3 .</formula><p>Using our method, a single kernel with k o = 3 and a dilation of perfect fifths at the k p dimension capture 5 of the first 7 harmonics (see Table <ref type="table" target="#tab_0">1</ref>).</p><p>As can be observed in Figure <ref type="figure" target="#fig_2">2</ref>, the inputs and outputs of the convolutions have the same size, which is achieved by padding the pitch/octave spectrogram. The values used to pad follow the values of the continuous log-frequency spectrogram. E.g. given p = 12, to pad above B 1 , we use the values of the bins C 2 ,C♯ 2 , etc. In contrast, values above the highest octave of the pitch/octave spectrogram will be padded with zeros. We call this method circularoctave padding. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head><p>We test the performance of our method on AMT for the subtask of piano transcription. Our method is compared with other SOTA approaches of capturing the harmonic spectrum within the architecture itself; concretely, we used the harmonic blocks MRDC-Conv <ref type="bibr" target="#b6">[6]</ref>, and HD-Conv <ref type="bibr" target="#b8">[8]</ref>. We do not include input manipulations such as the HCQT, since these are input manipulations rather than networkinternal musically motivated convolutional operations, and a fair comparison is not straightforward.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets</head><p>We used two datasets in our experiments: MIDI and audio edited for synchronous track and organization (MAESTRO) <ref type="bibr" target="#b16">[16]</ref>, and MIDI aligned piano sounds (MAPS) <ref type="bibr" target="#b17">[17]</ref>. MAESTRO contains about 200 hours of audio for complex piano performances precisely aligned to note labels. Some compositions appear multiple times, each played by a different interpreter. In the paper where MAESTRO is presented, an official train/validation/test configuration was also proposed so that compositions played by different interpreters are in the same split group. We use the latest version of this dataset, version 3, in our experiments. MAPS is another popular dataset used in piano transcription. In contrast to MAESTRO that contains only complete piano pieces, this dataset also contains isolated notes and chords.</p><p>Following the practice used in previous works <ref type="bibr">[7,</ref><ref type="bibr" target="#b8">8,</ref><ref type="bibr" target="#b16">16]</ref>, we use the train and validation splits from MAESTRO to train our NNs, and the test sets of MAESTRO and MAPS for testing the trained models. Chunks of audio of 20 seconds and a sample rate of 16.000Hz were used and transformed into a CQT spectrogram, with 352 bins, f min = 32.070Hz, and a resolution of 4 bins per semitone. A hop size of 320 samples is employed, resulting in a time resolution of 20 milliseconds.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">The model</head><p>We use the HPPNet-base model from <ref type="bibr" target="#b8">[8]</ref> for our experiments. This model consists of a backbone and 4 different heads; each head is in charge respectively of predicting which notes are present in each frame, its velocity and whether there is an onset or offset happening. Figure <ref type="figure" target="#fig_4">3</ref> shows an overview of the network. The backbone consists of multiple convolutional layers, and it is divided into three main sections. The first section consists of 3 blocks with 2D convolutions, whose kernels are squarely shaped (7 × 7) and perform initial processing of the CQT spectrogram. The second section is in charge of doing the backbone's harmonic processing; this is where either HD-Conv, MRDC-Conv, or TriAD will be placed. The last block consists of 5 2D convolutional layers with filter shape (1 × 5), spanning across the time dimension <ref type="foot" target="#foot_3">2</ref> .</p><p>The output of the backbone is then used as input for the four heads. Each head consists of a bidirectional long short-term memory (LSTM) <ref type="bibr" target="#b18">[18]</ref> and a dense layer. LSTMs model sequential data, which are the features associated with each output bin in this case. The dense layer takes the features outputted by the LSTM and produces a single value for each of the 88 notes of a piano. Details about the design choices of HPPNet can be found in <ref type="bibr" target="#b8">[8]</ref>.</p><p>We run our experiments by comparing the model's performance when the backbone's harmonic processing is done either by our method (TriAD), MRDC-Conv <ref type="bibr" target="#b6">[6]</ref>, or HD-Conv <ref type="bibr" target="#b8">[8]</ref>. We use those methods as employed in their respective papers: 12 kernels of shape (1 × 1) in the case of <ref type="bibr" target="#b6">[6]</ref>, and 8 kernels with shape (3 × 1) in the case of <ref type="bibr" target="#b8">[8]</ref>. For our method, we use just two kernels, one dilated for perfect fifths, and another one for major thirds; these are the intervals with the most associated harmonics. Our kernels span 3 octaves (k o = 3) and a single frame (k t = 1). The code for MRDC-Conv and HD-Conv can be found in their official repositories 3 4 . We do not train a version of the model with a "harmonically agnostic" block, as <ref type="bibr" target="#b8">[8]</ref> already shows in an ablation study that the model's performance drops significantly in that case.</p><p>As optimizer, ADAM <ref type="bibr" target="#b19">[19]</ref> with a learning rate of 6 • 10 -3 was used. We trained all the models for 200.000 steps, where each step consists of a batch size of 4 chunks of audio. The evaluation was done on MAESTRO's evaluation dataset every 500 steps, to check for possible cases of overfitting. The models were trained 3 times, each one with a random weight initialization. All the harmonic blocks take a similar time to train, around 24h to complete in a V100 GPU.</p><p>The employed loss is the same one as in HPPNet's paper <ref type="bibr" target="#b8">[8]</ref>, a combination of individual losses for the frame, onset, offset, and velocity heads. Weighted binary cross entropy (see Equation <ref type="formula">2</ref>) was used as loss for the frame, onset and offset heads. This loss is used since there are few positive onset labels, yet predicting onsets is necessary to distinguish consecutive notes. The parameter w controls the relevance of positive labels in the loss and is chosen as w = 1 for offsets and frames, and w = 2 for onsets. The loss for the velocity head is the mean squared error between the expected and estimated velocities of each individual note.</p><formula xml:id="formula_2">l bce (y, ŷ) = -wy • log (ŷ) -(1 -y) • log (1 -ŷ) (2)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">RESULTS</head><p>The metrics reported follow the convention described in <ref type="bibr" target="#b20">[20]</ref>. These metrics report different aspects of the transcription. The frame metric operates at the frame level, while the other three operate at the note level. Within the note level, three different metrics exist, considering offsets and/or velocity. This is due to the partially subjective nature of this task. The onset (referred to as the moment when a certain note starts to sound) is not very subjective given the sharp attack of the piano <ref type="bibr" target="#b21">[21]</ref>. In contrast, offset (the moment when a certain note stops sounding) and velocity are less objective aspects of the transcription. An estimate of a note is assumed to be correct if its onset is within ±50ms of the reference, and its pitch is correct. When contemplating offsets, in addition to the previous requisites, the estimation's offset should also be within a certain range; this range is either ±50ms or 20% of the reference note's duration, whatever is larger.</p><p>Velocity estimation is more intricate, as depending on the microphone position a note played with a certain velocity can sound louder or quieter. We use the procedure described in <ref type="bibr" target="#b2">[2]</ref>, which involves rescaling velocities and using linear regression to account for the aforementioned  difference in loudness. All the metrics were calculated using mir_eval <ref type="bibr" target="#b22">[22]</ref>.</p><p>The scores for Section 4 experiments are in Table <ref type="table" target="#tab_2">2</ref>. We also report the results of some larger models of the SOTA as reference. Onsets &amp; Frames <ref type="bibr" target="#b2">[2]</ref> is among the most well-known DL models for piano transcription. Semi-CRFs <ref type="bibr" target="#b3">[3]</ref> is a method designed to improve the predictions made about the offsets. These are large and capable models, but the ones using harmonic knowledge also manage to achieve similar results with notably fewer parameters. Both TriAD and HD-Conv blocks achieve similar results, in pair with large models. The MRDC-Conv block uses fewer parameters than HD-Conv, but in exchange drops in performance. Noticeably, the model using TriAD has the same number of parameters as the one MRDC-Conv, yet it does not drop in performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Kernel dilation relevance</head><p>In music theory, some intervals are more important than others. Equally, some music intervals have more harmonics associated with them than others, as shown in Table <ref type="table" target="#tab_0">1</ref>. It could be expected, that using a kernel dilated with a highly relevant interval yields better results than a kernel associated a with less relevant interval. We tested whether this assumption held or not in our method; instead of using multiple kernels as previously described, our block consists of a single kernel for these experiments. We used 2 relevant intervals (perfect fifth, major third), and 2 lesser relevant intervals (minor second, major seventh) to test the aforementioned assumption. These kernels span 3 octaves (k o = 3) and a single frame (k t = 1), as in the previous ex-    <ref type="table">3</ref>: F1 framewise results for the single kernel experiments described at section 5.1. Our method obtains worse results if a "less relevant" music interval is chosen. HD-Conv achieves more similar results regardless of the dilation, with just a small improvement for the case of the perfect fifth (where it employs two kernels). periment. We also used the method with constant dilations i.e. HD-Conv from <ref type="bibr" target="#b8">[8]</ref>, equally using single kernels except for the case of the perfect fifth. There are two harmonics associated with the perfect fifth within the first 3 octaves, so we employ two rather than a single kernel. The constant dilations capture in this case major third: 5th harmonic; perfect fifths, 3rd and 6th harmonics; minor second, 17th harmonic; and major seventh 30th harmonic. We noticed that after 50.000 steps, the speed at which the loss diminished slowed down sensibly, and therefore, we reduced the number of training steps for this experiment and trained for 70.000 steps in each run.</p><p>The results can be seen in Table <ref type="table">3</ref>. HD-Conv <ref type="bibr" target="#b8">[8]</ref> obtains slightly better results for the perfect fifth kernels, but similar results for other cases. Our method (TriAD) has a distinguishable performance gap depending on the interval. Results are worse for minor second and major seventh intervals, compared to the cases of the major third and the perfect fifth. Moreover, in those two cases, our method achieves notably better results than HD-Conv.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSIONS</head><p>In this paper, we presented TriAD, a novel convolutional block for NNs capable of capturing the harmonics related to music intervals. To obtain such information, we separate octave and pitch class dimensions from log-frequency spectrograms and create convolutional kernels specifically designed to process this disentangled representation. We tested and compared our method with other ones designed to capture harmonic information, in the task of piano-AMT. We also compared how our model performed when only a single kernel was employed. To the best of our knowledge, our method is the only one capable of achieving dilated convolutions which are not "equally spaced" along the frequency axis, allowing our model to capture multiple harmonics using a small kernel. To achieve this effect, other approaches require applying different convolutional layers to the same input <ref type="bibr" target="#b6">[6,</ref><ref type="bibr" target="#b8">8]</ref> or using large kernels <ref type="bibr" target="#b12">[12]</ref>.</p><p>Our method is still capable of reaching the performance achieved by other harmonic blocks while making use of fewer parameters, showing the effectiveness of our approach. Furthermore, the results from the experiment described in Subsection 5.1 show that our method's performance highly depends on the dilation choice, thus hinting that our method is indeed using the harmonics to determine which pitches are present. Moreover, with an appropriate dilation choice our model outperforms other methods also using a single kernel.</p><p>Harmonic series are relevant for other tasks beyond AMT, for example, instrument recognition. Some works have found that the harmonics and their respective amplitudes are crucial to correctly classifying instruments <ref type="bibr" target="#b23">[23,</ref><ref type="bibr" target="#b25">24]</ref>. Our method could be employed to capture the amplitude of different harmonics and learn specific patterns for each instrument. In future work, we will use "harmonically designed" networks in other AMT related tasks. Recent advances in AMT such MT3 <ref type="bibr" target="#b26">[25]</ref> demonstrate that with the current DL techniques is possible to transcribe an arbitrary number of instruments from a piece of music audio instead of just piano as shown here. Since the harmonics are relevant for instrument recognition, we hypothesize using harmonic blocks such as the ones presented here, the accuracy with which notes are assigned to each instrument in systems like MT3 could improve. We release code for reproducibility experimentation <ref type="foot" target="#foot_4">5</ref> .</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Figure (a) An example of MRDC-Conv [6]. Two kernels are applied to the same input. The fundamental f is separated from the harmonic n by d n bins. One output gets shifted by d n , and so f and n get aligned. Figure (b) An example of HD-Conv [8], with two kernels applied to the same input, each one with a different dilation (3, and 2 respectively).</figDesc><graphic coords="3,54.98,70.64,232.45,86.56" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: An overview of TriAD. The channel dimension has been omitted in the image. The first stage converts a logfrequency spectrogram onto a pitch/octave one. We apply m of our harmonically motivated kernels to the pitch/octave spectrogram. Each kernel captures different harmonics, depending on the dilation at the p dimension. The kernels' outputs are aggregated by summing the m outputs. B stands for the batch dimension.</figDesc><graphic coords="4,54.98,68.54,487.58,189.35" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>3</head><label></label><figDesc>https://github.com/WX-Wei/HarmoF0 4 https://github.com/WX-Wei/HPPNet</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: A diagram of HPPNet. The brackets' numbers represent the sizes of the channel, frequency, and frame dimensions. Letter d indicates the dilation rate.</figDesc><graphic coords="5,310.11,68.54,232.45,262.84" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>The harmonics of the first 3 octaves, and their associated music intervals. The rightmost column indicates the distance in bins associated with each interval, where b is the number of bins per semitone.</figDesc><table><row><cell>Harmonics</cell><cell cols="2">Music Interval pitc class distance</cell></row><row><cell>2, 4, 8, 16</cell><cell>octave</cell><cell>b • 12</cell></row><row><cell>17</cell><cell>minor second</cell><cell>b • 1</cell></row><row><cell>9, 18</cell><cell>major second</cell><cell>b • 2</cell></row><row><cell>19</cell><cell>minor third</cell><cell>b • 3</cell></row><row><cell>5, 10, 20</cell><cell>major third</cell><cell>b • 4</cell></row><row><cell>21</cell><cell>perfect fourth</cell><cell>b • 5</cell></row><row><cell cols="2">11, 22 augmented fourth</cell><cell>b • 6</cell></row><row><cell>3, 6, 12, 24</cell><cell>perfect fifth</cell><cell>b • 7</cell></row><row><cell>25</cell><cell>minor sixth</cell><cell>b • 8</cell></row><row><cell>27</cell><cell>major sixth</cell><cell>b • 9</cell></row><row><cell>7, 14, 28</cell><cell>minor seventh</cell><cell>b • 10</cell></row><row><cell>15, 30</cell><cell>major seventh</cell><cell>b • 11</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</figDesc><table><row><cell>Model</cell><cell># Parameters</cell><cell>FRAME F1</cell><cell>NOTE F1</cell><cell cols="2">NOTE W/OFFSET F1 NOTE W/OFFSET &amp; VEL. F1</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>MAESTRO</cell><cell></cell></row><row><cell>Onsets &amp; Frames [2]*</cell><cell>26M</cell><cell>89.68%</cell><cell>95.22%</cell><cell>79.44%</cell><cell>78.85%</cell></row><row><cell>Semi-CRFs [3]</cell><cell>9M</cell><cell>90.75%</cell><cell>96.11%</cell><cell>88.42%</cell><cell>87.44%</cell></row><row><cell>HPPNet + HD-Conv</cell><cell>820K</cell><cell cols="2">91.62%(±.02) 96.14%(±.01)</cell><cell>82.91%(±.02)</cell><cell>80.91%(±.02)</cell></row><row><cell>HPPNet + MRDC-Conv</cell><cell>780K</cell><cell cols="2">78.69%(±.01) 84.71%(±.01)</cell><cell>58.77%(±.01)</cell><cell>52.15%(±.03)</cell></row><row><cell>HPPNet + TriAD (ours)</cell><cell>780K</cell><cell cols="2">91.50%(±.02) 96.16%(±.01)</cell><cell>82.62%(±.02)</cell><cell>80.76%(±.01)</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>MAPS</cell><cell></cell></row><row><cell>HPPNet + HD-Conv</cell><cell>820K</cell><cell cols="2">72.45%(±.02) 86.09%(±.01)</cell><cell>42.77%(±.02)</cell><cell>40.11%(±.02)</cell></row><row><cell>HPPNet + MRDC-Conv</cell><cell>780K</cell><cell cols="2">63.25%(±.01) 73.87%(±.02)</cell><cell>32.68%(±.02)</cell><cell>32.68%(±.01)</cell></row><row><cell>HPPNet + TriAD (ours)</cell><cell>780K</cell><cell cols="2">72.39%(±.03) 85.06%(±.02)</cell><cell>42.41%(±.02)</cell><cell>40.17%(±.02)</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Results for the experiments described in Section 4. In our experiments, each model was trained three different times. The metrics here reported are the average across these runs and in parenthesis the variance. * Results from<ref type="bibr" target="#b8">[8]</ref>.</figDesc><table><row><cell></cell><cell cols="2">Major third</cell><cell cols="2">Perfect fifth</cell><cell cols="2">Minor second</cell><cell cols="2">Major seventh</cell></row><row><cell>Model</cell><cell>MAESTRO</cell><cell>MAPS</cell><cell>MAESTRO</cell><cell>MAPS</cell><cell>MAESTRO</cell><cell>MAPS</cell><cell>MAESTRO</cell><cell>MAPS</cell></row><row><cell cols="9">HPPNet + TriAD 90.14%(±.02) 71.58%(±.01) 90.23%(±.02) 71.98%(±.01) 83.16%(±.01) 68.53%(±.01) 83.36%(±.01) 69.19%(±.02)</cell></row><row><cell cols="9">HPPNet + HD-Conv 84.89%(±.01) 69.96%(±.02) 85.98%(±.02) 70.50%(±.03) 84.23%(±.03) 67.86%(±.03) 84.79%(±.01) 68.69%(±.02)</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table</head><label></label><figDesc></figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>When kt = 1, our method can be implemented with</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>2D convolutions by stacking frames across the batch dimension. 3D is just the general case for an arbitrary kt Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_3"><p>The third block differs from the original paper description; following their description, that block of the backbone alone has 983.040 parameters, whereas the paper specifies that the backbone contains 421K parameters. We used the network as implemented in the official repo, which matches the number of parameters and replicates their reported resultsProceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>https://github.com/migperfer/TriAD-ISMIR2023 Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Approximate note transcription for the improvedidentification of difficult chords</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mauch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 11th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Onsets and Frames: Dual-Objective Piano Transcription</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Elsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 19th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Skipping the frame-level: Event-based piano transcription with neural semi-crfs</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Cwitkowitz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Duan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Ranzato</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Y</forename><surname>Beygelzimer</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">P</forename><surname>Dauphin</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Liang</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Vaughan</surname></persName>
+		</editor>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">34</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Deep Salience representations for F0 estimation in polyphonic music</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 18th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Melody extraction using a harmonic convolutional neural network</title>
+		<author>
+			<persName><forename type="first">Jiří</forename><surname>Balhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Hajič Jr</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">MIREX Melody Extraction Report, Tech. Rep</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">HarmoF0: Logarithmic Scale Dilated Convolution for Pitch Estimation</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2022 IEEE International Conference on Multimedia and Expo (ICME)</title>
+		<imprint>
+			<date type="published" when="2022-07">Jul. 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Enhancing Piano Transcription by Dilated Convolution</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Shi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2020 19th IEEE International Conference on Machine Learning and Applications (ICMLA)</title>
+		<imprint>
+			<date type="published" when="2020-12">Dec. 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">HPPNet: Modeling the Harmonic Structure and Pitch Invariance in Piano Transcription</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 23th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">A Lightweight Instrument-Agnostic Model for Polyphonic Note Transcription and Multipitch Estimation</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">J</forename><surname>Bosch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Rubinstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Meseguer-Brocal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ewert</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2022 -2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<imprint>
+			<date type="published" when="2022-05">May 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Deep convolutional networks on the pitch spiral for musical instrument recognition</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Lostanlen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Carmine-Emanuele</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 18th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Folded cqt rcnn for realtime recognition of instrument playing techniques</title>
+		<author>
+			<persName><forename type="first">J.-F</forename><surname>Ducher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Esling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Harmonic Structure-Based Neural Network Model for Music Pitch Detection</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Shi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2020 19th IEEE International Conference on Machine Learning and Applications (ICMLA)</title>
+		<imprint>
+			<date type="published" when="2020-12">Dec. 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Calculation of a constant Q spectral transform</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">C</forename><surname>Brown</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of the Acoustical Society of America</title>
+		<imprint>
+			<biblScope unit="volume">89</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="1991-01">Jan. 1991</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">3d semantic segmentation with submanifold sparse convolutional networks</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Graham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Engelcke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">V D</forename><surname>Maaten</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Polyphonic pitch tracking with deep layered learning</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Elowsson</surname></persName>
+		</author>
+		<idno type="DOI">10.1121/10.0001468</idno>
+		<ptr target="https://doi.org/10.1121/10.0001468" />
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of the Acoustical Society of America</title>
+		<imprint>
+			<biblScope unit="volume">148</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Enabling factorized piano music modeling and generation with the maestro dataset</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Stasyuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Cheng-Zhi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Erich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Eck</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>in Proceedings of the 7th International Conference on Learning Representations</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Multipitch estimation of piano sounds using a new probabilistic spectral smoothness principle</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Emiya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Badeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>David</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Melody extraction from polyphonic music signals</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<pubPlace>Barcelona, Spain</pubPlace>
+		</imprint>
+		<respStmt>
+			<orgName>Universitat Pompeu Fabra</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">Ph.D. dissertation</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Investigating the perceptual validity of evaluation metrics for automatic piano music transcription</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ycart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">T</forename><surname>Pearce</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the International Society for Music Information Retrieval</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">mir_eval: A transparent implementation of common mir metrics</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">J</forename><surname>Humphrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Nieto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P W</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 15th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Music timbre extracted from audio signal features</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mo</surname></persName>
+		</author>
+		<idno type="DOI">10.1155/2022/1349935</idno>
+		<ptr target="https://doi.org/10.1155/2022/1349935" />
+	</analytic>
+	<monogr>
+		<title level="j">Mobile Information Systems</title>
+		<imprint>
+			<biblScope unit="volume">2022</biblScope>
+			<date type="published" when="2022-06">Jun 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m">Proceedings of the 24th ISMIR Conference</title>
+		<meeting>the 24th ISMIR Conference<address><addrLine>Milan, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023-09">November 5-9, 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">The significance of the nonharmonic &quot;noise&quot; versus the harmonic series for musical instrument recognition</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Livshin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Rodet</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 7th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 7th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">MT3: Multi-task multitrack music transcription</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Manilow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m">Proceedings of the 24th ISMIR Conference</title>
+		<meeting>the 24th ISMIR Conference<address><addrLine>Milan, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023-09">November 5-9, 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>
