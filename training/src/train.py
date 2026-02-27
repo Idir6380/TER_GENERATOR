@@ -1,5 +1,5 @@
 from transformers import  AutoModelForTokenClassification,AutoTokenizer
-from preparation_data_train import data
+from preparation_data_train import *
 import json
 import torch
 import numpy as np
@@ -72,7 +72,7 @@ def plot_(epoch, loss_train,loss_eval):
 
 if __name__ == "__main__":
     tokeniser = AutoTokenizer.from_pretrained(model_name)
-    dataloader_train,dataloader_eval,vocab,inv_vocab=data(file_name,tokeniser,batch_size=32)
+    dataloader_train,dataloader_eval,vocab,inv_vocab=data_per_article(file_name,tokeniser,batch_size=32)
 
     epoch= 10
     model= initialisation(vocab,inv_vocab,model_name)
@@ -83,7 +83,7 @@ if __name__ == "__main__":
 
 
     all_model= {"model":model.state_dict(),"inv_vocab_t":inv_vocab, "vocab_t":vocab,"epoch":epoch,"model_name":model_name,"tokeniser":tokeniser} 
-    torch.save(all_model,"model1.pt")
+    torch.save(all_model,"model2.pt")
 
     plot_(epoch,losses_train,losses_eval)
 

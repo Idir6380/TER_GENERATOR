@@ -229,6 +229,7 @@ def data_per_article(file_name,tokenizer,batch_size=32):
     
     fe_train,la_train,doc_ids = label_feature_per_article(fe_train,la_train,doc_ids_train)
     fe_eval,la_eval,doc_id_ev = label_feature_per_article(fe_eval,la_eval,doc_id_ev)
+    print(len(fe_train))
     vocab,inv_vocab= create_vocab(la_train)
     labels_ids = [[vocab[l] for l in sent] for sent in la_train]
     labels_ids_e = [[vocab[l] for l in sent] for sent in la_eval]

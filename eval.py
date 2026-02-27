@@ -1,7 +1,8 @@
 import pandas as pd
 from rapidfuzz.distance import JaroWinkler
+from training.src.traitement_greenMIR  import *
 
-EVAL_FIELDS = ["year", "gpu_count", "country", "parameter_count", "training_hours"]
+EVAL_FIELDS = ["year", "gpu_count", "country", "parameter_count", "training_duration"]
 
 #Distance for numerical fiels
 def numerical_distance(pred, truth):
@@ -101,23 +102,24 @@ def evaluate(predictions, ground_truth):
     return results
 
 
-def test():
+def test(file):
     from utils import load_ground_truth
     gt = load_ground_truth()
 
     # Fake predictions for articles that have ground truth data
-    fake_predictions = {
-        # Article 11: RTX 3090, 1 GPU, 2022, Taiwan/USA, 500k params, 63h
-        11: {"year": 2022, "gpu_count": 1, "country": "Taiwan, USA", "parameter_count": 500000, "training_hours": 63},
-        # Article 13: V100, 1 GPU, 2022, Taiwan, 48h — partially wrong
-        13: {"year": 2023, "gpu_count": 1, "country": "Taiwan", "training_hours": 40},
-        # Article 14: V100, 1 GPU, 2022, China, 11.5h — missing some fields
-        14: {"year": 2022, "gpu_count": 2, "country": "China"},
-    }
+    fake_predictions = traiter_alllire_json(file)
+    #{
+    #     # Article 11: RTX 3090, 1 GPU, 2022, Taiwan/USA, 500k params, 63h
+    #     11: {"year": 2022, "gpu_count": 1, "country": "Taiwan, USA", "parameter_count": 500000, "training_hours": 63},
+    #     # Article 13: V100, 1 GPU, 2022, Taiwan, 48h — partially wrong
+    #     13: {"year": 2023, "gpu_count": 1, "country": "Taiwan", "training_hours": 40},
+    #     # Article 14: V100, 1 GPU, 2022, China, 11.5h — missing some fields
+    #     14: {"year": 2022, "gpu_count": 2, "country": "China"},
+    # }
 
     print("=== Test with fake predictions ===")
     evaluate(fake_predictions, gt)
 
 
 if __name__ == "__main__":
-    test()
+    test("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/greenmir_pred_0.json")
