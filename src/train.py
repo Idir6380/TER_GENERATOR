@@ -8,6 +8,8 @@ from transformers import AutoTokenizer
 from time import time 
 from tqdm import tqdm
 from seqeval.metrics import classification_report, f1_score
+import pandas as pd
+import os
 
 MODEL_NAME = "allenai/scibert_scivocab_cased"
 DATA_FILE = '../data/all_articles_augmented.json'
@@ -105,7 +107,6 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     train_loader, eval_loader, test_loader, vocab, inv_vocab = get_dataloaders(DATA_FILE, tokenizer, batch_size=32)
 
-    import os
     os.makedirs("../models", exist_ok=True)
 
     results = {}
@@ -146,6 +147,15 @@ def main():
     print("\n=== Final Results (sorted by F1) ===")
     for exp, res in sorted(results.items(), key=lambda x: x[1]["f1"], reverse=True):
         print(f"{exp:<15} f1: {res['f1']:.4f} | eval_loss: {res['eval_loss']:.4f}")
+
+    df = pd.DataFrame([
+        {"config": exp, "finetune": exp.split("_")[0], "layer": exp.split("_")[1],
+         "eval_loss": res["eval_loss"], "f1": res["f1"]}
+        for exp, res in results.items()
+    ])
+    df = df.sort_values("f1", ascending=False)
+    df.to_csv("../models/results.csv", index=False)
+    print(f"\nResults saved to ../models/results.csv")
 
 if __name__ == "__main__":
     main()
