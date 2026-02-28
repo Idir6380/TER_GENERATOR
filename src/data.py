@@ -145,7 +145,7 @@ def get_dataloaders(file_path, tokenizer, batch_size=16, test_size=0.1, eval_siz
             articles_sentences.append(art_sents)
             articles_labels.append(art_labels_strs)
 
-    vocab, inv_vocab = build_vocab(all_label_strs)
+    vocab, inv_vocab = build_vocab([labels for art in articles_labels for labels in art])
     #all_label_ids = [[vocab[l] for l in labels] for labels in all_label_strs]
 
 
