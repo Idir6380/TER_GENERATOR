@@ -126,7 +126,7 @@ def main():
             ).to(DEVICE)
 
             train_losses, eval_losses, f1_scores = train(
-                model, train_loader, eval_loader, inv_vocab, epochs=20, lr=2e-5, patience=3
+                model, train_loader, eval_loader, inv_vocab, epochs=100, lr=2e-5, patience=3
             )
 
             torch.save({
