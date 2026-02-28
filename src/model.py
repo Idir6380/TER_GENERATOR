@@ -13,7 +13,10 @@ class SciBERTNER(nn.Module):
         self.bert = AutoModel.from_pretrained(model_name)
         self.n_finetune_layers = n_finetune_layers
         self.layer_mode = layer_mode
+
+        self.dropout = nn.Dropout(0.1)
         self.classifier = nn.Linear(768, num_labels)
+        
 
         # Freez layers 
         for param in self.bert.parameters():
@@ -40,6 +43,7 @@ class SciBERTNER(nn.Module):
             raise ValueError(f"layer_mode must be L12, L10, L8 or AVG, got {self.layer_mode}")
 
         loss = None
+        representation = self.dropout(representation)
         logits = self.classifier(representation)
         if labels is not None:
             loss_fn = nn.CrossEntropyLoss(ignore_index=-100)

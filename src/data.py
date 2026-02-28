@@ -94,21 +94,64 @@ def build_vocab(all_labels):
     return vocab, inv_vocab
 
 
-def get_dataloaders(file_path, tokenizer, batch_size=16, test_size=0.1, eval_size=0.1):
+def build_windows(articles_sentences, articles_labels, vocab, context_size):
+    all_sentences, all_label_ids = [], []
+    
+    for art_sents, art_labels in zip(articles_sentences, articles_labels):
+        for i in range(len(art_sents)):
+            if context_size == 0:
+                all_sentences.append(art_sents[i])
+                all_label_ids.append([vocab[label] for label in art_labels[i]])
+            else:
+                start = max(0, i - context_size)
+                end = min(len(art_sents), i+context_size+1)
+
+                window_tokens, window_labels = [], []
+
+                for j in range(start, end):
+                    window_tokens.extend(art_sents[j])
+                    if j == i:
+                        window_labels.extend([vocab[label] for label in  art_labels[j]])
+                    else :
+                        window_labels.extend([-100] * len(art_sents[j]))
+                all_sentences.append(window_tokens)
+                all_label_ids.append(window_labels)
+    return all_sentences, all_label_ids
+def get_dataloaders(file_path, tokenizer, batch_size=16, test_size=0.1, eval_size=0.1, context_size=0):
     articles = load_articles(file_path)
 
-    all_sentences, all_labels = [], []
+    #all_sentences, all_labels = [], []
+    """
+    aritcles_sentences, contains the sentences of each article, 
+    and articles_labels contains the corresponding BIO labels for each sentence.
+    all_labels_strs is a list of all unique label strings found in the dataset, 
+    which is used to build the vocabulary for label encoding.
+    """
+    articles_sentences, articles_labels, all_label_strs = [], [], []
+
     for article in articles:
         text = article["article"]
+        
+        art_sents = []
+        art_labels_strs = []
+        
         for sentence in split_into_sentences(text):
             tokens, labels = xml_to_bio(sentence)
             if tokens:
-                all_sentences.append(tokens)
-                all_labels.append(labels)
+                art_sents.append(tokens)
+                art_labels_strs.append(labels)
+                all_label_strs.extend(labels)
+        if art_sents:
+            articles_sentences.append(art_sents)
+            articles_labels.append(art_labels_strs)
 
-    vocab, inv_vocab = build_vocab(all_labels)
-    all_label_ids = [[vocab[l] for l in labels] for labels in all_labels]
+    vocab, inv_vocab = build_vocab(all_label_strs)
+    #all_label_ids = [[vocab[l] for l in labels] for labels in all_label_strs]
 
+
+
+    all_sentences, all_label_ids = build_windows(articles_sentences, articles_labels, vocab, context_size)
+    
     sentences_train, sentences_test, labels_train, labels_test = train_test_split(
         all_sentences, all_label_ids, test_size=test_size, random_state=42
     )
