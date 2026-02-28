@@ -1,0 +1,818 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">CONTROLLING SYMBOLIC MUSIC GENERATION BASED ON CONCEPT LEARNING FROM DOMAIN KNOWLEDGE</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Taketo</forename><surname>Akama</surname></persName>
+							<email>taketo.akama@sony.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Sony Computer Science Laboratories</orgName>
+								<address>
+									<settlement>Tokyo</settlement>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">CONTROLLING SYMBOLIC MUSIC GENERATION BASED ON CONCEPT LEARNING FROM DOMAIN KNOWLEDGE</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">5A81997D4DD5D3C8F70801C404CCC1D5</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:16+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Machine learning allows automatic construction of generative models for music. However, they are learned from only the succession of notes itself without explicitly employing domain knowledge of musical concepts such as rhythm, contour, and fragmentation &amp; consolidation. We approximate such musical domain knowledge as a function, and feed it into our model. Then, two decoupled spaces are learned: the extraction space that captures the target concept, and the residual space that captures the remainder. For monophonic symbolic music, our model exhibits high decoupling/modeling performance. Controllability in generation is improved: (i) our interpolation enables concept-aware flexible control over blending two musical fragments, and (ii) our variation generation enables users to make concept-aware adjustable variations.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Listeners not only perceive the succession of notes itself, but also respond to higher-level concepts in music. Two critical components in melodic perception and memory are scale and contour <ref type="bibr" target="#b5">[5]</ref>. It is said that similarity between musical fragments is important in listeners' emotional arousal responses to music <ref type="bibr" target="#b18">[18]</ref>. Listeners sense those similarities through perceiving patterns of music constructs or transformations such as rhythm, interval, and fragmentation &amp; consolidation (F&amp;C) <ref type="bibr" target="#b20">[20]</ref>.</p><p>Music data processing, especially music generation and analysis have attracted much attention. One of the major methods exploits models that learn the latent space <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b6">6,</ref><ref type="bibr" target="#b9">9,</ref><ref type="bibr" target="#b16">16,</ref><ref type="bibr" target="#b28">[27]</ref><ref type="bibr" target="#b29">[28]</ref><ref type="bibr" target="#b30">[29]</ref>. These models learn compressed but informative feature vectors of data samples and distribute them in the multi-dimensional latent space. The spacial arrangement represents the relation of data samples. Also, numerous intermediate features-corresponding to samples hopefully not in the dataset-are yielded to fill in the "holes" in the latent space. Then generation and analysis are performed by bidirectional mapping of the latent space and the data space. The latent space is, however, learned from raw musical data without supervision. Therefore, the c Taketo Akama. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Taketo Akama. "Controlling Symbolic Music Generation Based on Concept Learning from Domain Knowledge", 20th International Society for Music Information Retrieval Conference, Delft, The Netherlands, 2019. musical notions or concepts that are important for people are not sufficiently organized on the latent space. Hereinafter, we refer to such notions or concepts as musical concepts, examples of which include rhythm, contour, and F&amp;C, as mentioned above.</p><p>How do we organize those musical concepts on the latent space? People possess domain knowledge about musical concepts, although even the major concepts are not necessarily defined clearly. In fact, various musical concepts can be approximated as a function of raw musical sequences. We input such domain knowledge to our model in the form of a function, and then our model learns latent spaces that capture the corresponding musical concepts.</p><p>Our model is called ExtRes (Extraction-Residual Latent Space Decoupling Model), and it aims at learning decoupled latent spaces, each of which is associated with a musical concept. In other words, each musical concept is learned as a latent-space concept that occupies a part of the dimensions in the multi-dimensional latent space. The concept-wise decoupled latent spaces allow us to measure similarity between musical fragments in terms of each concept. The similarity is then used for e.g., pattern discovery in a musical piece <ref type="bibr" target="#b17">[17]</ref>. In generation, the control over concept-wise latent features helps us to create musical phrases as imagined or to compose patterns/structures in a musical piece <ref type="bibr" target="#b23">[23]</ref>.</p><p>Our ExtRes has the following characteristics. (I) Knowledge based: musical concepts can be incorporated as function approximations on the basis of domain knowledge. For monophonic musical sequences, various important musical concepts can be incorporated such as rhythm, chromatic/diatonic interval or pitch, step-leap/signed contour, and F&amp;C. This is possible because given an input sequence, these concepts can be approximated as other sequences with rules or algorithms <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b19">19]</ref> to construct the functions. (II) Complex concept and active learning: complex concepts are actively learned without obtaining attributes first <ref type="bibr" target="#b3">[3,</ref><ref type="bibr" target="#b4">4,</ref><ref type="bibr" target="#b12">12,</ref><ref type="bibr" target="#b14">14]</ref>, where a set of attributes is a concept. (III) Extraction-residual: aiming at comprehending complex data by repeatedly analyzing "one concept versus the rest." The rest (residual) may capture the useful concepts (e.g., scale for contour and "pitch order" for rhythm). (IV) Coexisting latent spaces: depending on the input domain knowledge, corresponding concepts are captured in latent spaces. Users can exploit multiple models of ours-wherein latent spaces with different concepts coexist-for handling many concepts.</p><p>We apply our ExtRes to improving controllability in interactive music generation. (i) Concept-axes interpolation: this mechanism helps users to create musical phrases as imagined. Users first input two musical fragments into the system. Prior methods allow users to adjust the blending ratio of the two fragments uniformly regardless of concepts <ref type="bibr" target="#b28">[27,</ref><ref type="bibr" target="#b29">28]</ref>, whose blending is more musically meaningful than the naive data space blending. Our conceptaxes interpolation offers more flexibility: enabling users to blend only the factor of the desired concept in musical fragments and to also adjust the blending ratio for each target/residual concept. (ii) Concept-aware variation generation: given a musical fragment, this mechanism allows users to obtain variations, where the amount of variation for each concept is adjustable. When generating a long structured piece of music, this mechanism helps to faithfully realize either of the instructions of a song template <ref type="bibr" target="#b23">[23]</ref> or the user intention.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">METHODOLOGY</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Outline</head><p>We propose ExtRes, a generative model that allows learning reusable representation (as latent features and embedding vectors) for a user-specified concept, given a function based on domain knowledge on the concept (Sec.2.2). We then instantiate our proposed ExtRes model for sequence datasets (Sec.2.4). In Sec.2.5, musical concepts are approximated as functions on the basis of domain knowledge. For applications of our ExtRes, we focus on meaning-level controllability in generation. We consider the following kinds of control: (i) altering in relation to other samples (e.g., interpolation), (ii) altering a sample to another sample with similar but not the same meaning (e.g., variation), and (iii) altering individual concepts. ExtRes not only puts (iii) into practice by free explorations in concept spaces, but also allows hybridizing the meaning-level controls (i-iii) for more intended controllability: Sec.2.3 Concept-Axes Interpolation is for bridging (i) and (iii), Sec.2.3 Concept-Aware Variation Generation is for bridging (ii) and (iii).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Extraction-Residual Latent Space Decoupling Model (ExtRes)</head><p>Let us consider a dataset D = {x (n) } N n=1 , consisting of N i.i.d. samples of stochastic variable x ∈ X . Given f ext : X → Y that extracts information of a target concept as y ∈ Y from x, ExtRes is for learning latent spaces Z e and Z r that correspond to f ext . Z e is called an extraction space, which captures the extracted target concept, and Z r is called a residual space, which is expected to be decoupled from Z e , aiming at capturing a concept corresponding to all the rest. Figure <ref type="figure" target="#fig_0">1</ref> summarizes our model.</p><p>f ext can be obtained e.g., by constructing rules or algorithms on the basis of the data domain knowledge (for musical sequences, see <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b19">19]</ref>). Specific examples based on musical domain knowledge are shown in Sec.2.5. </p><formula xml:id="formula_0">D drv = {(x (n) , y (n) )} N n=1</formula><p>, through the mapping y = f ext (x). Then, our approach is to learn a generative model involving two latent variables: z e ∈ Z e for capturing variability in y and z r ∈ Z r for variability in x given y. We assume the dataset is generated from the following process: (i) z</p><formula xml:id="formula_1">(n) e ∼ p θ * e (z e ), z (n) r ∼ p θ * r (z r ), (ii) y (n) ∼ p θ * y (y|z (n)</formula><p>e ), and (iii)</p><formula xml:id="formula_2">x (n) ∼ p θ * x (x|y (n) , z<label>(n)</label></formula><p>r ). Then we model this generative process by maximizing marginal log likelihood log p θ (D drv ) = N n=1 log p θ (x (n) , y (n) ) with each term rewritten as:</p><formula xml:id="formula_3">log p θ (x, y) = log p θx (x|y, z r )p θr (z r )dz r , + log p θy (y|z e )p θe (z e )dz e . (<label>1</label></formula><formula xml:id="formula_4">)</formula><p>Since this is computationally intractable in general, we derive an evidence lower bound (ELBO) <ref type="bibr" target="#b16">[16]</ref>:</p><formula xml:id="formula_5">log p θ (x, y) ≥ L res + L ext ,<label>(2)</label></formula><p>where L res = E q φr (zr|x,y) [log p θx (x|y, z r )] -D KL (q φr (z r |x, y)||p θr (z r )), (3) and L ext = E q φe (ze|y) log p θy (y|z e ) -D KL (q φe (z e |y)||p θe (z e )).</p><p>Here, D KL denotes the Kullback-Leibler (KL) divergence. We maximize the data likelihood of right hand side of Eq.( <ref type="formula" target="#formula_5">2</ref>) for optimizing parameters {θ x , θ y , θ r , θ e , φ r , φ e }. We refer to the models corresponding to Eq.( <ref type="formula">3</ref>) and Eq.( <ref type="formula" target="#formula_6">4</ref>) as the residual model and extraction model, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Controlling Generation</head><p>Concept-Axes Interpolation. With our decoupled latent spaces, interpolation can be done for each latent space Z e and Z r . In the simplest linear case, interpolation between two latent vectors [z</p><formula xml:id="formula_7">(i) e ; z (i) r ] and [z (j) e ; z (j)</formula><p>r ] produces samples x(α e , α r ) ∼ p θx (x|y(α e ), z r (α r )) with y(α e ) ∼ p θy (y|z e (α e )), where z r (α r ) = z</p><formula xml:id="formula_8">(i) r + α r (z (j) r -z (i) r )</formula><p>and z e (α e ) = z</p><formula xml:id="formula_9">(i) e + α e (z (j) e -z (i) e ) with (α r , α e ) ∈ [0, 1] × [0, 1].</formula><p>Variation Generation Approach. Finding the boundary, in a latent space, between variations and non-variations is semi-automatically learned by defining that variations of a given data sample are the samples that contain enough information in terms of reconstruction error , in expectation. For our ExtRes, the error can be adjusted by introducing trade-off parameters in Eq.(3) and Eq.(4) (see Sec.4.2). Intuitively, the latent vectors capture high-level features for the corresponding data samples, and given a data sample x, the learned inference distributions q φr (z r |x, f ext (x)) and q φe (z e |f ext (x)) specify feature-wise similar/dissimilar (i.e. variations/nonvariations) boundaries of the given sample. Therefore, our approach is to generate variations x (i) of x in accordance with the boundaries as follows:</p><formula xml:id="formula_10">x (i) ∼ p θx (x|y (i) , z (i) r ) with y (i) ∼ p θy (y|z (i) e ) and z (i) r ∼ q φr (z r |x, f ext (x)), where z (i)</formula><p>e ∼ q φe (z e |f ext (x)). Concept-Aware Variation Generation. We also propose how to generate variations x (i) in a concept-wise manner when the inference models are normal distributions. The amount of variation is controlled for each concept in either of the following ways: simply changing the ratio of the covariance scales of inference distributions, or ordering the samples z</p><formula xml:id="formula_11">(i) e or z (i)</formula><p>r on the basis of Mahalanobis distances:</p><formula xml:id="formula_12">D M (z (i) , ẑ) = (z (i) -ẑ) T Σ -1 (z (i) -ẑ), (5) for (z (i) , ẑ, Σ) ∈ {(z (i)</formula><p>e , ẑe , Σ e ), (z</p><formula xml:id="formula_13">(i) r , ẑr , Σ r )}, where q φe (z e |f ext (x)) = N (z e |ẑ e , Σ e ),</formula><p>and</p><formula xml:id="formula_14">q φr (z r |x, f ext (x)) = N (z r |ẑ r , Σ r ).</formula><p>Here, N denotes normal distribution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Instantiation of ExtRes for Sequences</head><p>Throughout the rest of this paper, we consider the case where x consists of a sequence of discrete variables s t i.e. x = (s 1 , ..., s T ). Here, each s t has a distribution over the elements of a finite alphabet set A. Let f ext be a function that maps a sequence of length T to that of length T , i.e. f ext : A T → B T , where B is another alphabet set. First, we conduct data derivation using</p><formula xml:id="formula_15">f ext (x (n) ) = y (n) = (a (n) 1 , ..., a<label>(n)</label></formula><p>T ). The given dataset</p><formula xml:id="formula_16">D = {x (n) } N n=1 can be augmented to become D drv = {(x (n) , y (n) )} N n=1 , where x (n) = (s (n) 1 , ..., s (n) T ) and y (n) = (a (n) 1 , ..., a (n) T ).</formula><p>We refer to (a</p><formula xml:id="formula_17">(n) 1 , ..., a<label>(n)</label></formula><p>T ) as an abstract sequence of (s</p><formula xml:id="formula_18">(n) 1 , ..., s<label>(n)</label></formula><p>T ). Now, the inference models are (h ze,t , c ze,t ) = LSTM(E(a t ), h ze,t-1 , c ze,t-1 ),</p><formula xml:id="formula_19">q φe (z e |a 1:T ) = N (z e |MLP(h ze,T ), diag(exp(MLP(h ze,T )))), (7) (h zr,t , c zr,t ) = LSTM([E(s t ); E(a t )], h zr,t-1 , c zr,t-1 ),<label>(6)</label></formula><formula xml:id="formula_20">q φr (z r |s 1:T , a 1:T ) = N (z r |MLP(h zr,T ), diag(exp(MLP(h zr,T )))),<label>(8)</label></formula><p>where LSTM, E, and MLP denote a long short-term memory RNN (first, second, and third arguments of LSTM are input, hidden state, and cell state, respectively) <ref type="bibr" target="#b13">[13]</ref>, embedding layer, and multi-layer perceptron, respectively. The generative model for the abstract sequence is</p><formula xml:id="formula_22">p θe (z e ) = N (z e |0, I), (<label>10</label></formula><formula xml:id="formula_23">) (h a,1 , c a,1 ) = LSTM([Ea 0 ; z e ], MLP(z e ), c a,0 ),<label>(11)</label></formula><p>(h a,t , c a,t ) = LSTM([E(a t-1 ); z e ], h a,t-1 , c a,t-1 ), <ref type="bibr" target="#b12">(12)</ref> p θy (a t |a 1:t-1 , z e ) = Cat(a t |σ(MLP(h a,t ))),</p><formula xml:id="formula_24">p θy (a 1:T |z e ) = T t=1 p θy (a t |a 1:t-1 , z e ),<label>(13)</label></formula><p>where Cat and σ denote the categorical distribution and softmax function, respectively. Note that we use notation p θy (a 1 |a 1:0 , z e ) = p θy (a 1 |z e ) for brevity. The generative model for the original sequence is</p><formula xml:id="formula_26">p θr (z r ) = N (z r |0, I), (<label>15</label></formula><formula xml:id="formula_27">) (h 1 , c 1 ) = LSTM([Es 0 ; E(a 1 ); z r ], MLP(z r ), c 0 ), (16) (h t , c t ) = LSTM([E(s t-1 ); E(a t ); z r ], h t-1 , c t-1 ), (17) p θx (s t |s 1:t-1 , a 1:t , z r ) = Cat(s t |σ(MLP(h t ))),<label>(18)</label></formula><p>p θx (s 1:T |a 1:T , z r ) = T t=1 p θx (s t |s 1:t-1 , a 1:t , z r ), <ref type="bibr" target="#b19">(19)</ref> where we use the following notation for brevity: p θx (s 1 |s 1:0 , a 1:1 , z r ) = p θx (s 1 |a 1 , z r ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5">Formulating Musical Domain Knowledge</head><p>On the basis of musical domain knowledge, we approximate musical concepts as f ext (x) for monophonic sequences. As mentioned in Sec.1, given an input musical sequence, many abstract sequences expressing important musical concepts can be derived <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b19">19]</ref>. Among these, we demonstrate formulating two examples: rhythm and contour. Our finding is that a concept of musical transformations-fragmentation &amp; consolidation, which is the main characteristic of similarity in musical sequences <ref type="bibr" target="#b20">[20]</ref>-can also be approximated as a function, and we demonstrate it. We use the real name of musical notes as symbols ('C3', 'D#4', etc.) and use 'R' to represent a rest symbol. We add an extra symbol '__' representing that a note is held and not replayed <ref type="bibr" target="#b11">[11]</ref>. Then the alphabet set A becomes a set of symbols listed above. Let O be a set of symbols that has no pitch, i.e., O = {'__' , 'R'}. We use the notation S 1:t-1 = {s</p><formula xml:id="formula_28">(n) 1 , ..., s (n) t-1 }.</formula><p>Rhythm. Let 'N' denote a symbol that represents any note. Then the rhythm sequence for (s</p><formula xml:id="formula_29">(n) 1 , ..., s (n) T ) is defined as (a (n) 1 , ..., a (n) T ), where a (n) t = s (n) t (s (n) t ∈ O) 'N' (otherwise)</formula><p>Thus, B = O ∪ {'N'}. Now we define f ext for rhythm as: f ext (x) = (a 1 , ..., a T ). Contour. In this paper, we refer to a chromatic signed contour with rhythm information as contour. Formally, the contour sequence for (s</p><formula xml:id="formula_30">(n) 1 , ..., s<label>(n)</label></formula><p>T ) can be defined as (a</p><formula xml:id="formula_31">(n) 1 , ..., a (n) T ), where a (n) t =      s (n) t (s (n) t ∈ O) 'SP' (s (n) t ∈ O ∧ S 1:t-1 ⊂ O) sgn(Interval(s (n) t )) (otherwise)</formula><p>Here 'SP' stands for Starting Pitch, sgn is a real sign function, and Interval is a function that calculates the chromatic pitch difference between the symbol of its argument and the previous symbol that has pitch. Then sgn(Interval(s (n) t )) outputs whether the pitch of s (n) t is higher than ('1'), lower than ('-1'), or the same as ('0') the last symbol that has pitch. Thus, the alphabet set B={'__' , 'R', 'SP', '1', '-1', '0'}. Now we define f ext Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019 for contour as: f ext (x) = (a 1 , ..., a T ). Fragmentation and Consolidation (F&amp;C). Fragmentation involves replacing one long note with several shorter notes, whereas consolidation conversely involves replacing several shorter notes with a single long note <ref type="bibr" target="#b20">[20]</ref>. Formally, the F&amp;C-invariant sequence for (s</p><formula xml:id="formula_32">(n) 1 , ..., s (n) T ) can be defined as (a (n) 1 , ..., a (n) T ), where a (n) t = 'FC' (s (n) t ∈ O ∨ s (n) t = LSP(s (n) t )) s (n) t (otherwise)</formula><p>Here LSP stands for Last Symbol with Pitch, and LSP(s</p><formula xml:id="formula_33">(n) t ) = s (n) t l , where t l = max{u : s (n) u ∈ S 1:t-1 ∧ s (n) u</formula><p>∈ O}. Thus, the alphabet set B = {'FC'} ∪ A \ O. Now we define f ext for F&amp;C as: f ext (x) = (a 1 , ..., a T ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">RELATED WORK</head><p>Conditional Models. Conditional deep generative models are widely studied especially in the image domain <ref type="bibr" target="#b15">[15,</ref><ref type="bibr" target="#b22">22]</ref>. Although our residual model is similar to this family of models, their methods are different from ours in that (i) the problem setting itself is different: data for conditioning variable y is given in their method, (ii) condition y is not as structured as ours (usually labels), and (iii) the latent space of condition Z e is not learned (i.e., their method has no extraction model of ours). In the music domain, conditions of notes or chords are used for factoring out those information from latent variables <ref type="bibr">[7,</ref><ref type="bibr" target="#b29">28,</ref><ref type="bibr" target="#b30">29]</ref>. Disentangled Latent Spaces. In the image domain, some approaches successfully disentangle latent space <ref type="bibr" target="#b3">[3,</ref><ref type="bibr" target="#b4">4,</ref><ref type="bibr" target="#b14">14]</ref>. The popular approach is regularizing each latent dimension to be independent, hoping to obtain interpretable factors as attributes. Meanwhile, an approach that permits disentangling a latent space applicable to symbolic music has been proposed <ref type="bibr" target="#b10">[10]</ref>, although this method assumes an attribute has order. Exploring Latent Space in Music. After learning the latent space, some methods attempt to discover a meaningful direction in a latent space <ref type="bibr" target="#b8">[8,</ref><ref type="bibr" target="#b28">27]</ref>. These methods are also useful for exploring within our individual concept spaces. Variation Generation in Music. The differences between our concept-aware variation generation and the variation mechanism proposed by Pachet et al. <ref type="bibr" target="#b23">[23]</ref> are (i) their method is based on a Markov model; (ii) their method controls variation generation in terms of edit operations, while our method controls it in terms of musical concepts; (iii) our ExtRes tries to learn the notion of variation (see Sec.2.3). Difference (iii) also differentiates our method from the previous VAE method for generating melody variation, wherein simply Gaussian noises are added to the latent vector to create perturbed latent vectors <ref type="bibr" target="#b30">[29]</ref>, although their method could produce more diverse variations. One can also use their method within our concept spaces. Regularizing Latent Space in Music. Human dissimilarity ratings on timbre are utilized to regularize the latent space for bridging audio analysis, perception, and generation <ref type="bibr" target="#b9">[9]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Dataset</head><p>We conduct experiments using a leadsheet dataset introduced by Pachet et al. <ref type="bibr" target="#b25">[24]</ref> with more than 12,000 songs, by hundreds of famous songwriters, covering several genres of popular music: jazz, blues, pop, and rock. The dataset has been used in music generation studies <ref type="bibr" target="#b21">[21,</ref><ref type="bibr" target="#b23">23,</ref><ref type="bibr" target="#b26">25,</ref><ref type="bibr" target="#b27">26]</ref>. We extract all monophonic melody parts with time signature 4/4, which are transposed in all possible keys if the transposition remains within the midi pitch range of <ref type="bibr">[55,</ref><ref type="bibr">84]</ref>. We choose to discretize time with 24 symbols in a bar, where every beat has six symbols whose note-on timings in one beat are {0, 1/4, 1/3, 1/2, 2/3, 3/4}. We then extract all consecutive subsequences of length T = 24 (1 bar) or T = 96 (4 bars). The total dataset is split into proportion of {0.85, 0.1, 0.05} for train, validation, and test data respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Implementation Details</head><p>The numbers of dimensions for z e or z r are chosen to be (16, 32) for the T = (24, 96) model. 2-layer stacked LSTMs are employed. We introduce trade-off parameters β 1 for Eq.( <ref type="formula">3</ref>) and β 2 for Eq.( <ref type="formula" target="#formula_6">4</ref>) to weight the second terms <ref type="bibr" target="#b9">[9,</ref><ref type="bibr" target="#b28">27,</ref><ref type="bibr" target="#b29">28]</ref>. Intuitively, the amount of information required for each latent variable depends on the target concepts: rhythm, contour, and F&amp;C. Therefore, we conduct a hyper-parameter search using the validation dataset such that β 1 and β 2 are the maximum subject to reconstruction accuracies being sufficiently high. Then, β 1 and β 2 for rhythm, contour, and F&amp;C are chosen to be (β 1 , β 2 ) = (0.7, 0.7), (1.0, 0.7), and (0.9, 0.7), respectively. The number of training epochs is set to 20, KLannealing is used <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b9">9]</ref>, and teacher forcing is not used.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Model Performance</head><p>Decoupling Performance. We first sample sequences {x (i) : i ∈ {1, ..., I}} and {x (i,j) : (i, j) ∈ {1, ..., I} × {1, ..., J}}, following the sampling procedure:</p><formula xml:id="formula_34">x (i) ∼ p θx (x|y (i) , z (i) r ), x (i,j) ∼ p θx (x|y (i) , z (j) r ), with z (i) r ∼ p θr (z r ), z (j)</formula><p>r ∼ p θr (z r ), and y (i) ∼ p θy (y|z</p><formula xml:id="formula_35">(i) e ), where z (i) e ∼ p θe (z e ).</formula><p>For x (i) and x (i,j) , we count <ref type="bibr" target="#b20">(20)</ref> which is how many elements of the same index are the identical symbol between abstract sequences of x (i) and x (i,j) . Then, we define the accuracy for a pair (x (i) , x (i,j) ) as N i,j /T .</p><formula xml:id="formula_36">N i,j = |{t ∈ {1, ..., T } : f ext (x (i) ) t = f ext (x (i,j) ) t }|,</formula><p>Figure <ref type="figure">2</ref> illustrates the results of cumulative decoupling accuracies for I = 1000 and J = 100. F&amp;C accuracies are almost perfect. Even for rhythm and contour, (T = 24, T = 96) = (99.6, 97.5)% and (85.0, 37.6)% of the samples have perfect accuracies, respectively. Interestingly, for rhythm and contour, the cumulative percentage of samples grows sharply if one symbol mistake </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Concept-Axes Interpolation</head><p>As depicted in Fig. <ref type="figure" target="#fig_4">4</ref>, given two musical fragments (topleft and bottom-right) in each subfigure with 5 × 5 fragments, the other 23 fragments "in between" are yielded using concept-axes interpolation, whereas the interpola-tion in a traditional latent space <ref type="bibr" target="#b28">[27,</ref><ref type="bibr" target="#b29">28]</ref> would produce only the three diagonal fragments. In these figures, horizontal axes are the extraction space Z e axes, and moving towards the axes smoothly changes the extracted target concepts (i.e., rhythm, contour, and F&amp;C-invariant), while generally not changing the residual concepts. On the other hand, vertical axes are the residual space Z r axes, showing smooth change in residual concepts and little change in target concepts. Note that here we only show 5 × 5, but interpolation of the two fragments could be arbitrarily finer/coarser (at any positions of the subfigure) upon users' demand. In Fig. <ref type="figure" target="#fig_5">4a</ref>, rhythm direction preserves "pitch appearing order," showing that the Z r successfully captures concepts that are important but might be difficult to learn in Z e . In Fig. <ref type="figure" target="#fig_4">4b</ref>, in non-contour direction, fragments tend to transpose to match the "pitch set" of the bottom-right fragment without changing contour, which captures the scalelike concept. In contour direction, the fragments gradually adopt the descending-like contour. In other words, only the descending-like feature is retrieved from the bottomright fragment to generate fragments in the first row. For Fig. <ref type="figure" target="#fig_4">4c</ref>, in F&amp;C-invariant direction, the gradual altering of fragmenting or consolidating notes is observed. Similar analyses can also be done in longer sequences: Figure <ref type="figure" target="#fig_2">3</ref> shows results for T = 96 in piano roll representation with each subfigure consisting of 3 × 3 musical fragments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Concept-Aware Variation Generation</head><p>In Fig. <ref type="figure" target="#fig_6">5</ref>, our variation generation approach is applied to ExtRes/VAE, which are for concept-aware/-unaware variation generations, respectively. In each column of the figure, the generated variations are sorted from top to bottom in the ascending order of learned Mahalanobis distance (see Sec.2.3). Figure <ref type="figure" target="#fig_6">5a</ref> depicts the variations for rhythm. The second column shows the extraction space Z e variations, where various rhythms are produced without changing the other factors. In contrast, residual space Z r variations (the third column) all keep the rhythm unchanged, whereas the other factors such as the "order of used pitches" change. Variations by VAE (the fourth column) mix factors of rhythm/non-rhythm, without drastic change in rhythm. Figure <ref type="figure" target="#fig_6">5b</ref> depicts the variations for contour. Z e variations have various contours without changing other factors. In contrast, Z r variations all keeps the contour unchanged, whereas the scale-like concept "set of used pitches" changes. VAE yields relatively conservative variations with mixed contour/scale-like factors. Lastly, variations for F&amp;C are in Fig. <ref type="figure" target="#fig_6">5c</ref>. For the Z e variations, melodies with different pitches are generated, while fixing the concept of "the consecutive notes with the same pitch" except the third row from the bottom. As for the Z r variations, F&amp;C of notes are observed, which is not the case in the fourth column except the second row from the bottom, indicating that our ExtRes successfully captures the notion of F&amp;C. Note that the variations by ExtRes are generated with simply (0, 1) or (1, 0) variance scales for two spaces to clearly explain the capabilities of ExtRes, but one could interactively change the scale ratio to obtain    variations with desired mixing proportions of the concepts.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION AND FUTURE WORK</head><p>We presented a latent space decoupling model for learning concept spaces using domain knowledge. For monophonic symbolic music, we experimented on three musical concepts. Controllability in generation was improved by concept-axes interpolation and concept-aware variation generation. In future, other musical concepts mentioned in Sec.1 should also be tested on ExtRes. We believe that this paper opens up possibilities for learning models with concept-aware inference/generative processes to be  used for different information retrieval tasks or more controlled and flexible generations.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Graphical model of ExtRes.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Concept-axes interpolation (T =96, 0.5 stride). Vertical axis denotes MIDI note number, and horizontal axis denotes t ∈ {1, ..., T }.</figDesc><graphic coords="6,316.63,264.44,219.41,97.57" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Concept-axes interpolation (T =24, 0.25 stride).</figDesc><graphic coords="6,57.47,484.59,229.15,83.57" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>( a )</head><label>a</label><figDesc>Rhythm comparison. (b) Contour comparison. (c) F&amp;C comparison.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Our variation generation approach is applied to ExtRes and VAE. For each subfigure (a,b,c), left (first column): top is an original fragment and bottom is its reconstruction; center left (second column): ExtRes extraction space Z e variations; center right (third column): ExtRes residual space Z r variations; right (fourth column): VAE variations.</figDesc><graphic coords="6,316.63,511.67,219.40,101.19" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Proceedings of the 20th ISMIR Conference, Netherlands, November 4-8, 2019 Negative log-likelihood and reconstruction accuracy. For our models, upper and lower rows denote the residual model and extraction model, respectively.</figDesc><table><row><cell cols="3">Figure 2: Decoupling accuracy.</cell></row><row><cell></cell><cell>NLL</cell><cell>Accuracy</cell></row><row><cell></cell><cell cols="2">T=24 T=96 T=24 T=96</cell></row><row><cell>VAE (β=1.0)</cell><cell cols="2">0.714 0.577 0.880 0.880</cell></row><row><cell>VAE (β=0.8)</cell><cell cols="2">0.730 0.586 0.935 0.913</cell></row><row><cell>VAE (β=0.7)</cell><cell cols="2">0.753 0.606 0.952 0.923</cell></row><row><cell>VAE (β=0.5)</cell><cell cols="2">0.792 0.660 0.974 0.956</cell></row><row><cell>VAE (β=0.3)</cell><cell cols="2">0.856 0.748 0.988 0.960</cell></row><row><cell>Ours, Rhythm</cell><cell cols="2">0.412 0.322 0.967 0.969 0.335 0.274 0.982 0.976</cell></row><row><cell>Ours, Contour</cell><cell cols="2">0.297 0.212 0.968 0.968 0.468 0.405 0.973 0.938</cell></row><row><cell>Ours, F&amp;C</cell><cell cols="2">0.141 0.130 0.978 0.975 0.630 0.497 0.963 0.950</cell></row><row><cell cols="3">is allowed. For instance, the percentage for contour grows</cell></row><row><cell cols="2">from (85.0, 37.6)% to (97.6, 66.3)%.</cell></row><row><cell cols="3">Modeling Performance. Table 1 shows negative log-</cell></row><row><cell cols="3">likelihoods (NLLs; per symbol and lower bound) and re-</cell></row><row><cell cols="3">construction accuracies (accuracies) for the test dataset.</cell></row><row><cell cols="3">We compare baseline variational auto-encoders (VAEs)</cell></row><row><cell cols="3">[16] (its model implementation and the training algorithms</cell></row><row><cell cols="3">are the same as our residual model without the condition y</cell></row><row><cell cols="3">except that the number of dimensions for the latent variable</cell></row><row><cell cols="3">is doubled for fair comparisons) with our three proposed</cell></row><row><cell cols="3">models. Each of our models is divided into two models</cell></row><row><cell cols="3">(residual/extraction model (see Sec.2.2)), whose individ-</cell></row><row><cell cols="3">ual NLLs and accuracies are shown in the table. The ad-</cell></row><row><cell cols="3">ditions of two NLLs for the residual/extraction model are</cell></row><row><cell cols="3">comparable to the NLLs for the baseline VAE. The mul-</cell></row><row><cell cols="3">tiplications of two accuracies for the residual/extraction</cell></row><row><cell cols="3">model are also comparable to the accuracies for the base-</cell></row><row><cell>line VAE.</cell><cell></cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 20th ISMIR Conference, Delft, Netherlands, November 4-8, 2019</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="6.">ACKNOWLEDGMENTS</head><p>I would like to thank <rs type="person">Gaëtan Hadjeres</rs> for data encoding codes and reviewing my manuscript. I also greatly appreciate <rs type="person">Frank Nielsen</rs> for helping me with writing the manuscript.</p></div>
+			</div>			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Generating sentences from a continuous space</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vilnis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rafal</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samy</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of The 20th SIGNLL Conference on Computational Natural Language Learning</title>
+		<meeting>of The 20th SIGNLL Conference on Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Pattern processing in melodic sequences: challenges, caveats and prospects</title>
+		<author>
+			<persName><forename type="first">Emilios</forename><surname>Cambouropoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Crawford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Costas</forename><forename type="middle">S</forename><surname>Iliopoulos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computers and the Humanities</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="9" to="21" />
+			<date type="published" when="2001">2001</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Isolating sources of disentanglement in variational autoencoders</title>
+		<author>
+			<persName><forename type="first">Tian</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuechen</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roger</forename><forename type="middle">B</forename><surname>Grosse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">K</forename><surname>Duvenaud</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Infogan: Interpretable representation learning by information maximizing generative adversarial nets</title>
+		<author>
+			<persName><forename type="first">Xi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Duan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Rein Houthooft, John Schulman, Ilya Sutskever, and Pieter Abbeel</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note>Annual Conference on Neural Information Processing Systems</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Scale and contour: Two components of a theory of memory for melodies</title>
+		<author>
+			<persName><forename type="first">Walter</forename><surname>Dowling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Psychological Review</title>
+		<imprint>
+			<biblScope unit="volume">85</biblScope>
+			<biblScope unit="page">7</biblScope>
+			<date type="published" when="1978">1978</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Adversarially learned inference</title>
+		<author>
+			<persName><forename type="first">Ishmael</forename><surname>Vincent Dumoulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Belghazi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Poole</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martín</forename><surname>Lamb</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Arjovsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><forename type="middle">C</forename><surname>Mastropietro</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Courville</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">GANSynth: Adversarial neural audio synthesis</title>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Krishna</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuo</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ishaan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Gulrajani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Roberts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Latent constraints: Learning to generate conditionally from unconditional generative models</title>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Bridging audio analysis, perception and synthesis with perceptually-regularized variational timbre spaces</title>
+		<author>
+			<persName><forename type="first">Philippe</forename><surname>Esling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Axel</forename><surname>Chemla-Romeu-Santos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrien</forename><surname>Bitton</surname></persName>
+		</author>
+		<idno>ISMIR 2018</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 19th International Society for Music Information Retrieval Conference</title>
+		<meeting>of the 19th International Society for Music Information Retrieval Conference</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">GLSR-VAE: Geodesic latent space regularization for variational autoencoder architectures</title>
+		<author>
+			<persName><forename type="first">Gaëtan</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Nielsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2017 IEEE Symposium Series on Computational Intelligence (SSCI 2017)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1" to="7" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">DeepBach: a steerable model for Bach chorales generation</title>
+		<author>
+			<persName><forename type="first">Gaëtan</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Nielsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 34th International Conference on Machine Learning</title>
+		<meeting>of the 34th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">SCAN: Learning hierarchical compositional visual concepts</title>
+		<author>
+			<persName><forename type="first">Irina</forename><surname>Higgins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Sonnerat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Loic</forename><surname>Matthey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arka</forename><surname>Pal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matko</forename><surname>Burgess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Murray</forename><surname>Bošnjak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Shanahan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Demis</forename><surname>Botvinick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Hassabis</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lerchner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Long shortterm memory</title>
+		<author>
+			<persName><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997">12 1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Loic Matthey. beta-vae: Learning basic visual concepts with a constrained variational framework</title>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<editor>
+			<persName><forename type="first">Arka</forename><surname>Pal</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Christopher</forename><surname>Burgess</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Xavier</forename><surname>Glorot</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Matthew</forename><surname>Botvinick</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Shakir</forename><surname>Mohamed</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Alexander</forename><surname>Lerchner</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Irina</forename><surname>Higgins</surname></persName>
+		</editor>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Semi-supervised learning with deep generative models</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shakir</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danilo</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Jimenez Rezende</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Welling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Auto-encoding variational bayes</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Welling</surname></persName>
+		</author>
+		<idno>CoRR, abs/1312.6114</idno>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Learning transposition-invariant interval features from symbolic music and audio</title>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Grachten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Widmer</surname></persName>
+		</author>
+		<idno>ISMIR 2018</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 19th International Society for Music Information Retrieval Conference</title>
+		<meeting>of the 19th International Society for Music Information Retrieval Conference</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Livingstone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caroline</forename><surname>Palmer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emery</forename><surname>Schubert</surname></persName>
+		</author>
+		<title level="m">Emotional response to musical repetition. Emotion</title>
+		<meeting><address><addrLine>Washington, D.C</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011-06">06 2011</date>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="552" to="567" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">The ps13 pitch spelling algorithm</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Meredith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of New Music Research</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page">6</biblScope>
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Comparison of musical sequences</title>
+		<author>
+			<persName><forename type="first">Marcel</forename><surname>Mongeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Sankoff</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computers and the Humanities</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="161" to="175" />
+			<date type="published" when="1990">1990</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Maximum entropy models for generation of expressive music</title>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Moulieras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+		<idno>CoRR, abs/1610.03606</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Learning disentangled representations with semisupervised deep generative models</title>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">Brooks</forename><surname>Siddharth Narayanaswamy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan-Willem</forename><surname>Paige</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alban</forename><surname>Van De Meent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Desmaison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pushmeet</forename><surname>Goodman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Kohli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Wood</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Torr</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Sampling variations of sequences for structured music generation</title>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Papadopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Roy</surname></persName>
+		</author>
+		<idno>IS- MIR 2017</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 18th International Society for Music Information Retrieval Conference</title>
+		<meeting>of the 18th International Society for Music Information Retrieval Conference</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m">Proceedings of the 20th ISMIR Conference</title>
+		<meeting>the 20th ISMIR Conference<address><addrLine>Delft, Netherlands</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">November 4-8, 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">A comprehensive online database of machine-readable lead-sheets for jazz standards</title>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Suzda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Martínez</surname></persName>
+		</author>
+		<idno>ISMIR 2013</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 14th International Society for Music Information Retrieval Conference</title>
+		<meeting>of the 14th International Society for Music Information Retrieval Conference</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">A joyful ode to automatic orchestration</title>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM TIST</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">13</biblScope>
+			<biblScope unit="page" from="1" to="18" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Assisted lead sheet composition using flowcomposer</title>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Papadopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Pachet</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">CP</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">A hierarchical latent vector model for learning long-term structure in music</title>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Curtis</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douglas</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 35th International Conference on Machine Learning</title>
+		<meeting>of the 35th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Learning a latent space of multitrack measures</title>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Curtis</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douglas</forename><surname>Eck</surname></persName>
+		</author>
+		<idno>CoRR, abs/1806.00195</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Generating nontrivial melodies for music as a service</title>
+		<author>
+			<persName><forename type="first">Yifei</forename><surname>Teng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anny</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Camille</forename><surname>Goudeseune</surname></persName>
+		</author>
+		<idno>ISMIR 2017</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 18th International Society for Music Information Retrieval Conference</title>
+		<meeting>of the 18th International Society for Music Information Retrieval Conference</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

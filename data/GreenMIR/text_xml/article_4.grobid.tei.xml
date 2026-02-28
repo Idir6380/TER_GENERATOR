@@ -1,0 +1,1029 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">VAMPNET: MUSIC GENERATION VIA MASKED ACOUSTIC TOKEN MODELING</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Hugo</forename><surname>Flores García</surname></persName>
+							<email>hugofg@u.northwestern.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department">Descript Inc</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">Northwestern University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Prem</forename><surname>Seetharaman</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Descript Inc</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Rithesh</forename><surname>Kumar</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Descript Inc</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Bryan</forename><surname>Pardo</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">Northwestern University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">VAMPNET: MUSIC GENERATION VIA MASKED ACOUSTIC TOKEN MODELING</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">1BEB515925A56A3AAAF8D96829D2B359</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>We introduce VampNet, a masked acoustic token modeling approach to music synthesis, compression, inpainting, and variation. We use a variable masking schedule during training which allows us to sample coherent music from the model by applying a variety of masking approaches (called prompts) during inference. VampNet is non-autoregressive, leveraging a bidirectional transformer architecture that attends to all tokens in a forward pass. With just 36 sampling passes, VampNet can generate coherent high-fidelity musical waveforms. We show that by prompting VampNet in various ways, we can apply it to tasks like music compression, inpainting, outpainting, continuation, and looping with variation (vamping). Appropriately prompted, VampNet is capable of maintaining style, genre, instrumentation, and other high-level aspects of the music. This flexible prompting capability makes VampNet a powerful music co-creation tool. Code 3 and audio samples 4 are available online.</p><p>1 While our work was under peer review, Google released SoundStorm [6], which leverages a similar parallel iterative decoding approach to ours.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>In recent years, advances in discrete acoustic token modeling have resulted in significant leaps in autoregressive generation of speech <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b2">2]</ref> and music <ref type="bibr" target="#b3">[3]</ref>. Meanwhile, approaches that use non-autoregressive parallel iterative decoding have been developed for efficient image synthesis <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b5">5]</ref>. Parallel iterative decoding promises to allow faster inference than autoregressive methods and is more suited to tasks like infill, which require conditioning on both past and future sequence elements.</p><p>In this work, we combine parallel iterative decoding with acoustic token modeling, and apply them to music audio synthesis. To the best of our knowledge, ours is the first 1 extension of parallel iterative decoding to neural audio music generation. Our model, called VampNet, can be Figure <ref type="figure">1</ref>. VampNet overview. We first convert audio into a sequence of discrete tokens using an audio tokenizer. Tokens are masked, and then passed to a masked generative model, which predicts values for masked tokens via an efficient iterative parallel decoding sampling procedure at two levels. We then decode the result back to audio. flexibly applied to a variety of applications via token-based prompting. We show that we can guide VampNet's generation with selectively masked music token sequences, asking it to fill in the blanks. The outputs of this procedure can range from a high-quality audio compression technique to variations on the original input music that match the original input music in terms of style, genre, beat and instrumentation, while varying specifics of timbre and rhythm.</p><p>Unlike auto-regressive music models <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b3">3]</ref>, which can only perform music continuations -using some prefix audio as a prompt, and having the model generate music that could plausibly come after it -our approach allows the prompts to be placed anywhere. We explore a variety of prompt designs, including periodic, compression, and musically informed ones (e.g. masking on the beat). We find that our model responds well to prompts to make loops and variations, thus the name VampNet<ref type="foot" target="#foot_0">foot_0</ref> . We make our code open source <ref type="foot" target="#foot_1">3</ref> and highly encourage readers to listen to our audio samples <ref type="foot" target="#foot_2">4</ref> .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">BACKGROUND</head><p>Two-stage approaches to generative modeling have gained traction in image <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b5">5,</ref><ref type="bibr">7,</ref><ref type="bibr" target="#b8">8]</ref> and audio <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b3">3,</ref><ref type="bibr" target="#b6">6,</ref><ref type="bibr" target="#b9">9]</ref> synthesis, largely in part due to their computational efficiency. In the first stage, a discrete vocabulary of "tokens" is learned for the domain of interest. The input is put through an encoder to obtain these tokens, which can be converted back into the input domain via a corresponding decoder. In the second stage, a model is trained to generate tokens, and is optionally given some conditioning (e.g. previous tokens, a text description, a class label) to guide generation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Stage 1: Tokenization</head><p>In images, visual tokenization has been leveraged for stateof-the-art classification <ref type="bibr" target="#b10">[10]</ref> and synthesis <ref type="bibr" target="#b4">[4,</ref><ref type="bibr">7,</ref><ref type="bibr" target="#b8">8,</ref><ref type="bibr" target="#b11">11]</ref>. The most popular approach is to use vector quantization on a latent space. Similar approaches have been explored for audio <ref type="bibr" target="#b12">[12]</ref>, but until recently such approaches have been restricted to low sampling rates (e.g. 16khz), or have been restricted to speech audio. The "sampling rate" of the latent space (the number of latent vectors required every second to represent audio) is a critical aspect of the tokenization scheme. The lower the sampling rate of the latent space, the easier the next stage (generation) will be to accomplish. Recently, methods based on residual vector quantization <ref type="bibr" target="#b13">[13,</ref><ref type="bibr" target="#b14">14]</ref> have been proposed for audio tokenization at high compression rates with good reconstruction quality of high-sample-rate audio.</p><p>The primary work we leverage for audio tokenization is the Descript Audio Codec (DAC) <ref type="bibr" target="#b15">[15]</ref>. With DAC, audio is encoded into a sequence of tokens via a fully convolutional encoder. The output of this encoder is then quantized using a hierarchical sequence of vector-quantizers <ref type="bibr" target="#b11">[11]</ref>. Each quantizer operates on the residual error of the quantizer before it. Because of this residual vector quantization, DAC is able to reconstruct audio with very high quality, at a high compression ratio. It, along with its predecessors <ref type="bibr" target="#b13">[13,</ref><ref type="bibr" target="#b14">14]</ref>, are instrumental in enabling audio language models like AudioLM <ref type="bibr" target="#b2">[2]</ref>, MusicLM <ref type="bibr" target="#b3">[3]</ref>, and VALL-E <ref type="bibr" target="#b1">[1]</ref>. While we later briefly describe our tokenizer, the key contributions of our work are applicable to the output of any audio tokenizer and our specific audio tokenizer is not the focus of this work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Stage 2: Generation</head><p>Given audio encoded as tokens, the common approach is to use an autoregressive model <ref type="bibr" target="#b16">[16]</ref> for generation. State-ofthe-art (SOTA) audio generation approaches like AudioLM <ref type="bibr" target="#b2">[2]</ref>, MusicLM <ref type="bibr" target="#b3">[3]</ref>, and JukeBox <ref type="bibr" target="#b17">[17]</ref> use this approach, generating each acoustic token in the sequence in a stepby-step fashion using transformer-based <ref type="bibr" target="#b18">[18]</ref> decoder-only models. Autoregressive sampling is slow in nature due to the high number of steps required at inference time <ref type="bibr" target="#b4">[4]</ref>. Further, autoregressive models inherently restrict downstream applications, as each generated token is only conditioned on the previous tokens. For an autoregressive model to perform tasks like inpainting ("filling in the middle"), one must re-arrange the data during training <ref type="bibr" target="#b19">[19]</ref>.</p><p>In language, masked modeling has been used extensively as a pre-training procedure for high-quality semantic representations <ref type="bibr" target="#b20">[20]</ref>. This procedure has also been extended for representation learning in images <ref type="bibr" target="#b21">[21]</ref> and audio <ref type="bibr" target="#b22">[22]</ref>. Masked modeling for representation learning generally has a constant mask probability. For example, in BERT <ref type="bibr" target="#b20">[20]</ref>, tokens are masked 15% of the time during training. It has been shown that this approach is equivalent to a single-step discrete diffusion model <ref type="bibr" target="#b23">[23]</ref>, that uses masking for its noising procedure. Therefore, we can extend masked modeling to masked generative modeling by varying the probability of masking a token during training. This was done for image generation in MaskGIT <ref type="bibr" target="#b4">[4]</ref>, and in language <ref type="bibr" target="#b23">[23]</ref>. Similar to diffusion modeling <ref type="bibr" target="#b24">[24,</ref><ref type="bibr" target="#b25">25]</ref>, which seeks to synthesize data starting from random noise through a series of denoising steps, masked generative modeling seeks to synthesize data starting from completely masked data through a series of "unmasking" steps.</p><p>Key to the efficiency of MaskGIT and related approaches is a parallel iterative decoding procedure. In parallel iterative decoding, the model predicts every token in the output sequence in a single forward pass. However, after just one forward pass of the model, the output often does not have high quality. The output of the first sampling step is re-masked, with a lower masking probability, and then put through the model again. In this way, masked generative models can efficiently refine their output, resulting in high quality generation.</p><p>In unconditional generation tasks, the model is asked to generate a realistic sample from the target data distribution from scratch, without any guidance. This is a difficult problem, as many target data distributions are highly multimodal. Unconditional generative models are susceptible to mode collapse <ref type="bibr" target="#b26">[26]</ref>, blurry samples, mode averaging, and other issues <ref type="bibr" target="#b27">[27]</ref>. Therefore, some conditioning is helpful as it provides some signal for the model to resolve the multimodality. Conditioning is also a commonly used method to guide the output of the system towards desired content.</p><p>Conditioning can take the form of a class label, a genre tag or lyrics <ref type="bibr" target="#b17">[17]</ref>, or an associated text description <ref type="bibr" target="#b3">[3,</ref><ref type="bibr" target="#b8">8,</ref><ref type="bibr" target="#b28">28]</ref>. Conditioning can also be applied at every timestep, like the semantic tokens of AudioLM <ref type="bibr" target="#b2">[2]</ref>, or aligned text or phonemes for text-to-speech generation <ref type="bibr" target="#b1">[1]</ref>.</p><p>In this work,we adopt a masked generative modeling approach with a parallel iterative decoding procedure, inspired by work in vision such as MaskGIT <ref type="bibr" target="#b4">[4]</ref> and Paella <ref type="bibr" target="#b5">[5]</ref>, as illustrated in Figure <ref type="figure">1</ref>. We do not apply any conditioning beyond that provided by the unmasked tokens in our encoded audio. As we show later, different approaches to masking, applied at inference time, can be used to steer generation in useful and artistic ways.</p><p>In training, tokens are masked randomly throughout the sequence. The model is then asked to predict the value of each of the masked tokens in a single forward pass, but it is conditioned on all of the unmasked tokens, both in the future as well as in the past. We vary the number of tokens where we sample a subset of the most confident predicted tokens each iteration. Prompting: VampNet can be prompted in a number of ways to generate music. For example, it can be prompted periodically, where every P th timestep in an input sequence is unmasked, or in a beat-driven fashion, where the timesteps around beat markings in a song are unmasked. that are masked during training, allowing us to generate audio at inference time through a sampling procedure. We now describe our method in more detail.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHOD</head><p>We adapt the procedure of Masked Visual Token Modeling, proposed in MaskGIT <ref type="bibr" target="#b4">[4]</ref> to audio, accounting for several key differences between the vision and audio domain. We call our approach Masked Acoustic Token Modeling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Masked Acoustic Token Modeling</head><p>We first train an audio tokenizer based on the techniques described in DAC <ref type="bibr" target="#b15">[15]</ref>. Unlike the visual tokens of MaskGIT, our acoustic tokens are hierarchical in nature due to residual vector quantization. As a first step, the audio signal x is encoded at each time step t as a a D dimensional latent vector Z. We then quantize Z using N vector quantizers. Quantizer 1 produces Ẑ1 , a quantized approximation of Z that has residual error R 1 = Z -Ẑ1 . Thereafter, the residual from each quantizer i is passed to the next quantizer i + 1, which produces a quantized approximation of the remaining residual error: R i ≈ Ẑ i+1 . Vector Z is reconstructed by summing the output of the N quantizers:</p><formula xml:id="formula_0">Z = N i=1 Ẑi .</formula><p>Since the encoded signal is represented as a quantized vector of N discrete tokens at each timestep, we have N tokens that can be masked or unmasked at each timestep. Rather than attempt to generate all tokens at once, we instead split the N tokens into N c "coarse" tokens, and N f "fine" tokens, as in AudioLM. We then train two generative models: one that generates the fine tokens given the coarse tokens as conditioning, and one that generates the coarse tokens given a sequence of coarse tokens. To generate a sample (Figure <ref type="figure">1</ref>), we chain the two models together. First, we apply the coarse model to generate a sequence of coarse tokens. Then, we apply the coarse-to-fine model to generate the fine tokens. We decode the tokens to a 44.1khz waveform using the decoder of our audio tokenizer.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Training procedure</head><p>Let Y ∈ R T ×N be a matrix representing the output of the encoder for some audio segment. Each element y t,n in Y is a token from the nth level codebook at timestep t. Let Y M be the set of all masked tokens in Y and Y U be the set of all unmasked tokens in Y. The model generates a probability distribution over the set of possible codebook values for each token y ∈ Y M , given the unmasked tokens and the model parameters θ. The training objective is to maximize the probability of the true tokens. This corresponds to minimizing the negative log likelihood.</p><formula xml:id="formula_1">L = - ∀y∈Y M log p(y|Y U , θ)<label>(1)</label></formula><p>To predict the masked tokens, we use a multi-layer bidirectional transformer, which predicts the probabilities of each possible token at every timestep, for every quantizer.</p><p>If each quantizer has a codebook size of C possible values, and there are N quantizers, then the last layer of the network will be a fully connected layer of shape (E, CN ), where E is the dimensionality of the output of the last layer. We then reshape this output into (EN, C), and compute the cross-entropy loss between the ground-truth onehot token and the predicted token. Because the transformer is bidirectional, it can attend to all tokens in the input sequence to optimize the loss for each token.</p><p>For the coarse-to-fine generative model, the input sequence always contains N c coarse tokens, and the masking operation is restricted to the N f fine tokens. The last layer of this network only predicts masked fine tokens. Otherwise, the training procedure for both models is identical.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Sampling</head><p>We follow the same iterative confidence-based sampling approach used in MaskGIT. More concretely, given Y M as the set of masked tokens and Y U as the set of unmasked tokens, do:</p><p>1. Estimate. For each masked token y in Y M , estimate the conditional probability distribution over its vocabulary of codebook values V . 2. Sample. For each masked token, sample from the distribution to generate an associated token estimate ŷ ∈ V . We don't use any sampling tricks in this step, sampling from the categorical probability distribution for each token as-is. 3. Rank by Confidence. Compute a confidence measure for each of the sampled tokens by taking their prediction log-probabilities and adding temperatureannealed Gumbel noise to them:</p><formula xml:id="formula_2">conf idence(ŷ t ) = log(p(ŷ t )) + temp • g t (2)</formula><p>where ŷt is a token estimate at timestep t, g t is an i.i.d sample drawn from Gumbel(0,1) <ref type="bibr" target="#b29">[29]</ref>, and temp is a hyperparameter that is linearly annealed to 0 over the number of sampling iterations. Then, sort the set of sampled token estimates by the confidence computed above. We find that high temperature values (e.g. &gt; 6.0) result in higher quality samples. 4. Select. Pick the number of tokens to mask at the next sampling iteration, k, according to the masking schedule 5 . Take the k lowest confidence estimates and toss them out, re-masking their tokens. Place the remaining high-confidence token estimates in Y U , removing their tokens from Y M . 5. Repeat Return to step 1 until the number of iterations has been reached.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Prompting</head><p>Interactive music editing can be enabled by incorporating human guidance in the sampling procedure through the conditioning prompt of unmasked tokens. Because our approach isn't conditioned on any signal other than the input audio itself, we find that various types of prompts are useful for obtaining coherent samples, as they lower the amount of multimodality when sampling from the model. Like AudioLM, we can prompt our model with prefix audio of some duration (usually between 1 and 4 seconds), and it will provide a continuation of that audio. Unlike Au-dioLM, and other auto-regressive approaches, we can also prompt our model with suffix audio, and it will generate</p><formula xml:id="formula_3">5 k = γ( t t T</formula><p>)D, where t is the current iteration, t T is the total number of iterations, and D the total number of tokens in the sequence. The scheduling function γ is a cosine schedule.</p><p>audio that leads up into that suffix. We can provide prefix and suffix audio, and the model will generate the remaining audio, such that it is appropriate, giventhe specified prefix and suffix.</p><p>We can also apply a "periodic" prompt, where all but every P th timestep are masked.The lower P is, the more the generated audio will sound like the original, as the model is highly conditioned. For example if P = 2, then the model is essentially behaving like a upsampler, imputing the tokens for every other timestep. As P increases, the model shifts from behaving in a compression mode to a generative mode, creating variations that match the style of the original.</p><p>Another useful style of prompt are "compression" prompts, where all codebooks other than the most coarsegrained are masked. This gives the model strong conditioning on every timestep, so the model is likely to produce audio that closely matches the original. We can combine this prompt with a periodic prompt with low P for even more extreme compression ratios. Given the bitrate of the codec B , which has number of codebooks N , a downsampling rate P for the periodic prompt, and a number of kept codebooks N k , we can achieve a bitrate of B/P (N -N k ).</p><p>Finally, we can design music-specific prompts, which exploit knowledge about the structure of the music. More concretely, we explore beat-driven prompting, where timesteps that fall on or around the beat are left unmasked. The model is left to create music between these beats, resulting in interesting variations on the original music. These prompts can all be combined to create a very useful music creation tool. In concert with a well designed user interface, VampNet shows promise as the basis for a next-generation music editing and creation suite.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head><p>Our experiments aim to evaluate VampNet's capability to both compress and generate music, given the various prompting strategies described in Section 3.4. For our objective audio quality measures, we use a multiscale mel reconstruction error and the Fréchet Audio Distance (FAD). Mel-reconstruction error is defined as the L1 distance between log-mel spectrograms at various time-scales,</p><formula xml:id="formula_4">D F,M = || ŜF,M -S F,M || 1 (<label>3</label></formula><formula xml:id="formula_5">)</formula><p>where F is the FFT size of each spectrogram, and M is the number of mel-frequency bins. We use F ∈ [2048, 512] and M ∈ [150, 80], with a hop size of 1  4 the FFT size. Mel-reconstruction is valuable as a metric for compression quality, but not for generation quality, since it is likely that models produce audio that does not match one to one with the original target audio. For generation quality, we use FAD, which measures the overlap between distributions of real and generated audio. Unlike melreconstruction, FAD is geared more towards evaluating if sample quality falls within the data distribution of the real audio, and can be used to evaluate generation quality. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Dataset</head><p>Similar to JukeBox <ref type="bibr" target="#b17">[17]</ref>, we collect a large dataset of popular music recordings. Our dataset consists of 797k tracks, with a sampling rate of 32 khz. These tracks are resampled to 44.1kHz to make compatible with our tokenizer. Our dataset contains music from thousands of artists across genres described in Echo Nest's Every Noise at Once 6 .</p><p>We use a subset of 2k tracks for validation, and another subset of 2k tracks for testing. We ensure that there is no artist overlap between train, validation, and test tracks. In addition, we collect a set of music and non-music data (speech, environmental sound), which we used to train our tokenizer, using the datasets described in DAC <ref type="bibr" target="#b15">[15]</ref>. All audio is normalized to -24dbFS. We do not use any metadata about these files during training, as our model is trained unconditionally.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Network Architecture and Hyperparameters</head><p>The audio tokenizer model we use takes as input 44.1kHz audio, and compresses it to a bitrate of 8kbps using 14 codebooks, with a downsampling rate of 768x. The latent space therefore is at 57Hz, with 14 tokens to predict at every timestep. We designate 4 of these tokens as the coarse tokens, and the remaining 10 as the fine tokens. Refer to the Descript Audio Codec <ref type="bibr" target="#b15">[15]</ref> for details on the tokenizer architecture. We train the tokenizer for 250k steps.</p><p>The VampNet architecture (for both coarse and coarseto-fine models) consists of a bidirectional transformer <ref type="bibr" target="#b18">[18]</ref> with relative attention <ref type="bibr" target="#b30">[30]</ref> and an embedding dimension of 1280 and 20 attention heads. The coarse model has 20 attention layers, while the coarse-to-fine model has 16. We train the coarse and coarse-to-fine model for 1M and 500k steps, respectively. We train with the AdamW optimizer <ref type="bibr" target="#b31">[31]</ref> with β 1 and β 2 set to 0.9 and 0.999, respectively. We 6 <ref type="url" target="https://everynoise.com/engenremap.html">https://everynoise.com/engenremap.html</ref>  use the learning rate scheduler introduced by Vaswani et al <ref type="bibr" target="#b18">[18]</ref> with a target learning rate of 0.001 and 10k warmup steps. We use a dropout of 0.1, and a batch size of 25, with a GPU memory budget of 72GB.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Efficiency of VampNet</head><p>We first validate that VampNet can generate realistic music audio in a low number of steps. To do this, we run Vamp-Net using one of our prompts (the periodic prompt, with P = 16) on our test set, on 10-second excerpts. We vary the number of sampling steps in <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b4">4,</ref><ref type="bibr" target="#b8">8,</ref><ref type="bibr" target="#b12">12,</ref><ref type="bibr">36,</ref><ref type="bibr">64,</ref><ref type="bibr">72]</ref>, and report metrics for each sampling step.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Effect of prompts</head><p>We seek to understand how VampNet responds to different prompts, as discussed in Section 3.4. The prompts range from "compression" prompts, which compress music to a low bitrate, to more creative "generative" prompts. We examine whether compression and generative prompts exist on a continuum, and whether decompression from low bitrates results in generative behavior.</p><p>We draw 2000 10-second examples from our evaluation dataset, encode them into token streams with our audio tokenizer, and manipulate the token streams in four ways:</p><p>1. Compression prompt: C codebooks are left unmasked, starting from the coarsest codebook. All other tokens are masked. We set N k = 1. 2. Periodic prompt: every P th timestep is left unmasked. In an unmasked timestep, tokens from every codebook are unmasked. All other tokens (e.g. tokens in timesteps that do not correspond to the period P ) are masked. We set P ∈ <ref type="bibr" target="#b8">[8,</ref><ref type="bibr" target="#b16">16,</ref><ref type="bibr" target="#b32">32]</ref>. 3. Prefix and suffix (inpaint) prompts: a segment at the beginning and at the end of the sequence is left unmasked. All other tokens are masked. This prompt is parameterized by a context length in seconds. We set the context to be either 1 second or 2 seconds, which corresponds to 57 or 114 timesteps.</p><p>4. Beat-driven prompt: we first process the audio waveform with a beat tracker <ref type="bibr" target="#b32">[32]</ref>. Then, around each detected beat, we unmask timesteps to the right of the beat. We examine a 75ms unmasked section around each beat, which is about 4 timesteps per beat.</p><p>After manipulating the input token streams with our prompts, we generate new musical signals from these masked token streams using VampNet, and compute FAD and mel-reconstruction error between the generated signals and the input signals from our music dataset. We include a noisy token stream baseline, where a portion (as dictated by mask ratio r) of the tokens in the input token stream are replaced with random tokens. We also include as baseline the codec by itself, as well as the coarse-to-fine model.</p><p>Finally, we examine how these prompts can be combined -specifically the compression and periodic prompts. By manipulating the hyperparameters of these prompts (C and P ), we can shift the model behavior from compression to generation. As more timesteps are masked, the model must generate plausible musical excerpts that connect the unmasked timesteps, that may not match the input music.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">RESULTS AND DISCUSSION</head><p>Results for our experiment varying the number of sampling steps used to generate samples with VampNet are shown on Figure <ref type="figure" target="#fig_1">3</ref>. We find that VampNet achieves the lowest FAD with 36 sampling steps, although 12 sampling steps achieves comparable performance. In practice, we find that samples taken with 24 steps achieve a fair tradeoff between generation quality and compute speed, with 10-second samples taking around 6 seconds to sample on an NVIDIA RTX3090. In contrast, to generate 10 seconds of audio with an autoregressive model would require 574 steps, which would take around 1 min to generate 10 seconds of audio, given an autoregressive model with the same number of parameters as ours, and the same tokenizer.</p><p>Results for our study on the effect of each prompt are shown in Figure <ref type="figure" target="#fig_2">4</ref>. First, we note that while the noisy token baseline has comparable mel reconstruction to all prompts, it performs very poorly in terms of FAD. This indicates that while our prompting strategies may result in audio that is not a perfect match to the original input audio, it still falls inside the distribution of plausible music.</p><p>Of our proposed prompts, we find that beat-driven prompts perform best, achieving the lowest FAD of all prompts. A notable result here is that the periodic prompt with P = 16 (35 conditioning timesteps) performs on par with inpainting with 1 second of context (57 conditioning timesteps). Therefore, prompt techniques that spread out the conditioning tokens throughout the sequence (periodic prompts) are able to use fewer conditioning timesteps to generate samples of comparable quality to those generated by sampling techniques that place all of the conditioning tokens at the start and end of the sequences (inpainting).</p><p>Qualitatively, we also find that beat-driven prompts can keep a steadier tempo than other prompts, though their outputs tend to resemble the original music closer than peri- odic prompts. In practice, a mix of beat-driven, periodic, and inpainting prompts can be employed to steer of Vamp-Net in creative ways. To illustrate, we highly encourage the reader to listen to the accompanying sound samples <ref type="foot" target="#foot_4">7</ref> .</p><p>We then combined periodic and compression prompting to show how the model's behavior shifts between reconstruction and generation tasks, as more tokens are masked away. Results for this experiment are shown in Figure <ref type="figure" target="#fig_3">5</ref>. At higher bitrates, (600 bps and above), VampNet is able to accurately reconstruct the original music signal, achieving low mel-spectrogram error and FAD values with respect to the evaluation music audio. At bitrates of 200bps and below, VampNet has comparable reconstruction quality to the noisy token baselines, indicating that the sampled VampNet signals no longer resemble the input audio in terms of fine-grained spectral structure. However, the FAD for VampNet samples at low bitrates is much lower than the FAD for noisy baselines. This indicates that even though VampNet isn't able to reconstruct the input music signal at low bitrates, it is still able to generate coherent audio signals with musical structure, that are closer to the distribution of "real music" than our noisy baseline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSION</head><p>We introduced VampNet, a masked acoustic token modeling approach to music generation. VampNet is bidirectional, and can be prompted a variety of ways using an input audio file. Through different prompting techniques, VampNet can operate in a continuum between music compression and generation, and is an excellent tool for generating variations on a piece of music. With VampNet, a musician could record a short loop, feed it into VampNet, and have VampNet create musical variations on the recorded idea every time the looped region repeats. In future work, we hope to investigate the interactive music co-creation potential of VampNet and its prompting techniques, as well as explore the representation learning capabilities of masked acoustic token modeling.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Training, sampling, and prompting VampNet. Training: we train VampNet using Masked Acoustic Token Modeling, where we randomly mask a portion of a set of input acoustic tokens and learn to predict the masked set of tokens, using a variable masking schedule. Coarse model training masks coarse tokens. Coarse-to-fine training only masks fine tokens. Sampling: we sample new sequences of acoustic tokens from VampNet using parallel iterative decoding,where we sample a subset of the most confident predicted tokens each iteration. Prompting: VampNet can be prompted in a number of ways to generate music. For example, it can be prompted periodically, where every P th timestep in an input sequence is unmasked, or in a beat-driven fashion, where the timesteps around beat markings in a song are unmasked.</figDesc><graphic coords="3,54.98,68.54,487.59,184.24" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. Mel reconstruction error (top) and Fréchet Audio Distance (FAD, bottom) for VampNet samples taken with varying numbers of sampling steps, taken using a periodic prompt of P = 16. The samples were generated by de-compressing tokens at an extremely low bitrate (50 bps), effectively generating variations of the input signals.</figDesc><graphic coords="5,56.22,68.54,232.46,175.07" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 4 .</head><label>4</label><figDesc>Figure 4. Multiscale Mel-spectrogram error (top) and Fréchet Audio Distance (FAD, bottom) for VampNet 10s samples taken with a different types of prompts.</figDesc><graphic coords="5,311.36,68.54,232.45,174.85" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 5 .</head><label>5</label><figDesc>Figure 5. Mel-spectrogram error (top) and Fréchet Audio Distance (FAD) (bottom) for VampNet samples at varying bitrates. A baseline is provided by replacing tokens in the input sequence with random tokens, per noise ratio r.</figDesc><graphic coords="6,311.36,68.54,232.45,172.84" type="bitmap" /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>To vamp is to repeat a short passage of music with variation.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>https://github.com/hugofloresgarcia/vampnet</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_2"><p>audio samples: https://tinyurl.com/bdfj7rdx</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_3"><p>Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_4"><p>audio samples: https://tinyurl.com/bdfj7rdx Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_5"><p>Proceedings of the 24th Conference, Milan, Italy, November<ref type="bibr" target="#b5">[5]</ref><ref type="bibr" target="#b6">[6]</ref>[7]<ref type="bibr" target="#b8">[8]</ref><ref type="bibr" target="#b9">[9]</ref> 2023   </p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Neural codec language models are zero-shot text to speech synthesizers</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2301.02111</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Audiolm: a language modeling approach to audio generation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Borsos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Marinier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Kharitonov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Pietquin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sharifi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Teboul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tagliasacchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Zeghidour</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2209.03143</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Agostinelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">I</forename><surname>Denk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Borsos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Verzetti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Caillon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tagliasacchi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2301.11325</idno>
+		<title level="m">Musiclm: Generating music from text</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Maskgit: Masked generative image transformer</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">T</forename><surname>Freeman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page">325</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Fast text-conditional discrete denoising on vector-quantized latent spaces</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Rampas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Pernias</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Aubreville</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2211.07292</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Soundstorm: Efficient parallel audio generation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Borsos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sharifi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Kharitonov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Zeghidour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tagliasacchi</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Esser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Rombach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Ommer</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page">883</biblScope>
+		</imprint>
+	</monogr>
+	<note>Taming transformers for high-resolution image synthesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">High-resolution image synthesis with latent diffusion models</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Rombach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Blattmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lorenz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Esser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Ommer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Simple and controllable music generation</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Copet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Kreuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Gat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Remez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Synnaeve</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Adi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">An image is worth 16x16 words: Transformers for image recognition at scale</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dosovitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Beyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kolesnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Weissenborn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Unterthiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Minderer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Heigold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gelly</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.11929</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Neural discrete representation learning</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Van Den</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Oord</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Vinyals</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">30</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Low bit-rate speech coding with vq-vae and a wavenet decoder</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gârbacea</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Van Den Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">S</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Luebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">C</forename><surname>Walters</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2019-2019 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="735" to="739" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Soundstream: An end-to-end neural audio codec</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Zeghidour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Luebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Omran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Skoglund</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tagliasacchi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="495" to="507" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">High fidelity neural audio compression</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Copet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Synnaeve</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Adi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.13438</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">High-fidelity audio compression with improved rvqgan</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Seetharaman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Luebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kumar</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Improving language understanding by generative pre-training</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Salimans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Payne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2005.00341</idno>
+		<title level="m">Jukebox: A generative model for music</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ł</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">30</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Efficient training of language models to fill in the middle</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Bavarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Tezak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Mcleavey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2207.14255</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Bert: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M.-W</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1810.04805</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Masked autoencoders are scalable vision learners</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dollár</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Girshick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="page">9</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">W2v-bert: Combining contrastive learning and masked language modeling for self-supervised speech pre-training</title>
+		<author>
+			<persName><forename type="first">Y.-A</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-C</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2021 IEEE Automatic Speech Recognition and Understanding Workshop</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="244" to="250" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Structured denoising diffusion models in discrete state-spaces</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Austin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">D</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Tarlow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Van Den</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Berg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="17" to="981" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Generative modeling by estimating gradients of the data distribution</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ermon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Denoising diffusion probabilistic models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Abbeel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="6840" to="6851" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Veegan: Reducing mode collapse in gans using implicit variational learning</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Valkov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Russell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">U</forename><surname>Gutmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Sutton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">30</biblScope>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Improved techniques for training gans</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Salimans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Cheung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="volume">29</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Muse: Text-to-image generation via masked generative transformers</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Barber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Maschinot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lezama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Murphy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">T</forename><surname>Freeman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Rubinstein</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2301.00704</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Statistical theory of extreme values and some practical applications; a series of lectures</title>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">J</forename><surname>Gumbel</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1954">1954</date>
+			<publisher>Washington</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Shaw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1803.02155</idno>
+		<title level="m">Self-attention with relative position arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Fixing weight decay regularization in adam</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Loshchilov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Hutter</surname></persName>
+		</author>
+		<idno>abs/1711.05101</idno>
+		<ptr target="http://arxiv.org/abs/1711.05101" />
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">WaveBeat: End-toend beat and downbeat tracking in the time domain</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">J</forename><surname>Steinmetz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Reiss</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">151st AES Convention</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

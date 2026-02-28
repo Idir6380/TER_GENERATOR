@@ -1,0 +1,1097 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">SOURCE SEPARATION OF PIANO CONCERTOS WITH TEST-TIME ADAPTATION</title>
+				<funder ref="#_Gc4SgTf">
+					<orgName type="full">German Research Foundation</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Yigitcan</forename><surname>Özer</surname></persName>
+							<email>yigitcan.oezer@audiolabs-erlangen.de</email>
+							<affiliation key="aff0">
+								<orgName type="department">International Audio Laboratories</orgName>
+								<address>
+									<settlement>Erlangen</settlement>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Meinard</forename><surname>Müller</surname></persName>
+							<email>meinard.mueller@audiolabs-erlangen.de</email>
+							<affiliation key="aff0">
+								<orgName type="department">International Audio Laboratories</orgName>
+								<address>
+									<settlement>Erlangen</settlement>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">SOURCE SEPARATION OF PIANO CONCERTOS WITH TEST-TIME ADAPTATION</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">6C27628759AC3D9511F95CA15B24F092</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:14+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Music source separation (MSS) aims at decomposing a music recording into its constituent sources, such as a lead instrument and the accompaniment. Despite the difficulties in MSS due to the high correlation of musical sources in time and frequency, deep neural networks (DNNs) have led to substantial improvements to accomplish this task.</p><p>For training supervised machine learning models such as DNNs, isolated sources are required. In the case of popular music, one can exploit open-source datasets which involve multitrack recordings of vocals, bass, and drums. For western classical music, however, isolated sources are generally not available. In this article, we consider the case of piano concertos, which is a genre composed for a pianist typically accompanied by an orchestra. The lack of multitrack recordings makes training supervised machine learning models for the separation of piano and orchestra challenging. To overcome this problem, we generate artificial training material by randomly mixing sections of the solo piano repertoire (e.g., piano sonatas) and orchestral pieces without piano (e.g., symphonies) to train state-ofthe-art DNN models for MSS. As our main contribution, we propose a test-time adaptation (TTA) procedure, which exploits random mixtures of the piano-only and orchestraonly parts in the test data to further improve the separation quality.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Music source separation (MSS) is a central task in music information retrieval, which seeks to recover individual musical sources in audio recordings. In general, a musical source can refer to singing, an instrument, or an entire group of instruments providing an accompaniment. Since musical signals often exhibit non-stationary spectrotemporal properties and may be highly correlated in time and frequency, MSS proves to be a challenging task in music processing <ref type="bibr" target="#b1">[1]</ref>. In the last years, deep neural networks (DNNs) have led to substantial improvements in separating musical sources <ref type="bibr" target="#b2">[2]</ref><ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr">[6]</ref><ref type="bibr" target="#b7">[7]</ref><ref type="bibr" target="#b8">[8]</ref><ref type="bibr" target="#b9">[9]</ref><ref type="bibr" target="#b10">[10]</ref><ref type="bibr" target="#b11">[11]</ref>. Despite their effectiveness, one disadvantage of data-driven deep models is their need for a large training dataset, which in the case of MSS consists of multitrack recordings with (isolated) individual sources or stems. Most of the open-source datasets with isolated stems are limited to popular music, e.g., MUSDB18 <ref type="bibr" target="#b12">[12]</ref>. However, for western classical music, professionally produced multitrack recordings are quite rare <ref type="bibr" target="#b13">[13,</ref><ref type="bibr" target="#b14">14]</ref>.</p><p>In this article, we consider the separation of piano concertos, which are a genre of central importance in western classical music. From the Baroque era onward, numerous composers have written piano concertos, which are compositions highlighting the virtuosity of pianists. As an example, Figure <ref type="figure" target="#fig_0">1</ref> shows an excerpt from the first movement of Piano Concerto in D minor (KV 466) by Wolfgang Amadeus Mozart. In addition to the large number of compositions, there also are many prominent historical recordings of piano concertos in classical music archives. In this context, separation of piano and orchestra can enable applications such as editing and upmixing historical and modern piano concerto recordings.</p><p>As the piano is the lead instrument and the orchestra takes over the accompaniment, separation of piano concertos can be regarded as a lead instrument and accompaniment separation task <ref type="bibr" target="#b15">[15]</ref><ref type="bibr" target="#b16">[16]</ref><ref type="bibr" target="#b17">[17]</ref>. The piano has distinct timbral characteristics, e.g., clear onsets, which intuitively may help a separation model in distinguishing it from orchestral instruments such as strings, woodwinds, and brass. Nevertheless, the high spectro-temporal correlations between the piano and orchestral parts in concertos constitute a challenging problem.</p><p>In this paper, we adapt the spectral-based Spleeter model <ref type="bibr" target="#b5">[5]</ref> to address the separation of piano and orchestra in piano concertos. Spleeter has achieved impressive results for the separation of four stems (vocals, drums, base, and others) in the SiSEC challenge <ref type="bibr" target="#b18">[18]</ref>. Building upon its standard architecture, which is an encoder-decoder convolutional neural network (CNN), we train our baseline model using a proprietary dataset.</p><p>When training deep MSS models, generating random mixes of solo instrument recordings may improve the separation quality <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b19">19]</ref>. Random mixing for data generation and augmentation has opened up new paths for separating instrument mixtures, for which multitrack recordings are not available. For example, Chiu et al. <ref type="bibr" target="#b20">[20]</ref> created their own synthetic dataset comprising classical violin and pop piano solo recordings, which serve as training material of an MSS model for the separation of piano and violin duos. Inspired by the recent advances in deep learning and data augmentation, we generate in our setting an artificial training dataset through randomly mixing samples from the solo piano repertoire (e.g., piano sonatas, mazurkas, etc.) and orchestral pieces without piano (e.g., symphonies) to simulate piano concertos.</p><p>Whereas one can improve the performance of databased models using artificially generated data, a supervised machine learning model necessitates a representative training set to ensure its robustness during the testing phase. In the case of MSS, many recordings have specific acoustic properties (e.g., historical recordings) that are not reflected in training datasets, thus leading to a poor separation performance. To overcome this issue, one can exploit the occurence of repeating patterns in the same recording <ref type="bibr" target="#b21">[21]</ref>, use bootstrapping to improve separation results <ref type="bibr" target="#b22">[22,</ref><ref type="bibr" target="#b23">23]</ref>, or adapt a pre-trained model to one specific target mixture <ref type="bibr" target="#b24">[24,</ref><ref type="bibr" target="#b25">25]</ref>. In this work, our approach is based on the latter strategy. To this end, we first train on our artificial dataset and then finetune the model at the testing stage. As our main contribution, we propose a test-time adaptation (TTA) method similar to <ref type="bibr" target="#b26">[26]</ref>, where we exploit that a piano concerto typically has relatively long piano-only and orchestra-only passages. Generating random mixes of these sections, we adapt the separation model at the test time individually for each piano concerto in our test dataset. Our systematic experiments highlight the benefits of TTA trained with the spectrogram-domain MSS model Spleeter <ref type="bibr" target="#b5">[5]</ref>. To evaluate the performance of our models, we use the widely-used Signal to Distortion Ratio (SDR) <ref type="bibr" target="#b27">[27]</ref>, and the 2f-model <ref type="bibr" target="#b28">[28]</ref>, which is an objective quality measure. Furthermore, we conduct Multiple Stimulus with Hidden Reference and Anchors (MUSHRA) listening tests <ref type="bibr" target="#b29">[29]</ref> to assess the perceptual separation quality.</p><p>The remainder of the paper is organized as follows. In Section 2, we describe our MSS approach, explore the recent state-of-the-art spectrogram-domain DNN model Spleeter to address the MSS task and describe our experimental setting. In Section 3, we introduce the TTA procedure to improve the separation quality of piano concertos and present our dataset. In Section 4, we report on the quantitative empirical results, including a subjective evaluation. Finally, we conclude in Section 5 with prospects on future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">MUSIC SOURCE SEPARATION APPROACH</head><p>Recent DNN approaches for MSS can be divided into two categories: waveform-domain architectures <ref type="bibr">[6,</ref><ref type="bibr" target="#b7">7]</ref> and spectrogram-domain approaches <ref type="bibr" target="#b2">[2]</ref><ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref>. In this paper, our focus is the latter type of models, which learn to approximate the magnitude spectrogram of a target source. To reconstruct the separated audio signals, spectrogram-based models typically use binary masking, soft masking or multichannel Wiener filtering <ref type="bibr" target="#b30">[30]</ref>.</p><p>In particular, we adapt the Spleeter model <ref type="bibr" target="#b5">[5]</ref> for separating piano concertos. Its default setting is based on a U-Net <ref type="bibr" target="#b31">[31]</ref>, which has recently been a widely-used architecture in the MIR community to address the MSS task <ref type="bibr" target="#b2">[2,</ref><ref type="bibr">6,</ref><ref type="bibr" target="#b25">25,</ref><ref type="bibr" target="#b32">32,</ref><ref type="bibr" target="#b33">33]</ref>. Following this trend of research, we adapt a U-Net model to predict the magnitude spectrograms of the constituent piano and orchestral parts in a piano concerto. In the following, we revisit the U-Net architecture in Section 2.1 and present our experimental setting in Section 2.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">U-Net Model</head><p>The U-Net model is composed of a convolutional encoderdecoder architecture with skip connections, which account for the resurrection of fine-grained details in the reconstructed representation. Following the default setting of the U-Net model in <ref type="bibr" target="#b2">[2]</ref>, we use a 12-layer network (6 layers for the encoder and 6 for the decoder). Each encoder layer uses a strided 2D convolution with a kernel size of 5 × 5 and a stride size of 2, preceded by a leaky rectified linear unit (ReLU) activation function, and batch normalization. The decoder is composed of strided deconvolution layers with a kernel size of 5 × 5 and a stride size of 2, as in the encoder. The decoder uses ReLU as the activation function, different from the encoder. To avoid overfitting, we use here dropout with a probability of 0.5 in the first three layers of the decoder. The final layer of the network is a sigmoid activation function, yielding a soft mask for each target source, which contains values between 0 and 1. As the loss function, we use ℓ<ref type="foot" target="#foot_1">foot_1</ref> -norm between masked input mixture and target spectrograms. For further details about network architecture, we refer to <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b5">5]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Experimental Setting</head><p>In our experiments, we use mono recordings, which are sampled at 22.05 kHz. We generate the magnitude spectrograms using a Hann window size of 2048 and hop size of 512. In a first step, we train our models using an artificial dataset which contains 20-second random chunks from the mixtures of solo piano recordings (e.g., piano sonatas) and orchestral pieces without piano (e.g., symphonies) by 16 different composers from different periods. The total duration of our randomly generated proprietary dataset is circa 45 hours. We regard this model as our pre-trained model, which we denote as PT.</p><p>We train all our models on a single NVIDIA GeForce 1080 Ti GPU, using a batch size of 8, and a learning rate of 1e-4 with ADAM optimizer. To improve the separation quality of real piano concerto recordings, we finetune the model with TTA, which we describe in the next section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">TEST-TIME ADAPTATION</head><p>Supervised deep learning models addressing the MSS task typically require a large dataset that consists of isolated recordings. As a data augmentation method, one can use random mixes to provide training material for an MSS model in the case isolated stems are missing <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b20">20]</ref>. While this approach cannot simulate the harmonic and rhythmic relationships between various instruments in a real recording, it helps the model to distinguish timbral characteristics of the concurrent musical sources. However, the acoustic properties of recordings (including reverberation, and background noise) play an essential role when upmixing and separating different musical tracks. For instance, in the case of poor recording conditions, (e.g., historical recordings) the properties of the test data may not be reflected well in the training set, thus resulting in a poor separation quality. Finetuning a pre-trained MSS model in the testing phase using a few samples drawn from the test data (also called test-time adaptation (TTA) <ref type="bibr" target="#b26">[26]</ref>) can improve the separation quality by capturing the specific acoustic features found in a music recording.</p><p>From this perspective, separation of piano concertos is a particularly suitable scenario for applying TTA thanks to their compositional form. Depending on the period in which the work was composed, these compositions often comprise long piano-only (e.g., in the cadenza) and orchestra-only parts (e.g., in the exposition, also called opening riternello). Using these sections, one can create artificial mixes which come from the audio material of the given test item. As a result, the mixes share the same recording conditions as the test data.</p><p>To investigate this approach, we consider seven piano concerto recordings (see Figure <ref type="figure" target="#fig_2">2a</ref>). The selected movements of these piano concertos have a long cadenza, which contains only the piano (see Figure <ref type="figure" target="#fig_2">2b</ref>). Note that, with the exception of BrahOp015, these musical pieces also comprise a long exposition in which only the orchestra plays. For our experiments, we annotate the pianoonly and orchestra-only sections, which are publicly available. 1 Exploiting the structural characteristics of piano concertos, we create random mixes of piano-only and orchestra-only sections, which serve as further training data for model adaptation for each piano concerto individually. In the next section, we investigate the improvement of qualitative and subjective separation quality via TTA.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EVALUATION</head><p>In this section, we report on the separation results acquired by our pre-trained model PT and the finetuned models TTA. In Section 4.1 we describe our test dataset. We discuss the quantitative empirical results in Section 4.2 and present the subjective evaluation in Section 4.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Test Dataset</head><p>For the evaluation of our models, we generate 30-second random mixes of piano-only and orchestra-only parts sampled from the annotated piano concertos (see Figure <ref type="figure" target="#fig_2">2b</ref>). These are different from the artificial training set, which we use for the pre-trained model, as they share harmonic and acoustic properties originating from the same recording. Note that we ensure that the samples used for training do not overlap with the test mixtures which we use for the evaluation purposes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Quantitative Evaluation</head><p>To get a first impression of the performance of the models PT and TTA, we use the SDR <ref type="bibr" target="#b27">[27]</ref> as our quantitative evaluation metric for the separation.   after 100 iterations. One can observe that PT leads to a substantial improvement in SDR values compared to BL over the whole dataset, both for the piano and orchestra. It is interesting to observe that PT improves the SDR value of BeetOp015 for the separation of piano from 4.48 to 4.60, which is a relatively low improvement compared to other piano concertos in the dataset. Note that BeetOp015 is a historical recording (see Figure <ref type="figure" target="#fig_2">2a</ref> for the recording year of the piano concertos), whose inadequate recording conditions may not be well represented in the random mixes used for the training of the PT, thus leading to a relatively poor separation performance. Now, we focus on the comparison between PT and TTA. In general, the SDR-based results demonstrate that TTA enhances the separation of PT across all the piano concertos, for both the piano and the orchestra. For example, in the case of BeetOp015, PT yields an SDR value of 4.60 for the separated piano. After finetuning with TTA for 100 iterations, this improves to 8.95. For the separated orchestra of BeetOp015, TTA also improves the SDR from 0.09 to 3.67. In the case of better quantitative separation results by PT, e.g., MozKV595, we observe that the improvement via TTA is relatively lower. Here, the SDR values improve from 12.74 to 13.00 for the piano and from 5.25 to 5.58 for the orchestra. Furthermore, our analysis reveals that the SDR value for the separated orchestra is generally lower than piano for both PT and TTA over the whole test dataset, except for MozKV467. An informal inspection states that the TTA leads to a significant improvement in the separation performance for historical recordings, which are not well-reflected in the training dataset of the pre-trained model PT.</p><p>In our next experiment, we investigate the performance of the finetuned models TTA per iteration. Figure <ref type="figure" target="#fig_3">3</ref>   the first 10 iterations. For the other piano concertos, the improvement of SDR values generally accelerates after the 10th iteration. After the 100th iteration, the separation performance remains steady for most of the piano concertos. Furthermore, after the 100th iteration, the SDR values constantly increase in the case of BeetOp015 and MozKV467 for both piano and orchestra.</p><p>Although SDR is widely used as a quantitative evaluation metric for MSS, it is well known that it may not be suitable for determining the perceptual sound quality of separated sources <ref type="bibr" target="#b34">[34]</ref>. The work by Torcoli et al. <ref type="bibr" target="#b35">[35]</ref> provides a comparison of objective quality measures in the source separation domain. Their analysis indicates that a quantitative evaluation using the metric called 2f-model exhibits the best correlation with ground-truth data based on the subjective ratings from MUSHRA listening tests. For a detailed account of the 2f-model, we refer to <ref type="bibr" target="#b28">[28]</ref>. Note that the 2f-model values range from 0 to 100 following MUSHRA rating scores (see <ref type="bibr">Section 4.3)</ref>. Table <ref type="table" target="#tab_3">2</ref> provides the resulting 2f-model values for the separated sources by PT and TTA using 100 iterations. In general, one can observe here a similar trend as for the SDR.  PT mostly reveals better 2f-model scores than the baseline BL, except for the piano separation of BeetOp015, which presumably suffers from its poor recording conditions that are not well-represented in the artificial training set.</p><p>As for the SDR-based results, 2f-model values increase via TTA after 100 iterations for both the piano and the orchestra. For example, in the case of BeetOp015, PT yields a 2f-model value of 21.50 for the separated piano, improving to 28.39 after applying TTA. Interestingly, the separation of the orchestral part yields better results than the piano according to 2f-model values. This is opposed to the evaluation based on the SDR, where the separation results are significantly better in the case of piano separation (see Table <ref type="table" target="#tab_1">1</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Subjective Evaluation</head><p>In this section, we describe the experimental setting for our subjective evaluation to assess the perceived separation quality. We carried out two listening tests using the MUSHRA methodology following the ITU-R BS.1534-3 recommendation <ref type="bibr" target="#b36">[36]</ref>. It is a double-blind multi-stimulus test method with a hidden reference and an additional lower anchor signal. The rating scores range from 0 to  In total, 34 participants were involved in our listening tests (31 experienced listeners and 3 inexperienced listeners). The MUSHRA methodology suggests a post-screening of the participants stating that participants should be excluded from the listening test if they give the hidden reference a score lower than 90 for more than 15% of the test items. Concerning our tests, one of the participants was excluded after post-screening.</p><p>Each of the two listening tests contains seven test items. For each test item, we generated four different signals with a duration of 12 seconds (maximum allowed signal duration for MUSHRA listening tests), which are excerpts from the test mixtures that we use for our quantitative evaluation. In our first listening test, we asked the participants to rate the overall audio quality for each of the four signals (also called conditions) with respect to a reference signal, which is a clean piano-only section. Similar to <ref type="bibr" target="#b37">[37]</ref>, we created the lower anchor signals by low-pass filtering the test mixtures to a 3.5 kHz cut-off frequency and by adding musical noise, i.e., randomly setting 20% of the remaining time/frequency coefficients to zero. The other two signals involve separated piano parts by PT and TTA. Similarly, our second listening test evaluates the overall quality of the separated orchestral parts following the same procedure as the first listening test.</p><p>Figure <ref type="figure" target="#fig_5">4</ref> summarizes the results from our listening tests. First, one can observe that the participants rated the reference signal with an average MUSHRA rating score of 99 and the lower anchor is significantly below the conditions PT and TTA. Remarkably, the general trend of the performances by PT and TTA support our quantitative analyses, inferring that the TTA procedure generally improves the separation of both the piano and orchestra. When observing the rating score of the piano concertos individually, one can observe that the rating of the historical recording BeetOp015 is significantly lower than other items for PT. Intuitively, this is due to its poor recording conditions. After applying TTA, the average rating score of BeetOp015 improves from 33 to 59 for the piano and from 43 to 58 for the orchestra. Furthermore, the orchestra separation led to a lower MUSHRA score in the case of MozKV595, both for PT and TTA. One reason may be the audible clipping artifacts in the reference signal and hidden separated orchestra, which a subset of the participants noted during the listening test.</p><p>As a final remark, the subjective results demonstrate that the average separation quality of the orchestra is better than for the piano, which is in favor of the results based on the 2f-model (see Table <ref type="table" target="#tab_3">2</ref>). This again illustrates that quantitative and subjective evaluations need to be carefully interpreted.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>In this paper, we investigated the separation of piano and orchestra in piano concertos. We trained our model using a U-Net architecture based on the Spleeter implementation with random mixes of solo piano and orchestral recordings, which we regarded as our baseline pre-trained model. As the main contribution, we proposed a TTA procedure to enhance the separation quality using the random mixes created from the samples found in the test data. We showed that TTA substantially improved the quantitative and subjective evaluation results, both for the piano and orchestra. For the future, we aim to explore musically plausible data augmentation methods that simulate more realistic mixtures. To further improve the separation quality, avenues of research may be to integrate a transcription model as proposed by <ref type="bibr" target="#b38">[38]</ref> or to incorporate phase information into the network by using, e.g., a complex U-Net <ref type="bibr" target="#b39">[39]</ref>. Moreover, we intend to further investigate objective evaluation measures for the source separation of piano concertos.</p><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An excerpt from the first movement of the Piano Concerto in D minor (KV466) by Wolfgang Amadeus Mozart. Our goal is to estimate the magnitude spectrograms of the piano part (red) and orchestral part (blue).</figDesc><graphic coords="2,89.82,78.21,222.69,222.06" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Annotation of the piano concertos in our dataset into the piano (red), orchestral (blue) parts. To finetune the pre-trained model with the test-time adaptation (TTA) approach, we generate random mixtures of the piano-only (e.g., in the Cadenza, denoted as C) and orchestra-only (e.g. in the Exposition, denoted as E) sections.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Overview of the piano concertos in our test dataset.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Evolution of SDR values based on our test dataset, applying TTA on the pre-trained model PT.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Results of our subjective evaluation based on MUSHRA listening tests for the piano (left) and orchestra (right). The colored markers indicate the average rating scores enclosed by 95% confidence intervals (indicated by the vertical lines).</figDesc><graphic coords="6,91.53,87.72,202.56,166.48" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Table1provides a comparison of the resulting SDR values between a baseline for the SDR values (denoted as BL), which we compute using the test mixture as the target signal and ground-truth sources as the reference, pre-trained PT, and finetuned TTA</figDesc><table><row><cell cols="2">Composer Full Name</cell><cell cols="2">Performer Work ID</cell><cell cols="5">Year M. Dur. (T) Dur. (E) Dur. (C)</cell></row><row><cell cols="2">Beethoven Piano Concerto No.1 in C major, Op.15</cell><cell>Schnabel</cell><cell>BeetOp015</cell><cell cols="2">1932 1</cell><cell>1020</cell><cell>170</cell><cell>277</cell></row><row><cell cols="2">Beethoven Piano Concerto No.4 in G major, Op.58</cell><cell>Gulda</cell><cell>BeetOp058</cell><cell cols="2">1960 1</cell><cell>1116</cell><cell>159</cell><cell>197</cell></row><row><cell>Brahms</cell><cell>Piano Concerto No.1 in D minor, Op.15</cell><cell>Arrau</cell><cell>BrahOp015</cell><cell cols="2">1958 3</cell><cell>728</cell><cell>N/A</cell><cell>65</cell></row><row><cell>Haydn</cell><cell cols="2">Piano Concerto No.11 in D major, Hob. XVIII:11 Gulda</cell><cell cols="3">HaydnHob018 1962 1</cell><cell>486</cell><cell>83</cell><cell>52</cell></row><row><cell>Mozart</cell><cell>Piano Concerto No.20 in D minor, KV. 466</cell><cell>Renzi</cell><cell>MozKV466</cell><cell>N/A</cell><cell>1</cell><cell>862</cell><cell>129</cell><cell>161</cell></row><row><cell>Mozart</cell><cell>Piano Concerto No.21 in C major, KV. 467</cell><cell>N/A</cell><cell>MozKV467</cell><cell cols="2">1962 1</cell><cell>833</cell><cell>136</cell><cell>76</cell></row><row><cell>Mozart</cell><cell>Piano Concerto No.27 in B-flat major, KV. 595</cell><cell cols="2">Casadesus MozKV595</cell><cell cols="2">1963 1</cell><cell>778</cell><cell>128</cell><cell>88</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Σ</cell><cell>5823</cell><cell>805</cell><cell>916</cell></row></table><note><p>(a) The table shows the composer, full name of the work, performer, identifier, recording year, movement (M.), duration (Dur.) in seconds of total recording (T), exposition (E), and cadenza (C).</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>Comparison of the SDR (dB) values between the baseline BL, and the separated sources by the pre-trained model PT and the finetuned model TTA after 100 iterations. The average SDR values are denoted with φ.</figDesc><table><row><cell>Work ID</cell><cell>BL</cell><cell>Piano PT</cell><cell>TTA</cell><cell cols="2">Orchestra BL PT TTA</cell></row><row><cell>BeetOp015</cell><cell>4.48</cell><cell>4.60</cell><cell>8.95</cell><cell>-4.36</cell><cell>0.09 3.67</cell></row><row><cell>BeetOp058</cell><cell>1.62</cell><cell>6.13</cell><cell>7.83</cell><cell>-1.58</cell><cell>2.23 5.75</cell></row><row><cell>BrahOp015</cell><cell>4.75</cell><cell>7.31</cell><cell>9.02</cell><cell>-4.60</cell><cell>0.09 3.67</cell></row><row><cell cols="5">HaydnHob018 10.99 14.47 15.34 -10.93</cell><cell>1.97 3.18</cell></row><row><cell>MozKV466</cell><cell>5.01</cell><cell>7.44</cell><cell>9.93</cell><cell cols="2">-5.06 -0.23 3.76</cell></row><row><cell>MozKV467</cell><cell>-0.72</cell><cell>5.45</cell><cell>6.28</cell><cell>0.73</cell><cell>6.52 7.26</cell></row><row><cell>MozKV595</cell><cell cols="3">6.64 12.74 13.00</cell><cell>-6.89</cell><cell>5.25 5.58</cell></row><row><cell>φ</cell><cell>4.67</cell><cell cols="2">8.31 10.05</cell><cell>-4.67</cell><cell>2.27 4.70</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>.50 28.39 15.51 25.85 29.52 BeetOp058 22.08 27.13 36.19 27.02 38.65 38.68 BrahOp015 24.01 30.79 36.43 22.63 35.36 33.20 HaydnHob018 19.27 34.57 38.31 27.10 41.19 40.35 MozKV466 19.25 32.30 39.49 26.07 35.62 40.18 MozKV467 15.61 28.80 31.52 28.43 40.26 41.21 MozKV595 14.88 27.82 31.52 18.08 30.36 31.49 φ 19.53 28.99 34.55 23.55 35.33 36.38</figDesc><table><row><cell>Work ID</cell><cell>BL</cell><cell>Piano PT</cell><cell>TTA</cell><cell>BL</cell><cell>Orchestra PT</cell><cell>TTA</cell></row><row><cell>BeetOp015</cell><cell cols="2">21.60 21</cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>Comparison of the 2f-model values between the baseline BL, and the separated sources using the pre-trained model PT and finetuned model TTA after 100 iterations. The average 2f-model values are denoted with φ.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>https://www.audiolabs-erlangen.de/resources/MIR/2022-PianoSep/ Proceedings of the</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><p>Acknowledgements: This work was supported by the <rs type="funder">German Research Foundation</rs> (<rs type="grantNumber">DFG MU 2686/10-2</rs>). The <rs type="projectName">International Audio Laboratories Erlangen are a joint institution of the Friedrich-Alexander-Universität Erlangen-Nürnberg (FAU) and Fraunhofer Institut für Integrierte Schaltungen IIS</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funded-project" xml:id="_Gc4SgTf">
+					<idno type="grant-number">DFG MU 2686/10-2</idno>
+					<orgName type="project" subtype="full">International Audio Laboratories Erlangen are a joint institution of the Friedrich-Alexander-Universität Erlangen-Nürnberg (FAU) and Fraunhofer Institut für Integrierte Schaltungen IIS</orgName>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Musical source separation: An introduction</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Cano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Fitzgerald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Plumbley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Stöter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Signal Processing Magazine</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="31" to="40" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Singing voice separation with deep U-net convolutional networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jansson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">J</forename><surname>Humphrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Montecchio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Weyde</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)<address><addrLine>Suzhou, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="745" to="751" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Multi-scale multi-band densenets for audio source separation</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Takahashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mitsufuji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Workshop on Applications of Signal Processing to Audio and Acoustics</title>
+		<meeting>the IEEE Workshop on Applications of Signal Processing to Audio and Acoustics</meeting>
+		<imprint>
+			<publisher>WASPAA</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="21" to="25" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Open-Unmix -A reference implementation for music source separation</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Stöter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Uhlich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mitsufuji</surname></persName>
+		</author>
+		<idno type="DOI">10.21105/joss.01667</idno>
+		<ptr target="https://doi.org/10.21105/joss.01667" />
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Open Source Software</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="issue">41</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Spleeter: a fast and efficient music source separation tool with pre-trained models</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Hennequin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Khlif</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Voituret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Moussallam</surname></persName>
+		</author>
+		<idno type="DOI">10.21105/joss.02154</idno>
+		<ptr target="https://doi.org/10.21105/joss.02154" />
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Open Source Software</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">50</biblScope>
+			<biblScope unit="page">2154</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Wave-U-net: A multiscale neural network for end-to-end audio source separation</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Stoller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ewert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)<address><addrLine>Paris, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="334" to="340" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Music source separation in the waveform domain</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">R</forename><surname>Bach</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/1911.13254" />
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Hybrid spectrogram and waveform source separation</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ISMIR 2021 Workshop on Music Source Separation</title>
+		<meeting>the ISMIR 2021 Workshop on Music Source Separation</meeting>
+		<imprint>
+			<publisher>Online</publisher>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">CWS-PResUNet: Music source separation with channel-wise subband phase-aware ResUNet</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ISMIR 2021 Workshop on Music Source Separation</title>
+		<meeting>the ISMIR 2021 Workshop on Music Source Separation</meeting>
+		<imprint>
+			<publisher>Online</publisher>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">KUIELab-MDX-Net: A two-stream neural network for music demixing</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jung</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ISMIR 2021 Workshop on Music Source Separation</title>
+		<meeting>the ISMIR 2021 Workshop on Music Source Separation</meeting>
+		<imprint>
+			<publisher>Online</publisher>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">All for one and one for all: Improving music separation by bridging networks</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Sawata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Uhlich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Takahashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mitsufuji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Acoustics, Speech, and Signal Processing</title>
+		<meeting>the IEEE International Conference on Acoustics, Speech, and Signal Processing<address><addrLine>Toronto, ON, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="51" to="55" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">The MUSDB18 corpus for music separation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Rafii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-R</forename><surname>Stöter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">I</forename><surname>Mimilakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bittner</surname></persName>
+		</author>
+		<idno type="DOI">10.5281/zenodo.1117372</idno>
+		<ptr target="https://doi.org/10.5281/zenodo.1117372" />
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">MedleyDB: A multitrack dataset for annotation-intensive MIR research</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tierney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mauch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Cannam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)<address><addrLine>Taipei, Taiwan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="155" to="160" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">A dataset of multimedia material about classical music: PHENICX-SMM</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Schedl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hauger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tkalčič</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Melenhorst</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">C S</forename><surname>Liem</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of International Workshop on Content-Based Multimedia Indexing</title>
+		<meeting>International Workshop on Content-Based Multimedia Indexing</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1" to="4" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Score-informed leading voice separation from monaural audio</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Joder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">W</forename><surname>Schuller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)<address><addrLine>Porto, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="page" from="277" to="282" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Pitch-informed solo and accompaniment separation towards its use in music education applications</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Cano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Schuller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Dittmar</surname></persName>
+		</author>
+		<idno type="DOI">10.1186/1687-6180-2014-23</idno>
+		<ptr target="https://doi.org/10.1186/1687-6180-2014-23" />
+	</analytic>
+	<monogr>
+		<title level="j">EURASIP Journal on Advances in Signal Processing</title>
+		<imprint>
+			<biblScope unit="volume">2014</biblScope>
+			<biblScope unit="issue">23</biblScope>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">An overview of lead and accompaniment separation in music</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Rafii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Stöter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">I</forename><surname>Mimilakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Fitzgerald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Pardo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1307" to="1335" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">The 2018 Signal Separation Evaluation Campaign</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Stöter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Ito</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Latent Variable Analysis and Signal Separation</title>
+		<title level="s">ser. Lecture Notes in Computer Science</title>
+		<meeting>the International Conference on Latent Variable Analysis and Signal Separation</meeting>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">10891</biblScope>
+			<biblScope unit="page" from="293" to="305" />
+		</imprint>
+		<respStmt>
+			<orgName>LVA/ICA</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Improving music source separation based on deep neural networks through data augmentation and network blending</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Uhlich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Porcu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Giron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Enenkl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kemp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Takahashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mitsufuji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP)</title>
+		<meeting>the IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP)<address><addrLine>New Orleans, Louisiana, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-03">March 2017</date>
+			<biblScope unit="page" from="261" to="265" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Mixing-specific data augmentation techniques for improved blind violin/piano source separation</title>
+		<author>
+			<persName><forename type="first">C.-Y</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-Y</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-C</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">W</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">-Y</forename><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Multimedia Signal Processing</title>
+		<meeting>the Workshop on Multimedia Signal Processing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1" to="6" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Repeating pattern extraction technique (REPET): A simple method for music/voice separation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Rafii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Pardo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="71" to="82" />
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Towards lightweight, real-time-capable singing voice detection</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Lehner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Sonnleitner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)<address><addrLine>Curitiba, Brazil</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="53" to="58" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Cross-version singing voice detection in classical opera recordings</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Dittmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Lehner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Prätzlich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)<address><addrLine>Málaga, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015-10">October 2015</date>
+			<biblScope unit="page" from="618" to="624" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Userguided one-shot deep model adaptation for music source separation</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Cantisani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ozerov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Essid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)</title>
+		<meeting>the IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)<address><addrLine>New Paltz, New York, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="111" to="115" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Few-shot musical source separation</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Stoller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bittner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP)</title>
+		<meeting>the IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP)<address><addrLine>Singapore; Singapore</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="121" to="125" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Test-time training with self-supervision for generalization under distribution shifts</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hardt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">A</forename><surname>Efros</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning (ICML)</title>
+		<meeting>the International Conference on Machine Learning (ICML)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Performance measurement in blind audio source separation</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Gribonval</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Févotte</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="1462" to="1469" />
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">An efficient model for estimating subjective quality of separated audio source signals</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kastner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Herre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)</title>
+		<meeting>the IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)<address><addrLine>New Paltz, New York, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="95" to="99" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Method for the subjective assessment of intermediate quality level of audio systems</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Series</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<publisher>International Telecommunication Union Radiocommunication Assembly</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Generalized Wiener filtering with fractional power spectrograms</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Badeau</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<meeting>the IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)<address><addrLine>Brisbane, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015-04">April 2015</date>
+			<biblScope unit="page" from="266" to="270" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">U-net: Convolutional networks for biomedical image segmentation</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Ronneberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Fischer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Brox</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Medical Image Computing and Computer-Assisted Intervention MIC-CAI</title>
+		<meeting>the International Conference on Medical Image Computing and Computer-Assisted Intervention MIC-CAI<address><addrLine>Munich, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="234" to="241" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Conditioned-U-net: Introducing a control mechanism in the U-net for multiple source separations</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Meseguer-Brocal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Peeters</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Society for Music Information Retrieval Conference (ISMIR)</title>
+		<meeting>the International Society for Music Information Retrieval Conference (ISMIR)<address><addrLine>Delft, The Netherlands</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="159" to="165" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Improving singing voice separation using deep U-net and wave-U-net with data augmentation</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Cohen-Hadria</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roebel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Peeters</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the European Signal Processing Conference</title>
+		<meeting>the European Signal Processing Conference<address><addrLine>A Coruña, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Evaluation of quality of sound source separation algorithms: Human perception vs quantitative metrics</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Cano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Fitzgerald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Brandenburg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the European Signal Processing Conference</title>
+		<meeting>the European Signal Processing Conference</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1758" to="1762" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Objective measures of perceptual audio quality reviewed: An evaluation of their application domain dependence</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Torcoli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kastner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Herre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="page" from="1530" to="1541" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">ITU-R Rec. BS.1534-3: Method for the subjective assessment of intermediate quality levels of coding systems</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<publisher>International Telecommunications Union</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Subjective and objective quality assessment of audio source separation</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Emiya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Harlander</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Hohmann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">7</biblScope>
+			<biblScope unit="page" from="2046" to="2057" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Simultaneous separation and transcription of mixtures with multiple polyphonic and percussive instruments</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Manilow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Seetharaman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Pardo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Acoustics, Speech, and Signal Processing</title>
+		<meeting>the IEEE International Conference on Acoustics, Speech, and Signal Processing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="771" to="775" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Phase-aware speech enhancement with deep complex U-net</title>
+		<author>
+			<persName><forename type="first">H.-S</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-H</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Huh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-W</forename><surname>Ha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations (ICLR)</title>
+		<meeting>the International Conference on Learning Representations (ICLR)<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

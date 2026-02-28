@@ -1,0 +1,1035 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">DOMAIN ADVERSARIAL TRAINING ON CONDITIONAL VARIATIONAL AUTO-ENCODER FOR CONTROLLABLE MUSIC GENERATION</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Jingwei</forename><surname>Zhao</surname></persName>
+							<email>jzhao@u.nus.edu</email>
+							<affiliation key="aff1">
+								<orgName type="department">Institute of Data Science</orgName>
+								<address>
+									<region>NUS</region>
+								</address>
+							</affiliation>
+							<affiliation key="aff3">
+								<orgName type="department">Integrative Sciences and Engineering Programme</orgName>
+								<orgName type="institution">NUS Graduate School</orgName>
+								<address>
+									<addrLine>5 MBZUAI</addrLine>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Gus</forename><surname>Xia</surname></persName>
+							<email>gxia@nyu.edu</email>
+							<affiliation key="aff2">
+								<orgName type="department">Music X Lab</orgName>
+								<address>
+									<country>NYU Shanghai</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ye</forename><surname>Wang</surname></persName>
+							<email>wangye@comp.nus.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing</orgName>
+								<address>
+									<settlement>NUS</settlement>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="department">Institute of Data Science</orgName>
+								<address>
+									<region>NUS</region>
+								</address>
+							</affiliation>
+							<affiliation key="aff3">
+								<orgName type="department">Integrative Sciences and Engineering Programme</orgName>
+								<orgName type="institution">NUS Graduate School</orgName>
+								<address>
+									<addrLine>5 MBZUAI</addrLine>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">DOMAIN ADVERSARIAL TRAINING ON CONDITIONAL VARIATIONAL AUTO-ENCODER FOR CONTROLLABLE MUSIC GENERATION</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">5AA14F309BB6F6DAAC6F02C5FF718967</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:15+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>The variational auto-encoder has become a leading framework for symbolic music generation, and a popular research direction is to study how to effectively control the generation process. A straightforward way is to control a model using different conditions during inference. However, in music practice, conditions are usually sequential (rather than simple categorical labels), involving rich information that overlaps with the learned representation. Consequently, the decoder gets confused about whether to ªlisten toº the latent representation or the condition, and sometimes just ignores the condition. To solve this problem, we leverage domain adversarial training to disentangle the representation from condition cues for better control. Specifically, we propose a condition corruption objective that uses the representation to denoise a corrupted condition. Minimized by a discriminator and maximized by the VAE encoder, this objective adversarially induces a condition-invariant representation. In this paper, we focus on the task of melody harmonization 1 to illustrate our idea, while our methodology can be generalized to other controllable generative tasks. Demos and experiments show that our methodology facilitates not only condition-invariant representation learning but also higherquality controllability compared to baselines.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>In deep music generation, improving controllability has been a major challenge that gains increasing research attention <ref type="bibr">[1±6]</ref>. In practice, controllability is typically implemented under a conditional architecture, where the generation process is biased by external condition inputs. For example, EC 2 -VAE <ref type="bibr" target="#b7">[7]</ref> learns a representation z x of 8beat melody x while the underlying chords are given as condition c. The system is controllable if the generated melody can adapt to variable chords properly. For such representation-learning architectures, however, the decoder tends to find a shortcut from z x to x without attending to c, leading to ªcondition collapseº. The reason for this, as we argue, is that z x is inevitably intertwined with condition c in the representation space, as c is often an innate property of x. In the case of EC 2 -VAE, the condition of chords is very much implied by the melody.</p><p>To address this problem, the representation z x must be disentangled from condition c. A popular way to achieve this goal is to use an adversarial objective that predicts c from z x , as shown in Figure <ref type="figure" target="#fig_0">1</ref>. On the one hand, this objective is optimized by a discriminator; on the other hand, the encoder is trained to ªfoolº the discriminator by detaching c-related cues out of z x . In this way, the decoder cannot find a shortcut in z x but is forced to seek c to reconstruct x. Such a technique stems from domain adversarial training (DAT) <ref type="bibr" target="#b8">[8]</ref>, where the ªdomainº is interpreted as ªconditionº that controls the generation. Apparently, DAT can be a powerful tool for controllable music generation. Previous studies <ref type="bibr" target="#b9">[9,</ref><ref type="bibr" target="#b10">10]</ref> have discussed simple scenarios where the condition is a global label (e.g., note density). In music practice, however, local and sequential conditions <ref type="bibr" target="#b11">[11]</ref> are more common. In such cases, c may not be fully implied by x, so the objective that simply predicts c from z x does not necessarily hold.</p><p>In this paper, we focus on sequential conditions and develop a generalized form of DAT for controllable music generation. We illustrate our methodology with the task of chord representation learning conditioned on melody, where x stands for the chord progression, and c is the melody condition. In general, a chord progression can match many melodies, so we cannot directly predict c (melody) from z x (chord) for the DAT objective. Instead, we leverage z x to reconstruct c from a corrupted condition c * . We rely on c * to provide the melody context that cannot be hinted by chord x; on the other hand, the corrupted information reveals c's harmonic dependency on x, which we enforce the discriminator to learn. With proper corruption design, our DAT objective can be generalized to more scenarios with sequential conditions.</p><p>A well-trained model with good controllability can help us harmonize a new melody using the representation (style) of an existing chord progression. Experiments show that our model performs an excellent disentanglement of data representation from the condition, and the controllability outperforms the baselines. In summary, our contributions in this paper are as follows:</p><p>• A general approach to controllability: Based on a novel adversarial objective with condition corruption, we generalize domain adversarial training to music generation with sequential conditions;</p><p>• A novel harmonization methodology: We present a representation learning-based method for melody harmonization. Our current model harmonizes pop and folk melodies with the triad and seventh chords.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORKS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Domain Adversarial Training</head><p>Domain adversarial training (DAT) is a representation learning approach initially proposed for domain adaptation tasks <ref type="bibr">[12±14]</ref>. Through an adversarial process as described in Section 1, DAT enforces domain invariance to data representation so that it can be adapted to different domains flexibly. Such adaptability to new domains is analogous to controllability with new conditions. For generation tasks, DAT has been utilized to learn a condition-invariant data representation. Such invariance enforces the decoder to use condition information for reconstruction <ref type="bibr" target="#b15">[15]</ref>. During inference, the decoder ªlistens toº new conditions as well and generates new data in a controllable way. The first attempts that incorporate DAT with generation dealt with facial image generation conditioned on binary attributes (e.g., male or female) <ref type="bibr" target="#b15">[15,</ref><ref type="bibr" target="#b16">16]</ref>. Such conditions cannot be explicitly supervised because we cannot find any pair of images that represents the same person both male and female. Fortunately, DAT enforces attribute invariance at encoding and learns attribute dependency at decoding, thus circumventing this problem. Recently, DAT has been extended to symbolic music generation conditioned on various attributes. Kawai et al. adopts DAT to a variational auto-encoder (VAE) for melody generation conditioned on statistical attributes (e.g., note density) <ref type="bibr" target="#b9">[9]</ref>. Later, Matsuoka et al. generalizes this methodology to generating polyphonic music with similar conditions <ref type="bibr" target="#b10">[10]</ref>.</p><p>For previous works, the conditions are particularly a global statistical label, which only represents a limited scenario of controllable generation. In our paper, we generalize the usage of DAT to sequential conditions. Conditioned on an 8-bar melody, we aim to learn a pitch-invariant representation of an 8-bar chord progression, which can later be adapted to varied melody conditions and to harmonize them. Our main novelty lies in a special design of the adversarial objective, which is to denoise corruption rather than make full prediction. This technique greatly helps us in dealing with the nuance of sequential conditions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Controllable Music Generation</head><p>Controllable music generation takes various forms in terms of controlling technique and music representation <ref type="bibr" target="#b17">[17]</ref>. For controlling technique, controllability can be achieved by sampling, interpolation, conditioning, and more ways <ref type="bibr" target="#b11">[11]</ref>. For music representation, controls can be performed over statistical music properties (pitch variability, note density, etc.) <ref type="bibr" target="#b9">[9,</ref><ref type="bibr" target="#b10">10]</ref>, compositional factors (chord progression, texture and rhythmic patterns, etc.) <ref type="bibr">[7, 18±20]</ref>, high-level semantics (emotion, cultural style, etc.) <ref type="bibr" target="#b21">[21]</ref>, and so on. With the development of representation learning, such properties can be abstracted and disentangled for flexible control.</p><p>In this paper, we are interested in chord representation learning conditioned on melodies, which falls into the category of controlling compositional factors via conditioning. Various conditional architectures, such as conditional VAE (C-VAE) <ref type="bibr" target="#b22">[22]</ref>, have been applied for similar purposes <ref type="bibr">[7, 18±21]</ref>. However, as the condition is often easily implied by the representation, the decoder tends to skip the condition, and simply reconstruct the data for whatever conditions. To eradicate this problem, we introduce domain adversarial training and generalize it to sequential conditions (in our case, an 8-bar lead melody). Our model learns a pitch-invariant chord representation so that we can generate chord progressions harmoniously conditioned on varied melodies. Such control over compositional factors is common to broader music generation scenarios, and our methodology is generally applicable as well.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHODOLOGY</head><p>In this section, we introduce our methodology with domain adversarial training on learning chord representation conditioned on the melody. An overview of our model is illustrated in Figure <ref type="figure" target="#fig_1">2</ref>. We first describe our data representation and structure in Section 3.1. Then, we introduce our proposed model in Section 3.2. Finally, we elaborate on our novel design of condition corruption in Section 3.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Date Representation and Structure</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.1">Chord Representation</head><p>Our model generates an 8-bar chord progression conditioned on the melody. We quantize the chord progression at 1-beat unit and derive T = 32 timesteps. The maximum note count P for each chord is 4, which means we can flexibly represent any type of triad and seventh chords. Specifically, we treat chord progression as a piece of polyphony and follow <ref type="bibr" target="#b18">[18]</ref> to represent it in both a surface structure (as model input) and a deep structure (for encoding).</p><p>The surface structure is a nested array of pitch attributes, denoted by {x t p |1 ≤ t ≤ T, 1 ≤ p ≤ P }. Concretely, x t p is the p th lowest pitch onset at time step t. We</p><p>Enc pitch-axis GRU</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>VAE Objective Adversarial Objective</head><p>Enc pitch-axis GRU</p><formula xml:id="formula_0">𝑥𝑥 1 1 𝑥𝑥 2 1 𝑥𝑥 𝑃𝑃 1 𝑥𝑥 1 𝑇𝑇 𝑥𝑥 2 𝑇𝑇 𝑥𝑥 𝑃𝑃 𝑇𝑇 𝑧𝑧 𝑥𝑥 � 𝑥𝑥 1 � 𝑥𝑥 𝑇𝑇 Dec pitch-axis GRU � 𝑥𝑥 1 1 � 𝑥𝑥 2 1 � 𝑥𝑥 𝑃𝑃 1 � 𝑥𝑥 1 𝑇𝑇 � 𝑥𝑥 2 𝑇𝑇 � 𝑥𝑥 𝑃𝑃 𝑇𝑇 ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ 𝑐𝑐 1 𝑐𝑐 2 𝑐𝑐 4𝑇𝑇 𝑐𝑐 1 *</formula><p>Transformer Encoder Layer p as a 13-D one-hot vector corresponding to 12 pitch classes plus a padding state. For most of our chord progression data, the offset of the last chord is precisely followed by the onset of the next one. Hence we do not explicitly consider the duration attributes.</p><p>For the deep structure, we build a syntax tree as in <ref type="bibr" target="#b18">[18]</ref> to reveal the hierarchy from note via chord to chord progression. First, for 1 ≤ t ≤ T, 1 ≤ p ≤ P , x t p itself constitutes the bottom layer of the tree. Then, for 1 ≤ t ≤ T , we define x t as the summary of x t 1≤p≤P , which lies at the middle layer of the tree. Finally, we define z x as the summary of x 1≤t≤T , which is the root of the tree. Such a deep structure is illustrated in Figure <ref type="figure">3</ref>. Conceptually, while x t is a compact representation of a single chord, z x represents the complete chord progression.</p><formula xml:id="formula_1">chord progression D G B C E G D F A chord note ⋯ ⋯ ⋯ ⋯ ⋯</formula><p>Figure <ref type="figure">3</ref>: Tree-structure data representation of chord progression, reproduced from <ref type="bibr" target="#b18">[18]</ref> with permission.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.2">Melody Representation</head><p>Our model receives an 8-bar lead melody as the condition. we quantize the melody at 1 4 -beat unit and derive 4T = 128 time steps. Following <ref type="bibr" target="#b7">[7]</ref>, we represent the melody as a sequence of note onsets plus a hold and a rest state. Each note onset consists of two one-hot vectors each representing 12 pitch classes and 10 octave ranges (registers). In our model, the melody pitch shares the same learnable embedding with the chord pitch.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Proposed Model</head><p>Our model applies a similar VAE architecture as PianoTree VAE <ref type="bibr" target="#b18">[18]</ref>, which learns representation for polyphonic music in a hierarchical manner. We use the surface structure of chord progression as the model input. The VAE architecture is built upon the deep tree-like structure.</p><p>We first illustrate the vanilla VAE design in the right half of Figure <ref type="figure" target="#fig_1">2</ref>. Let x be the input chord progression and x t p be the p th lowest pitch onset at time step t. The encoder first summarizes x t 1≤p≤P into an intermediate representation x t (chord representation) for each time step t, and then encodes x 1≤t≤T to the complete representation z x . The decoder is basically a mirrored version of the encoder. The melody condition c, with its every four timesteps summed together, is concatenated to x 1≤t≤T during encoding and to z x during decoding. The loss function of our vanilla VAE architecture is:</p><formula xml:id="formula_2">L(θ enc , θ dec ) = -E Q [log P θ dec (x | z x , c)] + αKL(Q θenc (z x | x, c) ∥ N (0, 1)),<label>(1)</label></formula><p>where P θ dec and Q θenc refer to the VAE decoder and encoder. θ dec and θ enc are the learnable parameters. α is a balancing parameter for the regularization of KL loss <ref type="bibr" target="#b23">[23]</ref>.</p><p>Ideally, z x should be a relative progression representation whose absolute pitch is controlled by melody c. However, as the input chord, x already has absolute pitch, this information is preserved in z x as a redundant melody cue and confuses the decoder from attending to the condition.</p><p>To solve this problem, we assign a discriminator (left in Figure <ref type="figure" target="#fig_1">2</ref>) to the VAE architecture. Instead of predicting c from z x as conventional DAT objectives do, we bias the discriminator to denoise a corrupted melody condition. The corruption is done by transposing the melody to 12 keys with equal chance, which breaks the harmonic relation to the chord. In this way, we learn and extract the chord's dependency on its melody condition.</p><p>Formally, our discriminator leverages z x to reconstruct melody condition c from a corrupted one c * . Our DAT objective with condition corruption is trained in an adversarial manner. We optimize the discriminator by minimizing the reconstruction loss:</p><formula xml:id="formula_3">L(θ dis ) = -E Q [log R θ dis (c | z x , c * )] ,<label>(2)</label></formula><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p><p>where R θ dis is the discriminator with parameters θ dis .</p><p>On the other hand, we optimize the VAE encoder by maximizing condition reconstruction error:</p><formula xml:id="formula_4">L(θ enc | θ dis ) = -E Q [log R θ dis (1 -c | z x , c * )] + αKL(Q θenc (z x | x, c) ∥ N (0, 1)),<label>(3)</label></formula><p>where 1c is a confusion criterion that encourages the encoder to ªfoolº the discriminator. L(θ i | θ j ) means we optimize θ i while fixing θ j . The KL loss in Equation ( <ref type="formula" target="#formula_4">3</ref>) and ( <ref type="formula" target="#formula_2">1</ref>) ensures a consistent posterior regularization. During domain adversarial training, Equation (2) and Equation ( <ref type="formula" target="#formula_4">3</ref>) are iteratively optimized aside from the main VAE objective <ref type="bibr" target="#b1">(1)</ref>. In this way, the encoder is explicitly biased to disentangle z x from c. The decoder learns to retrieve missing cues from c to reconstruct x, and thus guarantees controllability in the conditional architecture.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Condition Corruption</head><p>The main novelty of our architecture over previous applications of DAT <ref type="bibr" target="#b9">[9,</ref><ref type="bibr" target="#b10">10,</ref><ref type="bibr" target="#b15">15]</ref> is that we incorporate a corrupted condition term to generalize this method to sequential conditions. The necessity of condition corruption is that, when c is not fully implied by x, the conventional DAT objective which predicts c from z x no longer holds. In our case, x (chord) can be accompanied with various unique c (melodies), and a melody is largely independent of the chord in terms of sequential rhythmic patterns.</p><p>Condition corruption aims to reveal the dependency of c on x when a direct predictive inference from x to c cannot be established. The corrupted condition c * serves as a context to fill in such prediction gap, and the dependency is highlighted when using z x to denoise c * . It may require field knowledge to design a proper corruption method for a specific scenario. Such corruption should keep the context part while blocking the dependency.</p><p>In our case, we corrupt the melody by transposing it to 12 keys with equal probability. The transposed melody c * keeps the original rhythm and pitch curve shape while distorting the harmonic relation to the chord progression.</p><p>Here the rhythm and the curve shape are the contexts, and the harmonic relation is the dependency. We compare our corruption method with a corruption-by-masking baseline in Section 4.6 to support the effectiveness of our design.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Dataset</head><p>We collect a total of 2K lead sheet pieces (melody with chord progression) for folk and pop songs from Nottingham <ref type="bibr" target="#b24">[24]</ref> and POP909 <ref type="bibr" target="#b25">[25]</ref> datasets. We only keep the pieces with 2  4 and 4 4 meters and slice them into 32-beat snippets at an 8-beat hop size, deriving a total of 35K samples. We quantize chords at 4 th note and melodies at 16 th . We randomly split the dataset (at song level) into training (95%) and validation (5%) sets. We further augment the training data by transposing each sample to all 12 keys.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Architecture Details</head><p>The VAE framework of our model is consistent with Pi-anoTree VAE <ref type="bibr" target="#b18">[18]</ref>. We implement the encoder with two bi-directional Gated Recurrent Unit (GRU) networks. The pitch-axis GRU and time-axis GRU each has a hidden dimension d p,enc = 256 and d t,enc = 512. The input embedding dimension d emb and latent representation dimension d z are both set to 128. The decoder mirrors the encoder with uni-directional GRUs, with hidden dimensions d t,dec = 1024 and d p,dec = 512. We set the KL balancing weight α = 0.1 in Equation ( <ref type="formula" target="#formula_2">1</ref>) and (3).</p><p>We implement the discriminator using BERT <ref type="bibr" target="#b26">[26]</ref> with relative positional embedding [27±29], as our condition corruption is conceptually similar to language masking. For our model, we use 4 Transformer encoder layers with 4 heads <ref type="bibr" target="#b30">[30]</ref> and 10% dropout <ref type="bibr" target="#b31">[31]</ref>. The hidden dimensions of self-attention and feed-forward layers are d model = 256 and d ff = 1024. Our VAE and BERT discriminator each have 12.55M and 3.24M trainable parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Training</head><p>Our model is trained using Adam optimizer <ref type="bibr" target="#b32">[32]</ref>, with a mini-batch of 256 samples and a learning rate from 1e-3 exponentially decayed to 1e-5. We use teacher forcing <ref type="bibr" target="#b33">[33]</ref> for training the GRU-based decoder, with teacher forcing rate from 0.8 exponentially decayed to 0. We introduce domain adversarial training as an iterative process aside from the main VAE objective, as shown in Algorithm 1. We set i = 10, j = 1, k = 5, and l = 5. Our model is trained on a Geforce-2080Ti-12GB GPU. It takes 20 epochs (in around 15 hours) for our model to fully converge.   <ref type="formula" target="#formula_4">3</ref>)). In the early stage, the discriminator learns to reconstruct c based on z x , so the green curve decreases. However, as the adversarial procedure goes on, z x is gradually disentangled from c-related cues. Consequently, the discriminator acquires less and less relevant information to reconstruct c well, and thus the green curve increases. The red curve exhibits an inverse trend, as it is supervised by 1c. When each loss curve converges, we interpret it as an equilibrium that indicates a successful disentanglement of chord representation z x from melody condition c. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Controllable Generation Results</head><p>Through domain adversarial training, our model gains reliable melody control over chord generation. Our model can harmonize a new melody using the representation of an existing chord progression. We hence develop a novel representation learning-based harmonization methodology. For example, Figure <ref type="figure" target="#fig_6">5</ref> presents two source lead sheets selected from our validation dataset. Both source samples are pop song phrases which share similar (but not exactly the same) chord progressions. However, the tonality and chromatic colours of these two pieces are quite different.</p><formula xml:id="formula_5">5                                                                                                         I V 7 ii 7 I IV M7 I M7 V ii 7 I M7 IV M7     5                                                                                                    I V IV vi I V IV I V IV vi I V IV  (a)</formula><p>Source A: a D major song accompanied by seventh chords.  Figure <ref type="figure">6a</ref> is the result where we reconstruct chord A conditioned on melody B, i.e., to harmonize melody B with the harmonic style in A. Here the ªstyleº includes tensions with seventh chords and a typical cadence progression of ii-V-I. We see these features properly fitted to melody B in the correct tone. In other words, the generation of chord progression is controlled by the melody. Figure <ref type="figure">6b</ref> is the result where we reconstruct chord B conditioned on melody A. For this case, the original seventh chords in A are replaced by triads with a IV-V-I cadence. These results suggest that our learned chord representation can well discern relative progression and chromatic colour, while our model is controllable in terms of tonality. </p><formula xml:id="formula_6">5                                                                                                    I V IV vi I V IV I V IV vi I V IV</formula><formula xml:id="formula_7">                                                                                            I V 7 ii 7 I IV M7 I M7 V ii 7 I ii 7  (a) Reconstruction of Chord A conditioned on Melody B. 5                                                                                                               I V IV vi IV iii ii I V IV vi I V IV     (b) Reconstruction of Chord B conditioned on Melody A.</formula><p>Figure <ref type="figure">6</ref>: Chord generation conditioned on exchanged melody conditions. This process can also be viewed as melody harmonization using exchanged harmonic styles.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Subjective Evaluation</head><p>In this section, we evaluate our model's performance on the task of harmonization. We first derive the following three baseline models for an ablation study:</p><p>Non-DAT: Compared with our model, Non-DAT has the same VAE framework but does not have a discriminator. It does not explicitly try to disentangle z x from c using domain adversarial training (DAT);</p><p>Mask-CR: Mask-CR has the same architecture as our model but uses a different condition corruption technique. Specifically, it applies masking corruption (as in <ref type="bibr" target="#b26">[26]</ref>) rather than pitch transposition;</p><p>Non-CR: Compared with our model, Non-CR uses the conventional DAT objective without condition corruption. It predicts c directly from z x with a GRU discriminator.</p><p>To compare our model with the baselines, we survey on rating the harmonization quality of all models. Our survey has 10 groups of harmonization results and each subject is required to listen to 4. In each group, the subjects first listen to an original lead sheet A and a single melody B. Both A and B are 8-bar long (16 seconds) and are randomly selected from different musical pieces from our validation set. As in Section 4.4, we harmonize melody B with the harmonic style of A using our model and the baseline models. Subjects are then required to evaluate each version of harmonization. The rating is based on a five-point scale from 1 (very poor) to 5 (very high) over three metrics: harmonicity, creativity, and musicality.</p><p>A total of 38 subjects with diverse music backgrounds participated in our survey and we obtain 142 effective ratings for each metric. As shown in Figure <ref type="figure">7</ref>, the height of the bars represents the mean value of the ratings. The error bars represent the mean square errors (MSEs) computed by within-subject ANOVA <ref type="bibr" target="#b34">[34]</ref>. We report a significantly better harmonization performance of our model than all three baselines in each metric (p-value p &lt; 0.05). Specifically, we note that our model achieves such performance based on a higher degree of representation disentanglement and controllability. We evaluate these methodological aspects with finer objective metrics in the following section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Objective Evaluation</head><p>In this section, we objectively compare our model with the baselines in terms of disentanglement and controllability. The baseline models are as defined in Section 4.5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6.1">Disentanglement</head><p>Our model disentangles chord representation z x from melody condition c. In our case, the melody controls the absolute pitch of the chord progression. A satisfied disentanglement should derive a pitch-invariant representation. Following <ref type="bibr" target="#b7">[7,</ref><ref type="bibr" target="#b35">35]</ref>, we develop a similarity criterion to evaluate the performance on disentanglement. Let T i (•) be a transposition operator with i semitones. We calculate cosine similarity cos(z x , z Ti(x) ), i = 1, 2, • • • , 12 for our model and for each baseline. In Figure <ref type="figure">8</ref>, a higher similarity means representation z x is less affected by the absolute pitch and thus is better disentangled. Our model outperforms all three baselines, including Mask-CR. This finding corroborates that a proper corruption strategy is crucial to applying domain adversarial training to concrete tasks. In our case, masking is not the best way to corrupt, as it is less aware of the harmonization context or dependency discussed in Section 3.3.</p><p>It is also worth noting that the similarity of z x reflects human pitch perception. For each model, transposing a tritone (T 6 (•)) derives the lowest similarity. Figure <ref type="figure">8</ref> shows that z T6(x) is literally orthogonal to z x for Non-DAT and Non-CR. Interestingly, tritone is the most dissonant among all musical intervals in human perception. Such observation indicates that our model learns non-trivial music rules.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6.2">Controllability</head><p>A pitch-invariant representation helps us improve the model controllability by enforcing the decoder to rely on external conditions. In our case of harmonization, a good control generates harmonic chord progression conditioned on the lead melody. Aside from the subjective evaluation in Section 4.5, we introduce harmony histogram to objectively interpret the quality of control. Concretely, the harmony histogram is defined as the ratio of within-chord note positions on which the lead melody lies. For tonal music, there should be more root, 3rd, and 5th notes appearing in the melody compared to 7th and higher, so that the music is considered harmonic.</p><p>In our experiment, we arrange our validation data into random pairs and reconstruct the chord progression with swapped melody conditions. We compare the harmony histogram of generated results from our model and all baselines. Additionally, we compute the histogram for the original (human-composed) data as ground truth. In Figure <ref type="figure">9</ref>, we first observe that the histogram distribution has a larger portion in the root, 3rd, and 5th notes for the original data. For the baseline models, over 25% melody notes are beyond all chord notes and tensions (shown by ªothersº in Figure <ref type="figure">9</ref>), which indicates excessive disharmony. Our proposed model, on the other hand, keeps a more consistent pattern with the ground truth.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>In conclusion, we contribute a generalized form of domain adversarial training for controllable music generation, especially when complex sequential conditions are involved. The main novelty lies in the condition corruption objective, which contextualizes the exact dependency between representation z x and condition c, and therefore assists disentanglement and control. Our method shows excellent performance in chord representation learning, where we learn a pitch-invariant representation conditioned on the melody and develop a novel harmonization strategy. Our improvement in disentanglement and controllability is elaborated with extensive subjective and objective evaluation. With the proposal of our methodology, we hope to bring a new perspective not only to music generation but also to more general scenarios of conditional representation learning.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An illustration of domain adversarial training over a conditional generation architecture.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Chord representation learning with adversarial intervention for melody control.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Algorithm 1 : 2 for i iterations do 3 Optimize 4 for j iterations do 5 for k iteration do 6 7 for l iterations do 8</head><label>12345678</label><figDesc>Domain Adversarial Training 1 while training do VAE with L(θ enc , θ dec ), Optimize discriminator with L(θ dis ), Optimize encoder with L(θ enc | θ dis ).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4</head><label>4</label><figDesc>Figure4shows the trends of adversarial loss L(θ dis ) (in Equation (2)) and L(θ enc | θ dis ) (in Equation (3)). In the early stage, the discriminator learns to reconstruct c based on z x , so the green curve decreases. However, as the adversarial procedure goes on, z x is gradually disentangled from c-related cues. Consequently, the discriminator acquires less and less relevant information to reconstruct c well, and thus the green curve increases. The red curve exhibits an inverse trend, as it is supervised by 1c. When each loss curve converges, we interpret it as an equilibrium that indicates a successful disentanglement of chord representation z x from melody condition c.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Adversarial loss curves with DAT. Such a trend is driven by the disentanglement of z x from c.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>(b) Source B: a B Z major song accompanied by triads.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Source lead sheets.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>5</head><label>5</label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>7 Figure 7 :</head><label>77</label><figDesc>Figure 7: Subjective evaluation on the harmonization performance of our model and baseline models.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 8 :Figure 9 :</head><label>89</label><figDesc>Figure8: Object evaluation on representation similarity (invariance) against pitch transposition. A higher value denotes better disentanglement.</figDesc></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Demos and codes via https://zhaojw1998.github.io/DAT_CVAE. © J. Zhao, G. Xia, and Y. Wang. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: J. Zhao, G. Xia, and Y. Wang, ªDomain Adversarial Training on Conditional Variational Auto-Encoder for Controllable Music Generationº, in Proc. of the</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>23rd Int. Society for Music Information Retrieval Conf., Bengaluru, India, 2022.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">ªIs disentanglement enough? on latent representations for controllable music generation</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="517" to="524" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">ªControllable deep melody generation via hierarchical music structure representation</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gomes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">B</forename><surname>Dannenberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="143" to="150" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Controllable music generation via factorized representations of pitch and rhythm</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dubnov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="77" to="84" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">B</forename><surname>Carlton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">N</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">H</forename><surname>Miyakawa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ªTransformer VAE: A hierarchical model for structure-aware and interpretable music representation learning,º in 2020 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="516" to="520" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">ªTransferring piano performance control across environments</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="221" to="225" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">ªNeural music synthesis for flexible timbre control</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">ªDeep music analogy via latent representation disentanglement</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="596" to="603" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">ªDomain-adversarial training of neural networks</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ganin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Ustinova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Ajakan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Germain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Larochelle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Laviolette</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Marchand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><forename type="middle">S</forename><surname>Lempitsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">17</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page">35</biblScope>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">ªAttributes-aware deep music transformation</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Kawai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Esling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Harada</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="670" to="677" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">ªAttribute-aware deep music transformation for polyphonic music</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Matsuoka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Sako</surname></persName>
+		</author>
+		<ptr target="https://archives.ismir.net/ismir2021/latebreaking/000035.pdf" />
+	</analytic>
+	<monogr>
+		<title level="m">Late Breaking Demo in the 22nd International Society for Music Information Retrieval Conference</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Deep learning techniques for music generation</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Briot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Pachet</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<publisher>Springer</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">ªLearning to pivot with adversarial networks</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Louppe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kagan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cranmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 30: Annual Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="981" to="990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ªA-CRNN: A domain adaptation model for sound event detection</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2020 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="276" to="280" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">ªUnsupervised domain adaptation for document analysis of music score images</title>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">J</forename><surname>Castellanos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A.-J</forename><surname>Gallego</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Calvo-Zaragoza</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="81" to="87" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ªFader networks: Manipulating images by sliding attributes</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Zeghidour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Denoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ranzato</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 30: Annual Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5967" to="5976" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1610.05586</idno>
+		<title level="m">ªDeep identityaware transfer of facial attributes,º</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">ªRepresentation learning for controllable music generation: A survey</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.13140/RG.2.2.34458.11208</idno>
+		<ptr target="https://doi.org/10.13140/RG.2.2.34458.11208" />
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>Available</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">ªPIANOTREE VAE: structured representation learning for polyphonic music</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="368" to="375" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">ªLearning interpretable representation for controllable polyphonic music generation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="662" to="669" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">ªSurprisenet: Melody harmonization conditioning on user-controlled surprise contours</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="105" to="112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">ªButter: A representation learning framework for bi-directional music-sentence retrieval and generation,º in Proceedings of the 1st workshop on NLP for music and audio</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<publisher>NLP4MusA</publisher>
+			<biblScope unit="page" from="54" to="58" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">ªLearning structured output representation using deep conditional generative Proceedings of the 23rd ISMIR Conference</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Sohn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Yan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">models,º in Advances in Neural Information Processing Systems 28: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>Bengaluru, India</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">December 4-8, 2022. 2015</date>
+			<biblScope unit="page" from="3483" to="3491" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ªbeta-vae: Learning basic visual concepts with a constrained variational framework</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Higgins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Matthey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">P</forename><surname>Burgess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Glorot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">M</forename><surname>Botvinick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerchner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">th International Conference on Learning Representations, ICLR, Conference Track Proceedings</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">E</forename><surname>Foxley</surname></persName>
+		</author>
+		<ptr target="https://ifdo.ca/~seymour/nottingham/nottingham" />
+		<imprint>
+			<date type="published" when="2021-05-25">May 25, 2021</date>
+		</imprint>
+	</monogr>
+	<note>ªNottingham database,º [EB/OL</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">A pop-song dataset for music arrangement generation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">*</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">*</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">909</biblScope>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">ªBERT: pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Toutanova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">ªSelf-attention with relative position representations</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Shaw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="464" to="468" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">ªMusic transformer: Generating music with long-term structure</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>º in 7th International Conference on Learning Representations, ICLR. OpenReview.net</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">ªMusebert: Pre-training music representation for music understanding and controllable generation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="722" to="729" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">ªAttention is all you need</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 30: Annual Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1207.0580</idno>
+		<title level="m">ªImproving neural networks by preventing co-adaptation of feature detectors,º</title>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<title level="m">ªAdam: A method for stochastic optimization,º in 3rd International Conference on Learning Representations, ICLR, Conference Track Proceedings</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">ªLearning a trajectory using adjoint functions and teacher forcing</title>
+		<author>
+			<persName><forename type="first">N</forename><forename type="middle">B</forename><surname>Toomarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Barhen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural networks</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="473" to="484" />
+			<date type="published" when="1992">1992</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">The analysis of variance</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Scheffe</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1999">1999</date>
+			<publisher>John Wiley &amp; Sons</publisher>
+			<biblScope unit="volume">72</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">ªLearning long-term music representations via hierarchical contextual constraints</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference</title>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="738" to="745" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

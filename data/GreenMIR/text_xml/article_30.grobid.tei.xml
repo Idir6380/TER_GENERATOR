@@ -1,0 +1,927 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">A CONTEXTUAL LATENT SPACE MODEL: SUBSEQUENCE MODULATION IN MELODIC SEQUENCE</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Taketo</forename><surname>Akama</surname></persName>
+							<email>taketo.akama@sony.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Sony Computer Science Laboratories</orgName>
+								<address>
+									<settlement>Tokyo</settlement>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">A CONTEXTUAL LATENT SPACE MODEL: SUBSEQUENCE MODULATION IN MELODIC SEQUENCE</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">DC7F2FD4490E901137399F5D5F3ECF7A</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:14+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<textClass>
+				<keywords>
+					<term>T. Akama</term>
+					<term>&quot;A Contextual Latent Space Model: Subsequence Modulation in Melodic Sequence&quot;</term>
+					<term>in Proc. of the 22nd Int. Society for Music Information Retrieval Conf.</term>
+					<term>Online</term>
+					<term>2021</term>
+				</keywords>
+			</textClass>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Some generative models for sequences such as music and text allow us to edit only subsequences, given surrounding context sequences, which plays an important part in steering generation interactively. However, editing subsequences mainly involves randomly resampling subsequences from a possible generation space. We propose a contextual latent space model (CLSM) in order for users to be able to explore subsequence generation with a sense of direction in the generation space, e.g., interpolation, as well as exploring variations-semantically similar possible subsequences. A context-informed prior and decoder constitute the generative model of CLSM, and a context position-informed encoder is the inference model. In experiments, we use a monophonic symbolic music dataset, demonstrating that our contextual latent space is smoother in interpolation than baselines, and the quality of generated samples is superior to baseline models. The generation examples are available online. 1  </p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Deep generative models permit sequences of decent quality to be generated such as music, lyrics, or text, where standard models generate sequences by sampling from left to right. However, to make creative works in humanmachine collaborative settings, controllability-such as modifying unsatisfactory portions with specified intentions-should be improved.</p><p>Two major model classes of controllability are (i) latent space models <ref type="bibr" target="#b1">[1]</ref><ref type="bibr" target="#b2">[2]</ref><ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr" target="#b6">[6]</ref> and (ii) positional constraint models <ref type="bibr">[7]</ref><ref type="bibr" target="#b8">[8]</ref><ref type="bibr" target="#b9">[9]</ref><ref type="bibr" target="#b10">[10]</ref><ref type="bibr" target="#b11">[11]</ref>. Latent space models enable us to obtain variations or morphing/interpolations between generated sequences. Positional constraint models, on the other hand, allow us to resample a subsequence without changing the rest of the sequence (context sequences), despite the fact that subsequences are sampled randomly and cannot be controlled with morphing/interpolation or variations. Each class of For both left and right figures, our CLSM first generates top and bottom melodies under constraints of contexts, and then it generates middle four interpolated points in way that is consistent with contexts. CLSM with β = 0.012 is used. models has its own benefits for making generation systems flexible.</p><p>Can we build a hybrid model that enjoys the best of both worlds as a step towards multifaceted controllability? We propose a contextual latent space model (CLSM) that allows for positional constraints while at the same time enables latent space exploration such as interpolation or variation. An example usage of CLSM's interpolation is narrowing down the candidates of generated subsequences given context sequences. CLSM variation can be used for obtaining minor modifications of subsequences selected among generated ones, given context sequences.</p><p>Our approach is based on the framework of variational inference, where our CLSM is composed of prior and decoder models for the generative model and an encoder model for the inference model. The prior model of CLSM outputs a latent distribution given context sequences. We refer to the support of the distribution as the contextual latent space. The decoder model of CLSM generates subsequences that fit in with the context, given corresponding points in the contextual latent space. Finally the encoder model infers the latent space distribution given the entire sequence.</p><p>We show the effectiveness of our approach using monophonic sequences in the Lakh MIDI dataset, a large symbolic music dataset <ref type="bibr" target="#b12">[12]</ref>. Compared with the baseline methods, our CLSM achieves better performance in terms of the smoothness of the latent space and negative log-  likelihood of the generated samples. In a listening test, participants favored the generated samples of our CLSM more than those of the baselines.</p><p>Our contributions are (I) proposing a problem setting for learning a contextual latent space and providing its solution, (II) proposing novel architectures for the model, e.g., a masking strategy for the decoder and combinations of a transformer and LSTM for the encoder and prior, (III) proposing normalizing flows <ref type="bibr" target="#b13">[13]</ref> for conditional priors in order to learn complex conditional priors, (IV) proposing an interpolation edit distance ratio to quantitatively assess the smoothness of latent space, and (V) demonstrating reasonable performance with our CLSM in an application for symbolic music generation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">METHODOLOGY</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Problem Scenario</head><p>Let us consider an i.i.</p><formula xml:id="formula_0">d dataset D = {x (i) = (x (i) 1 , ..., x (i) K ) ∈ A K } N</formula><p>i=1 of a sequence of symbols x k ∈ A of length K, where A is the alphabet set of symbols. We partition each sequence x into three subsequences x CL , x T , and x CR , such that x = x CL ⊕ x T ⊕ x CR , where ⊕ denotes the concatenation of sequences. We refer to subsequences x CL and x CR as context sequences and subsequence x T as the target sequence. Let τ denote a variable representing a set of indexes of the target sequence such that τ</p><formula xml:id="formula_1">= {|x CL | + 1, |x CL | + 2, ..., |x CL | + |x T |} ∈ T ,</formula><p>where T is a set of all sets of indexes we would like to model with. For notational simplicity, we introduce the shorthand x C = {x CL , x CR }.</p><p>Our goal is to train a generative model with its generative process being (1) z ∼ p(z|x C , τ ) and (2) xT ∼ p(x T |z, x C , τ ), where z ∈ Z ⊂ R dz captures the variability of x T given x C and τ . We would also like some distance in the latent space of the prior model to represent the similarity of x T so that the model can be used for e.g., morphing/interpolation or variation generation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Model</head><p>Fig. <ref type="figure" target="#fig_2">2</ref> is a schematic illustration of our model. Our proposed approach is training a generative model by maximizing the marginal log-likelihood log p θ (x T |x C , τ ) = log p θD (x T |z, x C , τ )p θP (z|x C , τ )dz. Since its computation is intractable in the general case, we introduce the approximate posterior q φ (z|x, τ ) to derive the evidence lower bound (ELBO) <ref type="bibr" target="#b14">[14]</ref>. Formally,</p><formula xml:id="formula_2">log p θ (x T |x C , τ ) = log p θD (x T |z, x C , τ )p θP (z|x C , τ )dz = log q φ (z|x, τ ) p θD (x T |z, x C , τ )p θP (z|x C , τ ) q φ (z|x, τ ) dz ≥ q φ (z|x, τ ) log p θD (x T |z, x C , τ )p θP (z|x C , τ ) q φ (z|x, τ ) dz = L rec -L kl ,<label>(1)</label></formula><p>where</p><formula xml:id="formula_3">L rec = E q φ (z|x,τ ) [log p θD (x T |z, x C , τ )] ,<label>(2)</label></formula><formula xml:id="formula_4">L kl = KL (q φ (z|x, τ )||p θP (z|x C , τ )) .<label>(3)</label></formula><p>In practice, we introduce weighting factors in ELBO <ref type="bibr" target="#b15">[15]</ref>. Then, our optimization problem is:</p><formula xml:id="formula_5">max θ,φ E x∈D E τ ∈T 1 |x T | L rec -βL kl ,<label>(4)</label></formula><p>where 1  |xT| is a normalizing factor, and β is a balancing factor of the two terms. The specific choices of β are explained in Sec. 3.4.</p><p>Since the conditional prior is generally multimodal and complex, we propose modeling the conditional prior using normalizing flows <ref type="bibr" target="#b13">[13]</ref>:</p><formula xml:id="formula_6">p θP (z|x C , τ ) = p ξ (w|x C , τ ) det ∂w ∂z ,<label>(5)</label></formula><formula xml:id="formula_7">w = f λ (z) ∈ W ⊂ R dz ,<label>(6)</label></formula><p>Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021</p><p>where f λ : Z → W is an invertible function, and p ξ (•|x C , τ ) is a Gaussian distribution. We choose to use affine-coupling layers for f λ , which was proposed for realvalued non-volume preserving (realNVP) <ref type="bibr" target="#b16">[16]</ref>.</p><p>The Gaussian distribution and the categorical distribution are used for the encoder model q φ (z|x, τ ) and the decoder model p θD (x T |z, x C , τ ), respectively.</p><p>The network architectures for parametrizing each distribution are explained in Sec. 2.4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Applications</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3.1">Contextual Interpolation</head><p>Given z(1) , z(2) ∼ p θP (z|x C , τ ), we provide a procedure for generating contextual interpolations between x(1) and x(2) , where</p><formula xml:id="formula_8">x(i) = x CL ⊕ x(i) T ⊕ x CR with x(i) T ∼ p θD (x T |z (i) , x C , τ ) for i = 1, 2.</formula><p>First, the interpolated latent vector z(α) with a blending ratio of α ∈ [0, 1] is given by</p><formula xml:id="formula_9">z(α) = f -1 λ (1 -α)f λ (z (1) ) + αf λ (z (2) ) ,<label>(7)</label></formula><p>which means that linear interpolation is performed in the W space, but not in the Z space, achieving non-linear interpolation in the Z space. Then, z(α) is decoded and concatenated with the context sequence, yielding</p><formula xml:id="formula_10">x(α) = x CL ⊕ xT (α) ⊕ x CR with xT (α) ∼ p θD (x T |z(α), x C , τ ).<label>(8)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3.2">Contextual Variation</head><p>Given z ∼ p θP (z|x C , τ ), we provide a procedure for generating contextual variations of x, where</p><formula xml:id="formula_11">x = x CL ⊕ xT ⊕ x CR with xT ∼ p θD (x T |z, x C , τ ). Letting δ ∈ R ≥0</formula><p>and ∈ R dz be a scaling factor of the variation amount and sampled noise from a normal distribution N (0, Σ) with Σ denoting the covariance matrix of p ξ (w|x C , τ ), a variation of the latent vector z is given by z</p><formula xml:id="formula_12">(δ) = f -1 λ (f λ (z) + δ ).</formula><p>Then, z(δ) is decoded and concatenated in the same manner as Sec. 2.3.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Network Architecture</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4.1">Encoder Model</head><p>As main architectures, we employ a two-layer "transformer encoder" with relative attention <ref type="bibr" target="#b17">[17,</ref><ref type="bibr" target="#b18">18]</ref>, followed by a two-layer bidirectional LSTM network (Bi-LSTM) <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b20">20]</ref>. x is first embedded and added by a positional embedding before being inputted to the transformer. The transformer uses no masks and a sequence of vectors E = (e 1 , ..., e K ) is outputted. Let E T be a subsequence of E, consisting of E's elements, whose indexes are in τ , i.e., E T = (e |xC L |+1 , ..., e |xC L |+|xT| ). Only the subsequence E T is fed to the Bi-LSTM. Let h l and h r denote the last outputs of the Bi-LSTM. They are concatenated to be fed to two multi layer perceptrons (MLPs; each for the mean and covariance of the normal distribution), yielding the encoder model q φ (z|x, τ ) = N z|MLP(h l ⊕ h r ), diag( <ref type="formula" target="#formula_2">1</ref>2 exp(MLP(h l ⊕ h r ))) . The MLPs consist of two layers with a SELU activation in between <ref type="bibr" target="#b21">[21]</ref>.</p><p>Concerning the hyper-parameters for the "transformer encoder," the token embedding size, the hidden size, the number of heads, and the dropout rate are set to 128, 256, 8, and 0.1, respectively. The hidden size and the dropout rate for the Bi-LSTM are set to 256 and 0.1, respectively. The hidden size of the MLP and the number of dimensions of z are set to 512 and 128, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4.2">Prior Model</head><p>As can be seen in Eq. 5 and Eq. 6, p ξ (w|x C , τ ) and f λ (z) need to be defined for the prior model.</p><p>For p ξ (w|x C , τ ), as with the encoder model, a twolayer "transformer encoder" is followed by a Bi-LSTM. Unlike the encoder model, we replace each of the elements in the target sequence x T with a positional constraint symbol p. In other words, x CL ⊕ p ⊕ x CR is fed to the "transformer encoder", where p = (p, p, ..., p) is a sequence of positional constraint symbols and |p| = |x T |. The hyperparameters for the "transformer encoder," the Bi-LSTM, and the number of dimensions of z are set to the same values as in Sec. 2.4.1.</p><p>To parameterize f λ (z), four-layer affine-coupling layers are employed. Each of the scale and bias networks of the affine-coupling layers consists of a three-layer MLP, where each hidden size is 256, and the activations are leaky ReLUs with a negative slope of 0.01. For each of the scale networks, a tanh activation is used after the last linear layer.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4.3">Decoder Model</head><p>As a main architecture, we employ a two-layer "transformer decoder" with relative attention. Let s be a symbol representing the start of a sequence. The concatenation s ⊕ x is embedded and added by positional embeddings before being inputted to the transformer.</p><p>We propose using an effective encoder-decoder attention mechanism for the latent space. Each latent vector z sampled from the encoder model is first fed to a linear layer to map z ∈ R dz to z ∈ R dzlz , which is reshaped to form Z ∈ R dz×lz , a sequence of l z vectors, where the dimensionality of each vector is d z . The sequence Z is then attended to by the transformer by means of encoderdecoder attention. We set l z = 4 in experiments.</p><p>We propose a masking strategy for modeling the decoder, as illustrated in the bottom of Fig. <ref type="figure" target="#fig_2">2b</ref>. The positions whose inputs are s, x CL , and x CR are allowed to attend to positions except those of x T . On the other hand, positions whose inputs are x T are allowed to attend to positions except the future positions of x T .</p><p>Let the output of the transformer denote D = (d 1 , ..., d K ). Let D T be a subsequence of D, consisting of D's elements whose indexes are in τ , i.e.,</p><formula xml:id="formula_13">D T = (d |xC L |+1 , ..., d |xC L |+|xT| ). Let x T [i] and D T [i] denote</formula><p>the ith elements of x T and D T , respectively. Then the decoder model is defined as follows:</p><formula xml:id="formula_14">p θD (x T |z, x C , τ ) = |xT| i=1 Cat(x T [i]|Softmax(Linear(D T [i])))</formula><p>, where Cat and Linear denote a categorical distribution and a linear layer respectively. The hyper-parameters of the "transformer decoder" are set to be equal to those of the "transformer encoder" in Sec. 2.4.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">EXPERIMENTAL SETUP</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Dataset</head><p>We created datasets from LMD-matched of the Lakh MIDI dataset <ref type="bibr" target="#b12">[12]</ref>, comprising 45,129 files matched to the song identity entries in the Million Song Dataset <ref type="bibr" target="#b22">[22]</ref>. Each song has one or several different versions of MIDI files. We first extracted files with a 4/4 time signature, used the accompanying tempo information to determine beat locations, and quantized each beat into 4. We then split the song identities into a proportion of 11:1:6:1:1 to create train-1, validation-1, train-2, validation-2, and test datasets, respectively. The train-1 and validation-1 datasets were for training the proposed and baseline models, whereas the train-2 and validation-2 datasets were for training evaluation models. The test dataset was for input sequences when evaluating models. We filtered out non-monophonic tracks, bass or drum tracks, and tracks outside the pitch range of <ref type="bibr">[55,</ref><ref type="bibr">84]</ref>. We conducted data augmentation by transposing tracks to all possible keys if the transposed tracks stayed within the pitch range of <ref type="bibr">[55,</ref><ref type="bibr">84]</ref>. We retrieved 8-bar sliding windows (with a stride of 1 bar) from each track followed by filtering out windows that had more than one bar of consecutive rests. For encoding musical sequences, we adopted the melodico-rhythmic encoding proposed in <ref type="bibr" target="#b9">[9]</ref>, where we used the pitch of musical notes as symbols "55",...,"84" and used "R" to represent a rest symbol. We added an extra symbol, "__" representing that a note is held and not replayed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Baseline Methods</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">VAE</head><p>We trained a VAE <ref type="bibr" target="#b14">[14]</ref>, in which a two-layered Bi-LSTM and LSTM were used for the encoder and decoder, respectively. The decoder, encoder, and prior models used the categorical, normal, and standard normal distribution, respectively. The optimization problem is</p><formula xml:id="formula_15">max ψ,ω E x∈D 1 |x| L VAE rec -γL VAE kl ,<label>(9)</label></formula><p>where <ref type="figure"></ref>and<ref type="figure" target="#fig_0">1</ref> |x| is a normalizing factor. Given x C , τ , and z(1) , z(2) ∼ p(z), interpolation is conducted as follows. First, interpolated latent vector z(α) is given by z(α) = (1 -α)z (1) + αz (2) .</p><formula xml:id="formula_16">L VAE rec = E qω(z|x) [log p ψ (x|z)], L VAE kl = KL (q ω (z|x)||p(z)),</formula><p>(10)</p><p>Then, z(α) is decoded and concatenated with the context sequence:  <ref type="figure" target="#fig_4">3b</ref>, we report the performance of these two cases separately. Random generation was conducted as follows. First, a latent vector was sampled from the prior distribution. Then, z was decoded and concatenated with context sequences in the same manner as the interpolation.</p><formula xml:id="formula_17">x(α) = x CL ⊕ xT (α) ⊕ x CR with xT (α) ∼ p ψ (x T |z(α), x CL ),<label>(11)</label></formula><p>The hyper-parameters of the LSTMs in VAE were set to be equal to those of the LSTMs in CLSM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.2">ARNN</head><p>Anticipation RNN (ARNN) <ref type="bibr" target="#b9">[9]</ref> is a sequence generation model with positional constraints. Two-layered LSTMs were used for both Token-RNN and Constraint-RNN. The hyper-parameters of the LSTMs were set to be equal to those of the LSTMs in CLSM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">2D Plane for Comparing CLSM and VAE</head><p>The balancing factors β and γ of CLSM and VAE consist in adjusting the trade-off between the reconstruction accuracy and other model performances. Which balancing factors of CLSM correspond to which ones of VAE? It is natural to compare models of similar reconstruction accuracies or compare models of similar performances (except reconstruction accuracies). Therefore, in Sec. 4.1, Sec. 4.2, and Fig. <ref type="figure" target="#fig_4">3b</ref>, we plot reconstruction accuracies versus other performance metrics in 2D planes, where the more the plotted point is in the upper left corner, the better it is. As discussed in Sec. 3.2.1, CLSM and VAE have dependencies at least on the left context. To make the reconstruction accuracies of the CLSM and VAE mean basically identical, we used the left-contextual reconstruction accuracy, which is the average of the reconstruction accuracies of sequences where target sequences end with index |x|, i.e., there is no right context and only the left context exists.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Training Settings</head><p>For all models, teacher forcing was used, the batch size was set to 64, and training was conducted for 2 epochs, when the losses converged. The Adam optimizer <ref type="bibr" target="#b23">[23]</ref> was used for all models, with the parameters (α, β 1 , β 2 ) = (0.0005, 0.9, 0.999). For CLSM or VAE, we conducted  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4.2">VAE (Baselines)</head><p>The balancing factor γ in Eq. 9 is set to {0.1, 0.2, ..., 1.0, 2.0} in Secs.</p><p>4.1, 4.2 and 0.4 in Sec. 4.3. The expectations of the reconstruction loss were approximated with one sample from the encoder model. The KL loss term was computed analytically.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4.3">ARNN (Baseline)</head><p>The vanilla ARNN is capable of imposing constraints of any positions. Since it would be possible that restricting constraints to those of our T would be advantageous when evaluated over T , we also trained and evaluated this model, which we refer to as ARNNT .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Generation Settings</head><p>For CLSM and VAE, each element of sequences was sampled by applying the argmax operation to the categori-cal distributions of the decoders. For ARNN, multinomial sampling with a temperature of 1.0 was used.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS AND RESULTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Smoothness Analysis in Latent Space</head><p>To assess the smoothness of our latent space, we propose the interpolation edit distance ratio R(J), which is the ratio of the distance between adjacent interpolated points (sequences) to the distance of interpolation end points (sequences). Formally, R(J) is the normalized average edit distance d edit (•, •) of adjacent points in J-divided interpolated points:</p><formula xml:id="formula_18">R(J) = E J-1 j=0 d edit xT j J , xT j+1 J D(J -n) ,<label>(12)</label></formula><p>where xT (•) is defined by Eqs. 7, 8 for CLSM and Eqs. 10, 11 for VAE, while D is the edit distance between end points defined by D = d edit (x T (0), xT (J)). Here, the expectation is approximated by sampling z(1) , z(2) ∼ p θP (z|x C , τ ) for CLSM and z(1) , z(2) ∼ p(z) for VAE, where 1K samples of x are uniformly sampled from the test dataset, and, for each x, τ is uniformly sampled from T . Since the edit distance d edit xT j J , xT j+1 J sometimes becomes zero, we excluded cases through division by J -n instead of J as in Eq. 12, where n is the number of edit distances that are zero among j = 0, 1, ..., J -1.</p><p>We also excluded cases where D(J -n) = 0. The left scatter plot of Fig. <ref type="figure" target="#fig_4">3b</ref> shows a comparison of CLSM and VAE. The small, medium, and large markers are plots for the number of divisions in interpolation J = 8, 4, 2, respectively. For each J, CLSM performed better than VAE. The plots of VAE J = 8 overlap with those of CLSM J = 4, indicating that even 4-divided interpolation of CLSM was as smooth as 8-divided interpolation of VAE. The results are similar in the two cases of "left context only" and "otherwise."</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">NLL Evaluation of Generated Samples</head><p>To evaluate the quality of generated samples, we computed the negative log-likelihood (NLL) of the generated samples. NLL was computed by using a separately trained vanilla transformer language model (LM) that had two layers and was autoregressive. The LM was trained by using the train-2 and validation-2 datasets defined in Sec.</p><p>3.1. The samples to be evaluated were the same as the 8-divided interpolated points in Sec. 4.1. Since ARNN is not capable of interpolation, only a random sampling of two points was performed per each context for ARNN.</p><p>The right scatter plot of Fig. <ref type="figure" target="#fig_4">3b</ref> shows a comparison of the CLSM, VAE, ARNNs, and the test dataset (Data). CLSM outperformed VAE by a large margin when we compared models that were close in terms of reconstruction accuracy or NLL-a reasonable strategy of comparison as we discuss in Sec. 3.3. Compared with the ARNNs, the performance of CLSM was superior in all settings. The results of VAE were better in the case of "left context only" than in the case of "otherwise." In contrast, for the CLSM and ARNNs, there were only slight differences between the two cases. This empirically demonstrates that the decoder model of VAE has dependencies only on the left context but not on the right context, as we discuss in Sec. 3.2.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Human Evaluation</head><p>To further assess the quality of sequences generated by each model, we conducted listening tests using Amazon Mechanical Turk. We sampled 32 sequences from the test dataset, for which context positions were randomly sampled, and the target sequence lengths were sampled from 1-4 bars. We conducted a pair-wise comparison of the generation results of each model using the same context sequences. We considered all possible combinations, yielding 320 pair-wise comparisons. The order within each pair was randomized. We chose to use β = 0.012 for CLSM, since the performance trade-offs are well balanced according to the results in Sec. 4.1 and Sec. 4.2. As discussed in Sec. 3.3 since it is reasonable to choose a VAE model with a similar reconstruction accuracy to that of CLSM, we chose γ = 0.4 for VAE. Participants with different levels of musical expertise were asked to rate "which music is better in terms of musicality, naturalness, and creativity" on a Likert scale. Fig. <ref type="figure" target="#fig_4">3c</ref> shows a comparison of the CLSM, VAE, ARNNs, and the test dataset (Data). CLSM and Data performed the best in terms of the percentage of wins (Fig. <ref type="figure" target="#fig_4">3c</ref>, top) as well as the percentage of wins and draws (Fig. <ref type="figure" target="#fig_4">3c</ref>, bottom). Interestingly, the ARNNs tended to outperform VAE when the number of draws was included, whereas VAE tended to outperform the ARNNs when only the number of wins was considered. This might indicate that the performance of VAE tends to be extreme.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">RELATED WORK</head><p>T-CVAE is a transformer-based conditional VAE model for story completion <ref type="bibr" target="#b24">[24]</ref>. VAEAC <ref type="bibr" target="#b25">[25]</ref> is a CNN-or MLPbased VAE that enables us to impose any positional constraints. Although their probabilistic frameworks are similar to ours, the models and architectures are quite different. Unlike their models, CLSM is demonstrated to perform interpolation in the latent space. Moreover, the data domain of T-CVAE is story text, and the domains of VAEAC are image and feature classification/regression datasets, while ours is for sequence datasets and experimented on music. Although contexts are not considered for latent variables, there are several works that use transformers for learning a global latent variable for sequences using AE or VAE. For text-style transfer, a "transformer encoder" outputs are all fed to GRU to yield a latent vector, which is attended to by a decoder <ref type="bibr" target="#b26">[26]</ref>. To learn the styles of piano performances, a "transformer encoder" outputs are summed to be attended to by a decoder <ref type="bibr" target="#b27">[27]</ref>. In OPTIMUS for sentence modulation <ref type="bibr" target="#b28">[28]</ref> and INSET <ref type="bibr" target="#b29">[29]</ref> for sentence infilling, a CLS token is additionally fed to a "transformer encoder," and the output at the position of the CLS yields a latent vector, which is fed to a decoder either by selfattention and/or by being added to word embeddings of the decoder (OPTIMUS) or by being inputted as the first token (INSET).</p><p>For language processing, the authors of UniLM propose seq-to-seq LM, where they divide a whole sequence into first and second segments <ref type="bibr" target="#b30">[30]</ref>. The self-attention masks are bidirectional and unidirectional for the first and second segments, respectively. Our decoder mask is different in that it divides a sequence into three segments, where the length of the first and third segments can be zero during the training or inference phase. Also, the training procedure of them is BERT-like, which is different from ours <ref type="bibr" target="#b31">[31]</ref>.</p><p>RealNVP has been used for the prior in VAE in order to improve the performance of VAE <ref type="bibr" target="#b32">[32,</ref><ref type="bibr" target="#b33">33]</ref>. However, these works are not only in the domain of images but also use non-conditional priors, which differs from ours.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSION</head><p>We proposed a contextual latent space model (CLSM), in which the left and/or right contexts of sequences can be constrained to generate interpolations or variations. A context-informed prior and decoder constitute the generative model of CLSM and a context position-informed encoder is the inference model.</p><p>The latent space of CLSM was quantitatively shown to be smoother than baselines. Furthermore, the generation fidelity was demonstrated to be superior to the baseline methods. It would be useful to apply our approach to other data domains such as polyphonic music, lyrics, or text. The benefits of the latent space model are not only enabling interpolations and variations but also enabling transformations of attributes or style transfer. It would be desirable to extend our approach to these kinds of applications.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Contextual Interpolation Examples. Shaded regions are contexts. For both left and right figures, our CLSM first generates top and bottom melodies under constraints of contexts, and then it generates middle four interpolated points in way that is consistent with contexts. CLSM with β = 0.012 is used.</figDesc><graphic coords="1,305.73,197.37,248.17,133.57" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>(a) Model Overview (b) Self-Attention Masks for Decoder Model</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Schematic Diagram of Contextual Latent Space Model (CLSM). (a) Linear or MLP layers are omitted for brevity. (b) Masks indicate whether position u attends to position v.</figDesc><graphic coords="2,76.87,78.05,243.80,163.86" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021 (a) Generation Comparison (b) Objective Evaluation (c) Human Evaluation</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Generation Comparison and Experimental Results. (a) Shaded regions are contexts. For CLSM and VAE, β = 0.012 and γ = 0.4 are used. (b) For evaluating smoothness (to left), small, medium, and large marker are plots for number of divisions in interpolation J = 8, 4, 2, respectively. See Sec. 4.1 and 4.2. (c) See Sec. 4.3.</figDesc><graphic coords="5,54.00,54.05,206.04,206.04" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>where p ψ (x T |z, x CL ) can be immediately obtained from the autoregressive decoder model of VAE. Note that the proposed CLSM has advantages over VAE in terms of probabilistic dependencies (i) the decoder model of VAE does not have dependencies on the right context x CR , and (ii) the prior model of VAE does not have dependencies on either the left context x CL or the right context x CR .</figDesc><table><row><cell>The</cell></row><row><cell>property of (i) motivates us to separately quantify the per-</cell></row><row><cell>formance of models in two cases: (1) the case where only</cell></row><row><cell>the left context exists, and (2) otherwise. In Sec. 4.1, Sec.</cell></row><row><cell>4.2, and Fig.</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://contextual-latent-space-model.github. io/demo/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>Proceedings of the 22nd ISMIR Conference, Online,November 7-12, 2021   </p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Generating sentences from a continuous space</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">R</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Vilnis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of The 20th SIGNLL Conference on Computational Natural Language Learning</title>
+		<meeting>The 20th SIGNLL Conference on Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A hierarchical latent vector model for learning long-term structure in music</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 35th International Conference on Machine Learning</title>
+		<meeting>of the 35th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Controlling symbolic music generation based on concept learning from domain knowledge</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Akama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Attribute-based Regularization of Latent Spaces for Variational Auto-Encoders</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Computing and Applications</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Music fadernets: Controllable music generation based on high-level features via low-level feature modelling</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Herremans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ISMIR</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Connective fusion: Learning transformational joining of sequences with application to melody creation</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Akama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21st International Society for Music Information Retrieval Conference. IS-MIR</title>
+		<meeting>the 21st International Society for Music Information Retrieval Conference. IS-MIR</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">A deep and tractable density estimator</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Uria</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Murray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Larochelle</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st International Conference on Machine Learning</title>
+		<meeting>the 31st International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">BERT has a mouth, and it must speak: BERT as a markov random field language model</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+		<idno>abs/1902.04094</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Anticipation-rnn: enforcing unary constraints in sequence generation, with application to interactive music generation</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Nielsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Computing and Applications</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="page" from="995" to="1005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Counterpoint by convolution</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Cooijmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">C</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 18th International Society for Music Information Retrieval Conference</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Learning to traverse latent spaces for musical score inpainting</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IS-MIR</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Learning-based methods for comparing sequences, with applications to audio-to-midi alignment and matching</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note>Ph.D. dissertation</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Variational inference with normalizing flows</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Rezende</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mohamed</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 32nd International Conference on Machine Learning</title>
+		<meeting>the 32nd International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Auto-encoding variational bayes</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Welling</surname></persName>
+		</author>
+		<idno>abs/1312.6114</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">betavae: Learning basic visual concepts with a constrained variational framework</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Higgins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Matthey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Burgess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Glorot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Botvinick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerchner</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note>in 5th International Conference on Learning Representations, ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Density estimation using real NVP</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Dinh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sohl-Dickstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bengio</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note>in 5th International Conference on Learning Representations</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Self-attention with relative position representations</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Shaw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+		</imprint>
+	</monogr>
+	<note>Short Papers</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Music transformer</title>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>in International Conference on Learning Representations</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997">12 1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Bidirectional recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Paliwal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Signal Processing</title>
+		<imprint>
+			<biblScope unit="volume">45</biblScope>
+			<biblScope unit="issue">11</biblScope>
+			<biblScope unit="page" from="2673" to="2681" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Self-normalizing neural networks</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Klambauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Unterthiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mayr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems, I. Guyon, U. V. Luxburg, S. Bengio</title>
+		<editor>
+			<persName><forename type="first">R</forename><surname>Wallach</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">S</forename><surname>Fergus</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">R</forename><surname>Vishwanathan</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Garnett</surname></persName>
+		</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">The million song dataset</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Bertin-Mahieux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Whitman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Lamere</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th International Conference on Music Information Retrieval (ISMIR 2011)</title>
+		<meeting>the 12th International Conference on Music Information Retrieval (ISMIR 2011)</meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">3rd International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">T-cvae: Transformer-based conditioned variational autoencoder for story completion</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Eighth International Joint Conference on Artificial Intelligence, IJCAI-19</title>
+		<meeting>the Twenty-Eighth International Joint Conference on Artificial Intelligence, IJCAI-19</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Variational autoencoder with arbitrary conditioning</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Ivanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Figurnov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Vetrov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Controllable unsupervised text attribute transfer via editing entangled latent representation</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Encoding musical style with transformer autoencoders</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 37th International Conference on Machine Learning</title>
+		<meeting>the 37th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Optimus: Organizing sentences via pretrained modeling of a latent space</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">INSET: sentence infilling with inter-sentential transformer</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Elachqar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cheng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, ACL 2020</title>
+		<editor>
+			<persName><forename type="first">D</forename><surname>Jurafsky</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">J</forename><surname>Chai</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">N</forename><surname>Schluter</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">J</forename><forename type="middle">R</forename><surname>Tetreault</surname></persName>
+		</editor>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics, ACL 2020</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Unified language model pre-training for natural language understanding and generation</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H.-W</forename><surname>Hon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">BERT: pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Toutanova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Learnable explicit density for continuous latent space and variational inference</title>
+		<author>
+			<persName><forename type="first">C.-W</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Touati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Dinh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Drozdzal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Havaei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Charlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">On the necessity and effectiveness of learning the prior of variational auto-encoder</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Pei</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

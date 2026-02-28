@@ -1,0 +1,938 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">VOCAL MELODY EXTRACTION WITH SEMANTIC SEGMENTATION AND AUDIO-SYMBOLIC DOMAIN TRANSFER LEARNING</title>
+				<funder ref="#_2EHrVjX">
+					<orgName type="full">MOST Taiwan</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Wei-Tsung</forename><surname>Lu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Information Science</orgName>
+								<orgName type="institution">Academia Sinica</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Li</forename><surname>Su</surname></persName>
+							<email>lisu@iis.sinica.edu.tw</email>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Information Science</orgName>
+								<orgName type="institution">Academia Sinica</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">VOCAL MELODY EXTRACTION WITH SEMANTIC SEGMENTATION AND AUDIO-SYMBOLIC DOMAIN TRANSFER LEARNING</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">52DC4113499144D6511B5940347FD16A</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:16+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>The melody extraction problem is analogue to semantic segmentation on a time-frequency image, in which every pixel on the image is classified as a part of a melody object or not. Such an approach can benefit from a signal processing method that helps to enhance the true pitch contours on an image, and, a music language model with structural information on large-scale symbolic music data to be transfer into an audio-based model. In this paper, we propose a novel melody extraction system, using a deep convolutional neural network (DCNN) with dilated convolution as the semantic segmentation tool. The candidate pitch contours on the time-frequency image are enhanced by combining the spectrogram and cepstral-based features. Moreover, an adaptive progressive neural network is employed to transfer the semantic segmentation model in the symbolic domain to the one in the audio domain. This paper makes an attempt to bridge the semantic gaps between signal-level features and perceived melodies, and between symbolic data and audio data. Experiments show competitive accuracy of the proposed method on various datasets.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Melody extraction of polyphonic music has been accounted a key towards bridging the semantic gap in music processing, as melody is an intermediate object that correlates to both low-level signal attributes such as pitch and high-level semantics, i.e. the difference between melody and accompaniment, of music <ref type="bibr" target="#b3">[3,</ref><ref type="bibr" target="#b12">12,</ref><ref type="bibr" target="#b29">29]</ref>. However, it is challenging because the notion of melody is complicated by two levels of information extraction and data modalities. For information extraction, both pitch detection and semantic segmentation levels are required to specify the position and shape of a melody out of other pitch contours in a time-frequency representation. As to data modalities, the problem arises from the difference of melodyrelated features between the composed data (e.g., symbolic data such as MIDI) and the performed data (e.g., audio data): the former provides structural information such as voiced/unvoiced segments and chord/non-chord notes, while the latter provides interpretational information such as sliding and vibrato. Both kinds of information are essential for accurately identifying the melody pitch contour.</p><p>We perform vocal melody extraction using semantic segmentation techniques. Semantic segmentation partitions an image into semantically meaningful objects with precise boundaries. Rendered as a pixel-wise classification problem and able to be implemented by an encoderdecoder network with 2-D convolutional feature mappings, it brings great success in computer vision <ref type="bibr" target="#b6">[6,</ref><ref type="bibr">7,</ref><ref type="bibr" target="#b14">14,</ref><ref type="bibr" target="#b25">25]</ref>. Semantic segmentation also makes a breakthrough in solving the source separation problem in music processing <ref type="bibr" target="#b17">[17]</ref>, which analogously needs to resolve components coexisting in a time-frequency image. In this work, a deep convolutional neural network (DCNN) is adopted with dilated convolution for semantic segmentation as it achieves better performance in multi-resolution images.</p><p>To fully utilize the advance of semantic segmentation in vocal melody extraction, we further attend to the aforementioned issues, pitch detection and multiple data modalities, both of which are absent from typical image-based semantic segmentation. For pitch detection, we notice that when performing melody extraction with semantic segmentation, the spectrogram is usually suboptimal since it captures the harmonic peaks and information unrelated to the melody, which accounts for one of the major errors among all the melody extraction methods. This issue is addressed by modifying the spectrogram with cepstralfeatures, which results in a novel time-frequency representation that enhances the true pitch contour while also suppresses harmonic contours <ref type="bibr" target="#b26">[26,</ref><ref type="bibr" target="#b32">32]</ref>.</p><p>The modality difference between symbolic and audio data is relatively less noticed in melody extraction. We address this issue with transfer learning: we first train a melody extraction model with symbolic data, and the model parameters are then reused in the vocal melody extraction model trained with audio data. In this way, the symbolic-based model assists in music language modeling that audio-based models may fall short of. Incorporating symbolic music data is of great potential to mitigate the data scarcity problem, since building a symbolic dataset with melody annotations is much easier than building an audio one, and it is also very straightforward to perform data augmentation on symbolic data. In this work, we adopt the progressive neural network (PNN) <ref type="bibr" target="#b1">[1]</ref>, a network structure providing cross-domain network parameter shar-ing to accomplish symbolic-audio transfer learning task.</p><p>To sum up, this paper attempt to apply image semantic segmentation to vocal melody extraction, forming a systematic method to perform singing voice activity detection, pitch detection and melody extraction all at the same time. This segmentation method gives competitive results on pitch accuracy, and even works unprecedentedly well on singing voice activity detection compared to other deep-learning-based methods. With the integration with the PNN, we leverage large-scale symbolic data to train the model, and attain similar performance to the segmentation method with less training time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>Melody extraction of polyphonic music has been widely investigated with various signal processing and machine approaches. Recent works using convolution neural networks (CNNs) or recurrent neural networks (RNNs) are mostly classification-based, where the output is the framelevel likelihood score of every pitch at a time instance <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b22">22,</ref><ref type="bibr" target="#b27">27,</ref><ref type="bibr" target="#b30">30,</ref><ref type="bibr" target="#b37">37]</ref>. <ref type="bibr" target="#b2">[2]</ref> adopts a fully convolution neural network and output a salience representation at the song level. Advanced semantic segmentation networks such as the Unet <ref type="bibr" target="#b28">[28]</ref> have been utilized in source separation <ref type="bibr" target="#b17">[17]</ref> and shows high potential in melody extraction.</p><p>Most of the melody extraction studies focus on the signal processing level, possibly because signal-level characteristics such as slides and vibrato are still the principal factors in recognizing a melody contour. In contrast, melody extraction on symbolic data is rarely discussed in the literature. Although not the main topic of this work, we manage to pose the problem of symbolic melody extraction and emphasize its importance in music language modeling for cross-domain transfer learning.</p><p>Previous works on transfer learning for music information retrieval mostly aim under the same type of input data representation <ref type="bibr" target="#b8">[8,</ref><ref type="bibr" target="#b13">13]</ref>. Contrararily, transfer learning across the data from different domains, such as adapting a model learned from symbolic data to another learned from audio data, is relatively less discussed. Previous works dealing with cross-domain data mainly focus exploring audio-to-MIDI or audio-to-sheet correspondence <ref type="bibr" target="#b10">[10,</ref><ref type="bibr" target="#b11">11]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHOD</head><p>An overview of the proposed model is shown in Fig. <ref type="figure" target="#fig_1">1</ref>. The model contains a feature extractor which computes the audio data representation and a PNN which consists of two segmentation models, with one trained on the symbolic data and the other on the audio data. The filter is for dimension reduction of the audio representation to fit the symbolic segmentation model in the PNN. Details of the model are discussed below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Audio data representation</head><p>In music processing, designing a data representation suitable for the machine learning models to better identify and capture the information of interest can help significantly improve the performance <ref type="bibr" target="#b18">[18]</ref>. In the task of pitch detection in polyphonic music, related methods include the feature scaling <ref type="bibr" target="#b18">[18]</ref>, the harmonic constant-Q transform (HCQT) that combines the CQTs based on different octave numbers <ref type="bibr" target="#b2">[2]</ref>, the combined frequency and periodicity (CFP) representation that intergrates a temporal or spectral representation with its Fourier dual <ref type="bibr" target="#b26">[26,</ref><ref type="bibr" target="#b32">32,</ref><ref type="bibr" target="#b34">34]</ref>, and others. All of these methods are designed to emphasize the saliency of pitch contours in the music signal.</p><p>We adopt the data representation used in <ref type="bibr" target="#b33">[33]</ref>, which has been shown effective in enhancing the true pitch components of polyphonic signals. The adopted data representation is essentially the product of a generalized cepstrum (GC), a classical time-based pitch detection function <ref type="bibr" target="#b16">[16,</ref><ref type="bibr" target="#b20">20,</ref><ref type="bibr" target="#b21">21,</ref><ref type="bibr" target="#b35">35,</ref><ref type="bibr" target="#b36">36]</ref>, and a generalized cepstrum of spectrum (GCoS), a modified spectrum lying in the frequency domain <ref type="bibr" target="#b32">[32]</ref>. The GC and GCoS are complementary: a GCoS reveals the presence of a pitch object by its fundamental frequency (f 0 ) and harmonics (nf 0 ), while a GC reveal it by its f 0 and sub-harmonics (f 0 /n) <ref type="bibr" target="#b26">[26,</ref><ref type="bibr" target="#b32">32,</ref><ref type="bibr" target="#b34">34]</ref>. By simply multiplying GC by GCoS, we effectively suppress the harmonic and sub-harmonic peaks, and at the same time localize a pitch object.</p><p>The GC and GCoS are both computed by the discrete Fourier transform (DFT) and nonlinear activation functions. Consider an input signal x := x[n] where n is the index of time. Let the magnitude of the short-time Fourier transform (STFT) of x be X. Given an N -point DFT matrix F, high-pass filters W f and W t for eliminating the DC terms, and activation functions σ i , the power-scaled spectrogram, GC and GCoS are represented as:</p><formula xml:id="formula_0">Z S [k, n] := σ 0 (W f X) ,<label>(1)</label></formula><formula xml:id="formula_1">Z GC [q, n] := σ 1 W t F -1 Z S ,<label>(2)</label></formula><formula xml:id="formula_2">Z GCoS [k, n] := σ 2 (W f FZ GC ) ,<label>(3)</label></formula><formula xml:id="formula_3">σ i (Z) = |relu(Z)| γi , i = 0, 1, 2<label>(4)</label></formula><p>where relu(•) represents a rectified linear unit, | • | γ0 is an element-wise root function, and we choose (γ 0 , γ 1 , γ 2 ) = (0.24, 0.6, 1) for a feature scaling in the power scale <ref type="bibr" target="#b32">[32]</ref>. Besides, to fit the perceptive scale of musical pitches, Z GC and Z GCoS are mapped onto the log-frequency scale, by 88 * 4 = 352 triangular filters ranging from 27.5 Hz (A0) to 4487 Hz , with 48 bands per octave. The GC and GCoS after the filterbank are then both on the pitch scale, as denoted by ZGC and ZGCoS . The final 2-D data representation for semantic segmentation is</p><formula xml:id="formula_4">C[p, n] = ZGC [p, n] ZGCoS [p, n] , (<label>5</label></formula><formula xml:id="formula_5">)</formula><p>where p is the index on the log-frequency scale. The audio files are resampled at 16 kHz and merged into one mono channel. Data representations are computed with a Hann window of 2048 samples. The hop size is 320 samples, and therefore the time step is 20ms. The upper two subplots of Figure <ref type="figure" target="#fig_4">4</ref> illustrate a comparison between the spectrogram and C. We can observe that with the aid of cepstral feature, the unwanted harmonic peaks are highly suppressed in C.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Semantic segmentation</head><p>The proposed segmentation model for vocal melody extraction is mainly based on the DeepLabV3 and its improved version, DeepLabV3+ <ref type="bibr" target="#b6">[6,</ref><ref type="bibr">7]</ref>, which are the state-ofthe-art models for semantic segmentation tasks. The model is a fully convolution neural network with an encoderdecoder architecture. The encoder is implemented by a ResNet <ref type="bibr" target="#b15">[15]</ref>, followed by an atrous spatial pyramid pooling process, and a decoder implemented by stacks of decoder blocks, as shown in Figure <ref type="figure" target="#fig_2">2</ref>. One major utility in DeepLabV3 is the use of dilated convolution, which can be represented as a generalized version of the standard convolution as follows:</p><formula xml:id="formula_6">y[i] = k x[i + r • k]w[k]<label>(6)</label></formula><p>where x and y denotes the input and output 2-D feature maps, respectively, w is the convolution filter and i indicates the locations on the feature maps. The number r is the dilated rate which determines the stride with which the input are sampled and standard convolution is a special case when r = 1. To capture the context in different ranges, one can apply dilated convolution with different values of r on the same input feature map parallely, called Atrous Spatial Pyramid Pooling (ASPP) in <ref type="bibr" target="#b6">[6]</ref>. The outputs of these parallel convolution operations are then concatenated to provide information collected from various scales, as shown in Figure <ref type="figure" target="#fig_2">2c</ref>. Different from normal image segmentation task that target objects usually holds certain area compared to the whole image, the melody part of music occupies only a small portion and appears as thin lines when visualized in a 2-D image. To overcome this difficulty, We proposed two modifications to improve the performance of the model.</p><p>First, the decoder module in DeepLabV3, which is originally an up-sampling operation, is replaced by stacks of convolution and transpose convolution layers for finegrained outputs. It is shown in <ref type="bibr">[7]</ref> that by doing this, the small and detailed objects in an image can be better recognized. Also, better performance is achieved by introducing the U-net <ref type="bibr" target="#b28">[28]</ref> structure, which lets the output from each layer of the encoder be concatenated to the corresponding block of the decoder. This idea is also mentioned in <ref type="bibr">[7]</ref>. Second, we adopt the focal loss <ref type="bibr" target="#b23">[23]</ref> as the loss function for the proposed model, in order to solve the class imbalance problem, where the negative labels, i.e., the timefrequency pixels corresponding to accompaniment and silence parts, could dominate in the input feature and thus affect the performance. The focal loss is represented as:</p><formula xml:id="formula_7">FL(p t ) = -α t (1 -p t ) γ log(p t ) ,<label>(7)</label></formula><p>where p t denotes the model's estimated probability for an input to be classified to class t, α t ∈ [0, 1] is a weighting factor for balancing the importance of positive and negative examples and the term (1 -p t ) γ acts as a modulating factor with γ controlling the rate at which dominant examples are down-weighted. Following <ref type="bibr" target="#b23">[23]</ref>, we set α t = 0.25, γ = 2 in this work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Domain adaptation</head><p>Most of the existing deep learning models require a large amount of training data to reach good performance. However, annotating melody pitch contours on audio data precisely is quite challenging; it is labor-intensive and also needs strong expertise in music. Recent attempts to ad-dress the issue of data scarcity mostly focus on weakly supervised learning <ref type="bibr" target="#b17">[17,</ref><ref type="bibr" target="#b24">24,</ref><ref type="bibr" target="#b31">31]</ref>.</p><p>In this work, we consider the potential of domainadaptive transfer learning, which incorporates the information in MIDI data to assist in training the audio melody extraction model. The primary motivation for using MIDI files is the capability of data augmentation: one can use MIDI files to easily create large-scale symbolic dataset with detailed and precise notations. Besides, the symbolic data also present some musical characteristics clearer than the audio data do. This therefore gives more insights to the music language modeling, such as musical structures and phrases. Moreover, the space efficiency of symbolic data also allows more training examples than audio data given the same memory resource.</p><p>To discuss transfer learning between audio and symbolic data, we first discuss the difference in their data formats. One difference is the pitch resolution, which is 0.25 semitones in the audio data (i.e., 48 bins per octave), and 1 semitone in the symbolic data; this results in the difference of dimension between the audio and the symbolic data. As for the time resolution, there are some more flexible ways to define it. Therefore, we consider two types of time resolution for the symbolic data: the first is time-based resolution with its unit length in time (e.g., 20 ms), and the second is note-based resolution with its unit length in note name (e.g., a 32nd note). Both the symbolic and audio data can be represented in time-based resolution. Symbolic data can also be represented in a more musically informative note-based resolution since obtaining beat and tempo information in symbolic data is more straightforward.</p><p>To achieve domain-adaptive transfer learning for two different domains, we adopt the progressive neural network (PNN) <ref type="bibr" target="#b1">[1]</ref>, in which an adapter network (see Figure <ref type="figure" target="#fig_3">3</ref>) is designed to make one network connected to another in different domains, regardless of the difference in data dimension. In the general scenario of PNN, multiple networks trained on various tasks are connected layerto-layer in parallel through the adapters, so the trained networks can transfer the previously learned knowledge into a new task and to accelerate the training speed or to improve the performance of the new task.</p><p>In our melody extraction method, we first trained a segmentation model using the symbolic dataset. We connect the symbolic segmentation model to another segmentation model, and the latter model is then trained on the audio dataset, with the parameters in the symbolic segmentation model frozen. In the testing phase, the input audio representation is fed into both of the segmentation models. To make the dimension of audio representation match the symbolic segmentation model, a triangular filterbank is used to map the pitch resolution from 0.25 to 1 semitone, as illustrated in Figure <ref type="figure" target="#fig_1">1</ref>.</p><p>The adapter between two models in the PNN is illustrated in Figure <ref type="figure" target="#fig_3">3</ref>. It modifies the dimension of the interlayer outputs and make such information be propagated ahead. In the proposed method, transpose convolution layers are adopted for the adapter networks, since transpose convolution can up-sample the output of the symbolic representation (with lower pitch resolution) in order to fit the audio representation (with higher pitch resolution).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Inference</head><p>Since the segmentation model only allows a limited range of input at one time, to perform melody extraction on a given score, we slide a window along the score and then superpose all the resulting matrices. The analysis window with a fixed dimension is shifted from one time-step to another. As to the beginning and ending time, we pad the score with zeros for it captures the process in which information feeds only the last column then gradually filling up all the columns in the beginning, and gradually leaving the window column by column at the end. After the process above, the segmentation output is a superposed image representing the salience of vocal melody in the timefrequency plane. We then find the max value for each column of the image and set all the other elements to zero, i.e., unvoiced. Finally, the elements smaller than the average of each column's maximum are also set to zero, and the remaining non-zero elements is considered as voiced.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Implementation details</head><p>The models are implemented using the Keras <ref type="bibr" target="#b9">[9]</ref> library with tensorflow as the back end. The width of the input window equals 128 timesteps, and for computational convenience, we pad the dimension of pitch from 88 to 128, and 352 to 384 for the symbolic and audio data, so the input dimension will be (128, 128, 1) and (128, 384, 1) for the symbolic and audio model, respectively. As shown in Fig. <ref type="figure" target="#fig_1">1</ref>, the input feature will first be passed into a 29-layer encoder based on Resnet. Then, the output from the encoder which is 16 times smaller than the original input will be fed into the ASPP unit. Finally, a decoder which contains 4 decoder blocks will up-sample the dense features to the original shape by transpose convolutional layers with strides equal (2, 2). The output dimension will be (128, 128, 2) and (128, 384, 2) for the symbolic and audio model, respectively, with the first channel indicating the presence melody and the other is for non-melody. The superposition in the inference process is performed on the first channel. To implement the PNN, two segmentation networks with same structure are connected using the adapters which is composed of transpose convolution layer. These connections happen in layers with dimension changing. Batch normalizations are applied after each activations, and a dropout rate of 30% is added after the batch normalizations. ADAM <ref type="bibr" target="#b19">[19]</ref> is used for optimization. Source codes can be found at <ref type="url" target="https://github">https://github</ref>. com/s603122001/Vocal-Melody-Extraction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENT</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Data</head><p>The training data for the audio comes from two datasets, one is the MIR1K 1 , which contains 1000 Chinese karaoke clips, another is MedleyDB <ref type="bibr" target="#b5">[5]</ref>, where 48 songs with vocal tracks are included. The total dataset contains about 3 hours of audio and without data augmentation.</p><p>A MIDI corpus contains 600 folk songs with a melody track is used as the training data for the symbolic model. 2  In the training process, we perform data augmentation, by pitch-shifting each song up and down by at most 6 semitones in order to cover all possible keys. In addition, half of the pieces in the dataset are modified by shifting the melody by one octave down. As a result, we produce 7673 pieces of symbolic training data. The pieces in the dataset are represented in two different formats. One is the timebased with 20 ms length in each time step and the other is 1 <ref type="url" target="https://sites.google.com/site/unvoicedsoundseparation/mir-1k">https://sites.google.com/site/unvoicedsoundseparation/mir-1k</ref> 2 <ref type="url" target="https://goo.gl/aPgzrW">https://goo.gl/aPgzrW</ref> the note-based that each time step equals a thirty-second note. Due to limited computational resources, we only use 2048 pieces when training the time-based model since time-based data is space consuming.</p><p>The testing data are from three datasets: ADC2004, MIREX05, <ref type="foot" target="#foot_1">3</ref> and MedleyDB. As the proposed model is trained solely for singing voice melody, we follow <ref type="bibr" target="#b22">[22]</ref> and select only samples having melody sung by human voice from ADC2004 and MIREX05. As a result, 12 clips in ADC2004 and 9 clips in MIREX05 are selected. To obtain the annotation of singing voice in medleyDB, 12 songs having singing voice included in their 'MELODY2' annotations are selected. The vocal melody labels are obtained from the MELODY2 annotations occurring in the intervals labeled by 'female singer' or 'male singer'. These 12 songs are not included in the training data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Experiment setting</head><p>To assess the performance of semantic segmentation and the effects of transfer learning on vocal melody extraction, we experiment on the following three different settings:</p><p>1) Segmentation: using simply the audio-level semantic segmentation model. This audio-only semantic segmentation model is trained on the MIR1K dataset.</p><p>2) Segmentation with note-based progressive neural network (Seg + note PNN): using both the audio-level and symbolic-level segmentation models. The symbolic segmentation model is first trained using the note-based symbolic dataset, then this model is incorporated into the training stage of the audio segmentation model with the PNN.</p><p>3) Segmentation with time-based progressive neural network (Seg + time PNN): similar to 2), while the symbolic model in trained with the time-based symbolic dataset.</p><p>We compare the above-mentioned models with three baseline methods in deep learning approaches: the multicolumn DNN (MCDNN) <ref type="bibr" target="#b22">[22]</ref>, the patch-based CNN (pathc-CNN) <ref type="bibr" target="#b33">[33]</ref>, and the deep salience map (DSM), for which on-line source code with the vocal option is available <ref type="bibr" target="#b2">[2]</ref>. Since the detection results of DSM are sensitive to the thresholding parameter, the parameter is tuned from 0 to 0.9 for all datasets to find the optimal value for better comparison. The resulting optimal threshold th=0.1 is used in the experiment.</p><p>The performance metrics include overall accuracy (OA), raw pitch accuracy (RPA), raw chroma accuracy (RCA), voice recall (VR) and voice false alarm (VFA);<ref type="foot" target="#foot_2">foot_2</ref> all these metrics are computed from the mir eval standard with the tolerance of pitch detection being 50 cents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Result</head><p>Table <ref type="table" target="#tab_0">1</ref> lists the performance metrics of all the proposed methods together with the baselines on the three testing datasets. Among the three proposed models, Segmentation outperforms the other two PNN-based models in terms of OA for all datasets except MedleyDB, where Segmentation performs on par with Seg + note PNN. One reason why PNN does not improve the accuracy is related to the symbolic dataset we are using: the symbolic data contains only one style of music and turns out to be of low diversity. Another reason is the lack of intensity labels in symbolic data. Our pilot study indicated that a segmentation model trained on symbolic data may result in high RCA and RPA but also relatively high VFA. However, a segmentation model trained on the audio data gives inverse results, with low VFA, as shown here. This might have something to do with the sound intensity in the audio signal, which is an important sign for to determine the present of melody. However, our symbolic data do not have such labels on intensity. Model training with a larger symbolic music dataset with higher diversity and with MIDI velocity labels are for future investigation.</p><p>The two PNN-based methods, Seg + note PNN and Seg + time PNN, achieve similar OA, while the former model has lower VFA. This implies that the performance of the symbolic model trained with note-based symbolic data is better than training with time-based data. One reason may be that compiling symbolic data in time-based resolution may result in the ambiguity of musical information; in time-based data, the same type of note may have different lengths in time due to different tempi among the music pieces. This could affect the model capability in learning the musical structure.</p><p>Comparing the proposed Segmentation model to the baseline methods, we observe that Segmentation outperforms all of them in terms of OA. Particularly, in MIREX2005, Segmentation achieves an OA at 85.8%, a high accuracy outperforming DSM by 16.2%, patch-CNN by 11.4% and MCDNN by 17.4%. In other two datasets, Segmentation also outperforms other methods by around 1 ∼ 4% in terms of OA. These experiment results reveal the competitiveness of the proposed semantic segmentation method in audio melody extraction. On the other hand, when focusing on the pitch accuracy (i.e., RPA and RCA), DSM is still competitive among all.</p><p>The high OA of Segmentation is mainly resulted from the excellent performance of VFA with the semantic segmentation approach. Among all methods and datasets, the proposed methods significantly outperform the baseline methods by a 20-40% reduction in VFA. In ADC2004, Segmentation further achieves a low VFA of 3.0%. This implies that the proposed melody extraction method itself is highly robust to non-vocal interference, and is without the need of a voice activity detector <ref type="bibr" target="#b27">[27]</ref>. In other words, the semantic segmentation model with fully convolutional layers itself behaves as a melody pitch classifier and a voice activity detector at the same time.</p><p>Finally, the lower two subplots in Figure <ref type="figure" target="#fig_4">4</ref> illustrate two melody extraction results using Segmentation without and with a note-based PNN. Both methods perform well in segmenting the main melody part from the representation C shown in second subplot in Figure <ref type="figure" target="#fig_4">4</ref>. This example also demonstrates one part that using the note-based PNN does well: in the lowest subplot, the Seg + note PNN method well detects the unvoiced part between the 6th and the 9th second, in which the Segmentation method regards the extended instrument part as melody.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>We proposed a melody extraction method utilizing the semantic segmentation model, the input combining spectral and cepstral representations, and domain-adaptive transfer learning. Experiments using a low-diversity training data indicate the competitiveness of the segmentation model with the data representation, especially in reducing voice false alarm. Incorporating large-scale symbolic data provides better efficiency and exhibits potential in enhancing contextual information. Future work will focus on the improvement of domain adaption. Note-level segmentation can be considered as a future work as it is also feasible applying symbolic-audio transfer learning and would also benefit the melody extraction task.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>c</head><label></label><figDesc>Wei-Tsung Lu and Li Su. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Wei-Tsung Lu and Li Su. "Vocal melody extraction with semantic segmentation and audio-symbolic domain transfer learning", 19th International Society for Music Information Retrieval Conference, Paris, France, 2018.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: The system diagram of the proposed method.</figDesc><graphic coords="2,309.49,67.31,231.60,138.35" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Model descriptions. (a) The overall structure of the segmentation model. (b) The encoder block. The stride rate in Stride Conv is (2,2). Stride Conv can be replaced with standard convolution so it allows more layers in the encoder. It can also be changed to transpose convolution with stride (2,2), so the block can serve as a decoder block. (c) The Atrous Spatial Pyramid Pooling unit.</figDesc><graphic coords="3,334.21,247.00,171.38,109.83" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: The connection between the two networks in the proposed model. The parameter of the i-th layer in the symbolic model is first fed into the adapter, and then connected to the (i + 1)-th layer of the audio model with an addition operation.</figDesc><graphic coords="4,313.37,67.31,213.08,107.54" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Data representation and melody extraction results of the first 15s of 'train06.wav' in MIREX2005 as input. From top to bottom: power-scale spectrogram, data representation C, the result using segmentation, and the result using segmentation and note-based PNN.</figDesc><graphic coords="5,68.68,67.31,217.70,220.28" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Vocal melody extraction results of the proposed methods and other methods on various datasets.</figDesc><table><row><cell>Through the</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 19th ISMIR Conference, Paris, France, September<ref type="bibr" target="#b23">[23]</ref><ref type="bibr" target="#b24">[24]</ref><ref type="bibr" target="#b25">[25]</ref><ref type="bibr" target="#b26">[26]</ref><ref type="bibr" target="#b27">[27]</ref> 2018  </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>https://labrosa.ee.columbia.edu/projects/melody/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_2"><p>http://www.music-ir.org/mirex/wiki/2016:Audio Melody Extraction Proceedings of the 19th ISMIR Conference, Paris, France, September 23-27, 2018</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_3"><p>Proceedings of the 19th ISMIR Conference, Paris, France, September<ref type="bibr" target="#b23">[23]</ref><ref type="bibr" target="#b24">[24]</ref><ref type="bibr" target="#b25">[25]</ref><ref type="bibr" target="#b26">[26]</ref><ref type="bibr" target="#b27">[27]</ref> 2018   </p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="6.">ACKNOWLEDGEMENT</head><p>The authors would like to thank the anonymous reviewers for their valuable comments and suggestions to improve the quality of the paper. This work is partially supported by <rs type="funder">MOST Taiwan</rs>, under the contract <rs type="grantNumber">MOST 106-2218-E-001-003-MY3</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_2EHrVjX">
+					<idno type="grant-number">MOST 106-2218-E-001-003-MY3</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">R</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrei</forename><forename type="middle">A</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Neil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Guillaume</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hubert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>James</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Koray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Razvan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Raia</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1606.04671</idno>
+		<title level="m">Progressive neural networks</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">eprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Deep salience representations for f 0 estimation in polyphonic music</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">In 18th Int. Soc. for Music Info. Retrieval Conf</title>
+		<imprint>
+			<date type="published" when="2017-10">Oct. 2017</date>
+			<pubPlace>Suzhou, China</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Pitch contours as a mid-level representation for music informatics</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">J</forename><surname>Bosch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Audio Engineering Society Conference: 2017 AES International Conference on Semantic Audio</title>
+		<imprint>
+			<publisher>Audio Engineering Society</publisher>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Melody extraction by contour classification</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Essid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ISMIR</title>
+		<meeting>ISMIR</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="500" to="506" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Medleydb: A multitrack dataset for annotation-intensive mir research</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tierney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mauch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Cannam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ISMIR</title>
+		<meeting>ISMIR</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page" from="155" to="160" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Rethinking atrous convolution for semantic image segmentation</title>
+		<author>
+			<persName><forename type="first">L.-C</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>George</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Florian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Hartwig</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1706.05587</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">eprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Encoder-decoder with atrous separable convolution for semantic image segmentation</title>
+		<author>
+			<persName><forename type="first">L.-C</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>George</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Florian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Hartwig</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1802.02611</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">eprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Transfer learning for music classification and regression tasks</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fazekas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sandler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">F</forename><surname>Chollet</surname></persName>
+		</author>
+		<ptr target="https://github.com/fchollet/keras" />
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Music score alignment and computer accompaniment</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">B</forename><surname>Dannenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raphael</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Communications of the ACM</title>
+		<imprint>
+			<biblScope unit="volume">49</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="38" to="43" />
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Learning audiosheet music correspondences for score identification and offline alignment</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dorfer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Arzt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">In 18th Int. Soc. for Music Info. Retrieval Conf</title>
+		<imprint>
+			<date>Oct</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">A predominant-F0 estimation method for polyphonic musical audio signals</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Cong. Acoustics</title>
+		<meeting>Int. Cong. Acoustics</meeting>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="1085" to="1088" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Transfer learning in mir: Sharing learned latent representations for music audio classification and similarity</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Hamel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Davies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yoshii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Gkioxari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dollár</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Girshick</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1703.06870</idno>
+		<title level="m">Mask r-cnn</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Identity mappings in deep residual networks</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ECCV</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Design and evaluation of double-transform pitch determination algorithms with nonlinear distortion in the frequency domain-preliminary results</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Indefrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Hess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Seeser</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE Int. Conf. Acoust. Speech Signal Process</title>
+		<meeting>IEEE Int. Conf. Acoust. Speech Signal ess</meeting>
+		<imprint>
+			<date type="published" when="1985">1985</date>
+			<biblScope unit="page" from="415" to="418" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Singing voice separation with deep u-net convolutional networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jansson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Humphrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Montecchio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Weyde</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">In 18th Int. Soc. for Music Info. Retrieval Conf</title>
+		<imprint>
+			<date type="published" when="2017-10">Oct. 2017</date>
+			<pubPlace>Suzhou, China</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">On the potential of simple framewise approaches to piano transcription</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Kelz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dorfer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Korzeniowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Arzt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1612.05153</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<title level="m">Adam: A method for stochastic optimization</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Multipitch analysis of polyphonic music and speech signals using an auditory model</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Klapuri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Trans. Audio, Speech, Lang. Proc</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="255" to="266" />
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Spectral analysis using generalized cepstrum</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kobayashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Imai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Trans. Acoust., Speech, Signal Proc</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="1087" to="1089" />
+			<date type="published" when="1984">1984</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Melody extraction on vocal segments using multi-column deep neural networks</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Oh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ISMIR</title>
+		<meeting>ISMIR</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="819" to="825" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Focal loss for dense object detection</title>
+		<author>
+			<persName><forename type="first">T.-Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Girshick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dolla</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1708.02002</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">eprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Event localization in music auto-tagging</title>
+		<author>
+			<persName><forename type="first">J.-Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACM Multimedia</title>
+		<meeting>ACM Multimedia</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1048" to="1057" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Fully convolutional networks for semantic segmentation</title>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Long</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Evan</forename><surname>Shelhamer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Darrell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE conference on computer vision and pattern recognition</title>
+		<meeting>the IEEE conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="3431" to="3440" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Music pitch representation by periodicity measures based on combined temporal and spectral representations</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Peeters</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. IEEE ICASSP</title>
+		<meeting>IEEE ICASSP</meeting>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Singing voice melody transcription using deep neural networks</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Rigaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Radenen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">In ISMIR</title>
+		<imprint>
+			<biblScope unit="page" from="737" to="743" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">U-net: Convolutional networks for biomedical image segmentation</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Ronneberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Fischer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Brox</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Medical image computing and computer-assisted intervention</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="234" to="241" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Melody extraction from polyphonic music audio</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Gómez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Music Information Retrieval Evaluation eXchange (MIREX)</title>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Melody extraction from polyphonic music signals using pitch contour characteristics</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Gómez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1759" to="1770" />
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Learning to pinpoint singing voice from weakly labeled examples</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schlüter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ISMIR</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="44" to="50" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Between homomorphic signal processing and deep neural networks: Constructing deep algorithms for polyphonic music transcription</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Asia Pacific Signal and Infor. Proc. Asso. Annual Summit and Conf. (APSIPA ASC)</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Vocal melody extraction using patch-based cnn</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP</title>
+		<meeting>ICASSP</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Combining spectral and temporal representations for multipitch estimation of polyphonic music. Audio, Speech, and Language Processing</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="1600" to="1612" />
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Mel-generalized cepstral analysis: a unified approach to speech spectral estimation</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Tokuda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kobayashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Masuko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Imai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Spoken Language Processing</title>
+		<meeting>Int. Conf. Spoken Language essing</meeting>
+		<imprint>
+			<date type="published" when="1994">1994</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">A computationally efficient multipitch analysis model</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Tolonen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Karjalainen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Speech Audio Processing</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="708" to="716" />
+			<date type="published" when="2000">2000</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Frequency estimation from waveforms using multi-layered neural networks</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Verma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">W</forename><surname>Schafer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">In INTERSPEECH</title>
+		<imprint>
+			<biblScope unit="page" from="2165" to="2169" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

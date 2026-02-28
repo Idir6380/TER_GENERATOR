@@ -1,0 +1,1354 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">A DIFFUSION-INSPIRED TRAINING STRATEGY FOR SINGING VOICE EXTRACTION IN THE WAVEFORM DOMAIN</title>
+				<funder>
+					<orgName type="full">Agencia Estatal de Investigación</orgName>
+					<orgName type="abbreviated">AEI</orgName>
+				</funder>
+				<funder ref="#_9fu443V">
+					<orgName type="full">unknown</orgName>
+				</funder>
+				<funder ref="#_ejxQNMm">
+					<orgName type="full">Spanish Ministerio de Ciencia, Innovación y Universidades</orgName>
+					<orgName type="abbreviated">MCIU</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Genís</forename><surname>Plaja-Roglans</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Music Technology Group</orgName>
+								<orgName type="institution">Universitat Pompeu Fabra</orgName>
+								<address>
+									<settlement>Barcelona</settlement>
+									<country key="ES">Spain</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Marius</forename><surname>Miron</surname></persName>
+							<email>marius.miron@upf.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department">Music Technology Group</orgName>
+								<orgName type="institution">Universitat Pompeu Fabra</orgName>
+								<address>
+									<settlement>Barcelona</settlement>
+									<country key="ES">Spain</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xavier</forename><surname>Serra</surname></persName>
+							<email>xavier.serra@upf.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department">Music Technology Group</orgName>
+								<orgName type="institution">Universitat Pompeu Fabra</orgName>
+								<address>
+									<settlement>Barcelona</settlement>
+									<country key="ES">Spain</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">A DIFFUSION-INSPIRED TRAINING STRATEGY FOR SINGING VOICE EXTRACTION IN THE WAVEFORM DOMAIN</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">D558C1A9CB662A89DF90E0309B8D881F</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:15+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Notable progress in music source separation has been achieved using multi-branch networks that operate on both temporal and spectral domains. However, such networks tend to be complex and heavy-weighted. In this work, we tackle the task of singing voice extraction from polyphonic music signals in an end-to-end manner using an approach inspired by the training and sampling process of denoising diffusion models. We perform unconditional signal modelling to gradually convert an input mixture signal to the corresponding singing voice or accompaniment. We use fewer parameters than the state-of-the-art models while operating on the waveform domain, bypassing the phase estimation problem. More concisely, we train a non-causal WaveNet using a diffusion-inspired strategy while improving the said network for singing voice extraction and obtaining performance comparable to the end-to-end stateof-the-art on MUSDB18. We further report results on a non-MUSDB-overlapping version of MedleyDB and the multi-track audio of Saraga Carnatic showing good generalization, and run perceptual tests of our approach. Code, models, and audio examples are made available. 1  </p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Singing voice extraction, which involves separating the vocal source from music recording mixtures, has received a lot of attention from the Audio Signal Processing (ASP) and Music Information Retrieval (MIR) communities in the recent years. The problem can be modelled in the waveform domain [1±4], the frequency domain [5±7], or a combination of both [8±10]. In general, spectrogrambased approaches have been more popular despite having to deal with the problem of the complex phase, usually leading to artifacts or unnaturalness of the separated sources. Within the Music Demixing Challenge (MDX) framed in ISMIR 2021 <ref type="bibr" target="#b11">[11]</ref>, diverse submissions achieved state-of-the-art source separation performance, in the majority of cases being multi-branch networks combining features from both time and frequency domains [8±10], proposing therefore solutions to account for the problem with the phase. Nonetheless, these models tend to be heavy-weighted and include engineered strategies to improve the predicted outputs.</p><p>While the problem of source separation has been shown to be challenging on the waveform domain, promising results have been reported <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b3">3,</ref><ref type="bibr" target="#b12">12]</ref>, opening the door for the development of models that bypass the problem with the complex phase. However, as the performance improves, the model size and complexity accordingly grow.</p><p>In this work we propose a training and sampling strategy inspired on the recently emerged denoising diffusion models <ref type="bibr" target="#b13">[13]</ref> to perform end-to-end singing voice extraction. Denoising diffusion models are a novel class of generative models theoretically grounded in the nonequilibrium statistical physics that can gradually convert one distribution into another using a Markov chain <ref type="bibr" target="#b14">[14]</ref>, while learning to perform the reverse process. More concisely, numerous works use diffusion models to convert a signal from a particular data distribution to a simple one (e.g. isotropic Gaussian noise) by gradually adding samples of the said simple distribution. Subsequently, the model is trained to reverse the perturbation process and generate data samples of the original distribution using the easily tractable noise as input [15±17]. Diffusion models have recently emerged as a versatile and high-performance method for data generation, outperforming classical generative approaches for the task of image generation <ref type="bibr" target="#b13">[13]</ref>. In the fields of ASP and MIR, diffusion models have also shown promising performance for speech synthesis <ref type="bibr" target="#b16">[16,</ref><ref type="bibr" target="#b18">18]</ref>, speech restoration and enhancement <ref type="bibr">[13, 15, 19±21]</ref>, audio super-resolution <ref type="bibr" target="#b22">[22]</ref>, singing voice synthesis <ref type="bibr" target="#b23">[23]</ref>, and symbolic music generation <ref type="bibr" target="#b24">[24]</ref>. Despite that, the literature does not include many attempts to use diffusion models for source separation, being <ref type="bibr" target="#b25">[25]</ref>, to the best of our knowledge, the only attempt.</p><p>Despite the use of deterministic signals as diffusion perturbation in place of Gaussian noise has shown promising results in reverting different arbitrary types of image noise and performing image morphing <ref type="bibr" target="#b26">[26]</ref>, to the best of our knowledge, no exploration of this idea in the audio domain has been reported to date. In this work, we build on top of DiffWave, a versatile diffusion model for speech synthesis <ref type="bibr" target="#b16">[16]</ref> that is based on a non-causal WaveNet architecture that has been previously used for music source separation <ref type="bibr" target="#b12">[12]</ref>. We introduce an end-to-end approach to model the task of singing voice extraction as a diffusion-alike process, by converting between two audio data distributions that share similar content, in this case the singing voice and the corresponding mixture. We propose to use a deterministic diffusion perturbation, a music mixture, to gradually transform its corresponding isolated singing voice into the mixture while learning to conduct the reverse process at inference. Given the formulation of the diffusion process, we train a model that learns to estimate the perturbation at different ratios. Subsequently, we leverage from the parametrization of the reverse process of diffusion models to chain these estimations and sample, given an input mixture, improved vocal source separation in terms of artifacts and interferences compared to the vanilla trained network.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">METHOD</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Diffusion process</head><p>We assume that the waveform-domain signal corresponding to the mixture m is the sum of the singing voice v and the accompaniment a, such as: m = v + a. Our goal is to estimate v given m. In the following sections we formalize our method by relating it with the diffusion theory in the literature. In Figure <ref type="figure" target="#fig_0">1</ref> we display the two main steps of our method: the diffusion and the reverse process.</p><p>Diffusion. The diffusion process assumes perturbing the training data with different scales of noise iteratively following a Markov chain <ref type="bibr" target="#b13">[13]</ref>:</p><formula xml:id="formula_0">q(x 1 , ..., x T |x 0 ) = T t=1 q(x t |x t-1 )<label>(1)</label></formula><p>The input signal x 0 is gradually perturbed by incrementally adding a particular signal in small T diffusion steps. This process results into a latent variable x T of same distribution of the perturbation. The standard diffusion schema, introduced in <ref type="bibr" target="#b13">[13]</ref> and subsequently used in most of the diffusion research, perturbs x 0 with random Gaussian noise, therefore x T is an isotropic Gaussian noise distribution. In our case, the input signal x 0 is initialized with the isolated singing voice v, and perturbed by incrementally adding the mixture m. This results in x T being a mixture-alike signal, containing both voice and accompaniment. Therefore, q(x t |x t-1 ) in Eq. 1 is an operation to add a small amount of perturbation m to the given signal x t-1 , moving to the next diffusion step x t . We use m as perturbation to account for the formal diffusion design in <ref type="bibr" target="#b13">[13]</ref>, in which the latent variable x T is expected to belong to the same data distribution as the perturbing noise. The level of perturbation at each diffusion step is controlled by β t , which is a small positive coefficient within a fixed noise schedule denoted β. That said, using the parametrization proposed in <ref type="bibr" target="#b13">[13]</ref>, we can compute any given diffusion step using:</p><formula xml:id="formula_1">q(x t |x 0 ) = √ ᾱt x 0 + √ 1 -ᾱt m<label>(2)</label></formula><p>where α t = 1 -β t and ᾱt = t s=1 α s . Note also that the most common inference input of a singing voice extraction model ± which in our case is x T ± is a mixture. Given Eq. 2, the perturbation is a mixture m to ensure x T ≈ m, otherwise the said condition may not be given.</p><p>Modelling musical signals using a mixture of Gaussian functions has been previously explored in <ref type="bibr" target="#b27">[27]</ref>. Note also that architectures similar to DiffWave have been already used to model mixture, accompaniment, and vocal signals <ref type="bibr" target="#b12">[12,</ref><ref type="bibr" target="#b28">28]</ref> (for further detail see Section 2.2).</p><p>Reverse process. The reverse process aims at iteratively reverting the perturbation added by the diffusion:</p><formula xml:id="formula_2">p θ (x 0 , ..., x T -1 |m) = T t=1 p θ (x t-1 |x t )<label>(3)</label></formula><p>We propose to parameterize the variable p θ (x t-1 |x t ) as</p><formula xml:id="formula_3">x t -1-αt √ 1-ᾱt ϵ(x t , t) 1</formula><p>√ αt , being ϵ(x t , t) the perturbation estimated by the model at a given diffusion step t. This parametrization is leveraged from the diffusion sampling process in <ref type="bibr" target="#b13">[13]</ref>. However, we remove the deviation parameter from the original parametrization, which in our deterministic noise case yields worse predictions. This process can be seen as an iterative refinement of the latent variable x T to convert it to x 0 , in our case to iteratively transform an input mixture to its corresponding singing voice source.</p><p>Training. The training objective of the original diffusion process is to maximize the log likelihood of: p θ (x 0 ) = p θ (x 0 , ..., x T -1 |x T )p latent (x T )dx 1:T <ref type="bibr" target="#b13">[13]</ref>, considering stochastic noise as perturbation. Since in this context it is not possible to calculate the said integral, in the literature this problem is approached by maximizing its variational lower bound (ELBO) <ref type="bibr" target="#b13">[13]</ref>. The reader is referred to <ref type="bibr" target="#b16">[16]</ref>, for a detailed development of this maximization. In our case, relying on the ELBO is not required given the deterministic perturbation. Therefore, by using pairs of (x t , x 0 ) <ref type="bibr" target="#b13">[13]</ref>, and referring to Eq. 2, we are able to effectively optimize the model with parameters θ using the following objective <ref type="bibr" target="#b13">[13]</ref>:</p><formula xml:id="formula_4">L(θ) = ϵ -ϵ θ ( √ ᾱt x 0 + √ 1 -ᾱt m, t)) 2 (<label>4</label></formula><formula xml:id="formula_5">)</formula><p>where ϵ is the target or true perturbation, whereas ϵ θ is the perturbation the model estimates based on ᾱ, t, the mixture m and the input x 0 . In the case of extracting the singing voice, we use the accompaniment a instead of mixture m as the target corresponding to ϵ. Therefore, we do not include the voice into the target of the training process, thus we alleviate the loss of vocal quality that may occur after several reverse steps.</p><p>Noise schedule. Choosing the noise schedule β has been found to be crucial for the performance of diffusion models <ref type="bibr" target="#b13">[13]</ref> <ref type="foot" target="#foot_3">foot_3</ref> and in fact, efforts have been done to learn said variable instead of defining it manually <ref type="bibr" target="#b29">[29]</ref>. In our scenario, we require a schedule β that accounts for the proposed diffusion-inspired approach, in which x 0 is expected to be predominant in the completely perturbed signal x T . Moreover, our perturbation m is the mixture corresponding to x 0 , thus x 0 is contained in the perturbation, which may lead to an abnormally over-loud source in the completely diffused x T . Ultimately, the inference input is a mixture, therefore we propose to use a schedule that produces a latent variable x T as close as possible to an actual mixture.</p><p>Our noise schedule is defined by β 0 = 1 -4 , β T = 0.2, and T = 20, being 20 a reliable option for audio as found in <ref type="bibr" target="#b16">[16]</ref>. This noise schedule produces q(x T |x 0 ) ≈ m, and we denote it β 20 . Note that the closer β T to 1, we should expect a more aggressive transformation, leading to less interference at the expense of losing quality of the estimated source. Recent diffusion-based works in the audio domain successfully model their task using 4±8 steps <ref type="bibr" target="#b21">[21]</ref>.</p><p>To study the effect of the number of diffusion steps and explore the feasibility of modelling the task with less computational expense, we experiment with a new schedule β 8 , which is defined by β 0 = 1 -4 , β T = 0.5, and T = 8.</p><p>Accompaniment estimation. To perform accompaniment estimation we initialize x 0 to be the musical accompaniment a, while the singing voice v is the target ϵ for training in Eq. 4, and we adjust β. Since usually the accompaniment is a mixture of multiple sources, and the singing voice ± now the perturbation ± is normally predominant, we may increase the number of diffusion steps to 100 in the schedule and experiment with a more granular reverse process. The other parameters remain unchanged.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Network details</head><p>We propose to use the unconditional vanilla DiffWave to learn the reverse process <ref type="bibr" target="#b16">[16]</ref>. Although recent works in music separation propose various improvements with regards to the architectures used, in this work we focus on exploring a novel diffusion-inspired process for source separation. At the same time, we aim at improving a smaller model that has been previously applied for source separation using our diffusion-inspired training and sampling method, while leaving the improvements on the network, or using a different architecture, as future work. Nonetheless, we consider the versatility and light weight of the entire method an advantage. Note that within the scope of this paper, we perform monaural source separation.</p><p>Architecture. The DiffWave architecture is based on a modified WaveNet <ref type="bibr" target="#b30">[30]</ref> extended with bidirectional dilated convolution modules (Bi-DilConv), aiming at removing the autoregressive generation constraint so that the model is non-causal and the reverse process is done in T steps. The said Bi-DilConv modules have been pre-viously applied for the problem of music source separation <ref type="bibr" target="#b12">[12,</ref><ref type="bibr" target="#b28">28]</ref>. The used non-causal WaveNet consists of a stack of L residual layers, which are equally grouped into N blocks. Therefore, each block includes L /N layers with skip-connections as the original WaveNet. A Bi-DilConv module with kernel-size 3 is included in each layer. The size of the dilation, initialized at 1, is doubled at each layer of a block: [1, 2, 4, 8, ..., 2 L /N -1]. Before going through the stacked blocks, the input is projected using a 1D convolutional layer of C channels of features. Similarly to the original WaveNet, the output is obtained by summing the skip connections of all the residual blocks. For our experiments we configure the WaveNet architecture with L = 30, N = 10, and C = 64, which in <ref type="bibr" target="#b16">[16]</ref> is found to effectively work while preserving the light weight of the architecture.</p><p>Diffusion step embedding. Since the training process is based on optimizing Eq. 4 given a pair (x t , x 0 ), we need to input the diffusion step t to the model. We use a 128dimension encoding vector for each t <ref type="bibr" target="#b16">[16]</ref>, defined as <ref type="bibr" target="#b31">[31]</ref>:</p><formula xml:id="formula_6">t embed = sin 10 0 * F S-1 t , ..., sin 10 (S-1) * f S-1 t , cos<label>10</label></formula><formula xml:id="formula_7">0 * F S-1 t , ..., cos<label>10</label></formula><formula xml:id="formula_8">(S-1) * F S-1 t (<label>5</label></formula><formula xml:id="formula_9">)</formula><p>where F is the embedding factor and S is half the embedding size. Note that F and S are pre-defined and fixed hyperparameters, which in our experimentation are set to F = 4 and S = 64. Next, the embedded diffusion step is passed through three dense layers, the first two having size S * 2, while the latter maps the latent embedding into the C channels the input is projected to, therefore we can add the embedding to the input of each residual layer.</p><p>Conditioning. Using a vocoder paradigm, diffusionbased approaches for audio modelling usually use conditioning to guide the signal generation, providing clues to obtain a particular desired output. Audio-related diffusion works in the literature propose to guide the signal generation using, for instance, mel-spectrogram <ref type="bibr" target="#b16">[16,</ref><ref type="bibr" target="#b32">32]</ref> or linguistic features <ref type="bibr" target="#b33">[33]</ref>. We do not condition our network for three reasons: (1) Conditioning our vocal extraction model, for instance on the mel-spectrogram of the target vocal signal, would probably improve the output quality, however the task of source separation assumes that data of this kind is not available at inference, (2) Our latent variable x T is not an isotropic Gaussian but a known mixture recording containing the target signal, therefore it serves as a conditioner to guide the transformation towards the isolated singing voice, (3) We reduce the model size.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Post-processing</head><p>To account for a possible over-increase of the signal amplitude during the reverse process, the output of said process is clamped to the amplitude levels of the input mixture.</p><p>During the iterative signal transformation at inference we may generate audio content and artifacts not contained in the original vocal signal. Although not perceptually significant, these artifacts are heavily penalized by objective evaluation metrics <ref type="bibr" target="#b34">[34]</ref>. Moreover, the iterative nature of the algorithm may accumulate several of the said artifacts in the final prediction. As an optional step, we use the multichannel Wiener filter to improve our separation, a well-known process used in numerous source separation works <ref type="bibr" target="#b35">[35]</ref>. We use the Python version in norbert <ref type="bibr" target="#b36">[36]</ref>.</p><p>Since our model operates in an end-to-end manner, we use the following procedure to apply the Wiener filtering. Let v be an estimated vocal source and â the corresponding estimated musical accompaniment. The inputs of the Wiener process are the Short-Time Fourier Transform (STFT) of the input mixture m, and the magnitude STFT of both v and â estimates. The outputs of the Wiener process are the filtered complex spectrograms for v and â. We take the magnitude of said spectrograms and combine it with the corresponding phases ϕ(v) and ϕ(â) that our proposed model estimates. In that sense, we do not use the Wiener filtering to estimate the phase as typically done for spectrogram-based approaches that cannot estimate such complex target, but refine our estimation using the Expectation-Maximization algorithm <ref type="bibr" target="#b37">[37]</ref> to make sure that the predicted signal is contained in the input mixture.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">RELATION WITH PREVIOUS WORK</head><p>The literature on waveform-based singing voice extraction is mainly based on encoder/decoder architectures, with the non-causal adaptation of WaveNet <ref type="bibr" target="#b12">[12,</ref><ref type="bibr" target="#b30">30]</ref> as the only exception. Wave-U-Net <ref type="bibr" target="#b3">[3]</ref> is an autoencoder inspired by its spectrogram-based counterpart U-Net <ref type="bibr">[7]</ref>, while ConvTas-Net <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b4">4]</ref> estimates prediction masks in the mid-point of the network. The leading model is Demucs, now available in two versions v1 <ref type="bibr" target="#b1">[1]</ref> and v2 <ref type="bibr" target="#b2">[2]</ref>, which is also a convolutional autoencoder with a bidirectional LSTM in the bottleneck. There is a growing tendency on the size of the above-mentioned models, while all use similar, standard training procedures. In contrast, we focus on the training strategy and propose a diffusion-inspired approach for a light-weight model. Building on top of DiffWave, we train a non-causal WaveNet very similar to the one used for music source separation <ref type="bibr" target="#b30">[30]</ref>, differing only on the number of residual layers, the output projection (since WaveNet in <ref type="bibr" target="#b30">[30]</ref> estimates multiple targets while in DiffWave the target is only the added perturbation by the diffusion process), and the additional diffusion step embedding.</p><p>Our work has common aspects with <ref type="bibr" target="#b39">[39]</ref>, in which a novel training strategy is built on top of Demucs (v2) by modelling and learning the dependencies between target sources, and adding an iterative refinement at the output using a Gibbs sampling process. Contrastingly, we use a diffusion-inspired algorithm to train a smaller baseline model for source separation, not to directly estimate the target sources but to gradually transform a mixture signal into its corresponding singing voice.</p><p>The literature of diffusion-related approaches for music source separation is scarce. In <ref type="bibr" target="#b25">[25]</ref>, an improved reverse process based on Langevin dynamics is proposed and applied to several autoregressive models, including WaveNet, which shows competitive performance on separating the vocals from a piano accompaniment. However no experiments on MUSDB18 <ref type="bibr" target="#b40">[40]</ref> are reported.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS 4.1 Experimental setup</head><p>We include the following models in our experiments: We use the MUSDB18 dataset <ref type="bibr" target="#b40">[40]</ref> for training. The accompaniment is computed as the linear sum of the bass, drums, and other sources as represented in the dataset. To train the models we first split the tracks in MUSDB18 in chunks of 4 seconds to optimize the training process and obtain more variate data batches along the training steps. We do not disregard the unvoiced samples, aiming at improving the estimation on vocal silences <ref type="bibr" target="#b28">[28]</ref>.</p><p>For a comparison with the state-of-the-art, our models are evaluated on the test set of MUSDB18, using the standardized metrics for source separation (Signal-to-Distortion Ratio or SDR, Signal-to-Interference Ratio or SIR, and Signal-to-Artifact Ratio or SAR) <ref type="bibr" target="#b42">[42]</ref>. We use the BSS Eval implementation and the evaluation setup from the SiSEC challenge <ref type="bibr" target="#b41">[41]</ref>, using window and hop sizes of 1 second, and subsequently computing the median over all the 1-second estimations of each song. We finally report the median over the entire MUSDB18 testing tracks. We compare our approach with the waveform-based state-ofthe-art: WaveNet, Wave-U-Net, ConvTas-Net and Demucs v1 and v2. We report the metrics that the best versions of these methods obtain on the testing set of MUSDB18 <ref type="bibr" target="#b41">[41]</ref>. For WaveNet we consider the best performing configuration in <ref type="bibr" target="#b28">[28]</ref>, and for ConvTas-Net the music source separation version proposed in <ref type="bibr" target="#b2">[2]</ref>.</p><p>Being aware of the possible biases that might occur if training and evaluating on data from the same distribution, even if the splits are properly differentiated, we consider two additional testing sets: (1) A non-MUSDBoverlapping version of MedleyDB <ref type="bibr" target="#b43">[43]</ref>, in which we remove the 46 overlapping tracks between MedleyDB and MUSDB18 <ref type="bibr" target="#b44">[44]</ref> disregarding also the tracks from shared artists between the two even if the track is not present in both, and (2) A manually-cleaned subset of the multi-track audio of the Saraga Carnatic dataset <ref type="bibr" target="#b45">[45]</ref> (ground-truth accompaniment is not available). The track list of both datasets is made available in the accompanying repository.</p><p>The objective metrics in <ref type="bibr" target="#b41">[41]</ref> are not always correlated with the scores from perceptual evaluations of music source separation <ref type="bibr" target="#b47">[46]</ref> time-consuming and expensive to conduct. We run a perceptual evaluation of the vocal separation for four models: Wavenet (again the best model in <ref type="bibr" target="#b28">[28]</ref>), Wave-U-Net (the best model in <ref type="bibr" target="#b3">[3]</ref> for monaural separation), Demucs (the v2 model for stereo mixture and 4 sources), and our best model (combining both vocal and accompaniment extraction models using Wiener). We reiterate the experiment in <ref type="bibr" target="#b28">[28]</ref> with the same 5 songs (10 second excerpts) and including now our model and Demucs v2. 3  In this perceptual experiment we follow a double-blind multi-stimulus experimental design with a hidden reference. Similarly to <ref type="bibr" target="#b28">[28]</ref>, participants are asked to assess the global quality of vocal separation taking into account the suppression of other sources and the lack of distortion, rating the stimuli on scale from 1 to 5, with 1 being very intrusive interferences from other sources and degraded audio, and 5 being unnoticeable interferences from other sources and not degraded audio. In contrast to <ref type="bibr" target="#b28">[28]</ref>, the order of the songs is randomized, so that the final rating does not depend on a predefined ordering. In addition, we include the ground-truth vocal stem as a hidden reference along the other stimuli corresponding to the vocal separation of the four models being tested. This hidden reference is used as a control stimuli to filter-out participants that have not performed the training stage, have not understood the task, or do not have sufficient expertise. The participants are asked to calibrate the volume using a tone burst. Then, they perform a training stage where detailed instructions and three audio examples from the same song are presented: the reference mixture, the ground-truth vocal stem and a poor quality separation using a model not included in our test. We use the webMUSHRA framework <ref type="bibr" target="#b48">[47]</ref> to implement the experimental design in an online test.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Objective evaluation</head><p>In Table <ref type="table" target="#tab_0">1</ref> we compare the performance of our approach with the waveform-domain state-of-the-art models. No metrics on accompaniment separation and SIR/SAR for vocals are reported for Demucs and ConvTas-Net since 3 jordipons.me/apps/end-to-end-music-source-separation these target to vocals, bass, drums and other. We observe that our vocal extraction model outperforms WaveNet (note that DiffWave is based on WaveNet), Wave-U-Net, and Demucs v1 in terms of SDR, the latter by a slight difference. Our model provides notable improvement on SAR, which is translated into an output with less artifacts. When combining our vocal and accompaniment extraction models through Wiener filter we obtain closer performance to ConvTas-Net, while Demucs v2 is still leading on SDR ≈ 0.8dB above. While iteratively transforming an input mixture, for instance, to the corresponding singing voice, incorrectly estimated accompaniment that is not recognised in the subsequent reverse steps may accumulate in the final prediction. Although the said interferences might not be audible at naked ear, these are penalized by the metrics. The Wiener filtering provides notable improvement on that issue, as especially noted in the SIR and also in the perceptual evaluation in Section 4.3, albeit the source quality is slightly compromised. Finally, note that we use fewer parameters, enhancing the portability and reproducibility of our approach.</p><p>The β 1 singing extraction model, which directly estimates the perturbation by transforming the input mixture in a single run, scores similar than the baseline WaveNet, however we observe a notable decrease of SIR, while SAR improves. This may be given the transformation nature of our approach, which removes the perturbation from the target source instead of directly estimating the source. The β 8 model scores similar than β 20 , however the SIR decreases while SAR is maintained. While adding more steps provides improved interference removal, no notable negative effect is observed in the quality of the estimated source. Nonetheless, if the computational expense is prioritized, the β 8 model may be used for an optimized inference since the measured performance drop in our experiments is not dramatic. In fact, both models predict faster than real-time on a TITAN Xp GPU. For accompaniment separation, using β 100 provides better predictions. However, as observed for vocals, we may be also capable of modelling this task using less steps, with no significant performance drop. In Table <ref type="table" target="#tab_1">2</ref> we evaluate our baseline β 20 singing voice extraction model (with no post-processing) on the two additional testing datasets presented in Section 4.1. We perform the same evaluation procedure for Wave-U-Net and Demucs v2, comparing how the three models generalize to the testing datasets, using the performance on MUSDB18 ± which is also the training dataset for the three ± as reference. Our model and Demucs v2 show good generalization to MedleyDB, both getting a similar and small performance drop. Contrastingly, the Wave-U-Net performance is negatively affected in terms of both SDR and SIR. A similar scenario is observed in the Carnatic Music experiment. While Wave-U-Net generalization is again compromised, our model and Demucs v2 are decently able to maintain the performance, the latter being less affected by the change of domain. Similarly to what observed in the MUSDB18 experiment, Demucs v2 predictions include less artifacts, especially in the high-frequency range, being reflected in the metrics as such. Audio examples of this experiment are available in the accompanying repository.</p><p>We analyse the behaviour of the β 20 singing voice model along the steps in the reverse process. We observe that the SIR (interf.) notably increases along the steps, at a compromise of a much less steeply SAR (artifacts) decrease. Namely, as we iteratively transform the signal from mixture to singing voice, we remove the accompaniment while trying to maintain the quality of the singing voice, relying on the model trained with our diffusion-inspired strategy to estimate the perturbation at each step while alleviating the additional interferences incorrectly generated during the reverse process. We note that given the parametrization of the reverse process, stronger transformation is performed in the first steps (1 to 5 for β 20 ), while the rest of the steps refine the final estimation. For that reason, fair or good performance ± relatively to the overall track difficulty ± on the first step normally leads to enhanced final output, while bad initial performance may even be further degraded through the reverse process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Perceptual evaluation</head><p>In total 40 people participated in our experiment, 4 of them being excluded because they scored the ground-truth stimuli lower than a separation stimuli. We compute Mean Opinion Score (MOS) by averaging the ratings for all songs and all participants. The results in terms of MOS are presented in Figure <ref type="figure">2</ref>. Note that Ground-truth is not reaching 5, meaning that the test includes difficult cases with distorted vocals or large unvoiced segments. We observe that the 95% Confidence Interval for our model is very sim-Figure <ref type="figure">2</ref>. Perceptual evaluation report for the waveformbased state-of-the-art models and ours ilar to Demucs and notably higher than both Wave-U-Net and especially WaveNet, a very similar architecture to the instance we have trained using our diffusion-inspired strategy. Such test suggests that the predictions made by our approach may include artifacts or interferences that affect negatively the standardized metrics but are not perceivable at naked ear. This test may be extended in future to separately study the perceivable distortion and interference.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSIONS</head><p>In this paper we leverage from the denoising diffusion algorithm to propose a training and sampling strategy for singing voice extraction. The model trained using our approach learns to gradually transform a mixture into its corresponding vocal source or accompaniment, achieving comparable performance to the waveform-based state-ofthe-art on MUSDB18. In addition, we evaluate how our approach generalizes to other testing sets, showing decent generalization to these out-of-domain data. We also run a perceptual test in which our approach scores similar than Demucs v2 and outperforms the others. Our approach operates on an architecture similar to WaveNet and obtains better objective and perceptual evaluation. This work has a broad future outlook. For the next steps, we look at separating other sources and supporting stereo. We also look at extending the approach, for instance, by using a different or improved network to learn the reverse process, focusing on U-Nets which are the leading architecture music source separation. We may also consider conditioning, the key element of diffusion-based approaches in the literature. Finally, our diffusion-inspired reverse parametrization may be further improved to better refine the predictions.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. Overview of our diffusion-inspired training approach for the case of singing voice extraction.</figDesc><graphic coords="2,311.36,68.54,232.46,89.34" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>( 1 )</head><label>1</label><figDesc>Singing voice extraction model with different noise schedules: β 20 and β 8 and β 1 , (2) Singing voice extraction model with β 20 and Wiener filtering, using the accompaniment obtained by subtracting the estimated vocals v from the input mixture m, (3) Accompaniment extraction model with β 100 , (4) Combination of singing voice extraction model with β 20 and accompaniment extraction model with β 100 using Wiener filtering. For the experiments we use ADAM optimizer with learning rate of 2 -4 and batch size of 8. The models are first trained for 200k steps and next, we keep training while evaluating the performance using BSS Eval [41] repeatedly when ≈ 500 training steps are completed, storing the model that performs the best on the validation set, until 500k steps.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 .</head><label>1</label><figDesc>. However, perceptual tests are Performance comparison between our model and the waveform-based state-of-the-art. Metrics in dB.</figDesc><table><row><cell>Singing Voice</cell><cell>Accompaniment</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 .</head><label>2</label><figDesc>Performance comparison of our baseline model and state-of-the-art on additional test datasets. Metrics in dB.</figDesc><table><row><cell>MUSDB18</cell><cell>MedleyDB</cell><cell>Saraga Carnatic</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>github.com/genisplaja/diffusion-vocal-sep © G. Plaja-Roglans, M. Miron, and X. Serra. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: G. Plaja-Roglans, M. Miron, and X. Serra, ªA diffusion-inspired training strategy for singing voice extraction in the waveform domainº, in Proc. of the</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>23rd Int. Society for Music Information Retrieval Conf., Bengaluru, India, 2022.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_3"><p>Despite being aware that our perturbation is a deterministic signal instead of stochastic noise, we still use the term noise schedule in this work for easier understanding in relation with cited works.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="6.">ACKNOWLEDGEMENTS</head><p>This work was carried out under the projects Musical <rs type="grantNumber">AI -PID2019-111403GB-I00/AEI/10.13039/501100011033</rs> and <rs type="grantNumber">NextCore -RTC2019-007248-7</rs> funded by the <rs type="funder">Spanish Ministerio de Ciencia, Innovación y Universidades (MCIU)</rs> and the <rs type="funder">Agencia Estatal de Investigación (AEI)</rs>. We would like to thank the 40 participants that took the perceptual test for this work.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_9fu443V">
+					<idno type="grant-number">AI -PID2019-111403GB-I00/AEI/10.13039/501100011033</idno>
+				</org>
+				<org type="funding" xml:id="_ejxQNMm">
+					<idno type="grant-number">NextCore -RTC2019-007248-7</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">ªDemucs: Deep Extractor for Music Sources with extra unlabeled data remixed</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Bach</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/1909.01174" />
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">ªMusic Source Separation in the Waveform Domain</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Bach</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/1911.13254" />
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">ªWave-U-Net: A multi-scale neural network for end-to-end audio source separation</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Stoller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ewert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 19th Int. Society for Music Information Retrieval Conf. (ISMIR)</title>
+		<meeting>of the 19th Int. Society for Music Information Retrieval Conf. (ISMIR)<address><addrLine>Paris, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="334" to="340" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Mesgarani</surname></persName>
+		</author>
+		<author>
+			<persName><surname>ªconv-Tasnet</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Surpassing Ideal Time-Frequency Magnitude Masking for Speech Separation</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">27</biblScope>
+			<biblScope unit="page" from="1256" to="1266" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">ªD3Net: Densely connected multidilated DenseNet for music source separation</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Takahashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mitsufuji</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/2010.01733" />
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">ªSams-Net: A Sliced Attention-based Neural Network for Music Source Separation</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. on the 12th Int. Symposium on Chinese Spoken Language Processing</title>
+		<meeting>on the 12th Int. Symposium on Chinese Spoken Language essing</meeting>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">ªSinging voice separation with deep U-Net convolutional networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jansson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Humphrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Montecchio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Weyde</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 18th Int. Society for Music Information Retrieval Conf. (ISMIR)</title>
+		<meeting>of the 18th Int. Society for Music Information Retrieval Conf. (ISMIR)<address><addrLine>Suzhou, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="745" to="751" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">ªHybrid spectrogram and waveform source separation</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/2111.03600" />
+		<imprint>
+			<date type="published" when="2021">º 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">ªKUIELab-MDX-Net: A Two-Stream Neural Network for Music Demixing</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jung</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/2111.12203" />
+		<imprint>
+			<date type="published" when="2021">º 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Unite to separate them all</title>
+		<author>
+			<persName><forename type="first">C.-Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K.-W</forename><surname>Cheuk</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sep</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/2112.03752" />
+		<imprint>
+			<date type="published" when="2021">º 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mitsufuji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Fabbro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Uhlich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-R</forename><surname>Stöter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K.-W</forename><surname>Cheuk</surname></persName>
+		</author>
+		<title level="m">ªMusic Demixing Challenge 2021,º Frontiers in Signal Processing</title>
+		<imprint>
+			<date type="published" when="2022-01">January, 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">ªA wavenet for speech denoising</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Rethage</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pons</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the IEEE Int. Conf. on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<meeting>of the IEEE Int. Conf. on Acoustics, Speech and Signal essing (ICASSP)<address><addrLine>Paris, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018-04">2018-April. 2018</date>
+			<biblScope unit="page" from="5069" to="5073" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ªDenoising diffusion probabilistic models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Abbeel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 33th Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>of the 33th Advances in Neural Information essing Systems (NeurIPS)</meeting>
+		<imprint>
+			<publisher>Online</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6840" to="6851" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">ªEquilibrium free-energy differences from nonequilibrium measurements: A masterequation approach</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Jarzynski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Physical Review</title>
+		<imprint>
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ªRestoring degraded speech via a modified diffusion model</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jayasuriya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Berisha</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Annual Conf. of the Int. Speech Communication Association (INTERSPEECH)</title>
+		<meeting>of the Annual Conf. of the Int. Speech Communication Association (INTERSPEECH)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="2753" to="2757" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Catanzaro, ªDiffWave: A Versatile Diffusion Model for Audio Synthesis</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Ping</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 9th Int. Conf. on Learning Representations (ICLR)</title>
+		<meeting>of the 9th Int. Conf. on Learning Representations (ICLR)<address><addrLine>Vienna, Austria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">ªDeep unsupervised learning using nonequilibrium thermodynamics</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sohl-Dickstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">A</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Maheswaranathan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ganguli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 32nd Int. Conf. on Machine Learning (ICML)</title>
+		<meeting>of the 32nd Int. Conf. on Machine Learning (ICML)<address><addrLine>Lille, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="2246" to="2255" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Estimating Gradients for Waveform Generation</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 9th Int. Conf. on Learning Representations (ICLR)</title>
+		<meeting>of the 9th Int. Conf. on Learning Representations (ICLR)<address><addrLine>Vienna, Austria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y.-J</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z.-Q</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Richard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Tsao</surname></persName>
+		</author>
+		<title level="m">ªConditional Diffusion Probabilistic Model for Speech Enhancement,º In Proc. of the IEEE Int. Conf. on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<meeting><address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">ªA Study on Speech Enhancement Based on Diffusion Probabilistic Model</title>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">J</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Tsao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Watanabe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Asia-Pacific Signal and Information Processing Association Annual Summit and Conf. (APSIPA ASC)</title>
+		<meeting>of the Asia-Pacific Signal and Information essing Association Annual Summit and Conf. (APSIPA ASC)</meeting>
+		<imprint>
+			<publisher>Online</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="659" to="666" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">ªUniversal speech enhancement with score-based diffusion</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Serrà</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Pascual</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pons</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">O</forename><surname>Araz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Scaini</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/2206.03065" />
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">ªNU-wave: A diffusion probabilistic model for neural audio upsampling</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Han</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Annual Conf. of the Int. Speech Communication Association (INTERSPEECH)</title>
+		<meeting>of the Annual Conf. of the Int. Speech Communication Association (INTERSPEECH)<address><addrLine>Brno, Czech Republic</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="2698" to="2702" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Singing Voice Synthesis via Shallow Diffusion Mechanism</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 36th Conf. on Artificial Intelligence (AAAI)</title>
+		<meeting>of the 36th Conf. on Artificial Intelligence (AAAI)</meeting>
+		<imprint>
+			<publisher>Online</publisher>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">ªSymbolic Music Generation with Diffusion Models</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Mittal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 22th Int. Society for Music Information Retrieval Conf. (ISMIR)</title>
+		<meeting>of the 22th Int. Society for Music Information Retrieval Conf. (ISMIR)</meeting>
+		<imprint>
+			<publisher>Online</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="468" to="475" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">V</forename><surname>Jayaram</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Thickstun</surname></persName>
+		</author>
+		<title level="m">ªParallel and Flexible Sampling from Autoregressive Models via Langevin Dynamics,º In Proc. of the Int. Conf. on Learning Representations (ICLR)</title>
+		<imprint>
+			<publisher>Online</publisher>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Borgnia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H.-M</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">S</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Kazemi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goldblum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Geiping</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Goldstein</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/2208.09392" />
+		<title level="m">ªCold diffusion: Inverting arbitrary image transforms without noise</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">ªSource/filter model for unsupervised main melody extraction from polyphonic audio signals</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">L</forename><surname>Durrieu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Richard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Févotte</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">ªEnd-to-end music source separation: Is it possible in the waveform domain?</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Lluís</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pons</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Annual Conf. of the Int. Speech Communication Association (INTERSPEECH)</title>
+		<meeting>of the Annual Conf. of the Int. Speech Communication Association (INTERSPEECH)<address><addrLine>Graz, Austria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-09">2019-September. 2019</date>
+			<biblScope unit="page" from="4619" to="4623" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">ªVariational Diffusion Models</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Salimans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Poole</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ho</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 35th Conf. on Neural Information Processing Systems</title>
+		<meeting>of the 35th Conf. on Neural Information essing Systems</meeting>
+		<imprint>
+			<publisher>Online</publisher>
+			<date type="published" when="2021">NeurIPS 2021. 2021</date>
+			<biblScope unit="page" from="21" to="696" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Van Den Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Senior</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/1609.03499" />
+		<title level="m">Generative Model for Raw Audio</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">ªAttention is all you need</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">È</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<meeting><address><addrLine>Long Beach, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5999" to="6009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">ªDeep Voice 3: Scaling text-to-speech with convolutional sequence learning</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Ping</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gibiansky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">O</forename><surname>Arik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kannan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Raiman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Miller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Int. Conf. on Learning Representations (ICLR)</title>
+		<meeting>of the Int. Conf. on Learning Representations (ICLR)<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">ªDeep Voice 2: Multi-speaker neural text-to-speech</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">O</forename><surname>Arik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Diamos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gibiansky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Ping</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Raiman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Conf. on Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>of the Conf. on Neural Information essing Systems (NeurIPS)<address><addrLine>Long Beach, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">ªA Vocoder Based Method for Singing Voice Extraction</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Chandna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Blaauw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bonada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Gomez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the IEEE Int. Conf. on Acoustics, Speech and Signal Processing</title>
+		<meeting>of the IEEE Int. Conf. on Acoustics, Speech and Signal essing<address><addrLine>Brighton and Hove, UK</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-05">2019-May. 2019</date>
+			<biblScope unit="page" from="990" to="994" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">ªMultichannel audio source separation with deep neural networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Nugraha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Vincent</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<biblScope unit="page" from="1652" to="1664" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">R</forename><surname>Stöter</surname></persName>
+		</author>
+		<idno type="DOI">10.5281/zenodo.3269749</idno>
+		<ptr target="https://doi.org/10.5281/zenodo.3269749" />
+		<imprint>
+			<date type="published" when="2019">ªsigsep/norbert,º 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">ªUnderdetermined reverberant audio source separation using a full-rank spatial covariance model</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Duong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Gribonval</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">7</biblScope>
+			<biblScope unit="page" from="1830" to="1840" />
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">ªSinging-voice separation from monaural recordings using deep recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hasegawa-Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Smaragdis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">º In Proc. of the 15th Int. Society for Music Information Retrieval Conf. (ISMIR)</title>
+		<meeting><address><addrLine>Taipei, Taiwan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="477" to="482" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<author>
+			<persName><forename type="first">E</forename><surname>Manilow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-Z</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Pardo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<title level="m">ªImproving Source Separation by Explicitly Modeling Dependencies Between Sources,º In Proc. of the IEEE Int. Conf. on Acoustics, Speech and Signal Processing</title>
+		<meeting><address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">ªMUSDB18 -a corpus for music separation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Rafii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-R</forename><surname>Stöter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">I</forename><surname>Mimilakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bittner</surname></persName>
+		</author>
+		<idno type="DOI">10.5281/zenodo.1117372</idno>
+		<ptr target="https://doi.org/10.5281/zenodo.1117372" />
+		<imprint>
+			<date type="published" when="2017-12">º Dec. 2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Signal Separation Evaluation Campaign</title>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">R</forename><surname>Stöter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Ito</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="s">Lecture Notes in Computer Science</title>
+		<imprint>
+			<biblScope unit="volume">10891</biblScope>
+			<biblScope unit="page" from="293" to="305" />
+			<date type="published" when="2018">2018. 2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">ªPerformance measurement in blind audio source separation</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Gribonval</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Févotte</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="issue">14</biblScope>
+			<biblScope unit="page" from="1462" to="1469" />
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">ªMedleyDB: A multitrack dataset for annotation-intensive MIR research</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bittner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tierney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mauch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Cannam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 15th Int. Society for Music Information Retrieval Conf. (ISMIR)</title>
+		<meeting>of the 15th Int. Society for Music Information Retrieval Conf. (ISMIR)<address><addrLine>Taipei, Taiwan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="155" to="160" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Website</surname></persName>
+		</author>
+		<ptr target="https://sigsep.github.io/datasets/musdb.html" />
+		<imprint>
+			<biblScope unit="page" from="1" to="05" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Srinivasamurthy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gulati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">C</forename><surname>Repetto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Serra</surname></persName>
+		</author>
+		<title level="m">Open Datasets for Research on Indian Art Music,º Empirical Musicology Review</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m">Proceedings of the 23rd ISMIR Conference</title>
+		<meeting>the 23rd ISMIR Conference<address><addrLine>Bengaluru, India</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">December 4-8, 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">ªEvaluation of quality of sound source separation algorithms: Human perception vs quantitative metrics</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Cano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Fitzgerald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Brandenburg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 24th European Signal Processing Conf</title>
+		<meeting>of the 24th European Signal essing Conf<address><addrLine>Budapest, Hungary</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1758" to="1762" />
+		</imprint>
+		<respStmt>
+			<orgName>EU-SIPCO</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">ªwebmushraÐa comprehensive framework for web-based listening tests</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Schoeffler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bartoschek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F.-R</forename><surname>Stöter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Roess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Westphal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Edler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Herre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Open Research Software</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

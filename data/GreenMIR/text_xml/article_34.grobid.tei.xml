@@ -1,0 +1,1326 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">SYMBOLIC MUSIC GENERATION WITH DIFFUSION MODELS</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Gautam</forename><surname>Mittal</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<country>Berkeley</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Jesse</forename><surname>Engel</surname></persName>
+							<email>jesseengel@google.com</email>
+							<affiliation key="aff1">
+								<orgName type="department">Google Brain</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Curtis</forename><surname>Hawthorne</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">Google Brain</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ian</forename><surname>Simon</surname></persName>
+							<email>iansimon@google.com</email>
+							<affiliation key="aff1">
+								<orgName type="department">Google Brain</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">SYMBOLIC MUSIC GENERATION WITH DIFFUSION MODELS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">714005FD911C7D4FAEDAFBFC7E39B771</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:14+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Score-based generative models and diffusion probabilistic models have been successful at generating high-quality samples in a variety of continuous domains. However, due to their Langevin-inspired sampling mechanisms, their application to discrete symbolic music data has been limited. In this work, we present a technique for training diffusion models on symbolic music data by parameterizing the discrete domain in the continuous latent space of a pre-trained variational autoencoder. Our method is nonautoregressive and learns to generate sequences of latent embeddings through the reverse process and offers parallel generation with a constant number of iterative refinement steps. We show strong unconditional generation and posthoc conditional infilling results compared to autoregressive language models operating over the same continuous embeddings.</p><p>Work completed during an internship at Google Brain.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Denoising diffusion probabilistic models (DDPMs) <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b2">2]</ref> are a promising new class of generative models that can synthesize comparably high-quality samples by learning to invert a diffusion process from data to Gaussian noise. Unlike many existing deep generative models, DDPMs sample through an iterative refinement process inspired by Langevin dynamics <ref type="bibr" target="#b3">[3]</ref>, which enables post-hoc conditioning of models trained unconditionally <ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr" target="#b6">[6]</ref><ref type="bibr" target="#b7">[7]</ref> for creative applications.</p><p>Despite these exciting advances, DDPMs have not yet been applied to symbolic music generation because their iterative refinement sampling process is confined to continuous domains such as images <ref type="bibr" target="#b2">[2]</ref> and audio <ref type="bibr" target="#b8">[8,</ref><ref type="bibr">9]</ref>. Similarly, DDPMs cannot take advantage of the recent advances in modeling long-term structure <ref type="bibr" target="#b10">[10]</ref><ref type="bibr" target="#b11">[11]</ref><ref type="bibr" target="#b12">[12]</ref> that use a two-stage process of modeling discrete tokens extracted by a separate low-level autoencoder.</p><p>In this paper, we demonstrate that it is possible to overcome these limitations by training DDPMs on the continuous latents of a low-level variational autoencoder (VAE)</p><p>• DDPMs outperforming strong autoregressive baselines (TransformerMDN) in hierarchical modeling of continuous latents, partly due to a lack of teacher forcing and exposure bias during training.</p><p>• Post-hoc conditional infilling of melodic sequences for creative applications.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">BACKGROUND 2.1 Denoising Diffusion Probabilistic Models</head><p>DDPMs <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b2">2]</ref> are a class of generative models that define latents x 1 , ..., x N of the same dimensionality as the data x 0 ∼ q(x 0 ). Diffusion models are comprised of a forward process and a reverse process. The forward process starts from the data x 0 and iteratively adds Gaussian noise according to a fixed noise schedule for N diffusion steps:</p><p>q(x t |x t-1 ) = N (x t ; 1 -β t x t-1 , β t I)</p><p>q(x 1:</p><formula xml:id="formula_1">N |x 0 ) = N t=1 q(x t |x t-1 )<label>(2)</label></formula><p>where β 1 , β 2 , ..., β N is a noise schedule that converts the data distribution x 0 into latent x N . The choice of noise schedule has been shown to have important effects on sampling efficiency and quality <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b8">8]</ref>.</p><p>The reverse process is defined by a Markov chain parameterized by θ that iteratively refines latent point x N ∼ N (0, I) into data point x 0 . The learned transition probabilities are defined as,</p><formula xml:id="formula_2">p θ (x t-1 |x t ) = N (x t-1 ; µ θ (x t , t), σ θ (x t , t))<label>(3)</label></formula><formula xml:id="formula_3">p θ (x 0:N ) = p(x N ) N t=1 p θ (x t-1 |x t )<label>(4)</label></formula><p>where the objective is to gradually denoise samples at each reverse diffusion step t. In practice, σ θ is set to an untrained time-dependent constant based on the noise schedule, and <ref type="bibr" target="#b2">[2]</ref> found σ θ (x t , t) = σ t = 1-ᾱt-1 1-ᾱt β t to have reasonable practical results, where α t = 1 -β t , and ᾱt = t i=1 α i . Figure <ref type="figure">1</ref>. A diagram of our proposed framework. We use the pre-trained 2-bar melody MusicVAE <ref type="bibr" target="#b13">[13]</ref> to embed discrete musical phrases (64 bars, 1024 tokens) into a sequence of continuous latent codes (32 latents, 512 dimensions each). These embeddings are used to train a diffusion model that iteratively adds noise such that after N diffusion steps the input embeddings are distributed N (0, I). To sample from this model, we initialize Gaussian noise and use the reverse process to iteratively refine the noise samples into a sequence of embeddings from the data distribution. These generated embeddings are fed through the MusicVAE decoder to produce the final MIDI sequence.</p><p>The training objective is to maximize the log likelihood of p θ (x 0 ) = p θ (x 0 , ..., x N )dx 1:N , but the intractability of this marginalization leads to the following evidence lower bound (ELBO):</p><formula xml:id="formula_4">E [log p θ (x 0 )] ≥ E q log p θ (x 0:N ) q(x 1:N |x 0 ) = E q   log p(x N ) + t≥1 log p θ (x t-1 |x t ) q(x t |x t-1 )  <label>(5)</label></formula><p>Additionally, <ref type="bibr" target="#b2">[2]</ref> observed that the forward process can be computed for any step t such that q(x t |x 0 ) = N (x t ; √ ᾱt x 0 , (1 -ᾱt )I), which can be viewed as a stochastic encoder. To simplify the above variational bound, <ref type="bibr" target="#b2">[2]</ref> propose training on pairs of (x t , x 0 ) to learn to parameterize this process with a simple squared L2 loss. The following objective is simpler to train, resembles denoising score matching <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b14">14]</ref> and was found to yield higher-quality samples:</p><formula xml:id="formula_5">L(θ) = E x0, ,t -θ ( √ ᾱt x 0 + √ 1 -ᾱt , t) 2 (<label>6</label></formula><formula xml:id="formula_6">)</formula><p>where t is sampled uniformly between 1 and N , ∼ N (0, I), and θ is the learned diffusion model. <ref type="bibr" target="#b8">[8]</ref> found that instead of conditioning on a discrete diffusion step t, it was beneficial to sample a continuous noise level √ ᾱ ∼ U( √ ᾱt-1 , √ ᾱt ) where t ∼ U({1, ..., N }) and ᾱ0 = 1.</p><p>We refer readers to Algorithms 2 and 3 based on <ref type="bibr" target="#b8">[8]</ref> in our supplementary material 1 for the full training and sampling procedure. 1 Supplementary material including additional implementation details, audio, and tables is available at <ref type="url" target="https://goo.gl/magenta/">https://goo.gl/magenta/</ref> symbolic-music-diffusion-examples</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Variational Autoencoders</head><p>Variational autoencoders <ref type="bibr" target="#b15">[15]</ref> are generative models that define p(y, z) = p(y|z)p(z) where z is a learned latent code for data point y. Additionally, the latent code is constrained such that z is distributed according to prior p(z) where the prior is usually an isotropic Gaussian. The VAE is comprised of an encoder q γ (z|y) which models the approximate posterior p(z|y) and a decoder p θ (y|z) which models the conditional distribution of data y given latent code z.</p><p>The training objective is to maximize the log likelihood of p θ (x) = p θ (y|z)p(z)dz, but this marginalization is intractable, and we use the following variational bound maximized with q γ (z|y) as the approximate posterior:</p><formula xml:id="formula_7">E [log p θ (y|z)] -KL(q γ (z|y)||p(z)) ≤ log p(y) (7)</formula><p>The flexible implementation of variational autoencoders allows them to learn representations over a wide variety of domains. Of particular interest to us are sequential autoencoders <ref type="bibr" target="#b13">[13,</ref><ref type="bibr" target="#b16">16]</ref> which use long short-term memory cells <ref type="bibr" target="#b17">[17]</ref> to model temporal context in sequential data distributions.</p><p>In practice, there is a trade-off between the quality of reconstructions and the distance between the approximate posterior q γ (z|y) and the Gaussian prior p(z). This makes sampling more difficult for VAEs with better reconstructions due to latent "holes" in the approximate posterior and is one of the primary shortcomings of these models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">MODEL</head><p>A diagram and description of our multi-stage diffusion model is shown in Figure <ref type="figure">1</ref>. We refer readers to the sup-plement for full implementation details.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Architecture</head><p>Our model learns to generate discrete sequences of notes (known as MIDI) by first training a VAE with parameters γ on the sequences and then training a diffusion model to capture the temporal relationships among the k VAE latents. Sequence VAEs such as MusicVAE are difficult to train on long sequences <ref type="bibr" target="#b13">[13]</ref>, which we overcome by pairing the short 2-bar MusicVAE model with a diffusion model capable of modeling dependencies between k = 32 latents, thus modeling 64 bars in total.</p><p>MusicVAE embeddings: Each musical phrase is a sequence of one-hot vectors with 16 quantized steps per measure and the vocabulary contains 90 possible tokens (1 note on + 1 note off + 88 pitches). We then parameterize each 2-bar phrase using the pre-trained 2-bar melody MusicVAE <ref type="bibr" target="#b13">[13]</ref> and generate a sequence of continuous latent embeddings z 1 , ..., z k to parameterize an entire sequence. The MusicVAE model employs bidirectional recurrent neural networks as an encoder and autoregressive decoding as shown in Figure <ref type="figure">4</ref> in the supplement. As we use the pretrained model from the original work, full model details can be found in <ref type="bibr" target="#b13">[13]</ref>. After encoding each 2-measure phrase into a latent z embedding, we perform linear feature scaling such that the domain of each embedding is [-1, 1]. This ensures consistently scaled inputs starting from the isotropic Gaussian latent x N for the diffusion model.</p><p>Transformer diffusion model: <ref type="bibr" target="#b18">[18]</ref> where k = 32 is the length of each sequence of 42dimensional preprocessed latent embeddings.</p><formula xml:id="formula_8">Our network θ (x t , √ ᾱ) : R k×42 × R → R k×42 is a transformer</formula><p>The unperturbed data distribution used to train the diffusion model is x 0 = [z 1 , ..., z k ]. The network contains an initial fully-connected layer that projects the embeddings into a 128-dimensional space, followed by L = 6 encoder layers each with H = 8 self-attention heads and a residual fully-connected layer. All self-attention and fully-connected layers use layer normalization <ref type="bibr" target="#b19">[19]</ref>. The output of the encoder is fed to K = 2 noise-conditioned residual fully-connected layers which generate the reverse process output. Each fully-connected layer contains 2048 neurons. We use a 128-dimensional sinusoidal positional encoding similar to <ref type="bibr" target="#b18">[18]</ref> where j is the position index of a latent input embedding:</p><formula xml:id="formula_9">ω = 10 -4×0 63 j, ..., 10 -4×63 63 j e j = [sin(ω), cos(ω)]<label>(8)</label></formula><p>This positional encoding e 1 , e 2 , ..., e k is added to inputs x t before being fed through the transformer encoder layers allowing the model to capture the temporal context of the continuous inputs.</p><p>Noise schedule and conditioning: As described in both the original diffusion model framework <ref type="bibr" target="#b2">[2]</ref> and in <ref type="bibr" target="#b8">[8]</ref>, we use an additional sinusoidal encoding to condition the diffusion model on a continuous noise level during training and sampling. This noise encoding is identical to the positional encoding described above but with the frequency of each sinusoid scaled by 5000 to account for the updated domain. We use feature-wise linear modulation <ref type="bibr" target="#b20">[20]</ref> to generate γ (scale) and ξ (shift) parameters given a noise encoding and apply the transformation γφ+ξ to the output φ of each layer normalization block in each residual layer, allowing for effective conditioning of the diffusion model. Our model uses a linear noise schedule with N = 1000 steps and β 1 = 10 -6 and β N = 0.01.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Unconditional Generation</head><p>In the unconditional generation task, the goal is to produce samples that exhibit long-term structure. Because of our multi-stage approach, this works even in the scenario where the KL divergence between the marginal posterior q γ (z) and the Gaussian prior is quite large because the diffusion model accurately captures the structure of the latent space therefore improving the sample quality. Additionally, we extend the underlying VAE to samples longer than what it was trained to model by using the diffusion model to predict sequences of latent embeddings and attempt to generate unconditional samples with coherent patterns across a large number of measures.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Infilling</head><p>One of the benefits of using a sampling process that iteratively refines noise into data samples is that the trajectory of the reverse process can be steered and arbitrarily conditioned without the need for retraining the diffusion model. In creative domains, this post-hoc conditioning is especially useful for artists without the computational resources to modify or re-train deep models for new tasks. We demonstrate the power of diffusion modeling applied to music with conditional infilling of latent embeddings using an unconditionally trained diffusion model.</p><p>The infilling procedure extends the sampling procedure described in Algorithm 3 by incorporating information from a partially occluded sample s. At each step of sampling, we diffuse the fixed regions of s with the forward process q(s t |s) = N (s t ; √ ᾱt s, (1 -ᾱt )I) and use a mask m to add the diffused fixed regions to the updated sample x t-1 . The final output x 0 will be a version of s with the occluded regions inpainted by the reverse process.</p><p>We refer readers to Algorithm 1 for the modified sampling procedure that allows for post-hoc conditional infilling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1 Infilling</head><p>Input: mask m, sample s, N steps, β 1 , ..., β N x N ∼ N (0, I) for t = N, ..., 1 do 4. METHODS</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Data</head><p>We use the Lakh MIDI Dataset (LMD) <ref type="bibr" target="#b21">[21]</ref> for all experiments. The dataset contains over 170,000 MIDI files with 99% of those files used for training and the remaining used for validation. We extracted 988,893 64-bar monophonic sequences for training and 11,295 for validation from the provided MIDI files. Each sequence was encoded into 32 continuous latent embeddings using MusicVAE. We set the softmax temperature for MusicVAE to 0.001 for decoding generated embeddings in all experiments. A diagram of the MusicVAE architecture used is shown in the supplementary material.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Autoregressive Baseline</head><p>We compare our model to an autoregressive transformer with a mixture density output layer <ref type="bibr" target="#b22">[22]</ref> and train on the same dataset as the diffusion model. To ensure a fair comparison, we use the same architecture as our diffusion model with L = 6, H = 8, and K = 2 with 2048 neurons for each fully-connected layer. The mixture density layer outputs a mixture of 100 Gaussians to ensure sufficient mode coverage. In total, our baseline model has 38M trainable parameters. While the model is the same as the diffusion model (25.58M trainable parameters) up until the output layer, the autoregressive model has more parameters due to the much larger output layer. We refer to this model as TransformerMDN.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Training</head><p>All models were trained using Adam <ref type="bibr" target="#b23">[23]</ref> with default parameters. We trained our diffusion model for 500K steps on a single NVIDIA Tesla V100 GPU for 6.5 hours using a learning rate of 10 -3 annealed with a decay rate of 0.98 every 4000 steps and batch size 64. Unlike the diffusion model, which is non-autoregressive, we train Transformer-MDN with teacher forcing. We use a batch size of 128, learning rate 3 × 10 -4 , and train for 250K steps on a single NVIDIA Tesla V100 GPU for 6.5 hours.</p><p>We used the open-source implementation of MusicVAE written in TensorFlow <ref type="bibr" target="#b24">[24]</ref> and the publicly available 2-bar melody checkpoints trained on LMD. We trained our diffusion and baseline models <ref type="foot" target="#foot_3">2</ref> with JAX <ref type="bibr" target="#b25">[25]</ref> and Flax <ref type="bibr" target="#b26">[26]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Framewise Self-similarity Metric</head><p>To evaluate the statistical similarity between our model's qualitative output and the original training sequences, we present a metric that captures local self-similarity patterns across generated melodic sequences. Inspired by the statistical similarity evaluation described in <ref type="bibr" target="#b27">[27]</ref>, we evaluate our models with a modified framewise Overlapping Area (OA) metric.</p><p>We use a sliding 4-measure window with 2-measure hop size to capture local pitch and duration statistics across the piece. Within each 4-measure frame, we compute the mean and variance of both pitch, which captures melodic similarity, and duration, which captures rhythmic similarity. These statistics specify a Gaussian PDF for pitch and duration for each frame (p P (k), p D (k)). We compute the Overlapping Area (OA) <ref type="bibr" target="#b27">[27]</ref> of adjacent frames (k, k + 1) where each frame's statistics are modeled as N (µ 1 , σ 2 1 ) and N (µ 2 , σ 2  2 ), respectively:</p><formula xml:id="formula_10">OA(k, k + 1) = 1 -erf c -µ 1 √ 2σ 2 1 + erf c -µ 2 √ 2σ 2 2 (9)</formula><p>for both pitch (OA P ) and duration (OA D ), where erf is the Gauss error function and c is the point of intersection between Gaussian PDFs with µ 1 &lt; µ 2 . For a set of MIDI samples, we infer the Consistency and Variance from the mean (µ OA ) and variance (σ 2 OA ) respectively of OA aggregated over all adjacent frames. We then use these aggregate values to compute the normalized relative similarity of pitch and duration consistency and variance to the training set (GT):</p><formula xml:id="formula_11">Consistency = max(0, 1 - |µ OA -µ GT | µ GT ) V ariance = max(0, 1 - |σ 2 OA -σ 2 GT | σ 2 GT )<label>(10)</label></formula><p>We clip Consistency and Variance such that samples with µ OA or σ 2</p><p>OA with greater than 100% percent error from the ground truth are considered to have zero relative similarity.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Latent Space Evaluation</head><p>We evaluate the similarity of latent embeddings generated by each of our models using the Fréchet distance (FD) <ref type="bibr" target="#b28">[28]</ref> and Maximum Mean Discrepancy (MMD) <ref type="bibr" target="#b29">[29]</ref> with a polynomial kernel, which are popular evaluation metrics in the generative modeling literature. These metrics measure the distance between the models' continuous output distributions and the original data distribution in latent space. It is important to note that this metric does not measure long-term temporal consistency or quality of produced sequences and only measures the quality of the intermediate continuous representation before the final sequence is generated using the MusicVAE decoder.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">RESULTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Unconditional Generation</head><p>To evaluate unconditional sample quality, we compare batches of 1000 samples (32 latents each) generated by our proposed diffusion model with random draws from the training and test sets. We compare against a set of baseline generators including TransformerMDN, the independent N (0, I) MusicVAE prior, and spherical interpolation <ref type="bibr" target="#b30">[30]</ref> between two MusicVAE embeddings at the start and end of an example from the test set.</p><p>As seen in Table <ref type="table">1</ref>, the diffusion model quantitatively produces samples most similar to the training data according to the relative framewise overlapping area metrics for   <ref type="table">1</ref>. Framewise self-similarity of consistency (C) and variance (Var), as defined in Equation <ref type="formula" target="#formula_11">10</ref>, for note pitch and duration. For both unconditional sampling and infilling tasks, the diffusion model produces samples most similar to the real data. For diffusion samples, we use N = 1000 sampling steps with β 1 = 10 -6 and β N = 0.01. For the TransformerMDN baseline we sample with a temperature of 1.0, meaning we sampled directly from the logits of mixture density layer. Absolute values of overlap area can be found in Table <ref type="table">2</ref> in our supplementary material.</p><p>note pitch and duration. The diffusion model outperforms TransformerMDN, which is challenged by modelling the relatively high-dimensional continuous latents autoregressively, even with a mixture of Gaussians output. The autoregressive models are also trained with teacher forcing that results in exposure bias, leading to divergence from the data distribution during sampling. This is reflected in the lower pitch and duration consistency and higher variance in the absolute overlapping area numbers seen in Supplemental Table <ref type="table">2</ref>. Additionally, the diffusion model is able to capture the joint dependencies of the sequences better because it learns to model all latents simultaneously as opposed to autoregressively. Note that the Gaussian prior also suffers from low consistency and high variance, due to lack of temporal dependencies, while the interpolated samples conversely suffer from low variance and too much consistency due to high repetition.</p><p>Table <ref type="table">3</ref> in our supplement presents latent space evaluations of our generated samples. The TransformerMDN outperformed all other models, likely due to the Gaussian mixture prior on its output layer whereas the diffusion model must learn the output distribution from scratch. Furthermore, the latent space metrics are limited by assumptions about the latent manifold distribution and are unable to fully capture the detail of the entire space, further highlighting the necessity of our quantitative framewise selfsimilarity metrics and qualitative evaluations. samples of the generated sequences from each model 3 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Infilling</head><p>To probe the diffusion model's ability to perform post-hoc conditional generation, we remove the middle 32 measures (16 embeddings) and generate new embeddings following Algorithm 1 by conditioning on the first and last 8 embeddings. As in the unconditional setting, we compare to interpolation and independent samples from the prior. Figure <ref type="figure" target="#fig_0">2</ref> visualizes the task by plotting the resulting note sequences for two different examples. Even qualitatively, it is visually apparent that the diffusion model produces notes with a consistency and variance similar to the original data. Latent interpolation is very consistent but unrealistically repetitive, and sampling independently from the prior produces a sequence with extremely large variance that is inconsistent in both pitch and duration.</p><p>The quantitative evaluations in Table <ref type="table">1</ref> back up these observations. Similar to the unconditional generation task, the diffusion model outperforms the baselines in both consistency and variance similarity. We do not include the au-3 <ref type="url" target="https://goo.gl/magenta/symbolic-music-">https://goo.gl/magenta/symbolic-music-</ref>diffusion-examples toregressive baseline because it is unable to condition on the final 8 embeddings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">RELATED WORK</head><p>Multi-stage learning: Several models have achieved longterm structure by first modeling some intermediate representation and then using that to guide the final generative process. Wave2Midi2Wave <ref type="bibr" target="#b31">[31]</ref> uses a transformer to generate MIDI-like symbolic data and then a WaveNet <ref type="bibr" target="#b32">[32]</ref> to synthesize that symbolic data into audio. Jukebox <ref type="bibr" target="#b11">[11]</ref> and DALL-E <ref type="bibr" target="#b12">[12]</ref> use similar approaches for text-conditioned generative music audio and image models. There has also been work investigating the extension of a singlemeasure VAE to multiple measures by using an autoregressive LSTM with a mixture density output layer <ref type="bibr" target="#b33">[33]</ref>, similar to TransformerMDN.</p><p>Iterative refinement: <ref type="bibr" target="#b34">[34]</ref> use an orderless NADE with blocked Gibbs sampling to iteratively rewrite musical harmonies based on surrounding context. <ref type="bibr" target="#b35">[35]</ref> use a gradientbased sampler combined with a restricted Boltzmann machine to generate polyphonic piano music. Similarly, <ref type="bibr" target="#b36">[36]</ref> investigated the use of a score-based generative model <ref type="bibr" target="#b5">[5]</ref> to generate Bach chorales with annealed Langevin dynamics. A key distinction between our method and prior work is the use of a VAE to parameterize the discrete space of musical notes for improved generation with a DDPM while previous methods have performed iterative refinement in the discrete space directly.</p><p>Conditional sampling from unconditional models: We build on top of the breadth of material that investigate steering generation in the latent space of an unconditionally trained generative model <ref type="bibr" target="#b37">[37]</ref><ref type="bibr" target="#b38">[38]</ref><ref type="bibr" target="#b39">[39]</ref><ref type="bibr" target="#b40">[40]</ref>. Most similar to our work is <ref type="bibr" target="#b4">[4,</ref><ref type="bibr" target="#b37">37,</ref><ref type="bibr" target="#b41">41]</ref> which train an additional model on top of a pre-trained variational autoencoder to steer generation in the latent space of that autoencoder. Our approach builds on top of this by not only improving sampling and generation of the underlying autoencoder but also extending generation to sequences much longer than those used to train the VAE. We also use a diffusion model to refine generation and provide conditional infilling while the works mentioned primarily used conditional GANs and VAEs to extend the underlying autoencoder for a single latent embedding as opposed to a sequence of latent embeddings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.">CONCLUSION</head><p>We have proposed and demonstrated a multi-stage generative model comprised of a low-level variational autoencoder with continuous latents modeled by a higher-level diffusion model. This approach enables using diffusion models on discrete data, and as priors for modeling longterm structure in multi-stage systems. We demonstrate that this model is useful for symbolic music generation, both in unconditional generation and conditional infilling. Future work will include extending this approach to other discrete data such as text, and exploring a greater array of approaches for post-hoc conditioning in creative applications.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Example piano rolls of infilling experiments. For each example (A, B) the first and last 256 melody tokens are held constant, and the interior 512 tokens are filled in by the model (dashed red box). Even qualitatively, it is visually apparent that the diffusion model (second row) produces notes with a consistency and variance similar to the original data (first row), while the latent interpolation (third row) is too repetitive, and sampling independently from the prior (last row) produces outputs with too much variety and lack of local coherence.</figDesc><graphic coords="5,311.25,274.91,224.98,64.75" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 Figure 3 .</head><label>33</label><figDesc>Figure3helps us to further understand the iterative refinement process by showing the improvement in sample quality as a function of iterative refinement time for both latent space and framewise self-similarity metrics. Interestingly, latent metrics improve steadily, while consistency similarity starts fairly high, and variance similarity only emerges at the end of refinement. We refer the reader to the supplementary material for extended visual and audio</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="2,128.12,68.54,341.31,200.36" type="bitmap" /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 22nd ISMIR Conference, Online,November 7-12, 2021   </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>,</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_2"><p>∼ N (0, I) if t &gt; 1, else 1 = 2 = 0 y = √ ᾱt s + √ 1 -ᾱt 1 if t &gt; 1, else s x t-1 = 1 √ αt x t -1-αt √ 1-ᾱt θ (x t , √ ᾱt ) + σ t 2 x t-1 = x t-1 (1 -m) + y m end for return x 0Proceedings of the 22nd ISMIR Conference, Online,November 7-12, 2021   </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_3"><p>Our implementation is available at https://github.com/ magenta/symbolic-music-diffusion</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_4"><p>Proceedings of the 22nd ISMIR Conference, Online, November 7-12,</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="8.">ACKNOWLEDGEMENTS</head><p>We thank <rs type="person">Anna Huang</rs>, <rs type="person">Carrie Cai</rs>, <rs type="person">Sander Dieleman</rs>, <rs type="person">Doug Eck</rs> and the rest of the Magenta team for helpful discussions, feedback, and encouragement.</p></div>
+			</div>			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Deep unsupervised learning using nonequilibrium thermodynamics</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sohl-Dickstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Maheswaranathan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ganguli</surname></persName>
+		</author>
+		<ptr target="http://proceedings.mlr.press/v37/sohl-dickstein15.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 32nd International Conference on Machine Learning, ser. Proceedings of Machine Learning Research</title>
+		<editor>
+			<persName><forename type="first">F</forename><surname>Bach</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">D</forename><surname>Blei</surname></persName>
+		</editor>
+		<meeting>the 32nd International Conference on Machine Learning, ser. Machine Learning Research<address><addrLine>Lille, France</addrLine></address></meeting>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2015-07">Jul 2015</date>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="2256" to="2265" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Denoising diffusion probabilistic models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Abbeel</surname></persName>
+		</author>
+		<ptr target="https://proceedings.neurips.cc/paper/2020/file/4" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="first">M</forename><surname>Larochelle</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">R</forename><surname>Ranzato</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">M</forename><forename type="middle">F</forename><surname>Hadsell</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">H</forename><surname>Balcan</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Lin</surname></persName>
+		</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="6840" to="6851" />
+		</imprint>
+	</monogr>
+	<note>c5bcfec8584af0d967f1ab10179ca4b-Paper.pdf</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Bayesian learning via stochastic gradient langevin dynamics</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Welling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">W</forename><surname>Teh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on International Conference on Machine Learning, ser. ICML&apos;11</title>
+		<meeting>the 28th International Conference on International Conference on Machine Learning, ser. ICML&apos;11<address><addrLine>Madison, WI, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Omnipress</publisher>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="681" to="688" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Latent constraints: Learning to generate conditionally from unconditional generative models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=Sy8XvGb" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Generative modeling by estimating gradients of the data distribution</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ermon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page">907</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Improved techniques for training score-based generative models</title>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 33: Annual Conference on Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="first">M</forename><surname>Larochelle</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">R</forename><surname>Ranzato</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">M</forename><surname>Hadsell</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">H</forename><surname>Balcan</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Lin</surname></persName>
+		</editor>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-12-06">2020. 2020. December 6-12, 2020. 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Implicit generation and modeling with energy based models</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Mordatch</surname></persName>
+		</author>
+		<ptr target="https://proceedings.neurips.cc/paper/2019/file/378" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems, H. Wallach</title>
+		<editor>
+			<persName><forename type="first">H</forename><surname>Larochelle</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Beygelzimer</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">F</forename><surname>Alché-Buc</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">E</forename><surname>Fox</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">R</forename><surname>Garnett</surname></persName>
+		</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+	<note>Available. a063b8fdb1db941e34f4bde584c7d-Paper.pdf</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Wavegrad: Estimating gradients for waveform generation</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chan</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=NsMLjcFaO8O" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Diffwave: A versatile diffusion model for audio synthesis</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Ping</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Catanzaro</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=a-xFK8Ymz5J" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Generating diverse high-fidelity images with vq-vae-2</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Van Den Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<ptr target="https://proceedings.neurips.cc/paper/2019/file/5" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="first">H</forename><surname>Wallach</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">H</forename><surname>Larochelle</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Beygelzimer</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">F</forename><surname>Alché-Buc</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">E</forename><surname>Fox</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">R</forename><surname>Garnett</surname></persName>
+		</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+	<note>f8e2fa1718d1bbcadf1cd9c7a54fb8c-Paper.pdf</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Payne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2005.00341</idno>
+		<title level="m">Jukebox: A generative model for music</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Dall•e: Creating images from text</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Pavlov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Goh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Misra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<ptr target="https://openai.com/blog/dall-e" />
+	</analytic>
+	<monogr>
+		<title level="j">OpenAI blog</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">A hierarchical latent vector model for learning long-term structure in music</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+		<ptr target="http://proceedings.mlr.press/v80/roberts18a.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 35th International Conference on Machine Learning, ser. Proceedings of Machine Learning Research</title>
+		<editor>
+			<persName><forename type="first">J</forename><surname>Dy</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Krause</surname></persName>
+		</editor>
+		<meeting>the 35th International Conference on Machine Learning, ser. Machine Learning Research</meeting>
+		<imprint>
+			<date type="published" when="2018-07-15">10-15 Jul 2018</date>
+			<biblScope unit="volume">80</biblScope>
+			<biblScope unit="page" from="4364" to="4373" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">A connection between score matching and denoising autoencoders</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Vincent</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="issue">7</biblScope>
+			<biblScope unit="page" from="1661" to="1674" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Auto-encoding variational bayes</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Welling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Second International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Generating sentences from a continuous space</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">R</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Vilnis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bengio</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Layer normalization</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">L</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">R</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1607.06450</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd ISMIR Conference</title>
+		<meeting>the 22nd ISMIR Conference<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016-11-07">2016. November 7-12, 2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Film: Visual reasoning with a general conditioning layer</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Strub</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">De</forename><surname>Vries</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Dumoulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Learning-based methods for comparing sequences, with applications to audio-to-midi alignment and matching</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+		<respStmt>
+			<orgName>Columbia University</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">Ph.D. dissertation</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Mixture density networks</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">M</forename><surname>Bishop</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1994">1994</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Tensorflow: A system for large-scale machine learning</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Abadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Barham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Davis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Devin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ghemawat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Irving</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Isard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">12th {USENIX} symposium on operating systems design and implementation</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="265" to="283" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">JAX: composable transformations of Python+NumPy programs</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Frostig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Hawkins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">J</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Leary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Maclaurin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Necula</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Paszke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Vanderplas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wanderman-Milne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhang</surname></persName>
+		</author>
+		<ptr target="http://github.com/google/jax" />
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Flax: A neural network library and ecosystem for JAX</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Heek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Levskaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Oliver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ritter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Rondepierre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Steiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Van Zee</surname></persName>
+		</author>
+		<ptr target="http://github.com/google/flax" />
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Encoding musical style with transformer autoencoders</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1899" to="1908" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Gans trained by a two time-scale update rule converge to a local nash equilibrium</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Heusel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Ramsauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Unterthiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Nessler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">A kernel two-sample test</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gretton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">M</forename><surname>Borgwardt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">J</forename><surname>Rasch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Schölkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Smola</surname></persName>
+		</author>
+		<ptr target="http://jmlr.org/papers/v13/gretton12a.html" />
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="issue">25</biblScope>
+			<biblScope unit="page" from="723" to="773" />
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Sampling generative networks</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>White</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.04468</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Enabling factorized piano music modeling and generation with the MAE-STRO dataset</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Stasyuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Elsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=r1lYRjC9F7" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Wavenet: A generative model for raw audio</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">V D</forename><surname>Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Senior</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.03499</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Modeling selfrepetition in music generation using generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jhamtani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Counterpoint by convolution</title>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Cooijmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<ptr target="https://ismir2017.smcnus.org/wp-content/uploads/2017/10/187_Paper.pdf" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ISMIR 2017</title>
+		<meeting>ISMIR 2017</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Imposing higher-level structure in polyphonic music generation using convolutional restricted boltzmann machines and constraints</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lattner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Grachten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1612.04742</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Generative modeling of bach chorales by gradient estimation</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Sirohi</surname></persName>
+		</author>
+		<ptr target="https://www.ekzhang.com/assets/pdf/Generative_Music_Modeling.pdf" />
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Plug &amp; play generative networks: Conditional iterative generation of images in latent space</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Clune</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dosovitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yosinski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="4467" to="4477" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Learning via social awareness: improving sketch representations with facial feedback</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Jaques</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Ha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Bertsch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Picard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/1802.04877" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note>workshop Track</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">On the&quot; steerability&quot; of generative adversarial networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jahanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Chai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Isola</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.07171</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Plug and play language models: A simple approach to controlled text generation</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dathathri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Madotto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Frank</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Molino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yosinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1912.02164</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m">MidiMe: Personalizing a MusicVAE model with user data</title>
+		<editor>
+			<persName><forename type="first">M</forename><surname>Dinculescu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</editor>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">Elbo surgery: yet another way to carve up the variational evidence lower bound</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">J</forename><surname>Johnson</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Fixing a broken elbo</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Alemi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Poole</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Fischer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dillon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">A</forename><surname>Saurous</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Murphy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Pmlr</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="159" to="168" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m">Proceedings of the ISMIR Conference</title>
+		<meeting>the ISMIR Conference<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">November 7-12, 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

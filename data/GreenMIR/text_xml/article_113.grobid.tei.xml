@@ -1,0 +1,1314 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">TRANSFER LEARNING OF WAV2VEC 2.0 FOR AUTOMATIC LYRIC TRANSCRIPTION</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Longshen</forename><surname>Ou</surname></persName>
+							<email>longshen@comp.nus.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing</orgName>
+								<orgName type="institution">National University of Singapore</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xiangming</forename><surname>Gu</surname></persName>
+							<email>xiangming@comp.nus.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing</orgName>
+								<orgName type="institution">National University of Singapore</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ye</forename><surname>Wang</surname></persName>
+							<email>wangye@comp.nus.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing</orgName>
+								<orgName type="institution">National University of Singapore</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">TRANSFER LEARNING OF WAV2VEC 2.0 FOR AUTOMATIC LYRIC TRANSCRIPTION</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">BF40F043C415F321D23247B3C8E44C54</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:13+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Automatic speech recognition (ASR) has progressed significantly in recent years due to the emergence of large-scale datasets and the self-supervised learning (SSL) paradigm. However, as its counterpart problem in the singing domain, the development of automatic lyric transcription (ALT) suffers from limited data and degraded intelligibility of sung lyrics. To fill in the performance gap between ALT and ASR, we attempt to exploit the similarities between speech and singing. In this work, we propose a transfer-learning-based ALT solution that takes advantage of these similarities by adapting wav2vec 2.0, an SSL ASR model, to the singing domain. We maximize the effectiveness of transfer learning by exploring the influence of different transfer starting points. We further enhance the performance by extending the original CTC model to a hybrid CTC/attention model. Our method surpasses previous approaches by a large margin on various ALT benchmark datasets. Further experiments show that, with even a tiny proportion of training data, our method still achieves competitive performance.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Automatic lyric transcription (ALT) systems allow for lyrics to be obtained from large musical datasets without requiring laborious manual transcription. These lyrics can then be used for many music information retrieval (MIR) tasks, including query by singing <ref type="bibr" target="#b1">[1]</ref>, audio indexing <ref type="bibr" target="#b2">[2]</ref>, etc. Besides, because lyric alignment systems are typically built upon ALT models <ref type="bibr" target="#b3">[3,</ref><ref type="bibr" target="#b4">4]</ref>, a strong-performing ALT model can lay a solid foundation for better audio-to-text alignment performance. Consequently, ALT is becoming an increasingly active topic in the recent MIR community.</p><p>One option for improving ALT performance is to incorporate knowledge obtained from studies involving the transcription of speech. Indeed, ALT is usually treated as a separate problem from automatic speech recognition (ASR), e.g., <ref type="bibr">[3,5±8]</ref>, eschewing large-scale speech datasets © Longshen Ou, Xiangming Gu, Ye Wang. Licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0). Attribution: Longshen Ou, Xiangming Gu, Ye Wang, ªTransfer Learning of wav2vec 2.0 for Automatic Lyric Transcriptionº, in Proc. of the 23rd Int. Society for Music Information Retrieval Conf., Bengaluru, India, 2022. and well-developed ASR systems. However, the absence of large-scale singing datasets has impeded the construction of high-performing ALT models. While there are distinctions between sung and spoken language, e.g., sung language being less intelligible and hence harder to recognize <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b9">9]</ref>, they share many similarities, such as having the same vocabularies and being produced by similar physical mechanisms. Therefore, we believe it is worth investigating whether we can use knowledge and datasets from the speech domain to compensate for the inadequacy of singing datasets and bolster the performance of ALT systems.</p><p>Transfer learning methods have been found to effectively alleviate the requirement for a large amount of training data for some low-resource tasks <ref type="bibr" target="#b10">[10,</ref><ref type="bibr" target="#b11">11]</ref>. For example, speech recognition for non-native speakers <ref type="bibr" target="#b12">[12]</ref>, and machine translation for low-resource languages <ref type="bibr" target="#b13">[13]</ref>. In such scenarios, transfer learning helps mitigate the problem of insufficient data by adapting data and knowledge from related high-resource tasks or domains.</p><p>In recent years, self-supervised learning (SSL) has become a new paradigm in ASR research. Several SSL methods can perform excellently with access to only a few hours or even a few minutes of labeled data [14±16]. Among them, wav2vec 2.0 <ref type="bibr" target="#b16">[16]</ref> has been shown to be a particularly promising model for transfer learning <ref type="bibr" target="#b12">[12]</ref>. wav2vec 2.0 is an effective few-shot learner that only requires a small amount of data from the target domain or problem to achieve impressive results <ref type="bibr" target="#b17">[17,</ref><ref type="bibr" target="#b18">18]</ref>. This property makes wav2vec 2.0 a promising candidate to help ALT systems overcome the issue of limited training data by transferring speech representation knowledge to the singing domain.</p><p>The contributions of this paper contain four aspects:</p><p>• We propose an ALT solution that takes advantage of the similarities between spoken and singing voices. This is achieved by performing transfer learning using wav2vec 2.0 on singing data after pretraining and finetuning on speech data.</p><p>• We maximize the effectiveness of transfer learning by exploring the influence of different transfer starting points. We show that both pretraining and finetuning on speech data contribute to the high performance of our ALT system.</p><p>• We further enhance the system's performance by extending the original connectionist temporal classification (CTC) model to a hybrid CTC/attention model for better convergence and more accurate decoding.</p><p>• Our method surpasses previous ones on various benchmark ALT datasets, including DSing <ref type="bibr" target="#b5">[5]</ref>, DALI <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b20">20]</ref>, Jamendo <ref type="bibr" target="#b21">[21]</ref>, Hansen <ref type="bibr" target="#b22">[22]</ref>, and Mauch <ref type="bibr" target="#b23">[23]</ref>, by about 25% relative WER reduction on average. We further show that with less than one-tenth of labeled singing data, our method can still achieve state-of-the-art results on the test split of DSing, demonstrating its effectiveness in lowresource ALT setups.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Automatic Lyric Transcription</head><p>Recent progress in lyric transcription has been mainly driven by three factors. First, the construction and curation of datasets containing aligned audio and lyrics, including DAMP Sing! 300x30x2 <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b24">24]</ref> and DALI <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b20">20]</ref>, lay the foundation for data-driven ALT models. Second, the design of ALT acoustic models benefits from architectures of automatic speech recognition (ASR) models and can be further improved by adopting singing domain knowledge as inductive bias. Representative work includes TDNN-F with its variants <ref type="bibr">[3,5±7]</ref> and vanilla/convolutionaugmented Transformers <ref type="bibr">[8,</ref><ref type="bibr" target="#b25">25,</ref><ref type="bibr" target="#b26">26]</ref>. Additionally, <ref type="bibr" target="#b27">[27]</ref> proposed to leverage the complementary information of additional modalities (video and wearable IMU sensors) for ALT systems. Third, through data augmentation methods such as adjusting speech data to make it more ªsonglikeº <ref type="bibr" target="#b28">[28]</ref> or synthesizing singing voice from speech voice <ref type="bibr" target="#b25">[25,</ref><ref type="bibr" target="#b26">26]</ref>, more training data can be created for ALT models, thus alleviating the data sparsity problem.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Self-supervised speech representation learning</head><p>The success of deep learning methods is highly related to the power of the learned representations. Although supervised learning still dominates the speech representation learning field, it has several drawbacks. For example, substantial amounts of labeled data are required to train supervised learning ASR models <ref type="bibr" target="#b15">[15,</ref><ref type="bibr" target="#b16">16]</ref>. Moreover, representations obtained through supervised learning tend to be biased to specific problems, thus are difficult to extend to other applications <ref type="bibr" target="#b29">[29]</ref>.</p><p>To mitigate the above problems, a series of selfsupervised learning (SSL) frameworks for speech representation learning have emerged, e.g., Autoregressive Predictive Coding (APC) <ref type="bibr" target="#b30">[30]</ref>, Contrastive Predictive Coding (CPC) <ref type="bibr" target="#b15">[15]</ref>, and Masked Predictive Coding (MPC) <ref type="bibr" target="#b14">[14,</ref><ref type="bibr" target="#b31">31,</ref><ref type="bibr" target="#b32">32]</ref>. Moreover, wav2vec 2.0 takes advantage of both CPC and MPC to conduct self-supervised learning and has become the new paradigm for the ASR task <ref type="bibr" target="#b16">[16]</ref>. wav2vec 2.0 has been also widely adopted as the feature extractor for other speech-related applications, e.g. speech emotion recognition <ref type="bibr" target="#b33">[33,</ref><ref type="bibr" target="#b34">34]</ref>, keyword spotting <ref type="bibr" target="#b35">[35]</ref>, speaker verification and language identification <ref type="bibr" target="#b36">[36]</ref>, demonstrating that speech representations learned from wav2vec 2.0 are robust and transferable for downstream tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHODOLOGY</head><p>In this section, we firstly recap the structure of wav2vec 2.0 <ref type="bibr" target="#b16">[16]</ref>. Then we elaborate on the three training stages of the proposed methods, including pretraining on speech data, finetuning on speech data, and transferring to the singing domain.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Structure of wav2vec 2.0</head><p>As shown in Fig. <ref type="figure" target="#fig_0">1</ref>, wav2vec 2.0 is built with a CNN-based feature encoder, a Transformer-based context network, and a quantization module. For raw audio inputs x with a sampling rate of 16 kHz, the feature encoder accepts x and obtains the latent speech representations z. The feature encoder has seven blocks, each of which includes a 1D temporal convolution with 512 channels followed by layer normalization <ref type="bibr" target="#b37">[37]</ref> and GELU activation <ref type="bibr" target="#b38">[38]</ref>. Consequently, z ∈ R T ×1024 are 2D representations with a frequency of 49 Hz. To exploit the temporal relationship among different frames of latent representations, z are further fed into the context network, which is parameterized by 12 Transformer blocks <ref type="bibr" target="#b39">[39]</ref>. Each block has a multi-head attention module with 16 attention heads and a Feed-Forward Network (FFN) with 4,096 hidden dimensions. Resulting context representations c ∈ R T ×1024 are the features extracted from the audio signal and used for downstream tasks.</p><p>In addition to being fed into the context network, z are also accepted by a quantization module, which learns quantized speech representations q, thus facilitating the self-supervised training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Stage I:</head><p>Pretraining on speech data wav2vec 2.0 is pretrained through an SSL method <ref type="bibr" target="#b16">[16]</ref> on large-scale unlabeled speech data, as displayed in Fig. <ref type="figure" target="#fig_0">1(a)</ref>. Before latent representations z are fed into the context network, several consecutive frame sequences are randomly masked. The masked frames are replaced by a trainable vector. wav2vec 2.0 is trained by optimizing the combination of contrastive loss and diversity loss L m + αL d (α refers to a balancing hyper-parameter). The contrastive objective is defined as:</p><formula xml:id="formula_0">L m = -log exp(sim(c t , q t )/κ) q∼Q t exp(sim(c t , q t )/κ)<label>(1)</label></formula><p>where c t is t-th frame of context representations, Q t represents all possible quantized representations, the temperature value κ is set as 0.1 and sim refers to the cosine similarity. The diversity loss L d is designed to encourage the usage of all entries in codebooks. We refer readers to <ref type="bibr" target="#b16">[16]</ref> for more details. The whole model is trained by optimizing the connectionist temporal classification (CTC) loss L CTC <ref type="bibr" target="#b40">[40]</ref>. Suppose the ground-truth transcription is w * , which is a sequence of character tokens. The CTC loss is defined as:</p><formula xml:id="formula_1">L CTC = -log π∈B -1 (w * ) T t=1 p(π t |f t )<label>(2)</label></formula><p>where f t refers to c t in this stage, T is the number of frames, B is a function to map an alignment sequence π 1:T to w * 1:N (where N represents the number of character tokens) by removing duplicate characters and blanks while its inverse function B -1 (w * ) refers to all the CTC paths mapped from w * . For speech data, there are 31 tokens for character targets, including 26 letters, the quotation mark, a word boundary token, &lt; bos &gt;, &lt; eos &gt;, and CTC blank token. The probability p(π t |f t ) is computed by the CTC linear layer followed by a softmax operation. Besides the supervised CTC loss, pseudo-labeling is also adopted during finetuning. Please refer to <ref type="bibr" target="#b16">[16,</ref><ref type="bibr" target="#b41">41]</ref> for more details.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Stage III: Transferring on singing data</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4.1">From CTC to CTC/attention</head><p>To transfer the trained wav2vec 2.0 from the speech domain to the singing domain, we retain the weights of the feature encoder and the context network after Stages I and II. Furthermore, inspired by <ref type="bibr" target="#b42">[42]</ref>, we extend the original CTC system into a hybrid CTC/attention system through the addition of an ALT head on top of wav2vec 2.0 instead of a single CTC linear layer (Fig. <ref type="figure" target="#fig_0">1(c)</ref>).</p><p>The context representations c are first fed into a linear layer followed by a leaky ReLU activation layer to obtain the features f . Then f are sent to two network branches.</p><p>One branch is a CTC linear layer, which aims to compute p(π t |f t ) as explained in sec. 3.2.2. Another branch is an attention-based GRU decoder <ref type="bibr" target="#b43">[43]</ref> followed by a sequenceto-sequence (S2S) linear layer. The GRU decoder has a single layer with a hidden dimension of 1,024 and utilizes location-aware attention <ref type="bibr" target="#b43">[43]</ref> with attention dimension 256. The decoder and S2S linear layer autoregressively compute the probability p(w n |w &lt;n , f 1:T ), n = 1, 2, ..., N .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4.2">Training and Evaluation</head><p>During Stage III, wav2vec 2.0 and the ALT head are trained through the combination of CTC loss <ref type="bibr" target="#b40">[40]</ref> and S2S loss <ref type="bibr" target="#b44">[44]</ref>:</p><formula xml:id="formula_2">L w = λ a L CTC + (1 -λ a )L S2S<label>(3)</label></formula><formula xml:id="formula_3">L S2S = -log N n=1 p(w * n |w * &lt;n , f 1:T )<label>(4)</label></formula><p>where λ a is a hyper-parameter to balance the CTC loss term and S2S loss term. To overcome catastrophic forgetting, we adopt a smaller learning rate for wav2vec 2.0 compared to the ALT head.</p><p>To evaluate the performance of the trained model, the most likely lyrics are predicted using beam search:</p><formula xml:id="formula_4">w ′ = arg max w λ b log π∈B -1 (w) T t=1 p(π t |f t ) + (1 -λ b ) log S s=1 p(w s |w &lt;s , f 1:T ) + λ c log p LM (w)<label>(5)</label></formula><p>where λ b and λ c are two hyper-parameters in the decoding process. The language model is implemented by a 3-layer LSTM. The characters are firstly projected to embeddings and then fed into the LSTM with a hidden dimension of 2,048 to obtain RNN features. Finally, the RNN features are accepted by a 3-layer MLP with a hidden dimension of 1,024 to output the probability p LM (w). </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets and preprocessing</head><p>We use various accessible mainstream lyric transcription datasets for our experiments, including DALI <ref type="bibr" target="#b19">[19,</ref><ref type="bibr" target="#b20">20]</ref>,</p><p>Hansen <ref type="bibr" target="#b22">[22]</ref>, Mauch <ref type="bibr" target="#b23">[23]</ref>, Jamendo <ref type="bibr" target="#b21">[21]</ref>, and a curated version of DAMP Sing! 300x30x2 <ref type="bibr" target="#b24">[24]</ref> called DSing <ref type="bibr" target="#b5">[5]</ref>.</p><p>The train/development/test splits in our experiments are defined as follows. For the DSing dataset, we use the same split configuration as in <ref type="bibr" target="#b5">[5]</ref>. Specifically, there are three different sizes of training sets (DSing1, DSing3, DS-ing30), as well as a development set DSing dev and a test set DSing test . As for the DALI dataset, we divide all publicly available audio in DALI v2 <ref type="bibr" target="#b20">[20]</ref> into training and development subsets (DALI train and DALI dev respectively). <ref type="foot" target="#foot_1">1</ref> We use DALI test <ref type="bibr" target="#b7">[7]</ref>, a subset of DALI v1 <ref type="bibr" target="#b19">[19]</ref>, as a test set for experiments involving DALI. The full Hansen, Mauch, and Jamendo datasets are used as additional out-of-domain test sets. In the training and development splits of the DALI dataset, songs that overlapped with any of our test sets are removed for more objective testing. The speech data used to pretrain and finetune the wav2vec 2.0 is initially monophonic. Therefore, we expect wav2vec 2.0 to extract better representation features for singing data if monophonic audios are given as the inputs. Thus, we extract vocal parts from all of the polyphonic recordings in DALI, Mauch, and Jamendo datasets using Demucs v3 mdx_extra <ref type="bibr" target="#b45">[45]</ref>, which is the state-of-theart source separation model that achieved the first rank at the 2021 Sony Music DemiXing Challenge (MDX). This ensures that we are consistent with the input requirements of wav2vec 2.0 and minimize the interference of musical accompaniment. We adopt utterance-level input for both training and testing. To facilitate the experiments, we perform utterance-level segmentation on all audios according to their annotations. Utterances with obvious faulty annotations are removed (e.g., utterances labeled as several words but have shorter than 0.1 s duration). The statistics of all datasets after utterance-level segmentation are listed in Table <ref type="table" target="#tab_0">1</ref>. The ªtotal durationº column refers to the sum of durations of all utterances in the datasets, excluding the instrumental-only parts between utterances, hence resulting in shorter durations than <ref type="bibr" target="#b7">[7]</ref>. We notice that the average utterance duration of DSing is longer than DALI (6.52 s vs. 2.47 s). Finally, lyric texts in training sets are normalized by converting all letters to upper case, converting digits to words, discarding out-of-vocabulary characters, discarding meaningless lines (e.g., ª**guitar solo**º), and removing redundant space.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Experiment setup</head><p>Our experiments are conducted through SpeechBrain toolkit <ref type="bibr" target="#b46">[46]</ref> <ref type="foot" target="#foot_2">foot_2</ref> . Before transferring on singing data, the wav2vec 2.0 has been pretrained on LibriVox (LV-60K) and finetuned on LibriSpeech (LS-960)<ref type="foot" target="#foot_3">foot_3</ref>  <ref type="bibr" target="#b16">[16]</ref>. Then we randomly initialize the ALT head. During Stage III, we downsample all audios to 16 kHz and convert them to mono-channel by averaging the two channels of stereo audio signals. Then the singing data is augmented through SpecAugment <ref type="bibr" target="#b47">[47]</ref>. wav2vec 2.0 and ALT head are trained using Adam optimizer <ref type="bibr" target="#b48">[48]</ref>. The initial learning rates of ALT head and wav2vec 2.0 are 3 × 10 -4 and 1 × 10 -5 respectively. Learning rates are scheduled using the Newbob technique, with annealing factors of 0.8 and 0.9 respectively. The batch size is set as 4, and hyper-parameter λ a is set as 0.2 during the experiments. We conduct our experiments on 4 RTX A5000 GPUs. Utterances whose duration is longer than 28 seconds are filtered out during training to prevent the out-of-memory issue. This filtering is not performed during the evaluation for a fair comparison with other existing methods.</p><p>We firstly utilize DSing30 to train the whole model for 10 epochs. We evaluate the performance of our model on DSing dev after each epoch. Finally, the best model is selected to be evaluated on the test split DSing test . Word error rate (WER) is adopted as the evaluation metric. During the evaluation, WERs are averaged over all utterances in a test set. The RNNLM is trained for 20 epochs using an Adam optimizer <ref type="bibr" target="#b48">[48]</ref> on texts of DSing30 split and validated on the DSing dev split after each epoch. The learning rate is 1 × 10 -3 and the batch size is 20. During the decoding, the beam size is 512, and the hyper-parameters λ b and λ c are 0.4 and 0.5, respectively. The trained model is evaluated on the DSing test set.</p><p>For other test splits, we adopt both DSing train and DALI train to train the whole model. Since these two datasets are collected from different domains, we adopt a consecutive training strategy instead of training together in order to reduce the difficulty of training. Specifically, we continue training the whole model on DALI train split for 4 epochs. The weights of learnable parameters are initialized using the model trained on DSing30. After training, we evaluate the model on DALI test as well as the Hansen, Mauch, and Jamendo datasets. The configuration of RNNLM is the same as above, except that we utilize texts of both DSing30 and DALI train to train the model.</p><p>To decode the lyrics, we set the beam size as 512 and the hyper-parameters λ b and λ c as 0.3 and 0.2, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">RESULTS</head><p>In this section, we firstly compare our method with stateof-the-art ALT systems on multiple benchmark datasets. Then we conduct extensive ablation studies to show the benefits of our design choices on the DSing dataset, which has more accurate manual annotations on its development and test splits. Finally, we show that our method is still effective with a limited amount of singing data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Comparison with the state-of-the-art</head><p>We compare the performance of the proposed method with previous approaches, as shown in Table <ref type="table" target="#tab_1">2</ref>. Our method outperforms all previously published results on all the evaluation datasets. Our method achieves 5.36%, 1.97%, 11.26%, 1.81%, 18.07%, 8.85% absolute WER reduction on the DSing dev , DSing test , DALI test , Jamendo, Hansen, and Mauch datasets, compared with the best results among all the previous state-of-the-art approaches respectively. Especially, on DALI test , Hansen, and Mauch datasets, our method significantly exceeds MSTRE-Net <ref type="bibr" target="#b7">[7]</ref> by an average of 12.73% absolute WER.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Effects of pretraining &amp; finetuning on speech data</head><p>As shown in Fig. <ref type="figure" target="#fig_0">1</ref>, wav2vec 2.0 is pretrained and finetuned on speech data before transferring to singing data. The feature representation knowledge learned from speech data is the key to the success of our method. To validate this statement, we conduct ablation studies by comparing the proposed method to two alternative configurations. The first alternative configuration is that we randomly initialize the weights of wav2vec 2.0 and ALT head and then train the whole model on the DSing dataset as per the experiment setup in section 4.2. Note that the first alternative has no transfer learning from the speech domain (without both Stages I and II). The second alternative configuration is that we only perform pretraining on speech data 4 without 4 <ref type="url" target="https://huggingface.co/facebook/wav2vec2-large-lv60">https://huggingface.co/facebook/wav2vec2-large-lv60</ref>  Stage II before transferring the wav2vec 2.0 to the singing domain.</p><p>We evaluate the above training configurations on the DSing dataset. First, we show the curves of training loss and validation loss (loss of the development set) during the training for the first 10 epochs in Fig. <ref type="figure">2</ref>. The losses are computed through Eq. 3. We observe that without Stages I and II, the training loss and validation loss are much higher than in the other two training configurations. In addition, its convergence is much slower. When we enable Stage I but disable Stage II, the behavior of the training loss is similar to the proposed configuration, except that the training loss is higher at the beginning. However, the validation loss in this setup is higher than that of the proposed configuration.</p><p>We continue training both alternatives until convergence and display the resultant performances in Table <ref type="table" target="#tab_2">3</ref>. We note that without Stage II, the performance drops by 0.30% higher WER on DSing dev and 2.59% higher WER on DSing test . Furthermore, without Stages I and II, the performance degrades severely as WERs on DSing dev and DSing test increase by 24.27% and 26.14% respectively, compared to the proposed configuration. The results are with our observations in Fig. <ref type="figure">2</ref>. Therefore, we conclude that pretraining on speech data plays a significant role in transferring wav2vec 2.0 to the singing domain. Although finetuning on speech data is less crucial than pretraining, it also contributes to empirical performance gains.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Effects of extending CTC to CTC/attention model</head><p>To validate the effectiveness of changing from CTC to CTC/attention (as in Fig. <ref type="figure" target="#fig_0">1</ref>), we compare the performance of our hybrid CTC/attention model with its CTC version, as shown in Table <ref type="table" target="#tab_3">4</ref>. We set λ b = 1 in Eq. 5 to disable the branch of the GRU decoder and the S2S linear during the decoding. When λ c = 0, the RNNLM is disabled.</p><p>We observe that the hybrid CTC/attention model achieves better performance by 4.23% and 4.04% WER on DSing dev and DSing test respectively than its CTC counterpart, which demonstrates the superiority of our ALT head design. Furthermore, we evaluate the benefits brought by the language model and find that the final model leads to 3.29% and 3.96% further absolute WER improvements compared to the hybrid CTC/attention model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Effectiveness of transfer learning in low-resource scenarios</head><p>To explore the effectiveness of our transfer learning method in reducing the amount of required training data, we conduct an ablation study with different training set sizes. We first train our model on DSing30, DSing3, and DSing1, respectively, to observe the performance differences. Then, we further reduce the training set size to a minimum of 10 minutes to create more demanding low-resource setups. We report the WERs achieved on DSing test as the performance measure. When training on 10-minute and 30-minute datasets, the GRU decoder converges too slowly; hence, WERs are computed according to the CTC outputs.</p><p>As shown in Fig. <ref type="figure">3</ref>, our method achieves 14.84% WER with only 10 hours (about 6.7% size of DSing30) of labeled singing data, which surpasses the state-of-the-art results of 14.96% WER achieved by CTDNN-SA <ref type="bibr" target="#b6">[6]</ref> trained on DS-ing30. It also has better performance with only 2 hours of training data (about 1.3% size of DSing30) than TDNN-F <ref type="bibr" target="#b5">[5]</ref> trained on DSing30 (19.18% vs. 19.60% WER). Further, with only 10 minutes of data (1.1% size of DS-ing1), our method achieves better results than TDNN-F trained on DSing1 (36.97% vs. 37.63% WER). These results demonstrate the feasibility of achieving competitive results with much less training data by adopting the representation knowledge from the speech domain.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">CONCLUSION</head><p>We have introduced a transfer learning approach for the automatic lyric transcription (ALT) task by utilizing the representation knowledge learned by self-supervised learning models on speech data. By performing parameter transfer on wav2vec 2.0 towards the singing domain and extending the original CTC model to a hybrid CTC/attention version, we achieved significant improvement compared to previous state-of-the-art methods on various singing datasets. We demonstrated that both pretraining and finetuning on speech data contribute to the final ALT performance and that pretraining brings more performance gains than finetuning on speech data. Additionally, our method still showed competitive performance using only a tiny proportion of training data, indicating its potential in lowresource scenarios.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.">ACKNOWLEDGEMENT</head><p>We would like to thank anonymous reviewers for their valuable suggestions. We also appreciate the help from Emir Demirel, Gabriel Meseguer-Brocal, Jens Kofod Hansen, Chitralekha Gupta for providing datasets. This project is funded in part by a grant (R-252-000-B78-114) from Singapore Ministry of Education.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. An overview of our training framework. (a) Stage I: Pretraining on speech data. (b) Stage II: Finetuning on speech data. (c) Stage III: Transferring on singing data.</figDesc><graphic coords="3,67.17,68.54,463.21,172.15" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 .</head><label>1</label><figDesc>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022 Statistics of segmented utterance-level datasets.</figDesc><table><row><cell cols="2">Split Dataset</cell><cell># Utt.</cell><cell>Total Dur.</cell></row><row><cell></cell><cell>DSing1</cell><cell>8,794</cell><cell>15.1 h</cell></row><row><cell>Train</cell><cell>DSing3 DSing30</cell><cell>25,526 81,092</cell><cell>44.7 h 149.1 h</cell></row><row><cell></cell><cell cols="2">DALI train 268,392</cell><cell>183.8 h</cell></row><row><cell>Dev</cell><cell>DSing dev DALI dev</cell><cell>482 1,313</cell><cell>41 min 55 min</cell></row><row><cell></cell><cell>DSing test</cell><cell>480</cell><cell>48 min</cell></row><row><cell></cell><cell>DALI test</cell><cell>12,471</cell><cell>9 h</cell></row><row><cell cols="2">Test Jamendo</cell><cell>921</cell><cell>49 min</cell></row><row><cell></cell><cell>Hansen</cell><cell>634</cell><cell>34 min</cell></row><row><cell></cell><cell>Mauch</cell><cell>878</cell><cell>54 min</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 .</head><label>2</label><figDesc>WERs (%) of various ALT systems on different singing datasets. ª-º refers to ªnon-applicableº. We use bold face to highlight the best results, and underline to mark the second-best results. Note that the results of [5±7] on DALI test , Jamendo, Hansen, and Mauch datasets are obtained without utterance segmentation.</figDesc><table><row><cell>Method</cell><cell cols="6">DSing dev DSing test DALI test Jamendo Hansen Mauch</cell></row><row><cell>TDNN-F [5]</cell><cell>23.33</cell><cell>19.60</cell><cell>67.12</cell><cell>76.37</cell><cell>77.59</cell><cell>76.98</cell></row><row><cell>CTDNN-SA [6]</cell><cell>17.70</cell><cell>14.96</cell><cell>76.72</cell><cell>66.96</cell><cell>78.53</cell><cell>78.50</cell></row><row><cell>Genre-informed AM [3]</cell><cell>-</cell><cell>56.90</cell><cell>-</cell><cell>50.64</cell><cell>39.00</cell><cell>40.43</cell></row><row><cell>MSTRE-Net [7]</cell><cell>-</cell><cell>15.38</cell><cell>42.11</cell><cell>34.94</cell><cell>36.78</cell><cell>37.33</cell></row><row><cell>DE2 -segmented [4]</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>44.52</cell><cell>49.92</cell><cell>-</cell></row><row><cell>Ours</cell><cell>12.34</cell><cell>12.99</cell><cell>30.85</cell><cell>33.13</cell><cell>18.71</cell><cell>28.48</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 .</head><label>3</label><figDesc>WERs (%) of different training configurations on DSing dataset.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell cols="2">Train loss</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">Valid loss</cell><cell></cell></row><row><cell>Loss</cell><cell>1.25 1.50 1.75</cell><cell></cell><cell></cell><cell></cell><cell cols="2">Ours w/o FT w/o PT&amp;FT</cell><cell>1.75 1.25 1.50 Loss</cell><cell></cell><cell>Ours w/o FT w/o PT&amp;FT</cell><cell></cell><cell></cell></row><row><cell></cell><cell>1.00</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>1.00</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>0.75</cell><cell>2</cell><cell>4</cell><cell>6</cell><cell>8</cell><cell>10</cell><cell>0.75</cell><cell>2</cell><cell>4</cell><cell>6</cell><cell>8</cell><cell>10</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">Epoch</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">Epoch</cell><cell></cell></row><row><cell cols="13">Figure 2. Comparison of different training configurations.</cell></row><row><cell cols="13">ªw/o PT &amp; FTº refers to without Stages I and II. ªw/o FTº</cell></row><row><cell cols="13">refers to without Stage II. (Left) Training loss of all con-</cell></row><row><cell cols="13">figurations for the first 10 epochs; (Right) validation loss</cell></row><row><cell cols="10">of all configurations for the first 10 epochs.</cell><cell></cell><cell></cell></row><row><cell></cell><cell cols="2">Method</cell><cell></cell><cell></cell><cell></cell><cell cols="2">DSing dev</cell><cell></cell><cell cols="3">DSing test</cell></row><row><cell></cell><cell>Ours</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">12.34</cell><cell></cell><cell cols="2">12.99</cell><cell></cell></row><row><cell></cell><cell cols="3">-Finetuning</cell><cell></cell><cell cols="7">12.64 (+ 0.30) 14.58 (+ 2.59)</cell></row><row><cell></cell><cell cols="11">-Pretraining 35.61 (+24.27) 39.13 (+26.14)</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 4 .</head><label>4</label><figDesc>Transcription performance comparison when using different training set sizes, testing on the DSing test dataset. WERs (%) of CTC model and hybrid CTC/attention model on DSing dataset.</figDesc><table><row><cell></cell><cell>40</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>WER (%)</cell><cell>20 25 30 35</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">TDNN-F MSTRE-Net CTDNN-SA Ours</cell></row><row><cell></cell><cell>15</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>10</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>10min</cell><cell>30min</cell><cell>1h</cell><cell>2h</cell><cell>5h</cell><cell>10h 15.1h (Dsing1)</cell><cell>44.7h (DSing3)</cell><cell>149.1h (DSing30)</cell><cell>332.9h (DSing30+DALI)</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">Training set size</cell><cell></cell><cell></cell></row><row><cell cols="2">Figure 3. Method</cell><cell>DSing dev</cell><cell cols="2">DSing test</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>CTC</cell><cell>19.86</cell><cell>20.99</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>+ S2S</cell><cell cols="3">15.63 (-4.23) 16.95 (-4.04)</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell cols="4">+ LM 12.34 (-7.52) 12.99 (-8.00)</cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December 4-8, 2022</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_1"><p>At the time of this research, some audios are not retrievable through their YouTube links in the public-available metadata. Although audios containing the same titles and artist names can be found online, we cannot guarantee they perfectly match the annotations for the original audio versions in DALI. Discarding invalid audio is only performed for the training and the development sets.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_2"><p>Our code is released at https://github.com/guxm2021/ALT_SpeechBrain</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_3"><p>https://huggingface.co/facebook/wav2vec2-large-960h-lv60-self Proceedings of the 23rd ISMIR Conference, Bengaluru, India, December</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_4"><p><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr" target="#b6">[6]</ref><ref type="bibr" target="#b7">[7]</ref>[8] 2022   </p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">ªLyrics recognition from a singing voice based on finite state automaton for music information retrieval</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hosoya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Suzuki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Makino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bainbridge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><forename type="middle">H</forename><surname>Witten</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="532" to="535" />
+		</imprint>
+	</monogr>
+	<note>º in ISMIR</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">ªHyperlinking lyrics: A method for creating hyperlinks between phrases in song lyrics</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Fujihara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ogata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ISMIR</title>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+			<biblScope unit="page" from="281" to="286" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Yılmaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+		<title level="m">ªAutomatic lyrics alignment and transcription in polyphonic music: Does background music help?º in ICASSP 2020-2020 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="496" to="500" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">ªLow resource audio-to-lyrics alignment from polyphonic music recordings</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Demirel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ahlbäck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="586" to="590" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">ªAutomatic lyric transcription from karaoke vocal tracks: Resources and a baseline system</title>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">R</forename><surname>Dabike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Barker</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="579" to="583" />
+		</imprint>
+	</monogr>
+	<note>º in Interspeech</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">ªAutomatic lyrics transcription using dilated convolutional neural networks with self-attention</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Demirel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ahlbäck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2020 International Joint Conference on Neural Networks (IJCNN)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">ªMstre-net: Multistreaming acoustic modeling for automatic lyrics transcription</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Demirel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ahlbäck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Society for Music Information Retrieval Conference, ISMIR 2021</title>
+		<editor>
+			<persName><forename type="first">J</forename><forename type="middle">H</forename><surname>Lee</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Z</forename><surname>Duan</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">P</forename><surname>Rao</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">P</forename><surname>Van Kranenburg</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Srinivasamurthy</surname></persName>
+		</editor>
+		<meeting>the 22nd International Society for Music Information Retrieval Conference, ISMIR 2021<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">November 7-12, 2021. 2021</date>
+			<biblScope unit="page" from="151" to="158" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">ªGenre-conditioned acoustic models for automatic lyrics transcription of polyphonic music</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2022-2022 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="791" to="795" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">ªAutomatic evaluation of song intelligibility using singing adapted stoi and vocalspecific features</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="319" to="331" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">ªTransfer learning in handbook of research on machine learning applications</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Torrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Shavlik</surname></persName>
+		</author>
+		<editor>soria, e., martin, j., magdalena, r., martinez, m. &amp; serrano</editor>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="volume">242</biblScope>
+			<biblScope unit="page">264</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">ªA survey on transfer learning</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">J</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on knowledge and data engineering</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="1345" to="1359" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">ªImproving automatic speech recognition for non-native english with transfer learning and language model decoding</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Sullivan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Shibano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Abdul-Mageed</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2202.05209</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yuret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>May</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Knight</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1604.02201</idno>
+		<title level="m">ªTransfer learning for low-resource neural machine translation,º</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">ªHubert: Selfsupervised speech representation learning by masked prediction of hidden units</title>
+		<author>
+			<persName><forename type="first">W.-N</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Bolte</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><forename type="middle">H</forename><surname>Tsai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lakhotia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mohamed</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="page" from="3451" to="3460" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">ªwav2vec: Unsupervised pre-training for speech recognition</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Schneider</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Baevski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Auli</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.05862</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">ªwav2vec 2.0: A framework for self-supervised learning of speech representations</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Baevski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Auli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="12" to="449" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Riviere</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P.-E</forename><surname>Mazaré</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Dupoux</surname></persName>
+		</author>
+		<title level="m">ªUnsupervised pretraining transfers well across languages,º in ICASSP 2020-2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7414" to="7418" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">ªMagic dust for cross-lingual adaptation of monolingual wav2vec-2.0,º in ICASSP 2022</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Khurana</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Laurent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Glass</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2022 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="6647" to="6651" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">ªDali: A large dataset of synchronized audio, lyrics and notes, automatically created using teacherstudent machine learning paradigm</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Meseguer-Brocal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Cohen-Hadria</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Peeters</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1906.10606</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">ªCreating dali, a large dataset of synchronized audio, lyrics, and notes</title>
+		<author>
+			<persName><surname>Ðð</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the International Society for Music Information Retrieval</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ªEnd-to-end lyrics alignment for polyphonic music using an audio-tocharacter recognition model</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Stoller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Durand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ewert</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2019-2019 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="181" to="185" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">ªRecognition of phonemes in a-cappella recordings using temporal patterns and mel frequency cepstral coefficients</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">K</forename><surname>Hansen</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conference ; SMC</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Fraunhofer</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">Music Computing Conference ; SMC</orgName>
+			</affiliation>
+		</author>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="page" from="494" to="499" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ªIntegrating additional chord information into hmm-based lyricsto-audio alignment</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mauch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Fujihara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="200" to="210" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">ªSmule sing! 300x30x2 dataset</title>
+		<author>
+			<persName><surname>Ccrma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Stanford</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Edu</surname></persName>
+		</author>
+		<ptr target="https://ccrma.stanford.edu/damp/" />
+		<imprint>
+			<date type="published" when="2018-09">º Sep. 2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">ªEnd-to-end lyrics recognition with voice to singing style transfer</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Basak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ganapathy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Takahashi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="266" to="270" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">ªPdaugment: Data augmentation by pitch and duration adjustments for automatic lyrics transcription</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2109.07940</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">X</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Ong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2207.06127</idno>
+		<title level="m">ªMm-alt: A multimodal automatic lyric transcription system,º arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">ªTraining phoneme models for singing with &quot;songified&quot; data</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Kruspe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th International Society for Music Information Retrieval Conference, ISMIR 2015</title>
+		<editor>
+			<persName><forename type="first">M</forename><surname>Müller</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">F</forename><surname>Wiering</surname></persName>
+		</editor>
+		<meeting>the 16th International Society for Music Information Retrieval Conference, ISMIR 2015<address><addrLine>Málaga, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">October 26-30, 2015. 2015</date>
+			<biblScope unit="page" from="336" to="342" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">ªLearning problem-agnostic speech representations from multiple self-supervised tasks</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Pascual</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ravanelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Serra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Bonafonte</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.03416</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">ªAn unsupervised autoregressive model for speech representation learning</title>
+		<author>
+			<persName><forename type="first">Y.-A</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-N</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Glass</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.03240</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">ªImproving transformer-based speech recognition using unsupervised pre-training</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1910.09932</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">ªTransformer based unsupervised pre-training for acoustic representation learning</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6933" to="6937" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">L</forename><surname>Pepino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Riera</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ferrer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2104.03502</idno>
+		<title level="m">ªEmotion recognition from speech using wav2vec 2.0 embeddings,º</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">ªMemobert: Pre-training model with prompt-based learning for multimodal emotion recognition</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2022-2022 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="4703" to="4707" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">ªWav2kws: Transfer learning from speech representations for keyword spotting</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Seo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H.-S</forename><surname>Oh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jung</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Access</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="80" to="682" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">ªExploring wav2vec 2.0 on speaker verification and language identification</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2012.06185</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">L</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">R</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1607.06450</idno>
+		<title level="m">ªLayer normalization,º</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Gimpel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1606.08415</idno>
+		<title level="m">ªGaussian error linear units (gelus),º</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">ªAttention is all you need,º Advances in neural information processing systems</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">È</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">30</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Schmidhuber, ªConnectionist temporal classification: labelling unsegmented sequence data with recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Fernández</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd international conference on Machine learning</title>
+		<meeting>the 23rd international conference on Machine learning</meeting>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="page" from="369" to="376" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">ªSelf-training and pre-training are complementary for speech recognition</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Baevski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Likhomanenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Tomasello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Synnaeve</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Auli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3030" to="3034" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">ªHybrid ctc/attention architecture for endto-end speech recognition</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hori</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">R</forename><surname>Hershey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hayashi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Journal of Selected Topics in Signal Processing</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1240" to="1253" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">ªAttention-based models for speech recognition</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">K</forename><surname>Chorowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Serdyuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">28</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">ªEnd-to-end attention-based large vocabulary speech recognition</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chorowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Serdyuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Brakel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2016 IEEE international conference on acoustics, speech and signal processing (ICASSP</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="4945" to="4949" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">ªHybrid spectrogram and waveform source separation</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Défossez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ISMIR 2021 Workshop on Music Source Separation</title>
+		<meeting>the ISMIR 2021 Workshop on Music Source Separation</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ravanelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Parcollet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Plantinga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Rouhe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Cornell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Lugosch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Subakan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Dawalatabad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Heba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhong</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2106.04624</idno>
+		<title level="m">ªSpeechbrain: A general-purpose speech toolkit,º arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">S</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-C</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">D</forename><surname>Cubuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.08779</idno>
+		<title level="m">A simple data augmentation method for automatic speech recognition,º arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<title level="m">ªAdam: A method for stochastic optimization,º</title>
+		<meeting><address><addrLine>Bengaluru, India</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014-12-04">2014. December 4-8, 2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>Proceedings of the 23rd ISMIR Conference</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,903 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">LEARNING LONG-TERM MUSIC REPRESENTATIONS VIA HIERARCHICAL CONTEXTUAL CONSTRAINTS</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Shiqi</forename><surname>Wei</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Data Science</orgName>
+								<orgName type="institution">Fudan University</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="department" key="dep1">Music X Lab</orgName>
+								<orgName type="department" key="dep2">Computer Science Department</orgName>
+								<orgName type="institution">New York University</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Gus</forename><surname>Xia</surname></persName>
+							<email>gxia@nyu.edu</email>
+							<affiliation key="aff1">
+								<orgName type="department" key="dep1">Music X Lab</orgName>
+								<orgName type="department" key="dep2">Computer Science Department</orgName>
+								<orgName type="institution">New York University</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">LEARNING LONG-TERM MUSIC REPRESENTATIONS VIA HIERARCHICAL CONTEXTUAL CONSTRAINTS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">2015266D078794044AB68454DE57C970</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:16+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Learning symbolic music representations, especially disentangled representations with probabilistic interpretations, has been shown to benefit both music understanding and generation. However, most models are only applicable to short-term music, while learning long-term music representations remains a challenging task. We have seen several studies attempting to learn hierarchical representations directly in an end-to-end manner, but these models have not been able to achieve the desired results and the training process is not stable. In this paper, we propose a novel approach to learn long-term symbolic music representations through contextual constraints. First, we use contrastive learning to pre-train a long-term representation by constraining its difference from the short-term representation (extracted by an off-the-shelf model). Then, we finetune the long-term representation by a hierarchical prediction model such that a good long-term representation (e.g., an 8-bar representation) can reconstruct the corresponding short-term ones (e.g., the 2-bar representations within the 8-bar range). Experiments show that our method stabilizes the training and the fine-tuning steps. In addition, the designed contextual constraints benefit both reconstruction and disentanglement, significantly outperforming the baselines.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Deep music representation learning have been proven to be a powerful tool for high-quality symbolic music generation <ref type="bibr" target="#b1">[1]</ref>. The learned representations can be directly fed into downstream predictive models such as LSTMs <ref type="bibr" target="#b2">[2]</ref> and Transformers <ref type="bibr" target="#b3">[3]</ref> to achieve more coherent results than note-based or event-based generation <ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr">[6]</ref> Furthermore, when a representation learning model has a probability interpretation, the representation can then be easily interpolated or resampled to create new music pieces. Recently, several studies further disentangle music representations into interpretable factors (such as pitch, rhythm, chord and texture) to achieve a more controllable and interactive music generation <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b7">7,</ref><ref type="bibr" target="#b8">8]</ref>. For example, we can keep the pitch factor of a melody while resampling its rhythm factor to achieve theme variation. We can also interpolate the pitch factor for a smooth music morphing <ref type="bibr" target="#b7">[7]</ref>.</p><p>Despite the above mentioned progress <ref type="bibr" target="#b9">[9]</ref><ref type="bibr" target="#b10">[10]</ref><ref type="bibr" target="#b11">[11]</ref>, most existing work applies only to short music segments with a length of several beats, while learning long-term representations remains a challenging task. In particular, studies have shown that even for monophonic melodies, "flat" model designs (e.g., using long-range sequential encoders) have difficulty remembering a complete music phrase at once. Some other studies have attempted to solve this problem by building another layer of hierarchy on top of short-range flat models, learning short-term and longterm representations simultaneously in an end-to-end manner <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b12">12]</ref>. However, as the model expressivity increases with the number of layers, models also become much more difficult to train.</p><p>We argue that the main problem with current methods is the lack of proper inductive bias, and in this paper we propose a new method for learning long-term, phrase-level symbolic music representations through contextual constraints. The method consists of two stages pre-training and fine-tuning, with two steps in each stage. In the pretraining stage, we first adopt EC 2 -VAE <ref type="bibr" target="#b7">[7]</ref> to learn barlevel, disentangled latent pitch and rhythm representations. Then, we apply the same model to learn phrase-level representation but with contrastive losses to constrain the difference between phrase-level and bar-level representations. It is indeed difficult to learn phrase-level representations directly using bar-level models, but the additional contrastive constraint can serve as a useful inductive bias to help find a reasonable solution that can subsequently be improved by fine-tuning. During the fine-tuning stage, we replace the pre-trained decoder with a hierarchical prediction model that forces the phrase-level representation to reconstruct the bar-level ones. This is achieved by first tuning only the new hierarchical decoder (while fixing the pre-trained encoder) and then tuning the whole network. During these two steps, structured contrastive loss is applied to stabilize the learning process.</p><p>Experiments show that the proposed method significantly outperforms the baselines and successfully learns disentangled pitch and rhythm representations for 8-bar long phrases (32 beats in 4/4 meter) without increasing the latent dimensionality. To our knowledge, this is also the first generative model that achieves phrase-level composition style transfer, latent factor interpolation, and theme variation. In sum, our contributions are as follows:</p><p>• We demonstrate the importance of structured contextual constraints in learning long-term disentangled representations. Our approach only requires reasonable amount of data to train and could learn compact latent representation. • We show that the proposed Structured InfoNCE loss effectively expresses the contextual constraints, stabilizes the training of long-range models and helps the model converge faster. • Our model achieves phrase-level music style transfer, latent factor interpolation, and theme variation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>We review two realms of research related to our work on long-term music-representation learning: contrastive learning, which is the main method to stabilize the training process, and hierarchical music modeling, which is related to our fine-tuning model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Contrastive Learning</head><p>Contrastive learning (CL) is an efficient method in selfsupervised learning <ref type="bibr" target="#b13">[13]</ref><ref type="bibr" target="#b14">[14]</ref><ref type="bibr" target="#b15">[15]</ref>, serving as regularization to latent representations. For example, NCE-based contrastive losses <ref type="bibr" target="#b16">[16,</ref><ref type="bibr" target="#b17">17]</ref> have been widely used and achieved good results in natural language processing. Contrastive predictive coding (CPC) <ref type="bibr" target="#b18">[18]</ref> and Deep Infomax (DIM) <ref type="bibr" target="#b19">[19]</ref> explore the relation between minimizing a contrastive learning loss and maximizing a lower bound of the mutual information. In DIM, global feature is connected with local feature to learn more abstract and informative representations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Hierarchical Music Representation Learning</head><p>The hierarchical nature of music has been studied for a long time <ref type="bibr" target="#b20">[20]</ref><ref type="bibr" target="#b21">[21]</ref><ref type="bibr" target="#b23">[22]</ref><ref type="bibr" target="#b24">[23]</ref>. Recently, we see some efforts on learning long-term music representations using hierarchical modeling <ref type="bibr" target="#b12">[12,</ref><ref type="bibr" target="#b25">24,</ref><ref type="bibr" target="#b26">25]</ref>. The basic idea is that since a flat model design can only effectively learn shot-term representations, we can stack more layers on top of the shortterm representations module for long-term representations.</p><p>Existing works include MusicVAE <ref type="bibr" target="#b1">[1]</ref>, Music Transformer VAE <ref type="bibr" target="#b12">[12]</ref>, Jukebox <ref type="bibr" target="#b27">[26]</ref>, etc. However, experiments show that unless we have a huge amount of data, the model is in general very difficult to train. In this study, we provide a two-stage algorithm with contrastive loss as a better learning strategy. Also, no model so far has achieved disentanglement for long-term representation as done in this study.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHODOLOGY</head><p>In this section, we introduce our algorithm in detail. Conceptually, it consists of two stages, each with two steps.The first stage is pre-training:</p><p>• In step 1, we simply adopt EC 2 -VAE <ref type="bibr" target="#b7">[7]</ref>, an existing music representation disentanglement model, to extract short-term pitch and rhythm representations.</p><p>• In step 2, we build Long-EC 2 -VAE, a long-term version of the model and train it with an extra contextual constraint using the proposed Structured InfoNCE loss. Intuitively, this loss prevents the learned longterm representations from deviating too far from corresponding well-trained short-term representations.</p><p>The second stage is fine-tuning, in which we build a hierarchical representation-learning model by combining the encoder of Long-EC 2 -VAE with a hierarchical decoder. We name this model after Hierarchical-EC 2 -VAE.</p><p>• In step 1, we only train the hierarchical decoder to ensure the predictive power of the long-term representation. • In step 2, we train the whole hierarchical network for a better long-term pitch-rhythm disentanglement. ure 1, the right-hand-side part is a literal copy of the EC 2 -VAE encoder (with parameters fixed) to extract short-term representations, while the left-hand-side part is a simple adaptation of EC 2 -VAE for long-term music by lengthening its temporal receptive field. Note that the left part alone is not able to learn long-term representations, and our goal is to assist it using contrastive learning. Formally, the loss function of Long-EC 2 -VAE is:</p><formula xml:id="formula_0">L = L Long-EC 2 -VAE + L Structured InfoNCE ,<label>(1)</label></formula><p>where L Long-EC  </p><formula xml:id="formula_1">L Structured InfoNCE = -ln exp z T L,f W ẑ+ S,f /τ exp z T L,f W ẑ+ S,f /τ + K i=1 exp z T L,f W ẑ- S,f /τ ,<label>(2)</label></formula><p>where z L,f and W are the normalized long-term representations and weighing matrix we need to learn. f = {p, r} indicates whether it is the pitch or rhythm factor. Likewise, we use ẑS,f to denote the short-term representations extracted by right-hand-side model. K and τ are hyperparameters. K is the amount negative samples and τ is the temperature parameter.</p><p>In specific, the short-term melodies are half as long as long-term ones. The positive samples ẑ+ S,f are in the cases that the corresponding short-term melody is a part of the long-term melody and f takes the same value as in z L,f , while the negative samples are not in this case. Also, the long-term and short-term representations share the same dimensionality. In the first step of training (Figure <ref type="figure" target="#fig_1">2</ref>(a)), the encoder is a literal copy from the Long-EC 2 -VAE model and we only train the hierarchical decoder. Formally, the loss function is:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Fine-tuning with Hierarchical Generation</head><formula xml:id="formula_2">L step1 = L Hierarchical-EC 2 -VAE Decoder + L InfoNCE ,<label>(3)</label></formula><p>where the first term refers to the reconstruction losses adopted from the EC 2 -VAE model, and the second term is defined as:</p><formula xml:id="formula_3">L InfoNCE = -ln exp z T l,f W ẑ+ l,f /τ exp z T l,f W ẑ+ l,f /τ + K i=1 exp z T l,f W ẑ- l,f /τ ,<label>(4)</label></formula><p>where z l,f are the normalized hierarchical representations we need to learn with l = {intermediate, bar} indicating the level of representation and other notations follow the Proceedings of the 22nd ISMIR Conference, Online, November 7-12, 2021 same meaning as in Eq.( <ref type="formula" target="#formula_1">2</ref>). Here, both positive ẑ+ l,f and negative ẑl,f samples are normalized representations computed from a pre-trained EC 2 -VAE, in which the positive samples are in the cases that the ẑ+ l,f and z l,f are computed based on the same music segment and have the same value of l and f , while ẑl,f are not in this case. After the first step achieves a reasonable accuracy, we proceed to step 2 (Figure <ref type="figure" target="#fig_2">2(b)</ref>), unfreezing the encoder and training the whole hierarchical representation-learning model with:</p><formula xml:id="formula_4">L step2 = L step1 + L Structured InfoNCE + βL KL phrase ,<label>(5)</label></formula><p>where the first two terms are defined in Eq. ( <ref type="formula" target="#formula_2">3</ref>) and Eq. ( <ref type="formula" target="#formula_1">2</ref>) respectively. L KL phrase is KL divergence to only regularize the phrase-level representations by a normal distribution. The value β controls the degree of KL divergence penalty.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Dataset and data format</head><p>We train our model on Nottingham Database <ref type="bibr" target="#b28">[27]</ref> and POP909 database <ref type="bibr" target="#b29">[28]</ref>.</p><p>Our dataset contains 2154 melodies (at song level) in total. We randomly split these pieces into 2 subsets: 90% songs for training and 10% songs for test. The data format is designed as the same as in <ref type="bibr" target="#b7">[7]</ref> in which 4 bar or 8 bar melodies are formalized as sequences of 130-dimensional one-hot embedding vectors and 16-beat and 32-beat rhythm pattern is represented by a sequence of 3-dimensional one-hot embedding vectors. Each vector in the melody sequence denotes a 1  4 -beat unit. The first 128 dimensions of this vector denote 128 MIDI-format pitches from 0 to 127, the 129 th dimension is the holding state for longer note duration, and the last dimension is kept for rest. The three dimensions of rhythm pattern vectors represent the onset of any pitch, a holding state, and rest, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Implementation Details</head><p>All of our models are trained using Adam optimizer <ref type="bibr" target="#b30">[29]</ref> with a scheduled learning rate from 1e-3 to 1e-5. The batch size is 128 in the pre-training stage and is 64 in the finetuning stage. We do normalization on representations in Eq.( <ref type="formula" target="#formula_1">2</ref>) and ( <ref type="formula" target="#formula_3">4</ref>) to make the training process more stable. The representations fed into decoders are original representation without normalization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">Pre-training</head><p>In the pre-training stage, we simply adopt the structure of EC 2 -VAE <ref type="bibr" target="#b7">[7]</ref> to model 4 bar and 8 bar EC 2 -VAE. Each model comprises an encoder with a bi-directional GRU layer, a rhythm decoder with a GRU layer, and a global decoder with a GRU layer. We set the hidden dimension of the GRU in the encoder and decoders to 2048. The latent dimension is 128 for disentangled pitch representations and 128 for disentangled rhythm representations for each range model. For L Structured InfoNCE depicted in Eq. ( <ref type="formula" target="#formula_1">2</ref>), we set K to 512 and τ to 1. The positive samples for Eq. ( <ref type="formula" target="#formula_1">2</ref>) and Eq. ( <ref type="formula" target="#formula_3">4</ref>) are the representations of 1-4th, 3-6th and 5-8th bar from well-trained 4 bar EC 2 -VAE. Actually, even when training the 4-bar EC 2 -VAE (right-hand side of Figure <ref type="figure">1</ref>), we use a similar constrastive loss as in Eq. ( <ref type="formula" target="#formula_1">2</ref>) where the positive samples are representations of 1-2th, 2-3th, 3-4th bar from well-trained 2 bar (original) EC 2 -VAE <ref type="bibr" target="#b7">[7]</ref> .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.2">Fine-tuning</head><p>Hierarchical-EC 2 -VAE model consists of a long-term (8 bar) EC 2 -VAE encoder, 4 GRU layers, and an aggregation of 2 bar EC 2 -VAE decoders. We first train the hierarchical model with fixed 8 bar EC 2 -VAE encoder from pre-trained stage for around 25 epochs. Then we train the whole model without fixing parameters. We set the hidden dimension of 4 GRU layers to 1024. We set K to 256 and τ to 1 for both Structured InfoNCE loss and InfoNCE loss and set β to 0.1 in Eq. ( <ref type="formula" target="#formula_4">5</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Objective Evaluation</head><p>We objectively evaluate the model in terms of reconstruction accuracy, training stability, and disentanglement.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.1">Reconstruction Accuracy</head><p>Table <ref type="table" target="#tab_1">1</ref> shows that the reconstruction accuracy of the proposed models (2nd an 3rd rows) significantly outperform the baseline, a vanilla EC 2 -VAE applied to 8-bar melody (first row). The last two rows show the results of two ablation settings of Hierarchical-EC 2 -VAE: one without the contrastive loss and the other without first fixing the parameters of encoder and directly train the model end-toend. We see that the proposed Structured InfoNCE or In-foNCE losses play a vital role for an accurate reconstruction and the two-step training strategy improves the result marginally.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Method</head><p>Recon  Comparing the accuracy curves of the proposed Long-EC 2 -VAE with the baseline as illustrated in Figure <ref type="figure" target="#fig_3">3</ref>, we find that the proposed Long-EC 2 -VAE converges more quickly during training. This indicates that the proposed training strategy leads to a better initialization and makes the performance of the model fluctuate less during training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.2">Training stability</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.3">Disentanglement Evaluation</head><p>We evaluate the disentanglement performance of models using a disentanglement evaluation method adopted in <ref type="bibr" target="#b7">[7]</ref> and <ref type="bibr" target="#b31">[30]</ref>. The method randomly transposes all the notes of the input data by i(i ∈ <ref type="bibr" target="#b1">[1,</ref><ref type="bibr" target="#b12">12]</ref>) semitones while keeping the rhythm and underlying chord unchanged and then measures the variation of disentangled representations.We denote Σ|∆z p | and Σ|∆z r | as the variation of z p and z r . As shown in Figure <ref type="figure" target="#fig_4">4</ref>, values of Σ|∆z p | of the proposed Hierarchical-EC 2 -VAE are relatively high while Σ|∆z r | maintains in a significantly low level. This indicates that the pitch and rhythm representations of the proposed Hierarchical-EC 2 -VAE are well-disentangled as the change of notes has a tiny impact on z r . Similarly, we can intuitively find in the figure that the disentanglement performance of the proposed Hierarchical-EC 2 -VAE is much better than the baseline and also outperforms the proposed Long-EC 2 -VAE.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Music generative examples</head><p>In this section, we show some music generation results by manipulating the disentangled phrase-level pitch and rhythm representations in three different ways: style transfer via swapping the representation, rhythm morphing via interpolating the representation, and theme variation via representation posterior sampling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4.1">Phrase-level composition style transfer</head><p>We cross-swap the disentangled pitch and rhythm factors z p and z r of two 8-bar melodies A and B and then obtain generative pieces C and D. The results are shown in Figure <ref type="figure" target="#fig_6">5</ref>, in which we see that both of the two generative pieces perfectly inherit target rhythm patterns. Besides, these generative melodies vary slightly from the source melody and these variations tend to sound creative, i.e. the appearance of embellished notes.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4.2">Latent z r interpolation</head><p>We interpolate rhythm representations z r of two phrases using SLERP <ref type="bibr" target="#b32">[31]</ref> while keeping the pitch and chord unchanged. The interpolated latent representations can then be "re-synthesized" using Hierarchical-EC 2 -VAE.</p><p>As shown in Figure <ref type="figure" target="#fig_7">6</ref>, we interpolate z r of the piece A and B with different SLERP weights. The results exhibit a surprising sense of coherence of pitch and rhythm in generative melodies, even in the transition between consecutive bars.This implies that a longer-term representation is also adept at modeling short-term generation and even contains more global harmonic information than a short-term representation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4.3">Theme variation</head><p>We can also achieve theme variation by adding a Gaussian noise to z r while keeping z p unchanged . As a sample shown in Figure <ref type="figure" target="#fig_9">7</ref>, we find that as the variance of the noise grows larger, the pitch and rhythm of the generative melody are still reasonable smooth, implying that the longterm representations contain the coherence of contextual information and can "control" the generation process.   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Subjective Evaluation</head><p>One may wonder what are the advantages of learning longterm representations since we can always generate the music bar by bar using short-term models and just concatenate the generated samples together. One merit lies in the coherency in controlled music generation. For example, when sampling the long-term rhythm representation, the overall rhythm pattern of a phrase is controlled as an organic whole, while individually sampling the rhythm of different bar may easily lose the rhythm coherency. To better illustrate this idea,we conduct a survey on theme variation (as in Section 4.4.3) to compare the performance of the proposed 8-bar Hierarchical-EC 2 -VAE and baseline 2bar EC 2 -VAE.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.1">Survey Configuration</head><p>In our survey, each subject is given 5 groups of pieces. Each group contains three 8 bar pieces: a human-composed piece from Nottingham dataset and 2 theme variations generated by a 2-bar EC 2 -VAE and Hierarchical-EC 2 -VAE, respectively. In each group, the generated pieces use z p of the human-composed piece and the sampled z r .</p><p>Each subject listens to five randomly arranged groups in turn and is required to rate each melody ranging from 1 (very low) to 5 (very high) according to three aspects: creativity, naturalness (how human-like the composition is) and overall musicality.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>In conclusion, we contribute a pipeline of algorithms to learn long-term and disentangled music representations. The main novelty lies in the proposed two inductive biases which constrain the long-term representations using contextual information. The first one requires long-term representation to be not too different from the short-term ones which represent a part of the long-term sequence, and we demonstrate contrastive loss is well-suited for such rough constraint. The second inductive bias is that a good longterm representation should be able to reconstruct the corresponding short-term ones, and we use a hierarchical predictive model to realize this constraint. Unlike most hierarchical models, our purpose is not prediction for its own sake, but rather to leverage the prediction power to learn a well-disentangled long-term representation. Experimental results show that our approach is quite successful, capable of disentangling pitch and rhythmic factors for phraselevel (32 beats) melody without increasing the dimensionality of latent representation compared to bar-level models. Moreover, the learned representations enable high-quality phrase-level style transfer via representation swapping and theme variation by representation interpolation and posterior sampling.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>3. 1 Figure 1 :</head><label>11</label><figDesc>Figure 1: The model architecture of Long-EC 2 -VAE in the pre-training stage, where the right-hand-side is shortterm model with parameter fixed and the left-hand-side is the long-term model. The dotted lines denote contrastive losses, whose weighting matrices are joined optimized with the parameters on the left-hand-side networks.</figDesc><graphic coords="2,322.98,369.96,209.21,173.10" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The model architecture of Hierarchical-EC 2 -VAE in the fine-tuning stage. The training follows two steps.</figDesc><graphic coords="3,54.98,68.54,487.59,265.68" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2</head><label>2</label><figDesc>Figure2shows the architecture of the fine-tuning model, Hierarchical-EC 2 -VAE, where the two subfigures illustrate the two training steps. Here, the encoder design is the same as in the Long-EC 2 -VAE model, while the decoder is a hierarchical predictive model with three layers. The first two layers are new designed and the last layer is an aggregation</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Experimental results of overall reconstruction and rhythm accuracy on the test set.</figDesc><graphic coords="4,303.66,657.75,129.01,100.80" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: The comparison between Σ|∆z p | and Σ|∆z r | after transposition. The numbers show the pitch augmented by 12 semitones in each sub-figure from left to right. As shown in Figure 4, values of Σ|∆z p | of the proposed Hierarchical-EC 2 -VAE are relatively high while Σ|∆z r | maintains in a significantly low level. This indicates that the pitch and rhythm representations of the proposed Hierarchical-EC 2 -VAE are well-disentangled as the change of notes has a tiny impact on z r . Similarly, we can intuitively find in the figure that the disentanglement performance of the proposed Hierarchical-EC 2 -VAE is much better than the baseline and also outperforms the proposed Long-EC 2 -VAE.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>Generated by 𝑧 𝑝 from A and 𝑧 𝑟 from B (d) Generated by 𝑧 𝑝 from B and 𝑧 𝑟 from A</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Style transfer examples by hierarchical-EC 2 -VAE model.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Interpolation examples.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head></head><label></label><figDesc>(a) Source Melody A (b) Rhythm representation Posterior sampling with 𝜎 2 = 0.8 (c) Rhythm representation Posterior sampling with 𝜎 2 = 1.3</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Rhythm representation posterior sampling examples.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head>4. 5</head><label>5</label><figDesc>.2 Results A total of 29 subjects ( 18 females and 11 males) participated in the survey. Experimental results depicted in Figure 8 demonstrate that people prefer melodies generated by the proposed Hierarchical-EC 2 -VAE to those generated by the 2 bar EC 2 -VAE [7], implying the effects of a longterm coherence learned by our model. The heights of bars represent means of the ratings and the error bars represent the MSEs computed via within-subject ANOVA<ref type="bibr" target="#b33">[32]</ref>. The results show that our model performs significantly better than the 2 bar EC 2 -VAE in terms of all three dimensions(p &lt; 0.05). Besides, the qualities of melodies generated by the proposed Hierarchical-EC 2 -VAE reach a competitive standard compared to the human-composed pieces, especially in creativity.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: The results of the subjective evaluation.</figDesc><graphic coords="6,310.11,341.32,232.46,104.95" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>A comparison on reconstruction accuracy of different models.</figDesc><table><row><cell></cell><cell cols="2">.Acc Rhythm Recon.Acc</cell></row><row><cell>Baseline</cell><cell>0.772</cell><cell>0.847</cell></row><row><cell>Long-EC 2 -VAE</cell><cell>0.992</cell><cell>0.995</cell></row><row><cell>H-EC 2 -VAE(ours)</cell><cell>0.997</cell><cell>0.995</cell></row><row><cell>H-EC 2 -VAE(w-o CL)</cell><cell>0.584</cell><cell>0.599</cell></row><row><cell>H-EC 2 -VAE(w-o fixed)</cell><cell>0.991</cell><cell>0.989</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Proceedings of the 22nd ISMIR Conference, Online,<ref type="bibr" target="#b33">November 7-12, 2021</ref> </p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">A hierarchical latent vector model for learning long-term structure in music</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">H</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 35th International Conference on Machine Learning</title>
+		<meeting>the 35th International Conference on Machine Learning<address><addrLine>Stockholm, Sweden</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4361" to="4370" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Comput</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 30: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>Long Beach, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Continuous melody generation via disentangled short-term representations and structural conditions</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dubnov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">14th International Conference on Semantic Computing</title>
+		<meeting><address><addrLine>San Diego, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="128" to="135" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Learning interpretable representation for controllable polyphonic music generation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference<address><addrLine>Montreal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="662" to="669" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Learning to traverse latent spaces for musical score inpainting</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lerch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference<address><addrLine>Delft, The Netherlands</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="343" to="351" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Deep music analogy via latent representation disentanglement</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference<address><addrLine>Delft, The Netherlands</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="596" to="603" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Pop music transformer: Beatbased modeling and generation of expressive pop piano compositions</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">MM &apos;20: The 28th ACM International Conference on Multimedia, Virtual Event / Seattle</title>
+		<meeting><address><addrLine>WA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1180" to="1188" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">MIDI-VAE: modeling dynamics and instrumentation of music with applications to style transfer</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Brunner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Konrad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Wattenhofer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 19th International Society for Music Information Retrieval Conference<address><addrLine>Paris, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="747" to="754" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Controlling symbolic music generation based on concept learning from domain knowledge</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Akama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference<address><addrLine>Delft, The Netherlands</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="816" to="823" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Learning disentangled representations of timbre and pitch for musical instrument sounds using gaussian mixture variational autoencoders</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Agres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Herremans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 20th International Society for Music Information Retrieval Conference<address><addrLine>Delft, The Netherlands</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="746" to="753" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Transformer VAE: A hierarchical model for structure-aware and interpretable music representation learning</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">B</forename><surname>Carlton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">N</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">H</forename><surname>Miyakawa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting><address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="516" to="520" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">A simple framework for contrastive learning of visual representations</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kornblith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 37th International Conference on Machine Learning</title>
+		<meeting>the 37th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1597" to="1607" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Momentum contrast for unsupervised visual representation learning</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">B</forename><surname>Girshick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Computer Vision and Pattern Recognition</title>
+		<meeting><address><addrLine>Seattle, WA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9726" to="9735" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Improved baselines with momentum contrastive learning</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">B</forename><surname>Girshick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<idno>abs/2003.04297</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Noise-contrastive estimation: A new estimation principle for unnormalized statistical models</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Gutmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Hyvärinen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirteenth International Conference on Artificial Intelligence and Statistics</title>
+		<meeting>the Thirteenth International Conference on Artificial Intelligence and Statistics</meeting>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="297" to="304" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Learning word embeddings efficiently with noise-contrastive estimation</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mnih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 26: 27th Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>Lake Tahoe, Nevada, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="2265" to="2273" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Representation learning with contrastive predictive coding</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Van Den Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<idno>abs/1807.03748</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Learning deep representations by mutual information estimation and maximization</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">D</forename><surname>Hjelm</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Fedorov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lavoie-Marchildon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Grewal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Bachman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">7th International Conference on Learning Representations</title>
+		<meeting><address><addrLine>New Orleans, LA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">A generative theory of tonal music</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Lerdahl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Jackendoff</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Aesthetics and Art Criticism</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="72" to="73" />
+			<date type="published" when="1996">1996</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Introduction to the theory of heinrich schenker: The nature of the musical work of art</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Rothstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Jonas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Rothgeb</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Music Theory</title>
+		<imprint>
+			<biblScope unit="volume">27</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<date type="published" when="1983">1983</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m">Proceedings of the 22nd ISMIR Conference</title>
+		<meeting>the 22nd ISMIR Conference<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">November 7-12, 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Implementing &quot;a generative theory of tonal music</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hamanaka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Hirata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Tojo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of New Music Research</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="249" to="277" />
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Schenkerian analysis by computer: A proof of concept</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Marsden</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of New Music Research</title>
+		<imprint>
+			<biblScope unit="volume">39</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="269" to="289" />
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Music fadernets: Controllable music generation based on high-level features via low-level feature modelling</title>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">H</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Herremans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference<address><addrLine>Montreal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="109" to="116" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Vector quantized contrastive predictive coding for template-based music generation</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Hadjeres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Crestel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<date type="published" when="2004">2004.10120, 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Jukebox: A generative model for music</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Payne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<idno>abs/2005.00341</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Nottingham database</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Foxley</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">POP909: A pop-song dataset for music arrangement generation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21th International Society for Music Information Retrieval Conference</title>
+		<meeting>the 21th International Society for Music Information Retrieval Conference<address><addrLine>Montreal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">3rd International Conference on Learning Representations</title>
+		<editor>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Y</forename><surname>Lecun</surname></persName>
+		</editor>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Disentangling by factorising</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mnih</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 35th International Conference on Machine Learning</title>
+		<meeting>the 35th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2654" to="2663" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Advanced animation and rendering techniques: By alan watt and mark watt, acm press</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hollasch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computers &amp; Graphics</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page">249</biblScope>
+			<date type="published" when="1994">1994</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">The analysis of variance</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Scheffé</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd ISMIR Conference</title>
+		<meeting>the 22nd ISMIR Conference<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1999-11-07">1999. November 7-12, 2021</date>
+		</imprint>
+	</monogr>
+	<note>Architectural Institute of Japan</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

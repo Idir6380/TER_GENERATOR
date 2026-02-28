@@ -1,0 +1,919 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">AUTOMATIC PIANO TRANSCRIPTION WITH HIERARCHICAL FREQUENCY-TIME TRANSFORMER</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Keisuke</forename><surname>Toyama</surname></persName>
+							<email>keisuke.toyama@sony.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Sony Group Corporation</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Taketo</forename><surname>Akama</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Sony Computer Science Laboratories</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yukara</forename><surname>Ikemiya</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Sony Group Corporation</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yuhta</forename><surname>Takida</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Sony Group Corporation</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Wei-Hsiang</forename><surname>Liao</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Sony Group Corporation</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yuki</forename><surname>Mitsufuji</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Sony Group Corporation</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">AUTOMATIC PIANO TRANSCRIPTION WITH HIERARCHICAL FREQUENCY-TIME TRANSFORMER</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">9AB06028BE26404246DC2D2E83B8C8A5</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-02-25T17:17+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Taking long-term spectral and temporal dependencies into account is essential for automatic piano transcription. This is especially helpful when determining the precise onset and offset for each note in the polyphonic piano content. In this case, we may rely on the capability of self-attention mechanism in Transformers to capture these long-term dependencies in the frequency and time axes. In this work, we propose hFT-Transformer, which is an automatic music transcription method that uses a two-level hierarchical frequency-time Transformer architecture. The first hierarchy includes a convolutional block in the time axis, a Transformer encoder in the frequency axis, and a Transformer decoder that converts the dimension in the frequency axis. The output is then fed into the second hierarchy which consists of another Transformer encoder in the time axis. We evaluated our method with the widely used MAPS and MAESTRO v3.0.0 datasets, and it demonstrated state-of-the-art performance on all the F1-scores of the metrics among Frame, Note, Note with Offset, and Note with Offset and Velocity estimations.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">INTRODUCTION</head><p>Automatic music transcription (AMT) is to convert music signals into symbolic representations such as piano rolls, Musical Instrument Digital Interface (MIDI), and musical scores <ref type="bibr" target="#b1">[1]</ref>. AMT is important for music information retrieval (MIR), its result is useful for symbolic music composition, chord progression recognition, score alignment, etc. Following the conventional methods <ref type="bibr" target="#b1">[1]</ref><ref type="bibr" target="#b2">[2]</ref><ref type="bibr" target="#b3">[3]</ref><ref type="bibr" target="#b4">[4]</ref><ref type="bibr" target="#b5">[5]</ref><ref type="bibr" target="#b6">[6]</ref><ref type="bibr">[7]</ref><ref type="bibr" target="#b8">[8]</ref><ref type="bibr" target="#b9">[9]</ref><ref type="bibr" target="#b10">[10]</ref><ref type="bibr" target="#b11">[11]</ref><ref type="bibr" target="#b12">[12]</ref><ref type="bibr" target="#b13">[13]</ref><ref type="bibr" target="#b14">[14]</ref><ref type="bibr" target="#b15">[15]</ref>, we estimate the frame-level metric and note-level metrics as follows: <ref type="bibr" target="#b1">(1)</ref> Frame: the activation of quantized pitches in each time-processing frame, (2) Note: the onset time of each note, (3) Note with Offset: the onset and offset time of each note, and (4) Note with Offset and Velocity: the onset, offset time, and the loudness of each note.</p><p>For automatic piano transcription, it is important to analyze several harmonic structures that spread in a wide range of frequencies, since piano excerpts are usually polyphonic. Convolutional neural network (CNN)-based methods have been used to aggregate harmonic structures as acoustic features. Most conventional methods apply multilayer convolutional blocks to extend the receptive field in the frequency axis. However, the blocks often include pooling or striding to downsample the features in the frequency axis. Such a downsampling process may reduce the frequency resolution <ref type="bibr" target="#b6">[6]</ref>. It is worth mentioning, many of these methods use 2-D convolutions, which means the convolution is simultaneously applied in the frequency and time axes. The convolution in the time axis works as a preemphasis filter to model the temporal changes of the input signals.</p><p>Up to now, recurrent neural networks (RNNs), such as gated recurrent unit (GRU) <ref type="bibr" target="#b16">[16]</ref> and long short-term memory (LSTM) <ref type="bibr" target="#b17">[17]</ref>, are popular for analyzing the temporal sequences of acoustic features. However, recently some of the works start to use Transformer <ref type="bibr" target="#b18">[18]</ref>, which is a powerful tool for analyzing sequences, in AMT tasks. Ou et al. <ref type="bibr" target="#b2">[2]</ref> applied a Transformer encoder along the time axis and suggested that using Transformer improves velocity estimation. Hawthorne et al. <ref type="bibr" target="#b3">[3]</ref> used a Transformer encoder-decoder as a sequence-to-sequence model for estimating a sequence of note events from another sequence of input audio spectrograms. Their method outperformed other methods using GRUs or LSTMs. Lu et al. <ref type="bibr" target="#b19">[19]</ref> proposed a method called SpecTNT to apply Transformer encoders in both frequency and time axes and reached stateof-the-art performance for various MIR tasks such as music tagging, vocal melody extraction, and chord recognition. This suggests that such a combination of encoders helps in characterizing the broad-scale dependency in the frequency and time axes. However, SpecTNT aggregates spectral features into one token, and the process in its temporal Transformer encoder is not independent in the frequency axis. This inspires us to incorporate Transformer encoders in the frequency and time axes and make the spectral information available for the temporal Transformer encoder.</p><p>In addition, we usually divide the input signal into chunks since the entire sequence is often too long to be 1 st Hierarchy Input dealt at once. However, this raises a problem that the estimated onset and offset accuracy fluctuates depending on the relative position in the processing chunk. In our observation, the accuracy tends to be worse at both ends of the processing chunk. This motivates us to incorporate extra techniques during the inference time to boost the performance.</p><p>In summary, we propose hFT-Transformer, an automatic piano transcription method that uses a two-level hierarchical frequency-time Transformer architecture. Its workflow is shown in Figure <ref type="figure" target="#fig_0">1</ref>. The first hierarchy consists of a one-dimensional (1-D) convolutional block in the time axis, a Transformer encoder in the frequency axis, and a Transformer decoder in the frequency axis. The second hierarchy consists of another Transformer encoder in the time axis. In particular, the Transformer decoder at the end of the first hierarchy converts the dimension in the frequency axis from the number of frequency bins to the number of pitches (88 for piano). Regarding the issue of the location dependent accuracy fluctuation in the processing chunks, we propose a technique which halves the stride length at inference time. It uses only the result of the central part of processing chunks, which will improve overall accuracy. Finally, in Section 4, we show that our method outperforms other piano transcription methods in terms of F1 scores for all the four metrics.</p><p>A PyTorch implementation of our method is available here 1 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">RELATED WORK</head><p>Neural networks, such as CNNs, RNNs, generative adversarial networks (GANs) <ref type="bibr" target="#b20">[20]</ref>, and Transformers have been dominant for AMT. Since Sigtia et al. <ref type="bibr" target="#b4">[4]</ref> proposed the first method to use a CNN to tackle AMT, CNNs have been widely used for the methods of analyzing the spectral dependency of the input spectrogram <ref type="bibr" target="#b2">[2,</ref><ref type="bibr" target="#b6">[6]</ref><ref type="bibr">[7]</ref><ref type="bibr" target="#b8">[8]</ref><ref type="bibr" target="#b9">[9]</ref><ref type="bibr" target="#b10">[10]</ref><ref type="bibr" target="#b12">[12]</ref><ref type="bibr" target="#b13">[13]</ref><ref type="bibr" target="#b14">[14]</ref><ref type="bibr" target="#b15">[15]</ref>. However, it is difficult for CNNs to directly capture the harmonic structure of the input sound in a wide range of frequencies, as convolutions are used to capture features in a local area. Wei et al. <ref type="bibr" target="#b5">[5]</ref> proposed a method of using harmonic constant-Q transform (CQT) for capturing the harmonic structure of piano sounds. They first applied a 3-Dimensional CQT, then applied multiple dilated convolutions with different dilation rates to the output of 1 <ref type="url" target="https://github.com/sony/hFT-Transformer">https://github.com/sony/hFT-Transformer</ref> CQT. Because the dilation rates are designed to capture the harmonics, the performance of Frame and Note accuracy reached state-of-the-art. However, the dilation rates are designed specifically for piano. Thus, the method is not easy to adapt to other instruments.</p><p>For analysis of time dependency, Kong et al. <ref type="bibr" target="#b6">[6]</ref> proposed a method that uses GRUs. Howthorner et al. <ref type="bibr">[7]</ref>, Kwon et al. <ref type="bibr" target="#b8">[8]</ref>, Cheuk et al. <ref type="bibr" target="#b9">[9]</ref>, and Wei et al. <ref type="bibr" target="#b5">[5]</ref> proposed methods that use bi-directional LSTMs for analysis. Ou et al. <ref type="bibr" target="#b2">[2]</ref> used a Transformer encoder to replace the GRUs in Kong et al.'s method <ref type="bibr" target="#b6">[6]</ref>, and showed the effectiveness of the Transformer. Usually, the note onset and offset are estimated in each frequency and time-processing frame grid, then paired as a note for note-level transcription by post-processing algorithms such as <ref type="bibr" target="#b6">[6]</ref>. However, compared to heuristically designed algorithms, endto-end data-driven methods are often preferred. For example, Keltz et al. <ref type="bibr" target="#b10">[10]</ref> applied a seven-state hidden Markov model (HMM) for the sequence of attack, decay, sustain, and release to achieve note-level transcription. Kwon et al. <ref type="bibr" target="#b8">[8]</ref> proposed a method of characterizing the output of LSTM as a five-state statement (onset, offset, re-onset, activate, and inactivate). Hawthorne et al. <ref type="bibr" target="#b3">[3]</ref> proposed a method of estimating a sequence of note events, such as note pitch, velocity, and time, from another sequence of input audio spectrograms using a Transformer encoderdecoder. This method performs well in multiple instruments with the same model <ref type="bibr" target="#b11">[11]</ref>. Yan et al. <ref type="bibr" target="#b12">[12]</ref> proposed a note-wise transcription method for estimating the interval between onset and offset. This method shows state-of-theart performance in estimating Note with Offset and Note with Offset and Velocity. However, the performance in estimating Frame and Note is worse than that of Wei et al.'s method <ref type="bibr" target="#b5">[5]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">METHOD</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Configuration</head><p>Our proposed method aims to transcribe N frames of the input spectrogram into N frames of the output piano rolls (frame, onset, offset, and velocity) as shown in Figure <ref type="figure" target="#fig_0">1</ref>, where N is the number of frames in each processing chunk. Each input frame is composed of a log-mel spectrogram having size (F , M + 1 + M ), where F is the number of frequency bins, and M is the size of the forward margin and that of the backward margin. To obtain  <ref type="bibr" target="#b21">[21]</ref>. For the transformation, we use hann window, setting the window size as 2048, fast-Fourier-transform size as 2048, F as 256, padding mode as constant, and hop-size as 16 ms. The magnitude of the mel spectrogram is then compressed with a log function.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Model Architecture and Loss Functions</head><p>The model architecture of our proposed method is shown in Figure <ref type="figure" target="#fig_1">2</ref>. We first apply a convolutional block to the input log-mel spectrogram, the size of which is (B, N , F , M +1+M ) where B is the batch size. In the convolutional block, we apply a 1-D convolution in the M + 1 + M dimension. After this process, the data are embedded with a linear module.</p><p>The embedded vector is then processed with the first Transformer encoder in the frequency axis. The selfattention is processed to analyze the dependency between spectral features. The positional information is designated as [0, 1, ..., F -1]. These positional values are then embedded with a trainable embedding. These are processed in the frequency axis only, thus completely independent to the time axis (N dimension).</p><p>Next, we convert the frequency dimension from F to the number of pitches (P ). A Transformer decoder with cross-attention is used as the converter. The Transformer decoder calculates the cross-attention between the output vectors of the first Transformer encoder and another trainable positional embedding made from [0, 1, ..., P -1]. The decoded vectors are then converted to the outputs of the first hierarchy with a linear module and a sigmoid function (hereafter, we call these outputs output_1st).</p><p>Regarding the loss calculation for the outputs, frame, onset, and offset are calculated with binary cross-entropy, and velocity is calculated with 128-category cross-entropy. The losses can be summarized as the following equations:</p><formula xml:id="formula_0">L &lt;m&gt; bce = N -1 n=0 P -1 p=0 l bce (y &lt;m&gt; n,p , ŷ&lt;m&gt; n,p ),<label>(1)</label></formula><formula xml:id="formula_1">L velocity cce = N -1 n=0 P -1 p=0 l cce (y velocity n,p<label>, ŷvelocity n,p</label></formula><p>),</p><formula xml:id="formula_2">L = L frame bce + L onset bce + L offset bce + L velocity cce ,<label>(2)</label></formula><p>where &lt; m &gt; is the placeholder for each output (frame, onset, and offset), l bce and l cce denote the loss function for binary cross-entropy and categorical cross-entropy, respectively, and y and ŷ denote the ground truth and predicted values of each output (frame, onset, offset, and velocity), respectively. Although it is intuitive to apply the mean squared error (MSE) for velocity, we found that using the categorical cross-entropy yields much better performance than the MSE from a preliminary experiment. Finally, the output of the converter is processed with another Transformer encoder in the time axis. The selfattention is used to analyze the temporal dependency of features in each time-processing frame. A third positional embedding made from [0, 1, ..., N -1] is used here. Then, similar to the first hierarchy, the outputs of the second hierarchy are obtained through a linear module and a sigmoid function. We call these outputs of the second hierarchy as output_2nd hereafter. The losses for the output_2nd are evaluated in the same way as those for output_1st. These losses are summed with the coefficients α 1st and α 2nd as follows:</p><formula xml:id="formula_4">L all = α 1st L 1st + α 2nd L 2nd .<label>(4)</label></formula><p>Although both outputs are used for computing losses during training, only output_2nd is used in inference. As Chen et al. <ref type="bibr" target="#b23">[22]</ref> suggested that the performance of their method of calculating multiple losses outperformed the method </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Inference Stride</head><p>As mentioned in Section 1, chunk-based processing is required because the input length is limited due to system limitations, such as memory size and acceptable processing delay. We found that the estimation error tends to increase at certain part within each processing chunk. This can be demonstrated by evaluating the error for each instance of time n within the chunks:</p><formula xml:id="formula_5">error &lt;m&gt; n = 1 IP I-1 i=0 P -1 p=0 (y &lt;m&gt; i,n,p -ŷ&lt;m&gt; i,n,p ) 2 , (<label>5</label></formula><formula xml:id="formula_6">)</formula><p>where &lt; m &gt; is the placeholder for each output (frame, onset, offset, and velocity), and I is the number of processing chunks over the test set. The result using our proposed model trained using the MAESTRO training set (described in Section 4) is shown in Figure <ref type="figure" target="#fig_2">3</ref>. Here, the error error &lt;m&gt; n is calculated using the MAESTRO test set. In the figure, we observe a monotonic decrease for frame and a similar but much weaker trend for onset and offset. However, for velocity, no such trend can be observed. This hints us to use only the middle portion of a processing chunk as the output to reduce the error rate. We call this as the halfstride strategy, since a 50% overlap is required for processing chunks, as shown in Figure <ref type="figure">4 (B)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">EXPERIMENTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets</head><p>We use two well-known piano datasets for the evaluation. The MAPS dataset <ref type="bibr" target="#b24">[23]</ref> consists of CD-quality recordings and corresponding annotations of isolated notes, chords, and complete piano pieces. We use the full musical pieces and the train/validation/test split as stated in <ref type="bibr" target="#b4">[4,</ref><ref type="bibr">7]</ref>. The number of recordings and the total duration in hours in each split are 139/71/60 and 8.3/4.4/5.5, respectively. The MAESTRO v3.0.0 dataset <ref type="bibr" target="#b13">[13]</ref> includes about 200 hours of paired audio and MIDI recordings from ten years of the International Piano-e-Competition. We used the </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Model Configuration</head><p>Regarding our model architecture depicted in Figure <ref type="figure" target="#fig_1">2</ref>, we set N as 128, M as 32, F as 256, P as 88, the CNN channels (C) as 4, size of the CNN kernel (K) as 5, and embedding vector size (Z) as 256. For the Transformers, we set the feed-forward network vector size as 512, the number of heads as 4, and the number of layers as 3. For training, we used the following settings: a batch size of 8, learning rate of 0.0001 with Adam optimizer <ref type="bibr" target="#b25">[24]</ref>, dropout rate of 0.1, and clip norm of 1.0. ReduceLROnPlateu in PyTorch is used for learning rate scheduling with default parameters. We set α 1st and α 2nd as 1.0, which were derived from a preliminary experiment (see Section 4.6). We trained our models for 50 epochs on MAPS dataset and 20 epochs for MAESTRO dataset using one NVIDIA A100 GPU. It took roughly 140 minutes and 43.5 hours to train one epoch with our model for MAPS and MAESTRO, respectively. The best model is determined by choosing the one with the highest F1 score in the validation stage.</p><p>In order to obtain high-resolution ground truth for onset and offset, we followed the method in Kong et al. <ref type="bibr" target="#b6">[6]</ref>. We set J, the hyper-parameter to control the sharpness of the targets, to 3. Also, the label of velocity is set only when an onset is present. We set the threshold as 0.5, which means if the onset is smaller than 0.5, the velocity is set as 0.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Inference</head><p>At inference time, we use output_2nd as the final output. We set the threshold for frame as 0.5. For note-wise events (onset, offset, and velocity), the outputs in each pitch-frame grid are converted to a set containing note-wise onset, offset, and velocity following Kong et al.'s Algorithm 1 <ref type="bibr" target="#b6">[6]</ref> in five steps shown below:</p><p>Step 1. onset detection: find a local maximum in onset with a value at least 0.5. Then calculate the precise onset time using the values of the adjacent three frames <ref type="bibr" target="#b6">[6]</ref>.</p><p>Step 2. velocity: If an onset is detected in Step 1, extract the velocity value at the frame. If the value is zero, then  Step 3. offset detection with offset: find a local maximum in offset with a value at least 0.5. Then calculate the precise offset time using the values of the adjacent three frames <ref type="bibr" target="#b6">[6]</ref>.</p><p>Step 4. offset detection with frame: choose the frame that is nearest to the detected onset which has a frame value below 0.5.</p><p>Step 5. offset decision: choose the smaller value between the results of Step 3 and 4.</p><p>An example is shown in Figure <ref type="figure" target="#fig_3">5</ref>. The onset is 4.003, and the velocity is 61. For offset, the direct estimation from offset is 4.043, and that estimated via frame is 4.064. Thus, we choose 4.043 as offset. Finally, we obtain a note with {onset: 4.003, offset: 4.043, velocity: 61} in the output.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Metrics</head><p>We evaluate the performance of our proposed method with frame-level metrics (Frame) and note-level metrics (Note, Note with Offset, and Note with Offset &amp; Velocity) with the standard precision, recall, and F1 scores. We calculated these scores using mir_eval library <ref type="bibr" target="#b26">[25]</ref> with its default settings. The scores were calculated per recording, and the mean of these per-recording scores was presented as the final metric for a given collection of pieces, as explained in Hawthorne et al. <ref type="bibr">[7]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Results</head><p>Tables <ref type="table" target="#tab_1">1</ref> and<ref type="table" target="#tab_2">2</ref> show the scores on the test sets of MAPS and MAESTRO datasets. The numbers of parameters in these Tables are referred from <ref type="bibr" target="#b5">[5,</ref><ref type="bibr" target="#b10">10]</ref>. For the MAPS dataset, our proposed method outperformed the other methods in F1 score for all metrics. For the MAESTRO dataset, our proposed method outperformed the other methods in F1 score for Note, Note with Offset, and Note with Offset &amp; Velocity. Furthermore, our method with the half-stride strategy which is mentioned in 3.3 outperformed other methods in all metrics. In contrast, the two state-of-the-art methods for MAESTRO, which are Semi-CRFs <ref type="bibr" target="#b12">[12]</ref> and HPPNet-sp <ref type="bibr" target="#b5">[5]</ref>, performed well only on a subset of the metrics.</p><p>The results suggest that the proposed two-level hierarchical frequency-time Transformer structure is promising for AMT.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Ablation Study</head><p>To investigate the effectiveness of each module in our proposed method, we trained various combinations of those modules using the MAPS training set and evaluated them using the MAPS validation set. The variations are shown in Table <ref type="table">3</ref>. In this study, we call our proposed method 1-F-D-T, which means it consists of the 1-D convolution block, the first Transformer encoder in the Frequency axis, the Transformer Decoder, and the second Transformer encoder in the Time axis. Table <ref type="table">4</ref> shows evaluation results for each variation.</p><p>Second Transformer encoder in time axis. To verify the effectiveness of the second Transformer encoder, we compared the 1-F-D-T and the model without the second Transformer encoder (1-F-D-N). For the 1-F-D-N model, we use output_1st in both training and inference stages as the final output. The result indicates that the second Transformer encoder improved Note with Offset performance, in It also shows that the training converges faster when α 1st is larger than α 2nd . Importantly, if we omit the output_1st, which is the case when training with the pair (0.0, 2.0), the training loss did not decrease much. Therefore, the F1 score stays around 0% and thus cannot be seen in Figure <ref type="figure" target="#fig_4">6</ref>. This suggests that it is crucial to use both losses, output_1st and output_2nd in our proposed method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">CONCLUSION</head><p>In this work, we proposed hFT-Transformer, an automatic piano transcription method that uses a two-level hierarchical frequency-time Transformer architecture. The first hierarchy consists of a 1-D convolutional block in the time axis, a Transformer encoder and a Transformer decoder in the frequency axis, and the second hierarchy consists of a Transformer encoder in the time axis. The experiment result based on two well-known piano datasets, MAPS and MAESTRO, revealed that our two-level hierarchical architecture works effectively and outperformed other state-ofthe-art methods in F1 score for frame-level and note-level transcription metrics. For future work, we would like to extend our method to other instruments and multi-instrument settings.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. hFT-Transformer (N: number of frames in each processing chunk, M: length of margin, F: number of frequency bins, P: number of pitches)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Model architecture of hFT-Transformer</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. Estimation error (Eqn (5)) on location in each time-processing frame</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 5 .</head><label>5</label><figDesc>Figure 5. Example of conversion from grid-wise values to note-wise values</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 6 .</head><label>6</label><figDesc>Figure 6. Performance of 1-F-D-T model trained with sixpairs of coefficients of loss functions</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 .</head><label>1</label><figDesc>Evaluation results on MAPS test dataset (P: precision, R: recall, bold: best score, underline: second best score)</figDesc><table><row><cell>Method</cell><cell cols="2">half Params stride</cell><cell cols="12">Frame P(%) R(%) F1(%) P(%) R(%) F1(%) P(%) R(%) F1(%) P(%) R(%) Note Note w/ Offset Note w/ Offset&amp;Velocity F1(%)</cell></row><row><cell>Onsets&amp;Frames [7]</cell><cell></cell><cell cols="12">26M 88.53 70.89 78.30 84.24 80.67 82.29 51.32 49.31 50.22 35.52 30.80</cell><cell>35.59</cell></row><row><cell>ADSR [10]</cell><cell></cell><cell cols="10">0.3M 90.73 67.85 77.16 90.15 74.78 81.38 61.93 51.66 56.08</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell>hFT-Transformer</cell><cell></cell><cell cols="12">5.5M 83.36 82.00 82.67 86.63 83.75 85.07 67.18 65.06 66.03 48.75 47.21</cell><cell>47.92</cell></row><row><cell>hFT-Transformer</cell><cell>✓</cell><cell cols="12">5.5M 83.68 82.11 82.89 86.72 83.81 85.14 67.51 65.36 66.34 49.05 47.48</cell><cell>48.20</cell></row><row><cell>Method</cell><cell cols="2">half Params stride</cell><cell cols="12">Frame P(%) R(%) F1(%) P(%) R(%) F1(%) P(%) R(%) F1(%) P(%) R(%) Note Note w/ Offset Note w/ Offset&amp;Velocity F1(%)</cell></row><row><cell>Seq2Seq [3]</cell><cell></cell><cell>54M</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>96.01</cell><cell>-</cell><cell>-</cell><cell>83.94</cell><cell>-</cell><cell>-</cell><cell>82.75</cell></row><row><cell>HPT-T [2]</cell><cell></cell><cell>-</cell><cell>-</cell><cell>-</cell><cell cols="9">90.09 97.88 96.72 96.77 84.13 82.31 83.20 82.85 81.07</cell><cell>81.90</cell></row><row><cell>Semi-CRFs [12]</cell><cell></cell><cell cols="12">9M 93.79 88.36 90.75 98.69 93.96 96.11 90.79 86.46 88.42 89.78 85.51</cell><cell>87.44</cell></row><row><cell>HPPNet-sp [5]</cell><cell></cell><cell cols="12">1.2M 92.79 93.59 93.15 98.45 95.95 97.18 84.88 82.76 83.80 83.29 81.24</cell><cell>82.24</cell></row><row><cell>hFT-Transformer</cell><cell></cell><cell cols="12">5.5M 92.62 93.43 93.02 99.62 95.41 97.43 92.32 88.48 90.32 91.21 87.44</cell><cell>89.25</cell></row><row><cell cols="2">hFT-Transformer ✓</cell><cell cols="12">5.5M 92.82 93.66 93.24 99.64 95.44 97.44 92.52 88.69 90.53 91.43 87.67</cell><cell>89.48</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 .</head><label>2</label><figDesc>Evaluation results on MAESTRO v3.0.0 test dataset</figDesc><table><row><cell>time [sec]</cell><cell cols="10">3.952 3.968 3.984 4.000 4.016 4.032 4.048 4.064 4.080 4.096</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>①4.003</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>onset</cell><cell>0.00</cell><cell>0.29</cell><cell>0.65</cell><cell>0.93</cell><cell>0.75</cell><cell>0.40</cell><cell>0.05</cell><cell>0.00</cell><cell>0.00</cell><cell>0.00</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>②61</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>velocity</cell><cell>0</cell><cell>0</cell><cell>61</cell><cell>61</cell><cell>61</cell><cell>0</cell><cell>0</cell><cell>0</cell><cell>0</cell><cell>0</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">③4.043</cell><cell></cell><cell></cell><cell></cell></row><row><cell>offset</cell><cell>0.00</cell><cell>0.00</cell><cell>0.01</cell><cell>0.11</cell><cell>0.51</cell><cell>0.80</cell><cell>0.86</cell><cell>0.70</cell><cell>0.31</cell><cell>0.25</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>④4.064</cell><cell></cell><cell></cell></row><row><cell>frame</cell><cell>0.00</cell><cell>0.00</cell><cell>0.01</cell><cell>0.97</cell><cell>1.00</cell><cell>1.00</cell><cell>0.75</cell><cell>0.20</cell><cell>0.01</cell><cell>0.00</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="6">{onset: 4.003, offset: 4.043, velocity: 61}</cell><cell></cell><cell></cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>nd Hierarchy</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>Proceedings of the 24th ISMIR Conference, Milan, Italy, November 5-9, 2023</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="6.">ACKNOWLEDGMENTS</head><p>We would like to thank <rs type="person">Giorgio Fabbro</rs> and <rs type="person">Stefan Uhlich</rs> for their valuable comments while preparing this manuscript. We are grateful to <rs type="person">Kin Wai Cheuk</rs> for his dedicated support in preparing our github repository.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Compelxity of convolutional block. To investigate how the complexity of the convolutional block affects the AMT performance, we compared the 1-F-D-T model and the model that replaces the 1-D convolutional block with a 2-D convolutional block (2-F-D-T). Surprisingly, the result shows that the performance of the 2-F-D-T model is significantly worse than that of the 1-F-D-T model. This is probably because the two modules working on the spectral dependency do not cohere with each other. The 2-D convolutional block may over aggregate the spectral information thus resulting into an effectively lower frequency resolution. Then, the Transformer encoder can only evaluate the spectral dependency over an over-simplified feature space, causing the performance degradation.</p><p>Converter. We used a Transformer decoder to convert the dimension in the frequency axis from F to P . In contrast, almost all of the existing methods used a linear module to achieve this. We compared the performance of the 1-F-D-T model to a model with the Transfomer decoder replaced with a linear converter ( <ref type="figure">1-F-L-T</ref>). The result indicates that the 1-F-D-T model outperformed the 1-F-L-T model in F1 score for all four metrics. Especially, the difference in Note with Offset and Velocity is large (75.95 for the 1-F-D-T model and 69.34 for the 1-F-L-T model in F1 score). This suggests that using a Transformer decoder as converter is an effective way of improving the performance, although the side effect is the increase of model size.</p><p>We also investigated how the coefficients for the loss functions, α 1st and α 2nd in Eqn (4), affect the performance. We investigated six pairs of coefficients of loss functions (α 1st , α 2nd ) in Eqn (4), i.e., (1.8, 0.2), (1.4, 0.6), (1.0, 1.0), (0.6, 1.4), (0.2, 1.8), and (0.0, 2.0), for the 1-F-D-T model. Figure <ref type="figure">6</ref> shows the F1 scores of frame, onset, offset, and velocity evaluated on the MAPS validation set in each epoch. These results indicate that the (1.0, 1.0) pair </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>References</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Automatic music transcription: An overview</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ewert</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Signal Processing Magazine</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="20" to="30" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Exploring transformer&apos;s potential on automatic piano transcription</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Hang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 47th Int. Conference on Acoustics, Speech and Signal Processing</title>
+		<meeting>of the 47th Int. Conference on Acoustics, Speech and Signal essing</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="776" to="780" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Sequence-to-sequence piano transcription with transformers</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Swavely</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Manilow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 22th Int. Society for Music Information Retrieval Conf</title>
+		<meeting>of the 22th Int. Society for Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="246" to="253" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">An end-to-end neural network for polyphonic piano music transcription</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Sigtia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dixon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech and Language Processing (TASLP)</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="927" to="939" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Hppnet: Modeling the harmonic structure and pitch invariance in piano transcription</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 23rd Int. Society for Music Information Retrieval Conf</title>
+		<meeting>of the 23rd Int. Society for Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="709" to="716" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Highresolution piano transcription with pedals by regressing onsets and offsets times</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio Speech and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="page" from="3707" to="3717" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Onsets and frames: Dual-objective piano transcription</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Elsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Oore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 19th Int. Society for Music Information Retrieval Conf</title>
+		<meeting>of the 19th Int. Society for Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="50" to="57" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Polyphonic piano transcription using autoregressive multi-state note model</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Jeong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 21st Int. Society for Music Information Retrieval Conf</title>
+		<meeting>of the 21st Int. Society for Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="454" to="460" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">The effect of spectrogram reconstruction on automatic music transcription: An alternative approach to improve transcription accuracy</title>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">W</forename><surname>Cheuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-J</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Benetos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Herremans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 25th International Conference on Pattern Recognition (ICPR)</title>
+		<meeting>of the 25th International Conference on Pattern Recognition (ICPR)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9091" to="9098" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Deep polyphonic adsr piano note transcription</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Kelz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 44th Int. Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<meeting>of the 44th Int. Conference on Acoustics, Speech and Signal essing (ICASSP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="246" to="250" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Mt3: Multi-task multitrack music transcription</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Manilow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">H J</forename><surname>Engel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Int. Conference on Learning Representations (ICLR)</title>
+		<meeting>of the Int. Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Skipping the frame-level: Event-based piano transcription with neural semi-crfs</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Cwitkowitz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Duan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 36th Int. Conference on Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>of the 36th Int. Conference on Neural Information essing Systems (NeurIPS)</meeting>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Enabling factorized piano music modeling and generation with the maestro dataset</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hawthorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Stasyuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-Z</forename><forename type="middle">A</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Elsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 7th International Conference on Learning Representations (ICLR)</title>
+		<meeting>of the 7th International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">On the potential of simple framewise approaches to piano transcription</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Kelz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dorfer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Korzeniowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Böck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Arzt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Widmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 17th Int. Society for Music Information Retrieval Conf</title>
+		<meeting>of the 17th Int. Society for Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="475" to="481" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Adversarial learning for improved onsets and frames music transcription</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Bello</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 20th Int. Society for Music Information Retrieval Conf</title>
+		<meeting>of the 20th Int. Society for Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="670" to="677" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Learning phrase representations using rnn encoderdecoder for statistical machine translation</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Kyunghyun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Van Merrienboer Bart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Caglar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Dzmitry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Fethi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Holger</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yoshua</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="1724" to="1734" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Olosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 31st Conference on Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>of the 31st Conference on Neural Information essing Systems (NeurIPS)</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="6000" to="6010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Spectnt: A time-frequency transformer for music audio</title>
+		<author>
+			<persName><forename type="first">W.-T</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Song</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 22nd Int. Society for Music Information Retrieval Conf</title>
+		<meeting>of the 22nd Int. Society for Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="396" to="403" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Generative adversarial nets</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pouget-Abadie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mirza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Warde-Farley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ozair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="volume">27</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y.-Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Chourdia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Astafurov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-F</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Puhrsch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Pollack</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Genzel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Greenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Mahadeokar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hwang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Goldsborough</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Narenthiran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chintala</surname></persName>
+		</author>
+		<title level="m">Proceedings of the 24th ISMIR Conference</title>
+		<meeting>the 24th ISMIR Conference<address><addrLine>Milan, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023-09">November 5-9, 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Torchaudio: Building blocks for audio and speech processing</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quenneville-Bélair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Shi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2110.15018</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Towards automatic transcription of polyphonic electric guitar music: A new dataset and a multi-loss transformer model</title>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-Y</forename><surname>Hsiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T.-K</forename><surname>Hsieh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-S</forename><forename type="middle">R</forename><surname>Jang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-H</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 47th Int. Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<meeting>of the 47th Int. Conference on Acoustics, Speech and Signal essing (ICASSP)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="786" to="790" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Multipitch estimation of piano sounds using a new probabilistic spectral smoothness principle</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Emiya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Badeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>David</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE ACM Transactions on Audio Speech and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1643" to="1654" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">P</forename><surname>Kingm</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">L</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Conference on Learning Representations (ICLR)</title>
+		<meeting>the 3rd International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">mir_eval: A transparent implementation of common mir metrics</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcfee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">J</forename><surname>Humphrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Salamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Nietro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Ellis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 15th Int. Society for Music Information Retrieval Conf</title>
+		<meeting>of the 15th Int. Society for Music Information Retrieval Conf</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="367" to="372" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>
