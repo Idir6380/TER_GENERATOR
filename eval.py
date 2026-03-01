@@ -2,7 +2,7 @@ import pandas as pd
 from rapidfuzz.distance import JaroWinkler
 from training.src.traitement_greenMIR  import *
 
-EVAL_FIELDS = ["year", "gpu_count", "country", "parameter_count", "training_duration"]
+EVAL_FIELDS = ["year", "gpu_count", "country", "parameter_count", "training_duration","hardware"]
 
 #Distance for numerical fiels
 def numerical_distance(pred, truth):
@@ -13,11 +13,7 @@ def numerical_distance(pred, truth):
 
     except (ValueError, TypeError):
         return None
-    
-    if p == 0 and t == 0:
-        return 0.
-    denom = max(abs(p), abs(t))
-    return min(abs(p - t) / denom, 1.0)
+    return 0. if p == 0 and t == 0 else min(abs(p - t) / max(abs(p), abs(t)), 1.0)
 
 # Yaer distance
 def year_distance(pred, truth):
@@ -108,18 +104,18 @@ def test(file):
 
     # Fake predictions for articles that have ground truth data
     fake_predictions = traiter_alllire_json(file)
-    #{
-    #     # Article 11: RTX 3090, 1 GPU, 2022, Taiwan/USA, 500k params, 63h
+    # fake_predictions ={
+    # #     # Article 11: RTX 3090, 1 GPU, 2022, Taiwan/USA, 500k params, 63h
     #     11: {"year": 2022, "gpu_count": 1, "country": "Taiwan, USA", "parameter_count": 500000, "training_hours": 63},
-    #     # Article 13: V100, 1 GPU, 2022, Taiwan, 48h — partially wrong
+    # #     # Article 13: V100, 1 GPU, 2022, Taiwan, 48h — partially wrong
     #     13: {"year": 2023, "gpu_count": 1, "country": "Taiwan", "training_hours": 40},
-    #     # Article 14: V100, 1 GPU, 2022, China, 11.5h — missing some fields
-    #     14: {"year": 2022, "gpu_count": 2, "country": "China"},
+    # #     # Article 14: V100, 1 GPU, 2022, China, 11.5h — missing some fields
+    #     14: {"year": 2022, "gpu_count": 2, "country": "China","hardware": "V100"},
     # }
 
-    print("=== Test with fake predictions ===")
+    print("=== Test with GreenMIR ===")
     evaluate(fake_predictions, gt)
 
 
 if __name__ == "__main__":
-    test("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/greenmir_pred_2.json")
+    test("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/greenmir_pred_1.json")

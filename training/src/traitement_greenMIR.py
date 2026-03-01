@@ -1,6 +1,10 @@
-
+import numpy as np
 import re
 import json
+
+with open("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/nombre _anglais.json","r",encoding="utf-8") as f:
+    DATA = json.load(f)
+
 EVAL_FIELDS = ["year", "gpu_count", "country", "parameter_count", "training_duration"]
 def traitement_country(country):
     if len(country)==0:
@@ -13,7 +17,7 @@ def traitement_country(country):
 
 def convert_params_to_int(param_str):
     if not isinstance(param_str, str):
-        return None
+        return param_str
     param_str = param_str.strip().lower()
     if param_str.isdigit():
         return int(param_str)
@@ -34,31 +38,34 @@ def convert_params_to_int(param_str):
     return int(number * multipliers[unit])
 
 
+def converte_hour(time_string):
+    return DATA[time_string] if time_string in DATA.keys() else time_string
+
+
+def texte_table(tab):
+    tab_array = np.array(tab)
+    if type(tab_array) == int:
+        return np.sum(tab_array)
+    val=[int(tab_array[i]) for i in range(len(tab_array)) if str(tab_array[i]).isdigit() ]
+    return np.sum(np.array(val))
+    
+    
 def convert_string_to_hours(time_string):
     if not isinstance(time_string, str):
-        return None
+        return time_string
     time_string = time_string.strip().lower()
     if re.fullmatch(r"\d+", time_string):
-        return None
+        return time_string
     if re.fullmatch(r"[a-zA-Z]+", time_string):
-        return None
-    years = 0
-    months = 0
-    days = 0
+        return converte_hour(time_string)
     year_match = re.search(r'(\d+)\s*year', time_string)
     month_match = re.search(r'(\d+)\s*month', time_string)
     day_match = re.search(r'(\d+)\s*day', time_string)
-    if year_match:
-        years = int(year_match.group(1))
-    if month_match:
-        months = int(month_match.group(1))
-    if day_match:
-        days = int(day_match.group(1))
-    if years == 0 and months == 0 and days == 0:
-        return None
+    years = int(year_match.group(1)) if year_match else 0
+    months = int(month_match.group(1)) if month_match else 0
+    days = int(day_match.group(1)) if day_match else 0
     total_days = years * 365 + months * 30 + days
-    total_hours = total_days * 24
-    return total_hours
+    return total_days * 24
 
 
 def traitement_year(year):
@@ -72,11 +79,11 @@ def traitement_year(year):
     
 def convert_gpu_count(gpu_count_str):
     if not isinstance(gpu_count_str, str):
-        return None
+        return gpu_count_str
     elif gpu_count_str in ["[cls]", "[sep]", "", "none"]:
-        return None
+        return gpu_count_str
     elif not gpu_count_str.isdigit() :
-        return None
+        return gpu_count_str
     else :
         return int(gpu_count_str)
 
@@ -91,7 +98,7 @@ def traitement_(gpu_count,fonction=convert_gpu_count):
             conv= fonction(mot)
             if conv is not None:
                 val.append(conv)
-        return max(val, default=None)
+        return texte_table(val)
     
 def traiter_one(article):
     dic= {}
@@ -104,6 +111,9 @@ def traiter_one(article):
     country=traitement_country(article["information"]["country"])
     if country is not None :
         dic["country"]= country
+    hardrew=traitement_country(article["information"]["country"])
+    if hardrew is not None :
+        dic["hardrew"]= hardrew
     parameter_count= traitement_(article["information"]["parameter_count"],convert_params_to_int)
     if parameter_count is not None :
         dic["parameter_count"]= parameter_count
