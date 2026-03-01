@@ -113,7 +113,7 @@ def test(file):
     #     14: {"year": 2022, "gpu_count": 2, "country": "China","hardware": "V100"},
     # }
 
-    print("=== Test with GreenMIR ===")
+    print("=== Test with GreenMIR model with context ===")
     evaluate(fake_predictions, gt)
 
 
