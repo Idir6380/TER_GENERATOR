@@ -1,18 +1,50 @@
 import numpy as np
 import re
 import json
+import contextlib
+import pycountry
+import geonamescache
+
+gc = geonamescache.GeonamesCache()
+cities = gc.get_cities()
+
+
+CITY_TO_COUNTRY = {}
+for city in cities.values():
+    city_name = city["name"].lower()
+    country_code = city["countrycode"]
+    country = pycountry.countries.get(alpha_2=country_code)
+    if country:
+        CITY_TO_COUNTRY [city_name] = country.name
 
 with open("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/nombre _anglais.json","r",encoding="utf-8") as f:
     DATA = json.load(f)
 
 EVAL_FIELDS = ["year", "gpu_count", "country", "parameter_count", "training_duration"]
+
+
+def normalize_predictions(predicted_words):
+    output = []
+
+    for word in predicted_words:
+        w = word.strip().lower()
+        with contextlib.suppress(LookupError):
+            country = pycountry.countries.lookup(word)
+            output.append(country.name)
+            continue
+        if w in CITY_TO_COUNTRY:
+            output.append(CITY_TO_COUNTRY[w])
+            continue
+        else: 
+            output.append(word)
+    return np.unique(np.array(output))
+
+
 def traitement_country(country):
     if len(country)==0:
         return None
-    elif len(country)==1:
-        return country[0]
-    else:
-        return (",").join(country[i] for i in range(len(country)))
+    country = normalize_predictions(country)
+    return (",").join(country[i] for i in range(len(country)))
 
 
 def convert_params_to_int(param_str):
@@ -23,7 +55,7 @@ def convert_params_to_int(param_str):
         return int(param_str)
     match = re.match(r"([\d\.]+)\s*(k|m|b|thousand|million|billion)?", param_str)
     if not match:
-        raise ValueError(f"Format invalide : {param_str}")
+        return param_str
     number = float(match.group(1))
     unit = match.group(2)
     multipliers = {
@@ -58,13 +90,18 @@ def convert_string_to_hours(time_string):
         return time_string
     if re.fullmatch(r"[a-zA-Z]+", time_string):
         return converte_hour(time_string)
-    year_match = re.search(r'(\d+)\s*year', time_string)
-    month_match = re.search(r'(\d+)\s*month', time_string)
-    day_match = re.search(r'(\d+)\s*day', time_string)
-    years = int(year_match.group(1)) if year_match else 0
+    year_match  = re.search(r'(\d+)\s*years?', time_string)
+    month_match = re.search(r'(\d+)\s*months?', time_string)
+    week_match  = re.search(r'(\d+)\s*weeks?', time_string)
+    day_match   = re.search(r'(\d+)\s*days?', time_string)
+
+    years  = int(year_match.group(1)) if year_match else 0
     months = int(month_match.group(1)) if month_match else 0
-    days = int(day_match.group(1)) if day_match else 0
-    total_days = years * 365 + months * 30 + days
+    weeks  = int(week_match.group(1)) if week_match else 0
+    days   = int(day_match.group(1)) if day_match else 0
+
+    total_days = years * 365 + months * 30 + weeks * 7 + days
+
     return total_days * 24
 
 
@@ -74,7 +111,7 @@ def traitement_year(year):
     elif len(year)==1:
         return year[0]
     else:
-        val=[int(mot) for mot in year]
+        val=[int(mot) for mot in year if mot.isdigit()]
         return str(max(val))
     
 def convert_gpu_count(gpu_count_str):

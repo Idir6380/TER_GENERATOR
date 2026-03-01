@@ -80,7 +80,7 @@ def deduplicate_information(dic):
 
 def predict_label_greenmir(global_path):
     list_valeur_predict= []
-    model, tokeniser,inv_vocab= initialisation_for_test(global_path)
+    model, tokeniser,inv_vocab= initialisation_for_test(global_path,mod= "model1.pt")
     model.eval()
     for i in range(113):
         file=create_path(global_path,i)

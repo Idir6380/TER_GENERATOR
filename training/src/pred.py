@@ -49,7 +49,7 @@ def recontruction(model,tokeniser,fe,inv_vocab):
         new_la.append(pred_la)
     return new_la
 
-def preformance(model,tokeniser,data,inv_vocab):
+def performance(model,tokeniser,data,inv_vocab):
     true_label,pred_label=[],[]
     for i in range(len(data)):
         fe ,la,_ = decomposition_and_labelisation(data,i)
@@ -98,7 +98,7 @@ def performance_per_entite(model,tokeniser,data,inv_vocab):
     affichage(true_label, pred_label)
 
 
-def initialisation_for_test(global_path,mod="model2.pt"):
+def initialisation_for_test(global_path,mod="model.pt"):
     fichier_model= f"{global_path}{mod}"
     all_model = torch.load(fichier_model)
     print("CONTENU DU FICHIER MODEL :", all_model.keys())
@@ -115,8 +115,8 @@ if __name__ == "__main__":
     data_train,datas_eval,datas_test= read_file_train("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/all_articles.json")
     model,tokeniser,inv_vocab= initialisation_for_test("/Users/vanessaguerrier/Downloads/projet_TER_M2/")
     model.eval()
-    precision_test ,recall_test,f1_test= performance_per_article(model,tokeniser,datas_test,inv_vocab)
-    precision_ev ,recall_ev,f1_ev= performance_per_article(model,tokeniser,datas_eval,inv_vocab)
+    precision_test ,recall_test,f1_test= performance(model,tokeniser,datas_test,inv_vocab)
+    precision_ev ,recall_ev,f1_ev= performance(model,tokeniser,datas_eval,inv_vocab)
 
 
     print(f"train: {len(data_train)} ,test: {len(datas_test)}, eval : {len(datas_eval)}")
