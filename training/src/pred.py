@@ -37,7 +37,6 @@ def reconstruction_per_sentence(pred_labels,text,word_ids):
         if not preds:
             results.append("O")
             continue
-
         most_common_label = Counter(preds).most_common(1)[0][0]
         results.append(most_common_label)
     return results
@@ -50,7 +49,7 @@ def recontruction(model,tokeniser,fe,inv_vocab):
         new_la.append(pred_la)
     return new_la
 
-def preformance(model,tokeniser,data):
+def performance(model,tokeniser,data,inv_vocab):
     true_label,pred_label=[],[]
     for i in range(len(data)):
         fe ,la,_ = decomposition_and_labelisation(data,i)
@@ -58,6 +57,31 @@ def preformance(model,tokeniser,data):
         true_label+= la
         pred_label+=la_pred
     p,r,f1= precision_recall_f1(true_label,pred_label)
+    precision= p
+    recall=r
+    f1_score=f1
+    return precision ,recall,f1_score
+
+
+def join_all(fe):
+    feature=[]
+    for i in range (len(fe)):
+        feature.extend(fe[i])
+    return feature
+
+
+def performance_per_article(model,tokeniser,data,inv_vocab):
+    feature,label,label_pred=[],[],[]
+    for i in range(len(data)):
+        fe ,la,_ = decomposition_and_labelisation(data,i)
+        f= join_all(fe)
+        l= join_all(la)
+        la_pred= recontruction(model,tokeniser,[f],inv_vocab)
+        feature.append(f)
+        label.append(l)
+        label_pred.append(la_pred[0])
+    
+    p,r,f1= precision_recall_f1(label,label_pred)
     precision= p
     recall=r
     f1_score=f1
@@ -72,11 +96,10 @@ def performance_per_entite(model,tokeniser,data,inv_vocab):
         true_label+= la
         pred_label+=la_pred
     affichage(true_label, pred_label)
-    
-    
-    
-def initialisation_for_test(global_path):
-    fichier_model= f"{global_path}model.pt"
+
+
+def initialisation_for_test(global_path,mod="model.pt"):
+    fichier_model= f"{global_path}{mod}"
     all_model = torch.load(fichier_model)
     print("CONTENU DU FICHIER MODEL :", all_model.keys())
     inv_vocab= all_model["inv_vocab_t"]
@@ -90,10 +113,10 @@ def initialisation_for_test(global_path):
     
 if __name__ == "__main__":
     data_train,datas_eval,datas_test= read_file_train("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/all_articles.json")
-    model,tokeniser,inv_vocab= initialisation_for_test("/Users/vanessaguerrier/Downloads/")
+    model,tokeniser,inv_vocab= initialisation_for_test("/Users/vanessaguerrier/Downloads/projet_TER_M2/")
     model.eval()
-    precision_test ,recall_test,f1_test= preformance(model,tokeniser,datas_test,inv_vocab)
-    precision_ev ,recall_ev,f1_ev= preformance(model,tokeniser,datas_eval,inv_vocab)
+    precision_test ,recall_test,f1_test= performance(model,tokeniser,datas_test,inv_vocab)
+    precision_ev ,recall_ev,f1_ev= performance(model,tokeniser,datas_eval,inv_vocab)
 
 
     print(f"train: {len(data_train)} ,test: {len(datas_test)}, eval : {len(datas_eval)}")

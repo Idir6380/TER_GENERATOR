@@ -4,7 +4,7 @@ import os
 import re 
 import random
 from datetime import datetime 
-import google.generativeai as genai
+# import google.generativeai as genai
 import pandas as pd
 import requests
 #import fitz
@@ -195,6 +195,7 @@ def download_pdfs(articles):
         except Exception as e:
             print(f"Failed to download PDF for article {a['idx']} from {a['link']}: {e}")
 
+
 def extract_text_from_pdf():
     os.makedirs(TEXT_DIR, exist_ok=True)
     for pdf_file in os.listdir(PDF_DIR):
@@ -236,7 +237,7 @@ def load_ground_truth():
                 "year": row.get('Year'),
                 "gpu_count": row.get('Number of GPUs'),
                 "tdp": row.get('TDP/W'),
-                "training_hours": row.get('Training time.1'),
+                "training_duration": row.get('Training time.1'),
                 "energy_kwh": row.get('Energy cost'),
                 "corpus": corpus,
             }
