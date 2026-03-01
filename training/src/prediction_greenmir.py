@@ -90,22 +90,22 @@ def predict_label_greenmir(global_path):
         list_valeur_predict.append(deduplicate_information(dic))
     return list_valeur_predict
 
-def predict_label_greenmir_per_article(global_path):
-    list_valeur_predict= []
-    model, tokeniser,inv_vocab= initialisation_for_test(global_path,model="model.pt")
-    model.eval()
-    for i in range(113):
-        file=create_path(global_path,i)
-        features= lire_et_nettoyage_file(file)
-        features= join_all(features)
-        labels_pred= recontruction(model,tokeniser,[features],inv_vocab)
-        labels_pred=labels_pred[0]
-        dic= create_dic(features, labels_pred, i)
-        list_valeur_predict.append(deduplicate_information(dic))
-    return list_valeur_predict
+# def predict_label_greenmir_per_article(global_path):
+#     list_valeur_predict= []
+#     model, tokeniser,inv_vocab= initialisation_for_test(global_path,model="model1.pt")
+#     model.eval()
+#     for i in range(113):
+#         file=create_path(global_path,i)
+#         features= lire_et_nettoyage_file(file)
+#         features= join_all(features)
+#         labels_pred=  reconstruction_per_sentence(model,tokeniser,[features],inv_vocab)
+#         labels_pred=labels_pred[0]
+#         dic= create_dic(features, labels_pred, i)
+#         list_valeur_predict.append(deduplicate_information(dic))
+#     return list_valeur_predict
         
 
 global_path="/Users/vanessaguerrier/Downloads/projet_TER_M2/"
 valeur= predict_label_greenmir(global_path)
-with open( "/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/greenmir_pred_0.json", 'w', encoding='utf-8') as fichier:
+with open( "/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/greenmir_pred_1.json", 'w', encoding='utf-8') as fichier:
     json.dump(valeur, fichier, ensure_ascii=False, indent=4)
