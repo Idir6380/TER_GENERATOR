@@ -24,6 +24,7 @@ class NERDataset(Dataset):
             words,
             is_split_into_words=True,
             truncation=True,
+            max_length=512,
             return_tensors='pt'
         )
 
