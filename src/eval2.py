@@ -6,8 +6,8 @@ import pandas as pd
 from rapidfuzz.distance import JaroWinkler
 
 
-PRED_FILE   = "../results/greenmir_pred_scibert_F4_L10_1.json"
-DATASET_CSV = "../ref/thibault/static/dataset.csv"
+PRED_FILE   = "../projet_TER_M2/data/GreenMIR/greenmir_pred_0.json"
+DATASET_CSV = "../projet_TER_M2/dataset.csv"
 
 EVAL_FIELDS = ["year", "gpu_count", "training_hours", "parameter_count", "country", "hardware"]
 
