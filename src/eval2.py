@@ -9,7 +9,7 @@ from rapidfuzz.distance import JaroWinkler
 PRED_FILE   = "../results/greenmir_pred_scibert_F4_L10_1.json"
 DATASET_CSV = "../ref/thibault/static/dataset.csv"
 
-EVAL_FIELDS = ["year", "gpu_count", "training_hours", "parameter_count", "country", "hardware"]
+EVAL_FIELDS = ["year", "gpu_count", "training_duration", "parameter_count", "country", "hardware", "model_name"]
 
 
 
@@ -71,21 +71,21 @@ def reduce_year(values):
     return None
 
 
-IMPLICIT_ONE = {'a', 'an', 'single', 'one'}
+_WORD_TO_NUM = json.load(open("../data/nombre _anglais.json", encoding="utf-8"))
+_WORD_TO_NUM.update({'a': 1, 'an': 1, 'single': 1})
 
 def reduce_gpu_count(values):
-    # "a" / "an" / "single" / "one" → 1  (convention du prompt de génération)
     nums = []
     for v in values:
         s = str(v).strip().lower()
-        if s in IMPLICIT_ONE:
-            nums.append(1.0)
+        if s in _WORD_TO_NUM:
+            nums.append(float(_WORD_TO_NUM[s]))
         elif _parse_float(s) is not None:
             nums.append(float(s))
     return sum(nums) if nums else None
 
 
-def reduce_training_hours(values):
+def reduce_training_duration(values):
     for v in values:
         h = _parse_hours(str(v))
         if h is not None:
@@ -130,22 +130,32 @@ def reduce_hardware(values):
     return max(candidates, key=len)      # plus longue = plus spécifique
 
 
+def reduce_model_name(values):
+    """Prend la valeur la plus longue (la plus spécifique)."""
+    candidates = [v.strip() for v in values if isinstance(v, str) and v.strip()]
+    if not candidates:
+        return None
+    return max(candidates, key=len)
+
+
 REDUCERS = {
-    'year':            reduce_year,
-    'gpu_count':       reduce_gpu_count,
-    'training_hours':  reduce_training_hours,
-    'parameter_count': reduce_parameter_count,
-    'country':         reduce_country,
-    'hardware':        reduce_hardware,
+    'year':               reduce_year,
+    'gpu_count':          reduce_gpu_count,
+    'training_duration':  reduce_training_duration,
+    'parameter_count':    reduce_parameter_count,
+    'country':            reduce_country,
+    'hardware':           reduce_hardware,
+    'model_name':         reduce_model_name,
 }
 
 PRED_FIELD_MAP = {
-    'year':            'year',
-    'gpu_count':       'gpu_count',
-    'training_hours':  'training_hours',
-    'parameter_count': 'parameter_count',
-    'country':         'country',
-    'hardware':        'hardware',
+    'year':               'year',
+    'gpu_count':          'gpu_count',
+    'training_duration':  'training_duration',
+    'parameter_count':    'parameter_count',
+    'country':            'country',
+    'hardware':           'hardware',
+    'model_name':         'model_name',
 }
 
 
@@ -171,12 +181,13 @@ def load_ground_truth(csv_path):
     for idx, row in df.iterrows():
         article_id = idx + 1
         gt[article_id] = {
-            'year':            int(row['year'])            if pd.notna(row['year'])            else None,
-            'country':         str(row['country'])         if pd.notna(row['country'])         else None,
-            'hardware':        str(row['hardware'])        if pd.notna(row['hardware'])        else None,
-            'gpu_count':       float(row['hardware_number']) if pd.notna(row['hardware_number']) else None,
-            'training_hours':  float(row['training_time']) if pd.notna(row['training_time'])   else None,
-            'parameter_count': float(row['parameters'])   if pd.notna(row['parameters'])       else None,
+            'year':               int(row['year'])              if pd.notna(row['year'])              else None,
+            'country':            str(row['country'])           if pd.notna(row['country'])           else None,
+            'hardware':           str(row['hardware'])          if pd.notna(row['hardware'])          else None,
+            'gpu_count':          float(row['hardware_number']) if pd.notna(row['hardware_number'])   else None,
+            'training_duration':  float(row['training_time'])  if pd.notna(row['training_time'])     else None,
+            'parameter_count':    float(row['parameters'])     if pd.notna(row['parameters'])        else None,
+            'model_name':         str(row['model name'])       if pd.notna(row['model name'])        else None,
         }
     return gt
 
@@ -238,6 +249,18 @@ def hardware_distance(pred, truth):
     return 0.0 if score >= 0.6 else 1.0
 
 
+def model_name_distance(pred, truth):
+    """
+    Similarité Jaro-Winkler sur le nom du modèle.
+    Seuil 0.85 : gère les variantes de formatage ("GPT-3.5" vs "GPT 3.5")
+    tout en restant strict sur les noms distincts.
+    """
+    if not pred or not truth:
+        return None
+    score = JaroWinkler.normalized_similarity(str(pred).lower(), str(truth).lower())
+    return 0.0 if score >= 0.85 else 1.0
+
+
 def compute_distance(pred, truth, field):
     if field == 'year':
         return year_distance(pred, truth)
@@ -245,6 +268,8 @@ def compute_distance(pred, truth, field):
         return country_distance(pred, truth)
     elif field == 'hardware':
         return hardware_distance(pred, truth)
+    elif field == 'model_name':
+        return model_name_distance(pred, truth)
     else:
         return numerical_distance(pred, truth)
 
