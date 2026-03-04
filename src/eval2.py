@@ -7,7 +7,7 @@ from rapidfuzz.distance import JaroWinkler
 
 
 PRED_FILE   = "../projet_TER_M2/data/GreenMIR/greenmir_pred_0.json"
-DATASET_CSV = "../projet_TER_M2/dataset.csv"
+DATASET_CSV = "ref/thibault/static/dataset.csv"
 
 EVAL_FIELDS = ["year", "gpu_count", "training_duration", "parameter_count", "country", "hardware", "model_name"]
 
@@ -71,7 +71,7 @@ def reduce_year(values):
     return None
 
 
-_WORD_TO_NUM = json.load(open("../data/nombre _anglais.json", encoding="utf-8"))
+_WORD_TO_NUM = json.load(open("data/nombre_anglais.json", encoding="utf-8"))
 _WORD_TO_NUM.update({'a': 1, 'an': 1, 'single': 1})
 
 def reduce_gpu_count(values):

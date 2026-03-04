@@ -5,6 +5,7 @@ import sys
 from metric import *
 import numpy as np
 from preparation_data_train import*
+from train2 import *
 
 def predict(model,tokeniser,text):
     inputs = tokeniser(
@@ -25,23 +26,23 @@ def convert (model,tokeniser,text,inv_vocab):
     return tokens,pred_labels,inputs.word_ids()
 
 
-def reconstruction_per_sentence(pred_labels,text,word_ids):
-    word_to_preds =defaultdict(list)
+def reconstruction_per_sentence(pred_labels, text, word_ids):
+    word_to_pred = {}
+
     for pred, wid in zip(pred_labels, word_ids):
         if wid is None:
             continue
-        word_to_preds[wid].append(pred)
+        if wid not in word_to_pred:
+            word_to_pred[wid] = pred
     results = []
-    for i, word in enumerate(text):
-        preds = word_to_preds.get(i, [])
-        if not preds:
+    for i in range(len(text)):
+        if i in word_to_pred:
+            results.append(word_to_pred[i])
+        else:
             results.append("O")
-            continue
-        most_common_label = Counter(preds).most_common(1)[0][0]
-        results.append(most_common_label)
     return results
 
-def recontruction(model,tokeniser,fe,inv_vocab):
+def reconstruction(model,tokeniser,fe,inv_vocab):
     new_la= []
     for i in range(len(fe)):
         tokens,pred_labels,word_ids=convert (model,tokeniser,fe[i],inv_vocab)
@@ -53,7 +54,7 @@ def performance(model,tokeniser,data,inv_vocab):
     true_label,pred_label=[],[]
     for i in range(len(data)):
         fe ,la,_ = decomposition_and_labelisation(data,i)
-        la_pred= recontruction(model,tokeniser,fe,inv_vocab)
+        la_pred= reconstruction(model,tokeniser,fe,inv_vocab)
         true_label+= la
         pred_label+=la_pred
     p,r,f1= precision_recall_f1(true_label,pred_label)
@@ -76,7 +77,7 @@ def performance_per_article(model,tokeniser,data,inv_vocab):
         fe ,la,_ = decomposition_and_labelisation(data,i)
         f= join_all(fe)
         l= join_all(la)
-        la_pred= recontruction(model,tokeniser,[f],inv_vocab)
+        la_pred= reconstruction(model,tokeniser,[f],inv_vocab)
         feature.append(f)
         label.append(l)
         label_pred.append(la_pred[0])
@@ -92,13 +93,13 @@ def performance_per_entite(model,tokeniser,data,inv_vocab):
     true_label, pred_label= [],[]
     for i in range(len(data)):
         fe ,la,_ = decomposition_and_labelisation(data,i)
-        la_pred= recontruction(model,tokeniser,fe,inv_vocab)
+        la_pred= reconstruction(model,tokeniser,fe,inv_vocab)
         true_label+= la
         pred_label+=la_pred
     affichage(true_label, pred_label)
 
 
-def initialisation_for_test(global_path,mod="model.pt"):
+def initialisation_for_test(global_path,mod="model.pt",model=1):
     fichier_model= f"{global_path}{mod}"
     all_model = torch.load(fichier_model)
     print("CONTENU DU FICHIER MODEL :", all_model.keys())
@@ -106,14 +107,17 @@ def initialisation_for_test(global_path,mod="model.pt"):
     vocab= all_model["vocab_t"]
     model_name= all_model["model_name"]
     tokeniser= all_model["tokeniser"]
-    model = AutoModelForTokenClassification.from_pretrained(model_name,num_labels=len(vocab),id2label=inv_vocab,label2id=vocab)
+    if model== 1:
+        model = AutoModelForTokenClassification.from_pretrained(model_name,num_labels=len(vocab),id2label=inv_vocab,label2id=vocab)
+    else: 
+        model= BertForTokenClassificationCustom(model_name=model_name,num_labels=len(vocab))
     model.load_state_dict(all_model["model"]) 
     return model, tokeniser,inv_vocab 
     
     
 if __name__ == "__main__":
     data_train,datas_eval,datas_test= read_file_train("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/all_articles.json")
-    model,tokeniser,inv_vocab= initialisation_for_test("/Users/vanessaguerrier/Downloads/projet_TER_M2/")
+    model,tokeniser,inv_vocab= initialisation_for_test("/Users/vanessaguerrier/Downloads/projet_TER_M2/",mod="model1.pt",model=1)
     model.eval()
     precision_test ,recall_test,f1_test= performance(model,tokeniser,datas_test,inv_vocab)
     precision_ev ,recall_ev,f1_ev= performance(model,tokeniser,datas_eval,inv_vocab)

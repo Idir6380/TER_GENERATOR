@@ -1,5 +1,5 @@
 from preparation_data_train import *
-from pred import *
+from predi import *
 import json
 
 def create_path(global_path,i):
@@ -85,7 +85,7 @@ def predict_label_greenmir(global_path):
     for i in range(113):
         file=create_path(global_path,i)
         features= lire_et_nettoyage_file(file)
-        labels_pred= recontruction(model,tokeniser,features,inv_vocab)
+        labels_pred= reconstruction(model,tokeniser,features,inv_vocab)
         dic= create_dic(features, labels_pred, i)
         list_valeur_predict.append(deduplicate_information(dic))
     return list_valeur_predict
