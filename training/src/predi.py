@@ -117,7 +117,7 @@ def initialisation_for_test(global_path,mod="model.pt",model=1):
     
 if __name__ == "__main__":
     data_train,datas_eval,datas_test= read_file_train("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/all_articles.json")
-    model,tokeniser,inv_vocab= initialisation_for_test("/Users/vanessaguerrier/Downloads/projet_TER_M2/",mod="model1.pt",model=1)
+    model,tokeniser,inv_vocab= initialisation_for_test("/Users/vanessaguerrier/Downloads/projet_TER_M2/",mod="model.pt",model=1)
     model.eval()
     precision_test ,recall_test,f1_test= performance(model,tokeniser,datas_test,inv_vocab)
     precision_ev ,recall_ev,f1_ev= performance(model,tokeniser,datas_eval,inv_vocab)
