@@ -108,7 +108,7 @@ def initialisation_for_test(global_path,mod="model.pt",model=1):
     model_name= all_model["model_name"]
     tokeniser= all_model["tokeniser"]
     if model== 1:
-        model = AutoModelForTokenClassification.from_pretrained(model_name,num_labels=len(vocab),id2label=inv_vocab,label2id=vocab)
+        model = AutoModelForTokenClassification.from_pretrained("bert-base-cased",num_labels=len(vocab),id2label=inv_vocab,label2id=vocab)
     else: 
         model= BertForTokenClassificationCustom(model_name=model_name,num_labels=len(vocab))
     model.load_state_dict(all_model["model"]) 
@@ -117,7 +117,7 @@ def initialisation_for_test(global_path,mod="model.pt",model=1):
     
 if __name__ == "__main__":
     data_train,datas_eval,datas_test= read_file_train("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/all_articles.json")
-    model,tokeniser,inv_vocab= initialisation_for_test("/Users/vanessaguerrier/Downloads/projet_TER_M2/",mod="model.pt",model=1)
+    model,tokeniser,inv_vocab= initialisation_for_test("/Users/vanessaguerrier/Downloads/projet_TER_M2/",mod="model2.pt",model=2)
     model.eval()
     precision_test ,recall_test,f1_test= performance(model,tokeniser,datas_test,inv_vocab)
     precision_ev ,recall_ev,f1_ev= performance(model,tokeniser,datas_eval,inv_vocab)
@@ -127,11 +127,11 @@ if __name__ == "__main__":
     print("total corpus:",len(data_train)+len(datas_test)+len(datas_eval) )
     print("------------test---------------")
     print(f"mean_preci : {np.mean(precision_test):2f} ")
-    print(f",mean_rapell : {np.mean(recall_test):2f}")
-    print(f",mean_f1-Score : {np.mean(f1_test):2f}")
+    print(f"mean_rapell : {np.mean(recall_test):2f}")
+    print(f"mean_f1-Score : {np.mean(f1_test):2f}")
     print()
     print("------------eval---------------")
     print(f"mean_preci : {np.mean(precision_ev):2f} ")
-    print(f",mean_rapell : {np.mean(recall_ev):2f}")
-    print(f",mean_f1-Score : {np.mean(f1_ev):2f}")
+    print(f"mean_rapell : {np.mean(recall_ev):2f}")
+    print(f"mean_f1-Score : {np.mean(f1_ev):2f}")
     print()

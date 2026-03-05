@@ -17,7 +17,10 @@ class BertForTokenClassificationCustom(nn.Module):
         self.dropout = nn.Dropout(dropout_prob)
         self.classifier = nn.Linear(hidden_size, num_labels)
 
-    def forward(self, input_ids, attention_mask, labels=None):   
+    def forward(self, input):
+        input_ids=input["input_ids"],
+        attention_mask=input["attention_mask"],
+        labels=input["labels"]   
         outputs = self.bert(
             input_ids=input_ids,
             attention_mask=attention_mask
@@ -40,11 +43,7 @@ def evaluate_loss(model, dataloader_eval):
     total_loss = 0
     with torch.no_grad():
         for batch in dataloader_eval:
-            logits, loss = model(
-                input_ids=batch["input_ids"],
-                attention_mask=batch["attention_mask"],
-                labels=batch["labels"]
-            )
+            logits, loss = model(batch)
             total_loss += loss.item()
     return total_loss / len(dataloader_eval)
 
@@ -55,11 +54,7 @@ def fine_tune_custom_bert( dataloader_train,dataloader_eval,num_labels,model_nam
         model.train()
         total_loss = 0
         for batch in dataloader_train:
-            logits, loss = model(
-                input_ids=batch["input_ids"],
-                attention_mask=batch["attention_mask"],
-                labels=batch["labels"]
-            )
+            logits, loss = model(batch)
             total_loss += loss.item()
             loss.backward()
             optimizer.step()
