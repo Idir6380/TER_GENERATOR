@@ -209,7 +209,7 @@ def split_train_eval_test(feature,label):
     fe_eval, fe_test, la_eval, la_test = train_test_split(fe_test,la_test,test_size=0.4,random_state=42)
     return fe_train,fe_eval,fe_test,la_train,la_eval,la_eval
 
-def data(file_name,tokenizer,batch_size=32):
+def data(file_name,tokenizer,batch_size=32,model1=False):
     datas_train,datas_eval,datas_test= read_file_train(file_name)
     print("total corpus:",len(datas_train)+len(datas_test)+len(datas_eval) )
     fe_train,la_train,doc_ids = read_all(datas_train)
@@ -217,8 +217,8 @@ def data(file_name,tokenizer,batch_size=32):
     vocab,inv_vocab= create_vocab(la_train)
     labels_ids = [[vocab[l] for l in sent] for sent in la_train]
     labels_ids_e = [[vocab[l] for l in sent] for sent in la_eval]
-    dataloader_train= dataloader(fe_train,labels_ids,doc_ids,tokenizer,batch_size=batch_size)
-    dataloader_eval= dataloader(fe_eval,labels_ids_e,doc_id_ev,tokenizer,batch_size=10,train=False)
+    dataloader_train= dataloader(fe_train,labels_ids,doc_ids,tokenizer,batch_size=batch_size,train=model1)
+    dataloader_eval= dataloader(fe_eval,labels_ids_e,doc_id_ev,tokenizer,batch_size=10,train=model1)
     return dataloader_train,dataloader_eval,vocab,inv_vocab
 
 def data_per_article(file_name,tokenizer,batch_size=32):
