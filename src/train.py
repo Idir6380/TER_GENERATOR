@@ -151,7 +151,7 @@ def main():
                 layer_to_max = {'L8': 1, 'L10': 2, 'L12': 4, 'AVG': 4} 
                 if n_layers > layer_to_max[layer_mode]:
                     continue
-                train_loader, eval_loader, test_loader, vocab, inv_vocab = get_dataloaders(DATA_FILE, tokenizer, batch_size=32, context_size=ctxt)
+                train_loader, eval_loader, test_loader, vocab, inv_vocab = get_dataloaders(DATA_FILE, tokenizer, batch_size=64, context_size=ctxt)
 
                 print(f"\n{'='*50}")
                 print(f"Experiment: {exp_name}")
