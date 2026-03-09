@@ -159,10 +159,11 @@ def main():
                     num_labels=len(vocab),
                     layer_mode=layer_mode
                 ).to(DEVICE)
-
+                t_start = time()
                 train_losses, eval_losses, f1_scores = train(
                     model, train_loader, eval_loader, inv_vocab, epochs=300, patience=5
                 )
+                train_time = time() - t_start
 
                 test_report = test(model, test_loader, inv_vocab)
                 results[exp_name] = {
@@ -179,6 +180,7 @@ def main():
                     "n_finetune_layers": n_layers,
                     "layer_mode": layer_mode,
                     "context_size": ctxt,
+                    'train_time': train_time
                 }
                 print(f"{exp_name} → eval_f1: {max(f1_scores):.4f} | test_micro: {test_report['micro avg']['f1-score']:.4f} | test_macro: {test_report['macro avg']['f1-score']:.4f}")
 
@@ -220,7 +222,7 @@ def main():
     # CSV train
     df_train = pd.DataFrame([
         {"config": exp, "finetune": exp.split("_")[0], "layer": exp.split("_")[1], "context": exp.split("_")[2],
-         "eval_loss": res["eval_loss"], "eval_f1": res["eval_f1"]}
+         "eval_loss": res["eval_loss"], "eval_f1": res["eval_f1"], 'train_time':res['train_time']}
         for exp, res in results.items()
     ])
     df_train = df_train.sort_values("eval_f1", ascending=False)
