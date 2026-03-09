@@ -141,7 +141,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
     os.makedirs("../models/scibert/", exist_ok=True)
-
+    os.makedirs('../plots/', exist_ok=True)
     results = {}
 
     for finetune_name, n_layers in FINETUNE_CONFIGS.items():
@@ -164,16 +164,6 @@ def main():
                     model, train_loader, eval_loader, inv_vocab, epochs=300, patience=5
                 )
 
-                torch.save({
-                    "model": model.state_dict(),
-                    "vocab_t": vocab,
-                    "inv_vocab_t": inv_vocab,
-                    "model_name": MODEL_NAME,
-                    "n_finetune_layers": n_layers,
-                    "layer_mode": layer_mode,
-                    "context_size": ctxt
-                }, f"../models/{exp_name}.pt")
-
                 test_report = test(model, test_loader, inv_vocab)
                 results[exp_name] = {
                     "eval_loss": min(eval_losses),
@@ -181,13 +171,30 @@ def main():
                     "test_f1_micro": test_report["micro avg"]["f1-score"],
                     "test_f1_macro": test_report["macro avg"]["f1-score"],
                     "train_losses": train_losses,
-                    "eval_losses": eval_losses
+                    "eval_losses": eval_losses,
+                    "f1_scores": f1_scores,
+                    "state_dict": {k: v.clone() for k, v in model.state_dict().items()},
+                    "vocab_t": vocab,
+                    "inv_vocab_t": inv_vocab,
+                    "n_finetune_layers": n_layers,
+                    "layer_mode": layer_mode,
+                    "context_size": ctxt,
                 }
                 print(f"{exp_name} → eval_f1: {max(f1_scores):.4f} | test_micro: {test_report['micro avg']['f1-score']:.4f} | test_macro: {test_report['macro avg']['f1-score']:.4f}")
 
     # Meilleur modèle selon test_f1_macro
     best_exp = max(results, key=lambda x: results[x]["test_f1_macro"])
     best = results[best_exp]
+    torch.save({
+        "model": best["state_dict"],
+        "vocab_t": best["vocab_t"],
+        "inv_vocab_t": best["inv_vocab_t"],
+        "model_name": MODEL_NAME,
+        "n_finetune_layers": best["n_finetune_layers"],
+        "layer_mode": best["layer_mode"],
+        "context_size": best["context_size"]
+    }, f"../models/scibert/{best_exp}.pt")
+    print(f"Best model saved: ../models/scibert/{best_exp}.pt")
     epochs_range = range(1, len(best["train_losses"]) + 1)
     plt.figure()
     plt.plot(epochs_range, best["train_losses"], label="train_loss")
@@ -196,9 +203,19 @@ def main():
     plt.ylabel("Loss")
     plt.title(f"Learning curves — {best_exp}")
     plt.legend()
-    plt.savefig("../models/best_model_curves.png")
+    plt.savefig("../plots/best_model_loss_scibert_curves.png")
     plt.close()
-    print(f"\nBest model: {best_exp} — curves saved to ../models/best_model_curves.png")
+
+    f1_range = range(1, len(best['f1_scores'])+1)
+    plt.figure()
+    plt.plot(f1_range, best["f1_scores"], label='eval_f1')
+    plt.xlabel('Epoch')
+    plt.ylabel('F1')
+    plt.title(f'F1 Score {best_exp}')
+    plt.legend()
+    plt.savefig('../plots/best_model_f1_scibert_curves.png')
+    plt.close()
+    print(f"\nBest model: {best_exp} — curves saved to ../plots")
 
     # CSV train
     df_train = pd.DataFrame([

@@ -5,9 +5,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from pred import load_model, predict_file
 
-CHECKPOINT  = "models/F2_L12_1.pt"                                          
-TEXT_DIR    = "data/GreenMIR/text_xml_nettoyer"
-OUTPUT_FILE = "results/greenmir_pred_scibert_L12.json"
+CHECKPOINT  = "../models/F4_L10_1.pt"
+TEXT_DIR    = "../data/GreenMIR/clean_greenmir"
+OUTPUT_FILE = "../results/greenmir_pred_scibert_F4_L10_1_clean.json"
 N_ARTICLES  = 113
 
 

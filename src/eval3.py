@@ -183,8 +183,12 @@ REDUCERS = {
 
 
 def reduce_predictions(info):
+    # 'training' tag maps to 'training_hours' in pred.py but eval uses 'training_duration'
+    merged = dict(info)
+    if 'training_hours' in merged and 'training_duration' not in merged:
+        merged['training_duration'] = merged['training_hours']
     return {
-        field: REDUCERS[field](info.get(field, []))
+        field: REDUCERS[field](merged.get(field, []))
         for field in EVAL_FIELDS
     }
 
