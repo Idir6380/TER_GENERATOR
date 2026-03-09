@@ -147,8 +147,12 @@ def main():
     for finetune_name, n_layers in FINETUNE_CONFIGS.items():
         for layer_mode in LAYER_CONFIGS:
             for ctxt in CONTEXT_CONFIGS:
-                train_loader, eval_loader, test_loader, vocab, inv_vocab = get_dataloaders(DATA_FILE, tokenizer, batch_size=32, context_size=ctxt)
                 exp_name = f"{finetune_name}_{layer_mode}_{ctxt}"
+                layer_to_max = {'L8': 1, 'L10': 2, 'L12': 4, 'AVG': 4} 
+                if n_layers > layer_to_max[layer_mode]:
+                    continue
+                train_loader, eval_loader, test_loader, vocab, inv_vocab = get_dataloaders(DATA_FILE, tokenizer, batch_size=32, context_size=ctxt)
+
                 print(f"\n{'='*50}")
                 print(f"Experiment: {exp_name}")
                 print(f"{'='*50}")
@@ -165,12 +169,9 @@ def main():
                 )
                 train_time = time() - t_start
 
-                test_report = test(model, test_loader, inv_vocab)
                 results[exp_name] = {
                     "eval_loss": min(eval_losses),
                     "eval_f1": max(f1_scores),
-                    "test_f1_micro": test_report["micro avg"]["f1-score"],
-                    "test_f1_macro": test_report["macro avg"]["f1-score"],
                     "train_losses": train_losses,
                     "eval_losses": eval_losses,
                     "f1_scores": f1_scores,
@@ -182,11 +183,23 @@ def main():
                     "context_size": ctxt,
                     'train_time': train_time
                 }
-                print(f"{exp_name} → eval_f1: {max(f1_scores):.4f} | test_micro: {test_report['micro avg']['f1-score']:.4f} | test_macro: {test_report['macro avg']['f1-score']:.4f}")
+                print(f"{exp_name} → eval_f1: {max(f1_scores):.4f}")
 
-    # Meilleur modèle selon test_f1_macro
-    best_exp = max(results, key=lambda x: results[x]["test_f1_macro"])
+    # Meilleur modèle selon eval_f1
+    best_exp = max(results, key=lambda x: results[x]["eval_f1"])
     best = results[best_exp]
+
+    # Test unique sur le meilleur modèle
+    _, _, test_loader, _, _ = get_dataloaders(DATA_FILE, tokenizer, batch_size=32, context_size=best["context_size"])
+    best_model = SciBERTNER(
+        n_finetune_layers=best["n_finetune_layers"],
+        model_name=MODEL_NAME,
+        num_labels=len(best["vocab_t"]),
+        layer_mode=best["layer_mode"]
+    ).to(DEVICE)
+    best_model.load_state_dict(best["state_dict"])
+    test_report = test(best_model, test_loader, best["inv_vocab_t"])
+    print(f"Best model {best_exp} → test_micro: {test_report['micro avg']['f1-score']:.4f} | test_macro: {test_report['macro avg']['f1-score']:.4f}")
     torch.save({
         "model": best["state_dict"],
         "vocab_t": best["vocab_t"],
@@ -229,13 +242,15 @@ def main():
     df_train.to_csv("../models/train_results.csv", index=False)
     print(f"Train results saved to ../models/train_results.csv")
 
-    # CSV test
-    df_test = pd.DataFrame([
-        {"config": exp, "finetune": exp.split("_")[0], "layer": exp.split("_")[1], "context": exp.split("_")[2],
-         "test_f1_micro": res["test_f1_micro"], "test_f1_macro": res["test_f1_macro"]}
-        for exp, res in results.items()
-    ])
-    df_test = df_test.sort_values("test_f1_macro", ascending=False)
+    # CSV test (meilleur modèle uniquement)
+    df_test = pd.DataFrame([{
+        "config": best_exp,
+        "finetune": best_exp.split("_")[0],
+        "layer": best_exp.split("_")[1],
+        "context": best_exp.split("_")[2],
+        "test_f1_micro": test_report["micro avg"]["f1-score"],
+        "test_f1_macro": test_report["macro avg"]["f1-score"]
+    }])
     df_test.to_csv("../models/test_results.csv", index=False)
     print(f"Test results saved to ../models/test_results.csv")
 
