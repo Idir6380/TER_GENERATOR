@@ -41,7 +41,7 @@ class NERDataset(Dataset):
             return_tensors="pt"
         )
 
-        word_ids = tokenized_inputs.word_ids(batch_index=0)
+        word_ids = tokenized_inputs.word_ids()
 
         aligned_labels = []
         previous_word_idx = None

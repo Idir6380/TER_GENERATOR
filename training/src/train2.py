@@ -17,10 +17,10 @@ class BertForTokenClassificationCustom(nn.Module):
         self.dropout = nn.Dropout(dropout_prob)
         self.classifier = nn.Linear(hidden_size, num_labels)
 
-    def forward(self, input):
-        input_ids=input["input_ids"],
-        attention_mask=input["attention_mask"],
-        labels=input["labels"]   
+    def forward(self, inputs,labels=None):
+        input_ids=inputs["input_ids"]
+        
+        attention_mask=inputs["attention_mask"] 
         outputs = self.bert(
             input_ids=input_ids,
             attention_mask=attention_mask
