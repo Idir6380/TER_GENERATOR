@@ -33,9 +33,21 @@ Comparaison équitable : NER ↔ Thibault mode strict
 
 import json
 import re
+import contextlib
 import pandas as pd
 from rapidfuzz.distance import JaroWinkler
 from rapidfuzz import fuzz as rf_fuzz
+import pycountry
+import geonamescache
+
+# Dictionnaire ville → pays (construit depuis geonamescache)
+_gc = geonamescache.GeonamesCache()
+CITY_TO_COUNTRY = {}
+for _city in _gc.get_cities().values():
+    _cname = _city["name"].lower()
+    _country = pycountry.countries.get(alpha_2=_city["countrycode"])
+    if _country:
+        CITY_TO_COUNTRY[_cname] = _country.name
 
 
 # ---------------------------------------------------------------------------
@@ -146,9 +158,28 @@ def reduce_parameter_count(values):
     return None
 
 
+def _normalize_country_token(token):
+    """Convertit une ville ou un code/nom de pays en nom de pays standard."""
+    token = token.strip()
+    # 1. Essaie pycountry (gère les noms et codes ISO)
+    with contextlib.suppress(LookupError):
+        return pycountry.countries.lookup(token).name
+    # 2. Essaie la table ville → pays
+    if token.lower() in CITY_TO_COUNTRY:
+        return CITY_TO_COUNTRY[token.lower()]
+    return token
+
+
 def reduce_country(values):
-    clean = [v.strip() for v in values if isinstance(v, str) and v.strip()]
-    return ', '.join(clean) if clean else None
+    clean = [_normalize_country_token(v) for v in values if isinstance(v, str) and v.strip()]
+    # Déduplique en gardant l'ordre
+    seen = set()
+    unique = []
+    for c in clean:
+        if c not in seen:
+            seen.add(c)
+            unique.append(c)
+    return ', '.join(unique) if unique else None
 
 
 def reduce_hardware(values):
