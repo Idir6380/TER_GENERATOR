@@ -185,31 +185,45 @@ def main():
                 }
                 print(f"{exp_name} → eval_f1: {max(f1_scores):.4f}")
 
-    # Meilleur modèle selon eval_f1
-    best_exp = max(results, key=lambda x: results[x]["eval_f1"])
-    best = results[best_exp]
+    # Top-3 modèles selon eval_f1
+    top3_exps = sorted(results, key=lambda x: results[x]["eval_f1"], reverse=True)[:3]
+    test_rows = []
 
-    # Test unique sur le meilleur modèle
-    _, _, test_loader, _, _ = get_dataloaders(DATA_FILE, tokenizer, batch_size=32, context_size=best["context_size"])
-    best_model = SciBERTNER(
-        n_finetune_layers=best["n_finetune_layers"],
-        model_name=MODEL_NAME,
-        num_labels=len(best["vocab_t"]),
-        layer_mode=best["layer_mode"]
-    ).to(DEVICE)
-    best_model.load_state_dict(best["state_dict"])
-    test_report = test(best_model, test_loader, best["inv_vocab_t"])
-    print(f"Best model {best_exp} → test_micro: {test_report['micro avg']['f1-score']:.4f} | test_macro: {test_report['macro avg']['f1-score']:.4f}")
-    torch.save({
-        "model": best["state_dict"],
-        "vocab_t": best["vocab_t"],
-        "inv_vocab_t": best["inv_vocab_t"],
-        "model_name": MODEL_NAME,
-        "n_finetune_layers": best["n_finetune_layers"],
-        "layer_mode": best["layer_mode"],
-        "context_size": best["context_size"]
-    }, f"../models/scibert/{best_exp}.pt")
-    print(f"Best model saved: ../models/scibert/{best_exp}.pt")
+    for rank, exp_name in enumerate(top3_exps):
+        res = results[exp_name]
+        _, _, test_loader, _, _ = get_dataloaders(DATA_FILE, tokenizer, batch_size=64, context_size=res["context_size"])
+        m = SciBERTNER(
+            n_finetune_layers=res["n_finetune_layers"],
+            model_name=MODEL_NAME,
+            num_labels=len(res["vocab_t"]),
+            layer_mode=res["layer_mode"]
+        ).to(DEVICE)
+        m.load_state_dict(res["state_dict"])
+        test_report = test(m, test_loader, res["inv_vocab_t"])
+        torch.save({
+            "model": res["state_dict"],
+            "vocab_t": res["vocab_t"],
+            "inv_vocab_t": res["inv_vocab_t"],
+            "model_name": MODEL_NAME,
+            "n_finetune_layers": res["n_finetune_layers"],
+            "layer_mode": res["layer_mode"],
+            "context_size": res["context_size"]
+        }, f"../models/scibert/{exp_name}.pt")
+        print(f"[Top-{rank+1}] {exp_name} → test_micro: {test_report['micro avg']['f1-score']:.4f} | test_macro: {test_report['macro avg']['f1-score']:.4f} | saved")
+        test_rows.append({
+            "rank": rank + 1,
+            "config": exp_name,
+            "finetune": exp_name.split("_")[0],
+            "layer": exp_name.split("_")[1],
+            "context": exp_name.split("_")[2],
+            "eval_f1": res["eval_f1"],
+            "test_f1_micro": test_report["micro avg"]["f1-score"],
+            "test_f1_macro": test_report["macro avg"]["f1-score"]
+        })
+
+    # Courbes pour le top-1 uniquement
+    best_exp = top3_exps[0]
+    best = results[best_exp]
     epochs_range = range(1, len(best["train_losses"]) + 1)
     plt.figure()
     plt.plot(epochs_range, best["train_losses"], label="train_loss")
@@ -230,7 +244,7 @@ def main():
     plt.legend()
     plt.savefig('../plots/best_model_f1_scibert_curves.png')
     plt.close()
-    print(f"\nBest model: {best_exp} — curves saved to ../plots")
+    print(f"\nTop-1: {best_exp} — curves saved to ../plots")
 
     # CSV train
     df_train = pd.DataFrame([
@@ -242,15 +256,8 @@ def main():
     df_train.to_csv("../models/train_results.csv", index=False)
     print(f"Train results saved to ../models/train_results.csv")
 
-    # CSV test (meilleur modèle uniquement)
-    df_test = pd.DataFrame([{
-        "config": best_exp,
-        "finetune": best_exp.split("_")[0],
-        "layer": best_exp.split("_")[1],
-        "context": best_exp.split("_")[2],
-        "test_f1_micro": test_report["micro avg"]["f1-score"],
-        "test_f1_macro": test_report["macro avg"]["f1-score"]
-    }])
+    # CSV test (top-3)
+    df_test = pd.DataFrame(test_rows)
     df_test.to_csv("../models/test_results.csv", index=False)
     print(f"Test results saved to ../models/test_results.csv")
 
