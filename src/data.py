@@ -119,7 +119,7 @@ def build_windows(articles_sentences, articles_labels, vocab, context_size):
                 all_label_ids.append(window_labels)
     return all_sentences, all_label_ids
 
-def get_dataloaders(file_path, tokenizer, batch_size=16, test_size=0.1, eval_size=0.1, context_size=0):
+def get_dataloaders(file_path, tokenizer, batch_size=16, test_size=0.1, eval_size=0.1, context_size=0, split_mode='article'):
     articles = load_articles(file_path)
 
     #all_sentences, all_labels = [], []
@@ -148,33 +148,30 @@ def get_dataloaders(file_path, tokenizer, batch_size=16, test_size=0.1, eval_siz
             articles_labels.append(art_labels_strs)
 
     vocab, inv_vocab = build_vocab([labels for art in articles_labels for labels in art])
-    #all_label_ids = [[vocab[l] for l in labels] for labels in all_label_strs]
 
+    if split_mode == 'sentence':
+        # Sentence split (ancien comportement — data leakage possible)
+        all_sentences, all_label_ids = build_windows(articles_sentences, articles_labels, vocab, context_size)
+        sentences_train, sentences_test, labels_train, labels_test = train_test_split(
+            all_sentences, all_label_ids, test_size=test_size, random_state=42
+        )
+        sentences_train, sentences_eval, labels_train, labels_eval = train_test_split(
+            sentences_train, labels_train, test_size=eval_size, random_state=42
+        )
+    else:
+        # Article split (pas de data leakage)
+        art_idx = list(range(len(articles_sentences)))
+        idx_train, idx_test = train_test_split(art_idx, test_size=test_size, random_state=42)
+        idx_train, idx_eval = train_test_split(idx_train, test_size=eval_size, random_state=42)
 
-    # Sentence split 
-    #all_sentences, all_label_ids = build_windows(articles_sentences, articles_labels, vocab, context_size)
-    
-    #sentences_train, sentences_test, labels_train, labels_test = train_test_split(
-    #    all_sentences, all_label_ids, test_size=test_size, random_state=42
-    #)
-    #sentences_train, sentences_eval, labels_train, labels_eval = train_test_split(
-    #    sentences_train, labels_train, test_size=eval_size, random_state=42
-    #)
+        def _build(idx):
+            sents = [articles_sentences[i] for i in idx]
+            labs = [articles_labels[i] for i in idx]
+            return build_windows(sents, labs, vocab, context_size)
 
-    # Article Split 
-    art_idx = list(range(len(articles_sentences)))
-    idx_train, idx_test = train_test_split(art_idx, test_size=test_size, random_state=42)
-    idx_train, idx_eval = train_test_split(idx_train, test_size=eval_size, random_state=42)
-
-    def _build (idx):
-        sents = [articles_sentences[i] for i in idx]
-        labs = [articles_labels[i] for i in idx]
-
-        return build_windows(sents, labs, vocab, context_size)
-    
-    sentences_train, labels_train = _build(idx_train)
-    sentences_eval, labels_eval = _build(idx_eval)
-    sentences_test, labels_test = _build(idx_test)
+        sentences_train, labels_train = _build(idx_train)
+        sentences_eval, labels_eval = _build(idx_eval)
+        sentences_test, labels_test = _build(idx_test)
 
 
     collator = DataCollatorForTokenClassification(tokenizer)

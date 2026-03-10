@@ -138,9 +138,14 @@ def test(model, test_loader, inv_vocab):
 
 
 def main():
+    SPLIT_MODE = 'sentence'  # 'article' ou 'sentence'
+
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-    os.makedirs("../models/scibert/", exist_ok=True)
+    model_dir = f"../models/scibert_{SPLIT_MODE}/" if SPLIT_MODE == 'sentence' else "../models/scibert/"
+    csv_suffix = f"_{SPLIT_MODE}" if SPLIT_MODE == 'sentence' else ""
+
+    os.makedirs(model_dir, exist_ok=True)
     os.makedirs('../plots/', exist_ok=True)
     results = {}
 
@@ -148,10 +153,10 @@ def main():
         for layer_mode in LAYER_CONFIGS:
             for ctxt in CONTEXT_CONFIGS:
                 exp_name = f"{finetune_name}_{layer_mode}_{ctxt}"
-                layer_to_max = {'L8': 1, 'L10': 2, 'L12': 4, 'AVG': 4} 
+                layer_to_max = {'L8': 1, 'L10': 2, 'L12': 4, 'AVG': 4}
                 if n_layers > layer_to_max[layer_mode]:
                     continue
-                train_loader, eval_loader, test_loader, vocab, inv_vocab = get_dataloaders(DATA_FILE, tokenizer, batch_size=64, context_size=ctxt)
+                train_loader, eval_loader, test_loader, vocab, inv_vocab = get_dataloaders(DATA_FILE, tokenizer, batch_size=64, context_size=ctxt, split_mode=SPLIT_MODE)
 
                 print(f"\n{'='*50}")
                 print(f"Experiment: {exp_name}")
@@ -208,8 +213,8 @@ def main():
             "n_finetune_layers": res["n_finetune_layers"],
             "layer_mode": res["layer_mode"],
             "context_size": res["context_size"]
-        }, f"../models/scibert/{exp_name}.pt")
-        print(f"[Top-{rank+1}] {exp_name} → test_micro: {test_report['micro avg']['f1-score']:.4f} | test_macro: {test_report['macro avg']['f1-score']:.4f} | saved")
+        }, f"{model_dir}{exp_name}.pt")
+        print(f"[Top-{rank+1}] {exp_name} → test_micro: {test_report['micro avg']['f1-score']:.4f} | test_macro: {test_report['macro avg']['f1-score']:.4f} | saved to {model_dir}")
         test_rows.append({
             "rank": rank + 1,
             "config": exp_name,
@@ -253,13 +258,13 @@ def main():
         for exp, res in results.items()
     ])
     df_train = df_train.sort_values("eval_f1", ascending=False)
-    df_train.to_csv("../models/train_results.csv", index=False)
-    print(f"Train results saved to ../models/train_results.csv")
+    df_train.to_csv(f"../models/train_results{csv_suffix}.csv", index=False)
+    print(f"Train results saved to ../models/train_results{csv_suffix}.csv")
 
     # CSV test (top-3)
     df_test = pd.DataFrame(test_rows)
-    df_test.to_csv("../models/test_results.csv", index=False)
-    print(f"Test results saved to ../models/test_results.csv")
+    df_test.to_csv(f"../models/test_results{csv_suffix}.csv", index=False)
+    print(f"Test results saved to ../models/test_results{csv_suffix}.csv")
 
 if __name__ == "__main__":
     main()
