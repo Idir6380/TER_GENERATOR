@@ -138,17 +138,26 @@ def test(model, test_loader, inv_vocab):
 
 
 def main():
+    SPLIT_MODE = 'sentence'  # 'article' ou 'sentence'
+
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-    os.makedirs("../models/scibert/", exist_ok=True)
+    model_dir = f"../models/scibert_{SPLIT_MODE}/" if SPLIT_MODE == 'sentence' else "../models/scibert/"
+    csv_suffix = f"_{SPLIT_MODE}" if SPLIT_MODE == 'sentence' else ""
 
+    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs('../plots/', exist_ok=True)
     results = {}
 
     for finetune_name, n_layers in FINETUNE_CONFIGS.items():
         for layer_mode in LAYER_CONFIGS:
             for ctxt in CONTEXT_CONFIGS:
-                train_loader, eval_loader, test_loader, vocab, inv_vocab = get_dataloaders(DATA_FILE, tokenizer, batch_size=32, context_size=ctxt)
                 exp_name = f"{finetune_name}_{layer_mode}_{ctxt}"
+                layer_to_max = {'L8': 1, 'L10': 2, 'L12': 4, 'AVG': 4}
+                if n_layers > layer_to_max[layer_mode]:
+                    continue
+                train_loader, eval_loader, test_loader, vocab, inv_vocab = get_dataloaders(DATA_FILE, tokenizer, batch_size=64, context_size=ctxt, split_mode=SPLIT_MODE)
+
                 print(f"\n{'='*50}")
                 print(f"Experiment: {exp_name}")
                 print(f"{'='*50}")
@@ -159,34 +168,66 @@ def main():
                     num_labels=len(vocab),
                     layer_mode=layer_mode
                 ).to(DEVICE)
-
+                t_start = time()
                 train_losses, eval_losses, f1_scores = train(
                     model, train_loader, eval_loader, inv_vocab, epochs=300, patience=5
                 )
+                train_time = time() - t_start
 
-                torch.save({
-                    "model": model.state_dict(),
-                    "vocab_t": vocab,
-                    "inv_vocab_t": inv_vocab,
-                    "model_name": MODEL_NAME,
-                    "n_finetune_layers": n_layers,
-                    "layer_mode": layer_mode,
-                    "context_size": ctxt
-                }, f"../models/{exp_name}.pt")
-
-                test_report = test(model, test_loader, inv_vocab)
                 results[exp_name] = {
                     "eval_loss": min(eval_losses),
                     "eval_f1": max(f1_scores),
-                    "test_f1_micro": test_report["micro avg"]["f1-score"],
-                    "test_f1_macro": test_report["macro avg"]["f1-score"],
                     "train_losses": train_losses,
-                    "eval_losses": eval_losses
+                    "eval_losses": eval_losses,
+                    "f1_scores": f1_scores,
+                    "state_dict": {k: v.clone() for k, v in model.state_dict().items()},
+                    "vocab_t": vocab,
+                    "inv_vocab_t": inv_vocab,
+                    "n_finetune_layers": n_layers,
+                    "layer_mode": layer_mode,
+                    "context_size": ctxt,
+                    'train_time': train_time
                 }
-                print(f"{exp_name} → eval_f1: {max(f1_scores):.4f} | test_micro: {test_report['micro avg']['f1-score']:.4f} | test_macro: {test_report['macro avg']['f1-score']:.4f}")
+                print(f"{exp_name} → eval_f1: {max(f1_scores):.4f}")
 
-    # Meilleur modèle selon test_f1_macro
-    best_exp = max(results, key=lambda x: results[x]["test_f1_macro"])
+    # Top-3 modèles selon eval_f1
+    top3_exps = sorted(results, key=lambda x: results[x]["eval_f1"], reverse=True)[:3]
+    test_rows = []
+
+    for rank, exp_name in enumerate(top3_exps):
+        res = results[exp_name]
+        _, _, test_loader, _, _ = get_dataloaders(DATA_FILE, tokenizer, batch_size=64, context_size=res["context_size"])
+        m = SciBERTNER(
+            n_finetune_layers=res["n_finetune_layers"],
+            model_name=MODEL_NAME,
+            num_labels=len(res["vocab_t"]),
+            layer_mode=res["layer_mode"]
+        ).to(DEVICE)
+        m.load_state_dict(res["state_dict"])
+        test_report = test(m, test_loader, res["inv_vocab_t"])
+        torch.save({
+            "model": res["state_dict"],
+            "vocab_t": res["vocab_t"],
+            "inv_vocab_t": res["inv_vocab_t"],
+            "model_name": MODEL_NAME,
+            "n_finetune_layers": res["n_finetune_layers"],
+            "layer_mode": res["layer_mode"],
+            "context_size": res["context_size"]
+        }, f"{model_dir}{exp_name}.pt")
+        print(f"[Top-{rank+1}] {exp_name} → test_micro: {test_report['micro avg']['f1-score']:.4f} | test_macro: {test_report['macro avg']['f1-score']:.4f} | saved to {model_dir}")
+        test_rows.append({
+            "rank": rank + 1,
+            "config": exp_name,
+            "finetune": exp_name.split("_")[0],
+            "layer": exp_name.split("_")[1],
+            "context": exp_name.split("_")[2],
+            "eval_f1": res["eval_f1"],
+            "test_f1_micro": test_report["micro avg"]["f1-score"],
+            "test_f1_macro": test_report["macro avg"]["f1-score"]
+        })
+
+    # Courbes pour le top-1 uniquement
+    best_exp = top3_exps[0]
     best = results[best_exp]
     epochs_range = range(1, len(best["train_losses"]) + 1)
     plt.figure()
@@ -196,29 +237,34 @@ def main():
     plt.ylabel("Loss")
     plt.title(f"Learning curves — {best_exp}")
     plt.legend()
-    plt.savefig("../models/best_model_curves.png")
+    plt.savefig("../plots/best_model_loss_scibert_curves.png")
     plt.close()
-    print(f"\nBest model: {best_exp} — curves saved to ../models/best_model_curves.png")
+
+    f1_range = range(1, len(best['f1_scores'])+1)
+    plt.figure()
+    plt.plot(f1_range, best["f1_scores"], label='eval_f1')
+    plt.xlabel('Epoch')
+    plt.ylabel('F1')
+    plt.title(f'F1 Score {best_exp}')
+    plt.legend()
+    plt.savefig('../plots/best_model_f1_scibert_curves.png')
+    plt.close()
+    print(f"\nTop-1: {best_exp} — curves saved to ../plots")
 
     # CSV train
     df_train = pd.DataFrame([
         {"config": exp, "finetune": exp.split("_")[0], "layer": exp.split("_")[1], "context": exp.split("_")[2],
-         "eval_loss": res["eval_loss"], "eval_f1": res["eval_f1"]}
+         "eval_loss": res["eval_loss"], "eval_f1": res["eval_f1"], 'train_time':res['train_time']}
         for exp, res in results.items()
     ])
     df_train = df_train.sort_values("eval_f1", ascending=False)
-    df_train.to_csv("../models/train_results.csv", index=False)
-    print(f"Train results saved to ../models/train_results.csv")
+    df_train.to_csv(f"../models/train_results{csv_suffix}.csv", index=False)
+    print(f"Train results saved to ../models/train_results{csv_suffix}.csv")
 
-    # CSV test
-    df_test = pd.DataFrame([
-        {"config": exp, "finetune": exp.split("_")[0], "layer": exp.split("_")[1], "context": exp.split("_")[2],
-         "test_f1_micro": res["test_f1_micro"], "test_f1_macro": res["test_f1_macro"]}
-        for exp, res in results.items()
-    ])
-    df_test = df_test.sort_values("test_f1_macro", ascending=False)
-    df_test.to_csv("../models/test_results.csv", index=False)
-    print(f"Test results saved to ../models/test_results.csv")
+    # CSV test (top-3)
+    df_test = pd.DataFrame(test_rows)
+    df_test.to_csv(f"../models/test_results{csv_suffix}.csv", index=False)
+    print(f"Test results saved to ../models/test_results{csv_suffix}.csv")
 
 if __name__ == "__main__":
     main()

@@ -118,4 +118,4 @@ def test(file):
 
 
 if __name__ == "__main__":
-    test("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/GreenMIR/greenmir_pred_1.json")
+    test("./results/greenmir_pred_scibert_F4_L10_1.json")

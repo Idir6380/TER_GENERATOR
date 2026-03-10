@@ -17,7 +17,7 @@ for city in cities.values():
     if country:
         CITY_TO_COUNTRY [city_name] = country.name
 
-with open("/Users/vanessaguerrier/Downloads/projet_TER_M2/data/nombre _anglais.json","r",encoding="utf-8") as f:
+with open("./data/nombre _anglais.json","r",encoding="utf-8") as f:
     DATA = json.load(f)
 
 EVAL_FIELDS = ["year", "gpu_count", "country", "parameter_count", "training_duration"]
