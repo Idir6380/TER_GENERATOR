@@ -23,10 +23,18 @@ class SciBERTNER(nn.Module):
             param.requires_grad = False 
         
         # unfreez 
-        if n_finetune_layers > 0:
-            for layer in self.bert.encoder.layer[-self.n_finetune_layers:]:
+        #if n_finetune_layers > 0:
+        #    for layer in self.bert.encoder.layer[-self.n_finetune_layers:]:
+        #        for param in layer.parameters():
+        #            param.requires_grad = True
+        layer_to_max = {'L8': 1, 'L10': 2, 'L12': 4, 'AVG': 4}
+        effective_n = min(n_finetune_layers, layer_to_max[layer_mode])
+        if effective_n > 0:
+            for layer in self.bert.encoder.layer[-effective_n:]:
                 for param in layer.parameters():
-                    param.requires_grad = True
+                    param.requires_grad=True
+
+
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True)
         hidden_states = outputs.hidden_states

@@ -42,8 +42,8 @@ from rapidfuzz import fuzz as rf_fuzz
 # Configuration
 # ---------------------------------------------------------------------------
 
-PRED_FILE   = "../projet_TER_M2/data/GreenMIR/greenmir_pred_0.json"
-DATASET_CSV = "ref/thibault/static/dataset.csv"
+PRED_FILE = "../results/greenmir_pred_scibert_F4_L12_1.json" 
+DATASET_CSV = "../ref/thibault/static/dataset.csv"
 
 EVAL_FIELDS = [
     "year", "gpu_count", "training_duration",
@@ -107,7 +107,7 @@ def _parse_params(s):
 # Réducteurs (listes brutes → scalaires)
 # ---------------------------------------------------------------------------
 
-_WORD_TO_NUM = json.load(open("data/nombre_anglais.json", encoding="utf-8"))
+_WORD_TO_NUM = json.load(open("../data/nombre_anglais.json", encoding="utf-8"))
 _WORD_TO_NUM.update({'a': 1, 'an': 1, 'single': 1})
 
 
@@ -183,8 +183,12 @@ REDUCERS = {
 
 
 def reduce_predictions(info):
+    # 'training' tag maps to 'training_hours' in pred.py but eval uses 'training_duration'
+    merged = dict(info)
+    if 'training_hours' in merged and 'training_duration' not in merged:
+        merged['training_duration'] = merged['training_hours']
     return {
-        field: REDUCERS[field](info.get(field, []))
+        field: REDUCERS[field](merged.get(field, []))
         for field in EVAL_FIELDS
     }
 
