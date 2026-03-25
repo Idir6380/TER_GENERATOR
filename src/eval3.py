@@ -54,7 +54,7 @@ for _city in _gc.get_cities().values():
 # Configuration
 # ---------------------------------------------------------------------------
 
-PRED_FILE = "../results/greenmir_pred_scibert_F4_L12_1.json" 
+PRED_FILE = "../results/greenmir_pred_gliner2.json"
 DATASET_CSV = "../ref/thibault/static/dataset.csv"
 
 EVAL_FIELDS = [
